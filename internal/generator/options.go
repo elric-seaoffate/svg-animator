@@ -1,0 +1,52 @@
+package generator
+
+// Options encapsulates parameters for headless CLI execution.
+type Options struct {
+	InputPath          string
+	OutputDir          string
+	BaseName           string
+	Format             string
+	Preset             string
+	Duration           string
+	LoopMode           string
+	CameraMotion       string
+	StartX             float64
+	StartY             float64
+	EndX               float64
+	EndY               float64
+	StartScale         float64
+	EndScale           float64
+	StartPitch         float64
+	StartYaw           float64
+	EndPitch           float64
+	EndYaw             float64
+	StartWaveScale     float64
+	EndWaveScale       float64
+	WaveFreq           float64
+	StartBlur          float64
+	EndBlur            float64
+	StartExposure      float64
+	EndExposure        float64
+	StartTemp          float64
+	EndTemp            float64
+	DriftSway          float64
+	DriftBreathe       float64
+	DriftRoll          float64
+	GrainIntensity     float64
+	GrainSize          float64
+	GateWeave          float64
+	TiltBlur           float64
+	TiltPosition       float64
+	TiltBandWidth      float64
+	ChromaOffset       float64
+	ChromaAngle        float64
+	StartMotionBlur    float64
+	EndMotionBlur      float64
+	MotionAngle        float64
+	FrameStyle         string
+	FrameDepth         float64
+	FrameShadow        float64
+	FrameSlicePath     string
+	FrameMouldingData  string
+	FrameMouldingWidth float64
+}

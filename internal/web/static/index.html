@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG Animator Studio</title>
+  <link rel="stylesheet" href="css/style.css?v=3.3">
+</head>
+<body>
+  <header>
+    <h1>SVG Animator Studio <span class="badge">Modular Pipeline</span></h1>
+    <div><span id="imgDimensions" style="font-size: 0.85rem; color: #8b949e;">800 &times; 600</span></div>
+  </header>
+
+  <div class="studio-layout">
+    <!-- LEFT PANEL -->
+    <div class="panel left-panel" id="inputPanel">
+      <div class="section-title">Source Image</div>
+      <label class="upload-zone" id="uploadDrop" for="fileInput">
+        <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📁</div>
+        <div style="font-size: 0.88rem; font-weight: 600;">Choose Photo</div>
+      </label>
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg,image/webp" style="display: none;">
+
+      <!-- DATA FLOW MODULE -->
+      <div class="section-title" style="margin-top: 1.5rem;">Network &amp; Data Flows</div>
+      <button class="secondary" id="btnAddFlow" style="width: 100%; margin-bottom: 0.5rem;">+ Add Data Flow</button>
+      <div id="flowListContainer"><div class="stage-hint" id="emptyFlowHint">No flows active.</div></div>
+
+      <div id="flowEditor" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #444;">
+        <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingFlowLabel">Editing Flow</div>
+        
+        <div class="control-row" style="background: rgba(88,166,255,0.1); padding: 0.6rem; border-radius: 6px; border: 1px solid #58a6ff;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <label style="color: #58a6ff; font-weight: bold; margin: 0;">Routing Waypoints</label>
+            <div>
+              <button class="secondary" id="btnFlowDelNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; border-color: #ff4444; color: #ff4444;">- Drop</button>
+              <button class="primary" id="btnFlowAddNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; background: #58a6ff;">+ Add Node</button>
+            </div>
+          </div>
+          <div class="slider-row">
+            <label style="font-size: 0.75rem; width: 80px;">Target Node:</label>
+            <input type="range" id="flowNodeSlider" min="0" max="1" step="1" value="0">
+            <input type="number" class="num-input" id="flowNodeNum" readonly>
+          </div>
+          <div class="stage-hint" style="margin-top: 0.4rem; text-align: center;">Click reticles on image to select them directly.</div>
+        </div>
+
+        <div class="control-row">
+          <label>Payload Type</label>
+          <select id="flowTypeSelect">
+            <option value="line-only">Dashed Line Only</option>
+            <option value="orb" selected>Glowing Orb</option>
+            <option value="packet">Data Packet</option>
+            <option value="envelope">Mail Envelope</option>
+            <option value="database">Database / Storage</option>
+            <option value="server">Server / Compute</option>
+            <option value="cloud">Cloud Instance</option>
+            <option value="lock">Security Lock</option>
+            <option value="warning">Warning Alert</option>
+            <option value="custom">Custom Graphic (PNG/SVG)</option>
+          </select>
+        </div>
+
+        <div class="control-row" id="customPayloadRow" style="display: none; margin-top: 0.5rem;">
+          <label class="upload-zone upload-zone-compact" for="customPayloadInput" style="padding: 0.8rem; border-color: #58a6ff;">
+            <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
+          </label>
+          <input type="file" id="customPayloadInput" accept="image/png,image/svg+xml" style="display: none;">
+        </div>
+        
+        <div class="control-row" style="margin-top: 0.8rem;">
+          <label class="toggle-switch"><input type="checkbox" id="flowShowLine" checked> 📏 Show visible track line</label>
+        </div>
+
+        <div class="control-row"><label>Theme Color</label><input type="color" id="flowColorPicker" value="#00ffcc" style="width: 100%;"></div>
+        
+        <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="flowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="flowOpacityNum"></div></div>
+        <div class="control-row"><label>Payload Glow (Radius)</label><div class="slider-row"><input type="range" id="flowGlowSlider" min="0" max="100" step="1" value="0"><input type="number" class="num-input" id="flowGlowNum"></div></div>
+        <div class="control-row"><label>Payload Size (Scale)</label><div class="slider-row"><input type="range" id="flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="flowScaleNum"></div></div>
+        
+        <div class="control-row"><label>Travel Speed (sec)</label><div class="slider-row"><input type="range" id="flowSpeedSlider" min="0.1" max="10" step="0.1" value="2.0"><input type="number" class="num-input" id="flowSpeedNum"></div></div>
+        <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="10" step="0.5" value="0.0"><input type="number" class="num-input" id="flowDelayNum"></div></div>
+        
+        <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+          <label>End Delay / Pause (sec)</label>
+          <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="10" step="0.5" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum"></div>
+          <div class="control-row" style="margin-top: 0.4rem;">
+            <label class="toggle-switch"><input type="checkbox" id="flowHideOnDelay" checked> 👻 Hide payload during pause</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- GLOWS MODULE -->
+      <div class="section-title" style="margin-top: 1.5rem;">Hotspots &amp; Glows</div>
+      <button class="secondary" id="btnAddGlow" style="width: 100%; margin-bottom: 0.5rem;">+ Add Glow</button>
+      <div id="glowListContainer"><div class="stage-hint" id="emptyGlowHint">No glows active.</div></div>
+
+      <div id="glowEditor" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #444;">
+        <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingGlowLabel">Editing Glow</div>
+        <div class="stage-hint" style="margin-bottom:0.5rem;">Click the image to place the object center.</div>
+        
+        <div class="control-row">
+          <label>Shape / Object</label>
+          <select id="glowShapeSelect">
+            <option value="circle" selected>Circle (Radial Glow)</option>
+            <option value="square">Square / Block</option>
+            <option value="custom">Custom Graphic (PNG/SVG)</option>
+          </select>
+        </div>
+
+        <div class="control-row" id="glowCustomRow" style="display: none; margin-top: 0.5rem;">
+          <label class="upload-zone upload-zone-compact" for="glowCustomInput" style="padding: 0.8rem; border-color: #ff0044;">
+            <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
+          </label>
+          <input type="file" id="glowCustomInput" accept="image/png,image/svg+xml" style="display: none;">
+        </div>
+        
+        <div class="control-row">
+          <label>Playback Mode</label>
+          <select id="glowPlaybackSelect">
+            <option value="pingpong" selected>Pulse (In & Out)</option>
+            <option value="linear">Linear (Fade In & Reset)</option>
+            <option value="once">Play Once & Hold</option>
+            <option value="static">Static (Constant Overlay)</option>
+          </select>
+        </div>
+        
+        <div class="control-row" id="glowColorRow"><label>Overlay Color</label><input type="color" id="glowColorPicker" value="#ff0044" style="width: 100%;"></div>
+        <div class="control-row"><label>Edge Softness (%)</label><div class="slider-row"><input type="range" id="glowBlurSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="glowBlurNum"></div></div>
+        <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="glowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="glowOpacityNum"></div></div>
+        
+        <div id="glowSizeContainer"><div class="control-row"><label>Size / Radius (px)</label><div class="slider-row"><input type="range" id="glowSizeSlider" min="5" max="200" step="1" value="25"><input type="number" class="num-input" id="glowSizeNum"></div></div></div>
+        <div id="glowScaleContainer" style="display: none;"><div class="control-row"><label>Graphic Scale</label><div class="slider-row"><input type="range" id="glowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="glowScaleNum"></div></div></div>
+        
+        <div class="control-row"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="glowSpeedSlider" min="0.1" max="10" step="0.1" value="2.0"><input type="number" class="num-input" id="glowSpeedNum"></div></div>
+        <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="10" step="0.5" value="0.0"><input type="number" class="num-input" id="glowDelayNum"></div></div>
+        
+        <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+          <label>End Delay / Pause (sec)</label>
+          <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="10" step="0.5" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum"></div>
+          <div class="control-row" style="margin-top: 0.4rem;">
+            <label class="toggle-switch"><input type="checkbox" id="glowHideOnDelay" checked> 👻 Hide glow during pause</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER STAGE -->
+    <div class="stage">
+      <div class="preview-wrapper" id="previewBox" title="Click image to position target">
+        <div id="svgContainer"></div>
+        <svg class="trajectory-overlay" id="trajectorySvg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+          <line id="flightLine" x1="0" y1="0" x2="0" y2="0" stroke="rgba(88, 166, 255, 0.75)" stroke-width="3" stroke-dasharray="5,4" />
+          <path id="flowCurvePath" d="" stroke="#00ffcc" stroke-width="3" stroke-dasharray="5,4" fill="none" style="display:none;" />
+        </svg>
+        <div class="reticle reticle-start active-reticle" id="reticleStart">IN</div>
+        <div class="reticle reticle-end" id="reticleEnd">OUT</div>
+        <div class="reticle active-reticle" id="glowReticleTarget" style="display:none; background:rgba(255, 0, 68, 0.3); border-color:#ff0044; z-index: 12;">GLOW</div>
+        <div id="dynamicFlowReticles" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+      </div>
+      <div class="stage-bar" style="margin-top: 1rem; width: 100%; display: flex; justify-content: space-between;">
+        <div class="stage-hint">Camera framing controls are independent from Data Flows.</div>
+        <button class="replay" id="btnReplay"><span>&#x21bb;</span> Replay Motion</button>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="panel right-panel" id="settingsPanel">
+      <div class="control-row"><label>Playback Mode</label><select id="loopSelect"><option value="loop">Continuous Natural Loop</option><option value="pingpong">Ping-Pong (Smooth In &amp; Out)</option><option value="once" selected>Play Once &amp; Hold</option></select></div>
+      <div class="control-row"><label>Duration / Speed (seconds)</label><div class="slider-row"><input type="range" id="durationSlider" min="1" max="60" step="0.5" value="7"><input type="number" class="num-input" id="durationNum"></div></div>
+      <div class="control-row" style="margin-top: 1rem;"><label>Canvas Background</label><div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem;"><input type="color" id="canvasBgColorPicker" value="#000000" style="flex-grow: 1;"><label class="toggle-switch" style="font-size: 0.8rem; margin: 0;"><input type="checkbox" id="canvasBgTransparent"> Transparent</label></div></div>
+      <div class="section-title" style="margin-top: 0.5rem;">Camera Rig &amp; Motion</div>
+      <div class="effect-group">
+        <div class="control-row"><select id="cameraMotionSelect"><option value="static">Static Locked-Off Shot</option><option value="ken-burns" selected>Ken Burns (Pan &amp; Zoom)</option><option value="perspective-tilt">3D Perspective Tilt</option><option value="handheld-drift">Organic Handheld Drift</option></select></div>
+        <div id="handheldControls" style="display:none; margin-top: 0.5rem;"><div class="control-row"><label>Translation Sway</label><div class="slider-row"><input type="range" id="driftSwaySlider" min="0" max="5.0" step="0.1" value="1.4"><input type="number" class="num-input" id="driftSwayNum"></div></div><div class="control-row"><label>Operator Breathing Zoom</label><div class="slider-row"><input type="range" id="driftBreatheSlider" min="0" max="6.0" step="0.1" value="1.8"><input type="number" class="num-input" id="driftBreatheNum"></div></div><div class="control-row"><label>Wrist/Shoulder Roll</label><div class="slider-row"><input type="range" id="driftRollSlider" min="0" max="3.0" step="0.05" value="0.55"><input type="number" class="num-input" id="driftRollNum"></div></div></div>
+        <div id="framingControls" style="margin-top: 0.5rem;">
+          <div class="target-mode-selector"><button class="mode-btn active-start" id="btnModeStart"><span>●</span> Start Pos</button><button class="mode-btn" id="btnModeEnd"><span>●</span> End Pos</button></div>
+          <div class="control-row"><label>Start Zoom</label><div class="slider-row"><input type="range" id="startZoomSlider" min="-20.0" max="20.0" step="0.1" value="1.0"><input type="number" class="num-input" id="startZoomNum"></div></div>
+          <div class="control-row"><label>Start Center X (%)</label><div class="slider-row"><input type="range" id="startXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="startXNum"></div></div>
+          <div class="control-row"><label>Start Center Y (%)</label><div class="slider-row"><input type="range" id="startYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="startYNum"></div></div>
+          <div id="framingEndControls"><div class="control-row" style="margin-top:0.5rem"><label>End Zoom</label><div class="slider-row"><input type="range" id="endZoomSlider" min="-20.0" max="20.0" step="0.1" value="1.3"><input type="number" class="num-input" id="endZoomNum"></div></div><div class="control-row"><label>End Center X (%)</label><div class="slider-row"><input type="range" id="endXSlider" min="0" max="100" step="1" value="60"><input type="number" class="num-input" id="endXNum"></div></div><div class="control-row"><label>End Center Y (%)</label><div class="slider-row"><input type="range" id="endYSlider" min="0" max="100" step="1" value="40"><input type="number" class="num-input" id="endYNum"></div></div></div>
+        </div>
+      </div>
+      <div class="section-title" style="margin-top: 1.5rem;">Primary Optical Effect</div>
+      <div class="effect-group">
+        <div class="control-row"><select id="effectSelect"><option value="none" selected>None (Clean Image)</option><option value="focus-pull">Focus Pull (Blur &harr; Sharp)</option><option value="tilt-shift">Tilt-Shift Miniature Focus</option><option value="motion-blur">Directional Motion Blur</option><option value="liquid-ripple">Liquid Wave Dissolve</option></select></div>
+        <div id="focusSection" style="display: none; margin-top: 0.5rem;"><div class="control-row"><label>Start Blur Radius (px)</label><div class="slider-row"><input type="range" id="startBlurSlider" min="0" max="30" step="0.5" value="18"><input type="number" class="num-input" id="startBlurNum"></div></div><div class="control-row"><label>End Blur Radius (px)</label><div class="slider-row"><input type="range" id="endBlurSlider" min="0" max="30" step="0.5" value="0"><input type="number" class="num-input" id="endBlurNum"></div></div></div>
+      </div>
+      <div class="section-title" style="margin-top: 1.5rem;">Atmospheric Overlays</div>
+      <div class="effect-group" style="padding-top: 0.4rem; padding-bottom: 0.4rem;">
+        <label class="toggle-switch"><input type="checkbox" id="chkModuleFrame" checked> 🖼️ Presentation Frame</label>
+        <div id="groupFrame" style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.4rem;"><div class="control-row"><select id="frameStyleSelect"><option value="walnut" selected>Heritage Walnut</option><option value="gold">Gilded Gold</option><option value="matte">Museum Matte</option><option value="obsidian">Obsidian Black</option></select></div><div class="control-row"><label>Frame Width / Depth (pixels)</label><div class="slider-row"><input type="range" id="frameDepthSlider" min="10" max="200" step="1" value="44"><input type="number" class="num-input" id="frameDepthNum"></div></div></div>
+      </div>
+      <div class="effect-group" style="padding-top: 0.4rem; padding-bottom: 0.4rem;">
+        <label class="toggle-switch"><input type="checkbox" id="chkModuleExposure"> 🌅 Exposure &amp; Color Grade</label>
+        <div id="groupExposure" style="display:none; flex-direction:column; gap:0.4rem; margin-top:0.4rem;"><div class="control-row"><label>Start Exposure</label><div class="slider-row"><input type="range" id="startExposureSlider" min="0.1" max="2.5" step="0.05" value="0.35"><input type="number" class="num-input" id="startExposureNum"></div></div><div class="control-row"><label>End Exposure</label><div class="slider-row"><input type="range" id="endExposureSlider" min="0.1" max="2.5" step="0.05" value="1.05"><input type="number" class="num-input" id="endExposureNum"></div></div></div>
+      </div>
+      <div class="section-title" style="margin-top: 1.5rem;">Export</div>
+      <div class="btn-group">
+        <button class="primary" id="btnDownloadSVG">Download SVG</button>
+        <button class="secondary" id="btnDownloadHTML" style="margin-top: 0.5rem; width: 100%;">Download HTML</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/effects.js?v=3.3"></script>
+  <script src="js/stage.js?v=3.3"></script>
+  <script src="js/flows.js?v=3.3"></script>
+  <script src="js/glows.js?v=3.3"></script>
+  <script src="js/app.js?v=3.3"></script>
+</body>
+</html>
