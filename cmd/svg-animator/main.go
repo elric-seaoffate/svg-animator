@@ -14,10 +14,13 @@ func main() {
 	serveAddr := flag.String("serve", ":8088", "HTTP listen address for the interactive web studio")
 	outDir := flag.String("outdir", "./dist", "Directory to write output files in CLI mode")
 	name := flag.String("name", "", "Custom base name for output files")
-	format := flag.String("format", "both", "CLI target output format: svg, html, or both")
+	format := flag.String("format", "both", "CLI target format: svg, html, webp, apng, both, or all")
+	fps := flag.Int("fps", 30, "Frames per second for rasterized output (webp/apng)")
 	preset := flag.String("preset", "handheld-drift", "Preset: handheld-drift, film-grain, tilt-shift, chromatic-aberration, motion-blur, exposure-pull, focus-pull, liquid-ripple, perspective-tilt, ken-burns, pan, pulse, orbit, scanlines, glitch")
 	duration := flag.String("duration", "7s", "Animation duration (1s to 60s, e.g. 7s, 14s)")
 	loopMode := flag.String("loop", "loop", "Playback mode: loop, pingpong, once")
+	
+	// Camera Parameters
 	cameraMotion := flag.String("motion", "static", "Camera motion: static, ken-burns, perspective-tilt")
 	startX := flag.Float64("start-x", 50.0, "Focal center X percent (0 to 100)")
 	startY := flag.Float64("start-y", 50.0, "Focal center Y percent (0 to 100)")
@@ -29,6 +32,8 @@ func main() {
 	startYaw := flag.Float64("start-yaw", 0.0, "Start yaw angle in degrees")
 	endPitch := flag.Float64("end-pitch", 0.0, "End pitch angle in degrees")
 	endYaw := flag.Float64("end-yaw", 0.0, "End yaw angle in degrees")
+	
+	// Optical Parameters
 	startWave := flag.Float64("start-wave", 45.0, "Start wave displacement strength")
 	endWave := flag.Float64("end-wave", 0.0, "End wave displacement strength")
 	waveFreq := flag.Float64("wave-freq", 0.02, "Wave frequency / density")
@@ -42,7 +47,6 @@ func main() {
 	driftBreathe := flag.Float64("drift-breathe", 1.8, "Handheld breathing scale percent")
 	driftRoll := flag.Float64("drift-roll", 0.55, "Handheld micro-tilt roll degrees")
 
-	// Optical Effects
 	grainIntensity := flag.Float64("grain-int", 0.22, "Film grain intensity (0.05 to 0.60)")
 	grainSize := flag.Float64("grain-size", 0.75, "Film grain size (0.40 to 1.50)")
 	gateWeave := flag.Float64("gate-weave", 1.2, "Film gate registration jitter in pixels")
@@ -77,6 +81,7 @@ func main() {
 		OutputDir:          *outDir,
 		BaseName:           *name,
 		Format:             *format,
+		FPS:                *fps,
 		Preset:             *preset,
 		Duration:           *duration,
 		LoopMode:           *loopMode,

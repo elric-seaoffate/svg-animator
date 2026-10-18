@@ -85,7 +85,22 @@ func Get(name string) Generator {
 
 // CalcTranslation calculates percentage translations to center target coordinates.
 func CalcTranslation(scale, x, y float64) (float64, float64) {
-	tx := 50.0 - (scale * x)
-	ty := 50.0 - (scale * y)
+	if scale < 1.0 {
+		scale = 1.0
+	}
+	w, h := 100.0, 100.0
+	vw, vh := w/scale, h/scale
+
+	vx := x - (vw / 2.0)
+	vy := y - (vh / 2.0)
+
+	// Clamp bounds to prevent overscan (black bars)
+	if vx < 0 { vx = 0 }
+	if vy < 0 { vy = 0 }
+	if vx+vw > w { vx = w - vw }
+	if vy+vh > h { vy = h - vh }
+
+	tx := -vx * scale
+	ty := -vy * scale
 	return tx, ty
 }

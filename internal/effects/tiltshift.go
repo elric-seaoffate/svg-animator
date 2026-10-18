@@ -74,7 +74,7 @@ func generateTiltShift(p Params) Markup {
 		stop1, stop2, stop3, stop4,
 	)
 
-	overlays := `  <use href="#animTarget" filter="url(#tiltBlurFilter)" mask="url(#tiltMask)" pointer-events="none" />`
+	overlays := `  <use href="#animTarget" xlink:href="#animTarget" filter="url(#tiltBlurFilter)" mask="url(#tiltMask)" pointer-events="none" />`
 
 	return Markup{
 		Defs:      defs,

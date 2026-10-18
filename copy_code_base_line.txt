@@ -1,0 +1,1 @@
+find . -type f \( -name "*.go" -o -name "*.html" -o -name "*.css" -o -name "*.js" -o -name "go.mod" \) -not -path "*/.git/*" -not -path "*/render_workspace/*" -exec sh -c 'echo -e "\n\n=== {} ==="; cat "{}"' \; > full_codebase.txt

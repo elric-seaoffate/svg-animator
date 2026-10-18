@@ -6,6 +6,7 @@ type Options struct {
 	OutputDir          string
 	BaseName           string
 	Format             string
+	FPS                int      // <-- Added field for rasterization
 	Preset             string
 	Duration           string
 	LoopMode           string

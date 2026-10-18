@@ -158,7 +158,7 @@ func BuildMasterMarkup(p Params) Markup {
       </linearGradient>
       <mask id="tiltMask"><rect width="100%%" height="100%%" fill="url(#tiltMaskGrad)" /></mask>`, p.TiltBlur, s1, s2, s3, s4)
 
-		overlays += `  <use href="#animTarget" filter="url(#tiltBlurFilter)" mask="url(#tiltMask)" pointer-events="none" />`
+		overlays += `  <use href="#animTarget" xlink:href="#animTarget" filter="url(#tiltBlurFilter)" mask="url(#tiltMask)" pointer-events="none" />`
 	}
 
 	// Keyframes

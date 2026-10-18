@@ -1,0 +1,45 @@
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999; backdrop-filter: blur(4px);
+}
+.modal-content {
+  background: #161b22; width: 900px; max-width: 95%; border-radius: 12px;
+  border: 1px solid #30363d; box-shadow: 0 24px 48px rgba(0,0,0,0.8);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal-header {
+  padding: 1.5rem; border-bottom: 1px solid #30363d;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-header h2 { margin: 0; color: #c9d1d9; font-size: 1.25rem; }
+.close-btn { background: none; border: none; color: #8b949e; font-size: 1.5rem; cursor: pointer; }
+.close-btn:hover { color: #fff; }
+.modal-body {
+  display: flex; padding: 1.5rem; gap: 2rem; background: #0d1117;
+}
+.export-settings { flex: 1; display: flex; flex-direction: column; gap: 1.25rem; }
+.export-preview { flex: 1; display: flex; flex-direction: column; }
+.setting-row { display: flex; gap: 1rem; }
+.setting-group { display: flex; flex-direction: column; gap: 0.5rem; }
+.setting-group label { color: #8b949e; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; }
+.setting-group input[type="text"], .setting-group input[type="number"], .setting-group select {
+  background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 0.5rem; border-radius: 6px;
+}
+.toggle-label { display: flex; align-items: center; gap: 0.5rem; color: #c9d1d9; font-size: 0.9rem; font-weight: normal !important; text-transform: none !important; cursor: pointer; }
+.preview-box {
+  background: #000; border-radius: 8px; border: 1px solid #30363d;
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 300px; overflow: hidden; position: relative;
+}
+#previewPlaceholder { color: #8b949e; font-size: 0.9rem; }
+#previewImage { width: 100%; height: 100%; object-fit: contain; }
+.modal-footer {
+  padding: 1.5rem; background: #161b22; border-top: 1px solid #30363d;
+  display: flex; justify-content: space-between;
+}
+.btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; }
+.btn-secondary:hover { background: #30363d; }
+.btn-primary { background: #238636; color: #fff; border: 1px solid rgba(240,246,252,0.1); padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: bold; }
+.btn-primary:hover { background: #2ea043; }

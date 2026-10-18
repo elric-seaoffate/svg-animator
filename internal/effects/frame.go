@@ -331,7 +331,7 @@ func generateTiledFrame(w, h, d, shadow float64, p Params) Markup {
 
 	var patC string
 	if p.FrameMouldingData != "" {
-		patC = fmt.Sprintf(`<image href="%s" width="%.1f" height="%.1f" preserveAspectRatio="none" />`, p.FrameMouldingData, sliceW, d)
+		patC = fmt.Sprintf(`<image href="%s" xlink:href="%s" width="%.1f" height="%.1f" preserveAspectRatio="none" />`, p.FrameMouldingData, p.FrameMouldingData, sliceW, d)
 	} else {
 		patC = fmt.Sprintf(`<rect width="%.1f" height="%.1f" fill="#6a472d" /><line x1="0" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#875d3c" stroke-width="3" /><line x1="0" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#462c19" stroke-width="3" /><line x1="0" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#9e704a" stroke-width="4" /><line x1="0" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#372010" stroke-width="4" /><line x1="0" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#b8855a" stroke-width="2" /><line x1="0" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#221307" stroke-width="3" />`, sliceW, d, d*0.18, sliceW, d*0.18, d*0.32, sliceW, d*0.32, d*0.52, sliceW, d*0.52, d*0.68, sliceW, d*0.68, d*0.84, sliceW, d*0.84, d*0.96, sliceW, d*0.96)
 	}

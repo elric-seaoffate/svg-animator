@@ -9,9 +9,11 @@ import (
 	_ "image/png"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/effects"
+	"gitea.seaoffate.net/blackgrape/svg-animator/internal/rasterizer"
 )
 
 // BuildStandaloneSVG builds the self-contained SVG text with embedded editing instructions.
@@ -79,10 +81,8 @@ func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Option
 		}
 	}
 
-	// Fix 1: Properly pass the master filter attribute
 	finalFilterAttr := markup.FilterAttr
 
-	// Fix 2: Explicitly clip the viewport to prevent Ken Burns from bleeding out of the frame
 	defsCombined := fmt.Sprintf(`<clipPath id="canvasClip"><rect width="%d" height="%d" /></clipPath>`, width, height)
 	if markup.Defs != "" {
 		defsCombined += "\n    " + markup.Defs
@@ -107,8 +107,8 @@ func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Option
     =============================================================================
   -->`, opts.Duration, opts.LoopMode, opts.CameraMotion, opts.FrameStyle, opts.FrameDepth, opts.StartX, opts.StartY, opts.StartScale, opts.EndX, opts.EndY, opts.EndScale)
 
-	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" width="100%%" height="100%%">
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 %d %d" width="100%%" height="100%%">
 %s
   <defs>
     %s
@@ -123,11 +123,11 @@ func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Option
   </defs>
   <g clip-path="url(#canvasClip)">
     <g id="animTarget" class="anim-target" %s>
-      <image width="%d" height="%d" href="data:%s;base64,%s" preserveAspectRatio="xMidYMid slice" />
+      <image width="%d" height="%d" href="data:%s;base64,%s" xlink:href="data:%s;base64,%s" preserveAspectRatio="xMidYMid slice" />
     </g>
   </g>
   %s
-</svg>`, width, height, commentGuide, defsCombined, markup.Keyframes, animRule, finalFilterAttr, width, height, mimeType, b64Data, overlaysCombined)
+</svg>`, width, height, commentGuide, defsCombined, markup.Keyframes, animRule, finalFilterAttr, width, height, mimeType, b64Data, mimeType, b64Data, overlaysCombined)
 }
 
 // BuildStandaloneHTML wraps the animated SVG in a responsive HTML container.
@@ -192,9 +192,21 @@ func Run(opts Options) error {
 
 	b64String := base64.StdEncoding.EncodeToString(fileBytes)
 	svgText := BuildStandaloneSVG(cfg.Width, cfg.Height, mimeType, b64String, opts)
+	htmlText := BuildStandaloneHTML(baseName, cfg.Width, cfg.Height, svgText)
 
 	genFormat := strings.ToLower(opts.Format)
-	if genFormat == "svg" || genFormat == "both" {
+
+	htmlPath := filepath.Join(outDir, baseName+".html")
+	if genFormat == "html" || genFormat == "both" || genFormat == "all" || genFormat == "webp" || genFormat == "apng" {
+		if err := os.WriteFile(htmlPath, []byte(htmlText), 0644); err != nil {
+			return err
+		}
+		if genFormat == "html" || genFormat == "both" || genFormat == "all" {
+			fmt.Printf("[OK] HTML written: %s\n", htmlPath)
+		}
+	}
+
+	if genFormat == "svg" || genFormat == "both" || genFormat == "all" {
 		svgPath := filepath.Join(outDir, baseName+".svg")
 		if err := os.WriteFile(svgPath, []byte(svgText), 0644); err != nil {
 			return err
@@ -202,13 +214,34 @@ func Run(opts Options) error {
 		fmt.Printf("[OK] SVG written:  %s\n", svgPath)
 	}
 
-	if genFormat == "html" || genFormat == "both" {
-		htmlPath := filepath.Join(outDir, baseName+".html")
-		htmlText := BuildStandaloneHTML(baseName, cfg.Width, cfg.Height, svgText)
-		if err := os.WriteFile(htmlPath, []byte(htmlText), 0644); err != nil {
-			return err
+	if genFormat == "webp" || genFormat == "apng" || genFormat == "all" {
+		durStr := strings.TrimSuffix(opts.Duration, "s")
+		durFloat, parseErr := strconv.ParseFloat(durStr, 64)
+		if parseErr != nil {
+			durFloat = 7.0 
 		}
-		fmt.Printf("[OK] HTML written: %s\n", htmlPath)
+
+		if genFormat == "webp" || genFormat == "all" {
+			outPath := filepath.Join(outDir, baseName+".webp")
+			fmt.Printf(">> Rendering %s frames to %s...\n", opts.Duration, outPath)
+			if err := rasterizer.Export(htmlPath, outPath, "webp", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
+				return err
+			}
+			fmt.Printf("[OK] WebP written: %s\n", outPath)
+		}
+
+		if genFormat == "apng" || genFormat == "all" {
+			outPath := filepath.Join(outDir, baseName+".png")
+			fmt.Printf(">> Rendering %s frames to APNG %s...\n", opts.Duration, outPath)
+			if err := rasterizer.Export(htmlPath, outPath, "apng", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
+				return err
+			}
+			fmt.Printf("[OK] APNG written: %s\n", outPath)
+		}
+
+		if genFormat == "webp" || genFormat == "apng" {
+			os.Remove(htmlPath)
+		}
 	}
 
 	return nil
