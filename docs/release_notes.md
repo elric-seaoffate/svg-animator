@@ -1,4 +1,4 @@
-# SVG Animator Studio v1.0
+# SVG Animator Studio v1.1.0
 
 SVG Animator Studio is a powerful, self-hosted web application and CLI tool designed for creating interactive vector diagrams, animated network topologies, and dynamic photo effects. It combines a Go-based backend rasterization engine with a pure HTML/JS/CSS frontend, allowing users to build complex, animated architectures that can be exported as lightweight standalone HTML/SVG files or fully rendered Animated WebP/APNG bitmaps.
 
@@ -11,7 +11,7 @@ SVG Animator Studio is a powerful, self-hosted web application and CLI tool desi
 * **Liquid Ripples:** Add refractive, distorting water ripple effects to background images.
 * **Camera Rig & Motion:** Wrap the entire canvas in a 3D hardware-accelerated camera rig. Choose from a static locked-off shot, Ken Burns (pan and zoom), Perspective Tilt (3D space rotation), or an organic harmonic Handheld Drift.
 * **Optical Effects & Framing:** Apply cinematic optical shaders including depth-of-field Focus Pulls, Tilt-Shift miniature focal bands, and Directional Motion Blur.
-* **Dual Export Studio:**
+* **Dual Export Studio:**clear
   * **Interactive Vector:** Export directly to standalone `.svg` or fully responsive `.html` files that retain infinite resolution and small file sizes.
   * **Still Image & Print:** Rasterize flat snapshots (PNG, WebP, JPEG) at up to 600 DPI for high-resolution print workflows.
   * **Animated Bitmap:** Leverage headless Chromium and FFmpeg to rasterize multi-frame animations into Animated WebP or APNG formats at up to 60fps.
