@@ -117,6 +117,7 @@ func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Option
       .anim-target {
         transform-box: fill-box;
         transform-origin: 0%% 0%%;
+        will-change: transform;
         %s
       }
     </style>
@@ -196,14 +197,12 @@ func Run(opts Options) error {
 
 	genFormat := strings.ToLower(opts.Format)
 
-	htmlPath := filepath.Join(outDir, baseName+".html")
-	if genFormat == "html" || genFormat == "both" || genFormat == "all" || genFormat == "webp" || genFormat == "apng" {
+	if genFormat == "html" || genFormat == "both" || genFormat == "all" {
+		htmlPath := filepath.Join(outDir, baseName+".html")
 		if err := os.WriteFile(htmlPath, []byte(htmlText), 0644); err != nil {
 			return err
 		}
-		if genFormat == "html" || genFormat == "both" || genFormat == "all" {
-			fmt.Printf("[OK] HTML written: %s\n", htmlPath)
-		}
+		fmt.Printf("[OK] HTML written: %s\n", htmlPath)
 	}
 
 	if genFormat == "svg" || genFormat == "both" || genFormat == "all" {
@@ -215,16 +214,30 @@ func Run(opts Options) error {
 	}
 
 	if genFormat == "webp" || genFormat == "apng" || genFormat == "all" {
+		localTemp := filepath.Join(".", "render_workspace")
+		os.MkdirAll(localTemp, 0755)
+
+		tmpRenderDir, err := os.MkdirTemp(localTemp, "cli-render-*")
+		if err != nil {
+			return fmt.Errorf("creating temp render dir: %w", err)
+		}
+		defer os.RemoveAll(tmpRenderDir)
+
+		tempHTMLPath := filepath.Join(tmpRenderDir, "index.html")
+		if err := os.WriteFile(tempHTMLPath, []byte(htmlText), 0644); err != nil {
+			return err
+		}
+
 		durStr := strings.TrimSuffix(opts.Duration, "s")
 		durFloat, parseErr := strconv.ParseFloat(durStr, 64)
 		if parseErr != nil {
-			durFloat = 7.0 
+			durFloat = 7.0
 		}
 
 		if genFormat == "webp" || genFormat == "all" {
 			outPath := filepath.Join(outDir, baseName+".webp")
 			fmt.Printf(">> Rendering %s frames to %s...\n", opts.Duration, outPath)
-			if err := rasterizer.Export(htmlPath, outPath, "webp", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
+			if err := rasterizer.Export(tempHTMLPath, outPath, "webp", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
 				return err
 			}
 			fmt.Printf("[OK] WebP written: %s\n", outPath)
@@ -233,14 +246,10 @@ func Run(opts Options) error {
 		if genFormat == "apng" || genFormat == "all" {
 			outPath := filepath.Join(outDir, baseName+".png")
 			fmt.Printf(">> Rendering %s frames to APNG %s...\n", opts.Duration, outPath)
-			if err := rasterizer.Export(htmlPath, outPath, "apng", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
+			if err := rasterizer.Export(tempHTMLPath, outPath, "apng", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
 				return err
 			}
 			fmt.Printf("[OK] APNG written: %s\n", outPath)
-		}
-
-		if genFormat == "webp" || genFormat == "apng" {
-			os.Remove(htmlPath)
 		}
 	}
 

@@ -3,6 +3,8 @@ package effects
 import (
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 )
 
 // BuildMasterMarkup generates chained optical filters, overlays, and camera keyframes.
@@ -11,18 +13,24 @@ func BuildMasterMarkup(p Params) Markup {
 	var currentIn = "SourceGraphic"
 	var filters string
 
+	durSec := 7.0
+	if d, err := strconv.ParseFloat(strings.TrimSuffix(p.Duration, "s"), 64); err == nil && d > 0 {
+		durSec = d
+	}
+	pingPongDur := fmt.Sprintf("%.2fs", durSec*2.0)
+
 	// 1. Focus Pull
 	if p.StartBlur > 0 || p.EndBlur > 0 {
 		var anim string
 		switch p.LoopMode {
 		case "pingpong":
-			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.1f; %.1f; %.1f" dur="%s" repeatCount="indefinite" />`, p.StartBlur, p.EndBlur, p.StartBlur, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.2f; %.2f; %.2f" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, p.StartBlur, p.EndBlur, p.StartBlur, pingPongDur)
 		case "loop":
-			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.1f; %.1f" dur="%s" repeatCount="indefinite" />`, p.StartBlur, p.EndBlur, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.2f; %.2f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, p.StartBlur, p.EndBlur, p.Duration)
 		default:
-			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" from="%.1f" to="%.1f" dur="%s" fill="freeze" />`, p.StartBlur, p.EndBlur, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.2f; %.2f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" fill="freeze" />`, p.StartBlur, p.EndBlur, p.Duration)
 		}
-		filters += fmt.Sprintf(`<feGaussianBlur in="%s" stdDeviation="%.1f" result="focusOut">%s</feGaussianBlur>`, currentIn, p.StartBlur, anim)
+		filters += fmt.Sprintf(`<feGaussianBlur in="%s" stdDeviation="%.2f" result="focusOut">%s</feGaussianBlur>`, currentIn, p.StartBlur, anim)
 		currentIn = "focusOut"
 	}
 
@@ -37,18 +45,18 @@ func BuildMasterMarkup(p Params) Markup {
 		var anim string
 		switch p.LoopMode {
 		case "pingpong":
-			anim = fmt.Sprintf(`<animate attributeName="scale" values="%.1f; %.1f; %.1f" dur="%s" repeatCount="indefinite" />`, p.StartWaveScale, p.EndWaveScale, p.StartWaveScale, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="scale" values="%.2f; %.2f; %.2f" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, p.StartWaveScale, p.EndWaveScale, p.StartWaveScale, pingPongDur)
 		case "loop":
-			anim = fmt.Sprintf(`<animate attributeName="scale" values="%.1f; %.1f" dur="%s" repeatCount="indefinite" />`, p.StartWaveScale, p.EndWaveScale, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="scale" values="%.2f; %.2f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, p.StartWaveScale, p.EndWaveScale, p.Duration)
 		default:
-			anim = fmt.Sprintf(`<animate attributeName="scale" from="%.1f" to="%.1f" dur="%s" fill="freeze" />`, p.StartWaveScale, p.EndWaveScale, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="scale" values="%.2f; %.2f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" fill="freeze" />`, p.StartWaveScale, p.EndWaveScale, p.Duration)
 		}
 
 		filters += fmt.Sprintf(`
       <feTurbulence type="fractalNoise" baseFrequency="%.4f %.4f" numOctaves="2" result="rippleNoise">
         <animate attributeName="baseFrequency" values="%.4f %.4f; %.4f %.4f; %.4f %.4f; %.4f %.4f; %.4f %.4f" dur="%s" repeatCount="indefinite" />
       </feTurbulence>
-      <feDisplacementMap in="%s" in2="rippleNoise" scale="%.1f" xChannelSelector="R" yChannelSelector="G" result="liquidOut">%s</feDisplacementMap>`,
+      <feDisplacementMap in="%s" in2="rippleNoise" scale="%.2f" xChannelSelector="R" yChannelSelector="G" result="liquidOut">%s</feDisplacementMap>`,
 			f1, f2, f1, f2, f2, f3, f3, f4, f4, f1, f1, f2, p.Duration, currentIn, p.StartWaveScale, anim)
 		currentIn = "liquidOut"
 	}
@@ -63,13 +71,13 @@ func BuildMasterMarkup(p Params) Markup {
 		var anim string
 		switch p.LoopMode {
 		case "pingpong":
-			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.1f %.1f; %.1f %.1f; %.1f %.1f" dur="%s" repeatCount="indefinite" />`, sX, sY, eX, eY, sX, sY, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.2f %.2f; %.2f %.2f; %.2f %.2f" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sX, sY, eX, eY, sX, sY, pingPongDur)
 		case "loop":
-			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.1f %.1f; %.1f %.1f" dur="%s" repeatCount="indefinite" />`, sX, sY, eX, eY, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.2f %.2f; %.2f %.2f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sX, sY, eX, eY, p.Duration)
 		default:
-			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" from="%.1f %.1f" to="%.1f %.1f" dur="%s" fill="freeze" />`, sX, sY, eX, eY, p.Duration)
+			anim = fmt.Sprintf(`<animate attributeName="stdDeviation" values="%.2f %.2f; %.2f %.2f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" fill="freeze" />`, sX, sY, eX, eY, p.Duration)
 		}
-		filters += fmt.Sprintf(`<feGaussianBlur in="%s" stdDeviation="%.1f %.1f" result="motionOut">%s</feGaussianBlur>`, currentIn, sX, sY, anim)
+		filters += fmt.Sprintf(`<feGaussianBlur in="%s" stdDeviation="%.2f %.2f" result="motionOut">%s</feGaussianBlur>`, currentIn, sX, sY, anim)
 		currentIn = "motionOut"
 	}
 
@@ -96,17 +104,17 @@ func BuildMasterMarkup(p Params) Markup {
 		var rA, gA, bA string
 		switch p.LoopMode {
 		case "pingpong":
-			rA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f; %.3f" dur="%s" repeatCount="indefinite" />`, sR, eR, sR, p.Duration)
-			gA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f; %.3f" dur="%s" repeatCount="indefinite" />`, sG, eG, sG, p.Duration)
-			bA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f; %.3f" dur="%s" repeatCount="indefinite" />`, sB, eB, sB, p.Duration)
+			rA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f; %.3f" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sR, eR, sR, pingPongDur)
+			gA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f; %.3f" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sG, eG, sG, pingPongDur)
+			bA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f; %.3f" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sB, eB, sB, pingPongDur)
 		case "loop":
-			rA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" dur="%s" repeatCount="indefinite" />`, sR, eR, p.Duration)
-			gA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" dur="%s" repeatCount="indefinite" />`, sG, eG, p.Duration)
-			bA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" dur="%s" repeatCount="indefinite" />`, sB, eB, p.Duration)
+			rA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sR, eR, p.Duration)
+			gA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sG, eG, p.Duration)
+			bA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" repeatCount="indefinite" />`, sB, eB, p.Duration)
 		default:
-			rA = fmt.Sprintf(`<animate attributeName="slope" from="%.3f" to="%.3f" dur="%s" fill="freeze" />`, sR, eR, p.Duration)
-			gA = fmt.Sprintf(`<animate attributeName="slope" from="%.3f" to="%.3f" dur="%s" fill="freeze" />`, sG, eG, p.Duration)
-			bA = fmt.Sprintf(`<animate attributeName="slope" from="%.3f" to="%.3f" dur="%s" fill="freeze" />`, sB, eB, p.Duration)
+			rA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" fill="freeze" />`, sR, eR, p.Duration)
+			gA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" fill="freeze" />`, sG, eG, p.Duration)
+			bA = fmt.Sprintf(`<animate attributeName="slope" values="%.3f; %.3f" keyTimes="0; 1" calcMode="spline" keySplines="0.42 0 0.58 1" dur="%s" fill="freeze" />`, sB, eB, p.Duration)
 		}
 
 		filters += fmt.Sprintf(`
@@ -131,7 +139,7 @@ func BuildMasterMarkup(p Params) Markup {
 
 	var filterAttr string
 	if filters != "" {
-		defs += fmt.Sprintf(`<filter id="masterFilter" x="-20%%" y="-20%%" width="140%%" height="140%%">%s</filter>`, filters)
+		defs += fmt.Sprintf(`<filter id="masterFilter" x="-20%%" y="-20%%" width="140%%" height="140%%" color-interpolation-filters="sRGB">%s</filter>`, filters)
 		filterAttr = `filter="url(#masterFilter)"`
 	}
 
@@ -147,7 +155,7 @@ func BuildMasterMarkup(p Params) Markup {
 		s4 := math.Min(100, pos+halfBand+feather)
 
 		defs += fmt.Sprintf(`
-      <filter id="tiltBlurFilter"><feGaussianBlur stdDeviation="%.1f" /></filter>
+      <filter id="tiltBlurFilter" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="%.1f" /></filter>
       <linearGradient id="tiltMaskGrad" x1="0%%" y1="0%%" x2="0%%" y2="100%%">
         <stop offset="0%%" stop-color="#ffffff" />
         <stop offset="%.1f%%" stop-color="#ffffff" />
@@ -174,14 +182,14 @@ func BuildMasterMarkup(p Params) Markup {
 		s, b, r := p.DriftSway, p.DriftBreathe/100.0, p.DriftRoll
 		keyframes = fmt.Sprintf(`
       @keyframes animEffect {
-        0%% { transform: translate(%.2f%%, %.2f%%) rotate(0deg) scale(%.3f); }
-        14%% { transform: translate(%.2f%%, %.2f%%) rotate(%.2fdeg) scale(%.3f); }
-        28%% { transform: translate(%.2f%%, %.2f%%) rotate(%.2fdeg) scale(%.3f); }
-        44%% { transform: translate(%.2f%%, %.2f%%) rotate(%.2fdeg) scale(%.3f); }
-        59%% { transform: translate(%.2f%%, %.2f%%) rotate(%.2fdeg) scale(%.3f); }
-        73%% { transform: translate(%.2f%%, %.2f%%) rotate(%.2fdeg) scale(%.3f); }
-        88%% { transform: translate(%.2f%%, %.2f%%) rotate(%.2fdeg) scale(%.3f); }
-        100%% { transform: translate(%.2f%%, %.2f%%) rotate(0deg) scale(%.3f); }
+        0%%   { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(0deg) scale(%.4f); animation-timing-function: ease-in-out; }
+        14%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(%.3fdeg) scale(%.4f); animation-timing-function: ease-in-out; }
+        28%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(%.3fdeg) scale(%.4f); animation-timing-function: ease-in-out; }
+        44%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(%.3fdeg) scale(%.4f); animation-timing-function: ease-in-out; }
+        59%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(%.3fdeg) scale(%.4f); animation-timing-function: ease-in-out; }
+        73%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(%.3fdeg) scale(%.4f); animation-timing-function: ease-in-out; }
+        88%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(%.3fdeg) scale(%.4f); animation-timing-function: ease-in-out; }
+        100%% { transform: translate3d(%.3f%%, %.3f%%, 0px) rotate(0deg) scale(%.4f); }
       }`,
 			baseTx, baseTy, baseScale,
 			baseTx+(0.55*s), baseTy-(0.42*s), 0.35*r, baseScale*(1.0+0.45*b),
@@ -198,19 +206,19 @@ func BuildMasterMarkup(p Params) Markup {
 		if w > 0 {
 			keyframes = fmt.Sprintf(`
         @keyframes animEffect {
-          0%%   { transform: translate(%.2f%%, %.2f%%) translate(0px, 0px) scale(%.3f); }
-          15%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          32%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          50%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          68%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          84%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          100%% { transform: translate(%.2f%%, %.2f%%) translate(0px, 0px) scale(%.3f); }
+          0%%   { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(0px, 0px) scale(%.4f); }
+          15%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          32%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          50%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          68%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          84%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          100%% { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(0px, 0px) scale(%.4f); }
         }`, tx1, ty1, p.StartScale, tx1+(tx2-tx1)*0.15, ty1+(ty2-ty1)*0.15, 0.65*w, -0.45*w, p.StartScale+(p.EndScale-p.StartScale)*0.15, tx1+(tx2-tx1)*0.32, ty1+(ty2-ty1)*0.32, -0.55*w, 0.70*w, p.StartScale+(p.EndScale-p.StartScale)*0.32, tx1+(tx2-tx1)*0.50, ty1+(ty2-ty1)*0.50, 0.80*w, 0.35*w, p.StartScale+(p.EndScale-p.StartScale)*0.50, tx1+(tx2-tx1)*0.68, ty1+(ty2-ty1)*0.68, -0.70*w, -0.60*w, p.StartScale+(p.EndScale-p.StartScale)*0.68, tx1+(tx2-tx1)*0.84, ty1+(ty2-ty1)*0.84, 0.45*w, 0.50*w, p.StartScale+(p.EndScale-p.StartScale)*0.84, tx2, ty2, p.EndScale)
 		} else {
 			keyframes = fmt.Sprintf(`
         @keyframes animEffect {
-          0%%   { transform: translate(%.2f%%, %.2f%%) scale(%.3f); }
-          100%% { transform: translate(%.2f%%, %.2f%%) scale(%.3f); }
+          0%%   { transform: translate3d(%.3f%%, %.3f%%, 0px) scale(%.4f); }
+          100%% { transform: translate3d(%.3f%%, %.3f%%, 0px) scale(%.4f); }
         }`, tx1, ty1, p.StartScale, tx2, ty2, p.EndScale)
 		}
 	case "perspective-tilt":
@@ -218,8 +226,8 @@ func BuildMasterMarkup(p Params) Markup {
 		tx2, ty2 := CalcTranslation(p.EndScale, p.EndX, p.EndY)
 		keyframes = fmt.Sprintf(`
       @keyframes animEffect {
-        0%%   { transform: perspective(1200px) translate(50%%, 50%%) rotateX(%.1fdeg) rotateY(%.1fdeg) translate(-50%%, -50%%) translate(%.2f%%, %.2f%%) scale(%.2f); }
-        100%% { transform: perspective(1200px) translate(50%%, 50%%) rotateX(%.1fdeg) rotateY(%.1fdeg) translate(-50%%, -50%%) translate(%.2f%%, %.2f%%) scale(%.2f); }
+        0%%   { transform: perspective(1200px) translate(50%%, 50%%) rotateX(%.2fdeg) rotateY(%.2fdeg) translate(-50%%, -50%%) translate3d(%.3f%%, %.3f%%, 0px) scale(%.4f); }
+        100%% { transform: perspective(1200px) translate(50%%, 50%%) rotateX(%.2fdeg) rotateY(%.2fdeg) translate(-50%%, -50%%) translate3d(%.3f%%, %.3f%%, 0px) scale(%.4f); }
       }`, p.StartPitch, p.StartYaw, tx1, ty1, p.StartScale, p.EndPitch, p.EndYaw, tx2, ty2, p.EndScale)
 	default:
 		tx1, ty1 := CalcTranslation(baseScale, p.StartX, p.StartY)
@@ -227,19 +235,19 @@ func BuildMasterMarkup(p Params) Markup {
 		if w > 0 {
 			keyframes = fmt.Sprintf(`
         @keyframes animEffect {
-          0%%   { transform: translate(%.2f%%, %.2f%%) translate(0px, 0px) scale(%.3f); }
-          15%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          32%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          50%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          68%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          84%%  { transform: translate(%.2f%%, %.2f%%) translate(%.2fpx, %.2fpx) scale(%.3f); }
-          100%% { transform: translate(%.2f%%, %.2f%%) translate(0px, 0px) scale(%.3f); }
+          0%%   { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(0px, 0px) scale(%.4f); }
+          15%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          32%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          50%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          68%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          84%%  { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(%.2fpx, %.2fpx) scale(%.4f); }
+          100%% { transform: translate3d(%.3f%%, %.3f%%, 0px) translate(0px, 0px) scale(%.4f); }
         }`, tx1, ty1, baseScale, tx1, ty1, 0.65*w, -0.45*w, baseScale, tx1, ty1, -0.55*w, 0.70*w, baseScale, tx1, ty1, 0.80*w, 0.35*w, baseScale, tx1, ty1, -0.70*w, -0.60*w, baseScale, tx1, ty1, 0.45*w, 0.50*w, baseScale, tx1, ty1, baseScale)
 		} else {
 			keyframes = fmt.Sprintf(`
         @keyframes animEffect {
-          0%%   { transform: translate(%.2f%%, %.2f%%) scale(%.3f); }
-          100%% { transform: translate(%.2f%%, %.2f%%) scale(%.3f); }
+          0%%   { transform: translate3d(%.3f%%, %.3f%%, 0px) scale(%.4f); }
+          100%% { transform: translate3d(%.3f%%, %.3f%%, 0px) scale(%.4f); }
         }`, tx1, ty1, baseScale, tx1, ty1, baseScale)
 		}
 	}

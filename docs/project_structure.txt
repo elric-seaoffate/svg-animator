@@ -1,0 +1,51 @@
+svg-animator/
+├── cmd/
+│   └── svg-animator/
+│       └── main.go                 # Main entry point for the application
+├── docs/
+│   ├── release_notes.md            # Release documentation
+│   └── project_structure.txt       # This file
+├── internal/
+│   ├── effects/                    # Animation and visual effects logic
+│   │   ├── chromatic.go
+│   │   ├── effect.go
+│   │   ├── exposure.go
+│   │   ├── focus.go
+│   │   ├── frame.go
+│   │   ├── glitch.go
+│   │   ├── grain.go
+│   │   ├── handheld.go
+│   │   ├── kenburns.go
+│   │   ├── liquid.go
+│   │   ├── master.go
+│   │   ├── motionblur.go
+│   │   └── tilt3d.go
+│   ├── generator/                  # SVG and HTML generation templates
+│   │   ├── generator.go
+│   │   ├── options.go
+│   │   └── templates.go
+│   ├── rasterizer/                 # Headless Chrome export logic
+│   │   └── rasterizer.go
+│   └── web/                        # Web server and embedded frontend assets
+│       ├── server.go
+│       └── static/                 # Embedded frontend (HTML, CSS, JS)
+│           ├── index.html
+│           ├── css/
+│           │   ├── export-modal.css
+│           │   └── style.css
+│           └── js/
+│               ├── app.js
+│               ├── effects.js
+│               ├── export-modal.js
+│               ├── flows.js
+│               ├── glows.js
+│               ├── history.js
+│               ├── nodes.js
+│               ├── presets.js
+│               ├── ripples.js
+│               ├── stage.js
+│               └── still-export-modal.js
+├── build_and_run.bat               # Windows build and run script
+├── build_and_run.sh                # Linux/macOS build and run script
+├── go.mod                          # Go module dependencies
+└── go.sum                          # Go module checksums

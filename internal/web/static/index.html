@@ -4,319 +4,1217 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SVG Animator Studio</title>
-  <link rel="stylesheet" href="css/style.css?v=4.2">
-  <link rel="stylesheet" href="css/export-modal.css?v=4.2">
+  <link rel="stylesheet" href="css/style.css?v=5.2">
+  <link rel="stylesheet" href="css/export-modal.css?v=5.2">
+  <style>
+    .header-history-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .history-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.28rem 0.6rem;
+      font-size: 0.78rem;
+      border-radius: 6px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .history-btn:hover:not(:disabled) {
+      border-color: var(--accent-blue);
+      color: #ffffff;
+    }
+    .history-btn:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+    .orient-btn-group {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+    }
+    .orient-btn {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.32rem 0.45rem;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .orient-btn.active-orient {
+      background: rgba(88, 166, 255, 0.18);
+      border-color: #58a6ff;
+      color: #ffffff;
+    }
+    .preset-param-row {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.55rem;
+      margin-top: 0.45rem;
+      background: rgba(22, 27, 34, 0.75);
+      transition: opacity 0.15s ease, border-color 0.15s ease;
+    }
+    .preset-param-row.is-unset {
+      opacity: 0.52;
+      background: rgba(13, 17, 23, 0.35);
+      border-style: dashed;
+    }
+    .preset-param-row.is-set {
+      border-color: rgba(163, 113, 247, 0.55);
+    }
+    .preset-param-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.3rem;
+    }
+    .preset-param-header label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .preset-state-pill {
+      font-family: monospace;
+      font-size: 0.66rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .preset-state-pill.pill-set {
+      background: rgba(163, 113, 247, 0.22);
+      color: #d2a8ff;
+      border: 1px solid rgba(163, 113, 247, 0.5);
+    }
+    .preset-state-pill.pill-unset {
+      background: rgba(139, 148, 158, 0.15);
+      color: #8b949e;
+      border: 1px solid rgba(139, 148, 158, 0.3);
+    }
+    .preset-param-row.is-unset .preset-param-controls {
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
   <header>
-    <h1>SVG Animator Studio <span class="badge">Modular Pipeline</span></h1>
-    <div><span id="imgDimensions" style="font-size: 0.85rem; color: #8b949e;">800 &times; 600</span></div>
+    <h1>SVG Animator Studio <span class="badge">Diagram &amp; Motion Pipeline</span></h1>
+    <div style="display: flex; align-items: center; gap: 0.85rem;">
+      <div class="header-history-group">
+        <button type="button" class="history-btn" id="btnUndo" disabled title="Undo last change (Ctrl+Z)">&#x21B6; Undo</button>
+        <button type="button" class="history-btn" id="btnRedo" disabled title="Redo change (Ctrl+Y / Ctrl+Shift+Z)">&#x21B7; Redo</button>
+      </div>
+      <label class="solo-toggle-label" title="When enabled, opening a panel automatically collapses other panels in the same sidebar">
+        <input type="checkbox" id="chkSoloPanels" checked> 🎯 Solo Focus Mode
+      </label>
+      <span id="imgDimensions" style="font-size: 0.85rem; color: #8b949e;">1280 &times; 720</span>
+    </div>
   </header>
 
   <div class="studio-layout">
     <!-- LEFT PANEL -->
     <div class="panel left-panel" id="inputPanel">
-      <div class="section-title">Source Image</div>
-      <label class="upload-zone" id="uploadDrop" for="fileInput">
-        <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📁</div>
-        <div style="font-size: 0.88rem; font-weight: 600;">Choose Photo</div>
-      </label>
-      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg,image/webp" style="display: none;">
+      <div class="panel-toolbar">
+        <span class="panel-toolbar-title">Scene &amp; Diagram Elements</span>
+        <div class="panel-toolbar-actions">
+          <button type="button" class="mini-panel-btn" onclick="window.toggleAllAccordions('inputPanel', true)">Expand All</button>
+          <button type="button" class="mini-panel-btn" onclick="window.toggleAllAccordions('inputPanel', false)">Collapse All</button>
+        </div>
+      </div>
 
-      <!-- DATA FLOW MODULE -->
-      <div class="section-title" style="margin-top: 1.5rem;">Network &amp; Data Flows</div>
-      <button class="secondary" id="btnAddFlow" style="width: 100%; margin-bottom: 0.5rem;">+ Add Data Flow</button>
-      <div id="flowListContainer"><div class="stage-hint" id="emptyFlowHint">No flows active.</div></div>
+      <!-- 1. ACCORDION: CANVAS, PAPER SIZES, GRID & BACKGROUND -->
+      <div class="accordion-section open" id="acc-background">
+        <div class="accordion-header">
+          <span>🗋 Canvas, Paper &amp; Background</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <div class="control-row" style="margin-top: 0;">
+            <label>Background Type</label>
+            <select id="canvasPatternSelect">
+              <option value="blueprint" selected>Technical Blueprint Grid</option>
+              <option value="dots">Dot Matrix Grid</option>
+              <option value="graph">Fine Graph Paper</option>
+              <option value="dark-radial">Studio Radial Vignette</option>
+              <option value="solid">Solid Flat Colour / Blank</option>
+              <option value="photo">Uploaded Photo Background</option>
+            </select>
+          </div>
 
-      <div id="flowEditor" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #444;">
-        <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingFlowLabel">Editing Flow</div>
-        
-        <div class="control-row" style="background: rgba(88,166,255,0.1); padding: 0.6rem; border-radius: 6px; border: 1px solid #58a6ff;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <label style="color: #58a6ff; font-weight: bold; margin: 0;">Routing Waypoints</label>
-            <div>
-              <button class="secondary" id="btnFlowDelNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; border-color: #ff4444; color: #ff4444;">- Drop</button>
-              <button class="primary" id="btnFlowAddNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; background: #58a6ff;">+ Add Node</button>
+          <!-- Integrated Upload Photo Box -->
+          <div id="bgUploadArea" style="margin-top: 0.6rem;">
+            <label class="upload-zone" id="uploadDrop" for="fileInput" style="padding: 0.7rem;">
+              <div style="font-size: 1.15rem; margin-bottom: 0.1rem;">📁</div>
+              <div style="font-size: 0.8rem; font-weight: 600;" id="uploadDropLabel">Upload Background Photo</div>
+              <div style="font-size: 0.7rem; color: #8b949e; margin-top: 0.1rem;" id="uploadPhotoMeta">Drop JPEG, PNG, or WebP here</div>
+            </label>
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg,image/webp" style="display: none;">
+          </div>
+
+          <!-- Canvas Dimensions, Screen/Paper Presets & Landscape/Portrait Orientation -->
+          <div class="control-row" style="margin-top: 0.65rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label>Screen &amp; Paper Size Preset</label>
+              <button type="button" class="secondary" id="btnMatchPhotoSize" style="display: none; padding: 0.15rem 0.45rem; font-size: 0.7rem; color: #58a6ff; border-color: #58a6ff;" title="Set canvas dimensions to match the uploaded photo">Snap to Photo Size</button>
+            </div>
+            <select id="canvasPresetSelect" style="margin-top: 0.2rem;">
+              <optgroup label="Screen &amp; Video Aspect Ratios">
+                <option value="1280x720" selected>1280 &times; 720 (HD 16:9)</option>
+                <option value="1920x1080">1920 &times; 1080 (Full HD 16:9)</option>
+                <option value="3840x2160">3840 &times; 2160 (4K UHD 16:9)</option>
+                <option value="1600x1200">1600 &times; 1200 (Diagram 4:3)</option>
+                <option value="1080x1080">1080 &times; 1080 (Square 1:1)</option>
+              </optgroup>
+              <optgroup label="Print Paper Sizes (96 DPI Working Base — Scales to 300+ DPI on Export)">
+                <option value="1123x794">A4 Paper (297&times;210mm &bull; 1123&times;794 px base)</option>
+                <option value="1587x1123">A3 Paper (420&times;297mm &bull; 1587&times;1123 px base)</option>
+                <option value="794x559">A5 Paper (210&times;148mm &bull; 794&times;559 px base)</option>
+                <option value="1056x816">US Letter (11&times;8.5in &bull; 1056&times;816 px base)</option>
+                <option value="1344x816">US Legal (14&times;8.5in &bull; 1344&times;816 px base)</option>
+                <option value="1632x1056">Tabloid / Ledger (17&times;11in &bull; 1632&times;1056 px base)</option>
+              </optgroup>
+              <optgroup label="Custom">
+                <option value="custom">Custom Dimensions...</option>
+              </optgroup>
+            </select>
+
+            <!-- Landscape / Portrait / Swap Buttons -->
+            <div class="orient-btn-group">
+              <button type="button" class="orient-btn active-orient" id="btnOrientLandscape" title="Set canvas to Landscape (wider than tall)">▭ Landscape</button>
+              <button type="button" class="orient-btn" id="btnOrientPortrait" title="Set canvas to Portrait (taller than wide)">▯ Portrait</button>
+              <button type="button" class="orient-btn" id="btnOrientSwap" title="Swap Width and Height" style="flex: 0.75;">⇄ Swap</button>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+              <div style="flex: 1;">
+                <span style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 0.15rem;">Working Width (px)</span>
+                <input type="number" class="num-input" id="canvasWidthInput" value="1280" min="200" max="3840" step="10" style="width: 100%;">
+              </div>
+              <div style="flex: 1;">
+                <span style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 0.15rem;">Working Height (px)</span>
+                <input type="number" class="num-input" id="canvasHeightInput" value="720" min="200" max="3840" step="10" style="width: 100%;">
+              </div>
+            </div>
+            <div id="paperPrintHint" class="stage-hint" style="margin-top: 0.25rem; color: #58a6ff; display: none;"></div>
+          </div>
+
+          <!-- Snap to Grid Controls -->
+          <div class="effect-group" style="background: rgba(88, 166, 255, 0.07); padding: 0.55rem 0.65rem; border-radius: 6px; border: 1px solid rgba(88, 166, 255, 0.35); margin-top: 0.65rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 600; color: #58a6ff; cursor: pointer;">
+                <input type="checkbox" id="chkSnapToGrid"> 🧲 Snap Shapes &amp; Nodes to Grid
+              </label>
+              <button type="button" class="mini-panel-btn" id="btnSyncSnapToBgGrid" title="Set Snap Grid size to match the Background Grid spacing">Match BG Grid</button>
+            </div>
+            <div class="control-row" style="margin-top: 0.4rem;">
+              <label style="font-size: 0.75rem;">Snap Grid Step (px)</label>
+              <div class="slider-row">
+                <input type="range" id="snapGridSizeSlider" min="5" max="120" step="5" value="20">
+                <input type="number" class="num-input" id="snapGridSizeNum" value="20" min="2" max="200">
+              </div>
             </div>
           </div>
-          <div class="slider-row">
-            <label style="font-size: 0.75rem; width: 80px;">Target Node:</label>
-            <input type="range" id="flowNodeSlider" min="0" max="1" step="1" value="0">
-            <input type="number" class="num-input" id="flowNodeNum" readonly>
+
+          <!-- Photo Fit, Resize & Interactive Drag-Crop Controls -->
+          <div id="photoSizingControls" style="display: none; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
+            <div class="control-row" style="margin-top: 0;">
+              <label>Photo Fit &amp; Crop Mode</label>
+              <select id="photoFitSelect">
+                <option value="match" selected>Force Canvas Size to Photo</option>
+                <option value="cover">Crop / Fill Custom Canvas Size</option>
+                <option value="contain">Fit Whole Photo Inside Canvas</option>
+                <option value="stretch">Stretch Photo to Canvas Size</option>
+              </select>
+            </div>
+
+            <div id="photoCropSliders" style="display: none; margin-top: 0.5rem;">
+              <button type="button" class="secondary" id="btnDragPhotoCrop" style="width: 100%; margin-bottom: 0.45rem; font-size: 0.78rem; border-color: #58a6ff; color: #58a6ff;">
+                🖐️ Drag Photo Inside Frame (Off)
+              </button>
+              <div class="control-row"><label>Crop Zoom (%)</label><div class="slider-row"><input type="range" id="photoCropZoomSlider" min="100" max="300" step="5" value="100"><input type="number" class="num-input" id="photoCropZoomNum" value="100"></div></div>
+              <div class="control-row"><label>Crop Horizontal Pan X (%)</label><div class="slider-row"><input type="range" id="photoCropXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="photoCropXNum" value="50"></div></div>
+              <div class="control-row"><label>Crop Vertical Pan Y (%)</label><div class="slider-row"><input type="range" id="photoCropYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="photoCropYNum" value="50"></div></div>
+            </div>
           </div>
-          <div class="stage-hint" style="margin-top: 0.4rem; text-align: center;">Click reticles on image to select them directly.</div>
-        </div>
 
-        <div class="control-row">
-          <label>Payload Type</label>
-          <select id="flowTypeSelect">
-            <option value="line-only">Dashed Line Only</option>
-            <option value="orb" selected>Glowing Orb</option>
-            <option value="packet">Data Packet</option>
-            <option value="envelope">Mail Envelope</option>
-            <option value="database">Database / Storage</option>
-            <option value="server">Server / Compute</option>
-            <option value="cloud">Cloud Instance</option>
-            <option value="lock">Security Lock</option>
-            <option value="warning">Warning Alert</option>
-            <option value="custom">Custom Graphic (PNG/SVG)</option>
-          </select>
-        </div>
-
-        <div class="control-row" id="customPayloadRow" style="display: none; margin-top: 0.5rem;">
-          <label class="upload-zone upload-zone-compact" for="customPayloadInput" style="padding: 0.8rem; border-color: #58a6ff;">
-            <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
-          </label>
-          <input type="file" id="customPayloadInput" accept="image/png,image/svg+xml" style="display: none;">
-        </div>
-        
-        <div class="control-row" style="margin-top: 0.8rem;">
-          <label class="toggle-switch"><input type="checkbox" id="flowShowLine" checked> 📏 Show visible track line</label>
-        </div>
-        <div class="control-row"><label>Line Curvature (Bezier Bend)</label><div class="slider-row"><input type="range" id="flowCurvatureSlider" min="-100" max="100" step="1" value="0"><input type="number" class="num-input" id="flowCurvatureNum"></div></div>
-
-        <div class="control-row"><label>Theme Colour</label><input type="color" id="flowColorPicker" value="#00ffcc" style="width: 100%;"></div>
-        
-        <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="flowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="flowOpacityNum"></div></div>
-        <div class="control-row"><label>Payload Glow (Radius)</label><div class="slider-row"><input type="range" id="flowGlowSlider" min="0" max="100" step="1" value="0"><input type="number" class="num-input" id="flowGlowNum"></div></div>
-        <div class="control-row"><label>Payload Size (Scale)</label><div class="slider-row"><input type="range" id="flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="flowScaleNum"></div></div>
-        
-        <div class="control-row"><label>Travel Speed (sec)</label><div class="slider-row"><input type="range" id="flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="flowSpeedNum"></div></div>
-        <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowDelayNum"></div></div>
-        
-        <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
-          <label>End Delay / Pause (sec)</label>
-          <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum"></div>
-          <div class="control-row" style="margin-top: 0.4rem;">
-            <label class="toggle-switch"><input type="checkbox" id="flowHideOnDelay" checked> 👻 Hide payload during pause</label>
+          <!-- Background Colour Picker -->
+          <div class="control-row" id="canvasBgColorRow" style="margin-top: 0.65rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
+            <label>Background Colour</label>
+            <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 0.25rem;">
+              <input type="color" id="canvasBgColorPicker" value="#0d1117" style="flex-grow: 1; height: 32px;">
+              <label class="toggle-switch" style="font-size: 0.78rem; margin: 0; white-space: nowrap;">
+                <input type="checkbox" id="canvasBgTransparent"> Transparent
+              </label>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <!-- GLOWS MODULE -->
-      <div class="section-title" style="margin-top: 1.5rem;">Hotspots &amp; Glows</div>
-      <button class="secondary" id="btnAddGlow" style="width: 100%; margin-bottom: 0.5rem;">+ Add Glow</button>
-      <div id="glowListContainer"><div class="stage-hint" id="emptyGlowHint">No glows active.</div></div>
-
-      <div id="glowEditor" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #444;">
-        <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingGlowLabel">Editing Glow</div>
-        <div class="stage-hint" style="margin-bottom:0.5rem;">Click the image to place the object centre.</div>
-        
-        <div class="control-row">
-          <label>Shape / Object</label>
-          <select id="glowShapeSelect">
-            <option value="circle" selected>Circle (Radial Glow)</option>
-            <option value="square">Square / Block</option>
-            <option value="radar">Radar Ping</option>
-            <option value="custom">Custom Graphic (PNG/SVG)</option>
-          </select>
-        </div>
-
-        <div class="control-row" id="glowCustomRow" style="display: none; margin-top: 0.5rem;">
-          <label class="upload-zone upload-zone-compact" for="glowCustomInput" style="padding: 0.8rem; border-color: #ff0044;">
-            <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
-          </label>
-          <input type="file" id="glowCustomInput" accept="image/png,image/svg+xml" style="display: none;">
-        </div>
-        
-        <div class="control-row">
-          <label>Playback Mode</label>
-          <select id="glowPlaybackSelect">
-            <option value="pingpong" selected>Pulse (In & Out)</option>
-            <option value="linear">Linear (Fade In & Reset)</option>
-            <option value="once">Play Once & Hold</option>
-            <option value="static">Static (Constant Overlay)</option>
-          </select>
-        </div>
-        
-        <div class="control-row" id="glowColorRow"><label>Overlay Colour</label><input type="color" id="glowColorPicker" value="#ff0044" style="width: 100%;"></div>
-        <div class="control-row"><label>Edge Softness (%)</label><div class="slider-row"><input type="range" id="glowBlurSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="glowBlurNum"></div></div>
-        <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="glowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="glowOpacityNum"></div></div>
-        
-        <div id="glowSizeContainer"><div class="control-row"><label>Size / Radius (px)</label><div class="slider-row"><input type="range" id="glowSizeSlider" min="5" max="1000" step="1" value="25"><input type="number" class="num-input" id="glowSizeNum"></div></div></div>
-        <div id="glowScaleContainer" style="display: none;"><div class="control-row"><label>Graphic Scale</label><div class="slider-row"><input type="range" id="glowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="glowScaleNum"></div></div></div>
-        
-        <div id="glowRadarContainer" style="display: none;">
-          <div class="control-row"><label>Radar Pings (Count)</label><div class="slider-row"><input type="range" id="glowRingsSlider" min="1" max="10" step="1" value="1"><input type="number" class="num-input" id="glowRingsNum"></div></div>
-          <div class="control-row"><label>Radar Core Radius (px)</label><div class="slider-row"><input type="range" id="glowCoreRSlider" min="0" max="200" step="1" value="5"><input type="number" class="num-input" id="glowCoreRNum"></div></div>
-          <div class="control-row"><label>Radar Line Thickness (px)</label><div class="slider-row"><input type="range" id="glowThickSlider" min="1" max="50" step="1" value="2"><input type="number" class="num-input" id="glowThickNum"></div></div>
-        </div>
-        
-        <div class="control-row"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="glowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="glowSpeedNum"></div></div>
-        <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowDelayNum"></div></div>
-        
-        <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
-          <label>End Delay / Pause (sec)</label>
-          <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum"></div>
-          <div class="control-row" style="margin-top: 0.4rem;">
-            <label class="toggle-switch"><input type="checkbox" id="glowHideOnDelay" checked> 👻 Hide glow during pause</label>
+          <!-- Contextual Grid / Pattern Controls -->
+          <div id="gridControlsRow" style="margin-top: 0.65rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
+            <div class="control-row" style="margin-top: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label id="gridColorLabel">Background Grid Colour</label>
+                <input type="color" id="canvasGridColorPicker" value="#1e293b" style="width: 64px; height: 28px;">
+              </div>
+            </div>
+            <div class="control-row" id="gridSizeControlWrap" style="margin-top: 0.45rem;">
+              <label>Background Grid Spacing (px)</label>
+              <div class="slider-row">
+                <input type="range" id="canvasGridSizeSlider" min="16" max="120" step="4" value="40">
+                <input type="number" class="num-input" id="canvasGridSizeNum" value="40">
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- LIQUID RIPPLES MODULE -->
-      <div class="section-title" style="margin-top: 1.5rem; color: #58a6ff;">Liquid Ripples</div>
-      <button class="secondary" id="btnAddRipple" style="width: 100%; margin-bottom: 0.5rem; border-color: #58a6ff; color: #58a6ff;">+ Add Water Ripple</button>
-      <div id="rippleListContainer"><div class="stage-hint" id="emptyRippleHint">No ripples active.</div></div>
+      <!-- 2. ACCORDION: UNIFIED FREESTYLE DIAGRAM SHAPES & TEXT BOXES -->
+      <div class="accordion-section" id="acc-nodes">
+        <div class="accordion-header">
+          <span style="color: #d2a8ff;">✒️ Diagram Shapes &amp; Text Boxes</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <div class="stage-hint" style="margin-bottom: 0.5rem;">All shapes are individually adjustable and can snap to any active attributes in the Preset panel below.</div>
+          <button type="button" class="secondary" id="btnAddNode" style="width: 100%; margin-bottom: 0.5rem; border-color: #d2a8ff; color: #d2a8ff;">+ Add Shape / Text Box</button>
+          <div id="nodeListContainer"><div class="stage-hint">No shapes or text boxes active.</div></div>
 
-      <div id="rippleEditor" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #444;">
-        <div style="font-weight: bold; margin-bottom: 0.5rem; color: #58a6ff;" id="editingRippleLabel">Editing Ripple</div>
-        <div class="stage-hint" style="margin-bottom:0.5rem;">Click the image to place the ripple epicentre.</div>
-        
-        <div class="control-row"><label>Crest Highlight Colour</label><input type="color" id="rippleColorPicker" value="#ffffff" style="width: 100%;"></div>
-        <div class="control-row"><label>Highlight Opacity</label><div class="slider-row"><input type="range" id="rippleOpacitySlider" min="0" max="1.0" step="0.05" value="0.4"><input type="number" class="num-input" id="rippleOpacityNum"></div></div>
-        
-        <div class="control-row" style="margin-top: 0.5rem;"><label>Refraction Distortion</label><div class="slider-row"><input type="range" id="rippleRefractionSlider" min="0" max="150" step="1" value="35"><input type="number" class="num-input" id="rippleRefractionNum"></div></div>
-        
-        <div class="control-row"><label>Inner Start Radius (px)</label><div class="slider-row"><input type="range" id="rippleInnerRSlider" min="0" max="300" step="1" value="0"><input type="number" class="num-input" id="rippleInnerRNum"></div></div>
-        <div class="control-row"><label>Outer Fade Radius (px)</label><div class="slider-row"><input type="range" id="rippleOuterRSlider" min="10" max="1500" step="1" value="150"><input type="number" class="num-input" id="rippleOuterRNum"></div></div>
-        
-        <div class="control-row"><label>Total Rings Count</label><div class="slider-row"><input type="range" id="rippleRingsSlider" min="1" max="15" step="1" value="3"><input type="number" class="num-input" id="rippleRingsNum"></div></div>
-        <div class="control-row"><label>Wave Thickness (px)</label><div class="slider-row"><input type="range" id="rippleThickSlider" min="1" max="100" step="1" value="8"><input type="number" class="num-input" id="rippleThickNum"></div></div>
-        
-        <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0"><input type="number" class="num-input" id="rippleDurNum"></div></div>
-        <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="rippleDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="rippleDelayNum"></div></div>
-        <div class="control-row"><label>End Delay / Pause (sec)</label><div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum"></div></div>
+          <div id="nodeEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+              <span style="font-weight: bold; color: #d2a8ff;" id="editingNodeLabel">Editing Shape</span>
+              <span id="activeNodeDimBadge" style="font-family: monospace; font-size: 0.74rem; background: rgba(210, 168, 255, 0.14); color: #d2a8ff; border: 1px solid rgba(210, 168, 255, 0.4); padding: 0.1rem 0.45rem; border-radius: 4px;">170 &times; 80 px</span>
+            </div>
+
+            <div style="display: flex; gap: 0.4rem; margin-bottom: 0.55rem;">
+              <button type="button" class="primary" id="btnSnapNodeToPreset" style="flex: 1.3; background: #8957e5; padding: 0.4rem 0.5rem; font-size: 0.78rem;" title="Applies only the 'SET' attributes from the Shape Preset panel to this selected shape">
+                ⚡ Snap to Preset
+              </button>
+              <button type="button" class="secondary" id="btnCopyNodeToPreset" style="flex: 1; padding: 0.4rem 0.5rem; font-size: 0.75rem;" title="Loads this shape's attributes into the Preset panel">
+                📥 Copy to Preset
+              </button>
+            </div>
+
+            <div class="control-row" style="margin-top: 0;">
+              <label>Shape / Diagram Element</label>
+              <select id="nodeShapeSelect">
+                <option value="rounded" selected>Rounded Card / Service Box</option>
+                <option value="rect">Rectangle / Process Box</option>
+                <option value="pill">Pill / Stadium Terminal</option>
+                <option value="textbox">Floating Text Label Only</option>
+                <option value="callout">Callout Note / Annotation</option>
+                <option value="diamond">Decision Diamond</option>
+                <option value="hexagon">Hexagon / Microservice</option>
+                <option value="parallelogram">Parallelogram (Data I/O)</option>
+                <option value="cylinder">Database / Storage Cylinder</option>
+                <option value="cloud">Cloud Infrastructure Node</option>
+                <option value="circle">Circle / Hub Node</option>
+                <option value="axes">Graph X/Y Coordinate Axes</option>
+              </select>
+            </div>
+
+            <div class="control-row">
+              <label>Primary Text <span style="color:#8b949e; font-size:0.72rem;">(| for new line)</span></label>
+              <input type="text" id="nodeTextInput" value="Node" class="text-field-input">
+            </div>
+
+            <div class="control-row">
+              <label>Subtitle / IP / Metric</label>
+              <input type="text" id="nodeSubtextInput" placeholder="Optional details" class="text-field-input">
+            </div>
+
+            <div class="control-row">
+              <label>Width (px)</label>
+              <div class="slider-row">
+                <input type="range" id="nodeWidthSlider" min="40" max="900" step="1" value="170">
+                <input type="number" class="num-input" id="nodeWidthNum" value="170">
+              </div>
+            </div>
+
+            <div class="control-row">
+              <label>Height (px)</label>
+              <div class="slider-row">
+                <input type="range" id="nodeHeightSlider" min="30" max="700" step="1" value="80">
+                <input type="number" class="num-input" id="nodeHeightNum" value="80">
+              </div>
+            </div>
+
+            <div class="control-row">
+              <label>Colours</label>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <div style="flex: 1;"><label style="display:block; font-size:0.72rem; margin-bottom:0.15rem;">Fill</label><input type="color" id="nodeFillColorPicker" value="#161b22" style="width: 100%;"></div>
+                <div style="flex: 1;"><label style="display:block; font-size:0.72rem; margin-bottom:0.15rem;">Border</label><input type="color" id="nodeStrokeColorPicker" value="#58a6ff" style="width: 100%;"></div>
+                <div style="flex: 1;"><label style="display:block; font-size:0.72rem; margin-bottom:0.15rem;">Text</label><input type="color" id="nodeTextColorPicker" value="#e6edf3" style="width: 100%;"></div>
+              </div>
+            </div>
+
+            <div class="control-row"><label>Fill Opacity</label><div class="slider-row"><input type="range" id="nodeFillOpacitySlider" min="0" max="1.0" step="0.05" value="0.92"><input type="number" class="num-input" id="nodeFillOpacityNum" value="0.92"></div></div>
+            <div class="control-row"><label>Border Thickness (px)</label><div class="slider-row"><input type="range" id="nodeStrokeWidthSlider" min="0" max="12" step="0.5" value="2"><input type="number" class="num-input" id="nodeStrokeWidthNum" value="2"></div></div>
+
+            <div class="control-row">
+              <label>Border Line Style</label>
+              <select id="nodeStrokeStyleSelect">
+                <option value="solid" selected>Solid Border</option>
+                <option value="dashed">Dashed Border</option>
+                <option value="dotted">Dotted Border</option>
+              </select>
+            </div>
+
+            <div class="control-row"><label>Font Size (px)</label><div class="slider-row"><input type="range" id="nodeFontSizeSlider" min="10" max="64" step="1" value="15"><input type="number" class="num-input" id="nodeFontSizeNum" value="15"></div></div>
+
+            <div class="control-row">
+              <label>Idle Animation</label>
+              <select id="nodeAnimSelect">
+                <option value="none" selected>Static (Locked)</option>
+                <option value="pulse-border">Breathing Border Glow</option>
+                <option value="float">Gentle Vertical Float</option>
+                <option value="fade-in">Smooth Entrance Fade-In</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. ACCORDION: SHAPE PRESET & SNAP SETTINGS (SELECTIVE SET / UNSET) -->
+      <div class="accordion-section" id="acc-presets">
+        <div class="accordion-header">
+          <span style="color: #a371f7;">🎛️ Shape Preset &amp; Snap Settings</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <div class="stage-hint" style="margin-bottom: 0.5rem;">
+            Tick only the parameters you want to enforce. Any parameter left <strong>UNSET</strong> will remain untouched on the target shape.
+          </div>
+
+          <div style="display: flex; gap: 0.4rem; margin-bottom: 0.45rem;">
+            <button type="button" class="primary" id="btnPresetApplySelected" style="flex: 1.2; background: #8957e5; padding: 0.45rem; font-size: 0.78rem;">
+              ⚡ Snap Selected to Preset
+            </button>
+            <button type="button" class="secondary" id="btnPresetApplyAll" style="flex: 1; padding: 0.45rem; font-size: 0.75rem; border-color: #a371f7; color: #d2a8ff;">
+              Apply to All Shapes
+            </button>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding-bottom: 0.45rem; border-bottom: 1px dashed #30363d;">
+            <label style="font-size: 0.76rem; display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+              <input type="checkbox" id="chkAutoApplyPreset" checked> Apply preset to new shapes
+            </label>
+            <div style="display: flex; gap: 0.25rem;">
+              <button type="button" class="mini-panel-btn" id="btnPresetSetAll">Set All</button>
+              <button type="button" class="mini-panel-btn" id="btnPresetUnsetAll">Unset All</button>
+            </div>
+          </div>
+
+          <div class="preset-param-row is-set" id="presetRow-width">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-width" checked> Width (px)</label>
+              <span class="preset-state-pill pill-set" id="presetPill-width">SET</span>
+            </div>
+            <div class="preset-param-controls slider-row">
+              <input type="range" id="presetVal-widthSlider" min="40" max="900" step="1" value="170">
+              <input type="number" class="num-input" id="presetVal-widthNum" value="170">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-unset" id="presetRow-height">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-height"> Height (px)</label>
+              <span class="preset-state-pill pill-unset" id="presetPill-height">UNSET</span>
+            </div>
+            <div class="preset-param-controls slider-row">
+              <input type="range" id="presetVal-heightSlider" min="30" max="700" step="1" value="80">
+              <input type="number" class="num-input" id="presetVal-heightNum" value="80">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-set" id="presetRow-fillColor">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-fillColor" checked> Fill Colour</label>
+              <span class="preset-state-pill pill-set" id="presetPill-fillColor">SET</span>
+            </div>
+            <div class="preset-param-controls">
+              <input type="color" id="presetVal-fillColor" value="#161b22" style="width: 100%; height: 28px;">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-set" id="presetRow-strokeColor">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-strokeColor" checked> Border Colour</label>
+              <span class="preset-state-pill pill-set" id="presetPill-strokeColor">SET</span>
+            </div>
+            <div class="preset-param-controls">
+              <input type="color" id="presetVal-strokeColor" value="#58a6ff" style="width: 100%; height: 28px;">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-set" id="presetRow-textColor">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-textColor" checked> Text Colour</label>
+              <span class="preset-state-pill pill-set" id="presetPill-textColor">SET</span>
+            </div>
+            <div class="preset-param-controls">
+              <input type="color" id="presetVal-textColor" value="#e6edf3" style="width: 100%; height: 28px;">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-set" id="presetRow-fontSize">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-fontSize" checked> Font Size (px)</label>
+              <span class="preset-state-pill pill-set" id="presetPill-fontSize">SET</span>
+            </div>
+            <div class="preset-param-controls slider-row">
+              <input type="range" id="presetVal-fontSizeSlider" min="10" max="64" step="1" value="15">
+              <input type="number" class="num-input" id="presetVal-fontSizeNum" value="15">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-unset" id="presetRow-fillOpacity">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-fillOpacity"> Fill Opacity</label>
+              <span class="preset-state-pill pill-unset" id="presetPill-fillOpacity">UNSET</span>
+            </div>
+            <div class="preset-param-controls slider-row">
+              <input type="range" id="presetVal-fillOpacitySlider" min="0" max="1.0" step="0.05" value="0.92">
+              <input type="number" class="num-input" id="presetVal-fillOpacityNum" value="0.92">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-unset" id="presetRow-strokeWidth">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-strokeWidth"> Border Thickness (px)</label>
+              <span class="preset-state-pill pill-unset" id="presetPill-strokeWidth">UNSET</span>
+            </div>
+            <div class="preset-param-controls slider-row">
+              <input type="range" id="presetVal-strokeWidthSlider" min="0" max="12" step="0.5" value="2">
+              <input type="number" class="num-input" id="presetVal-strokeWidthNum" value="2">
+            </div>
+          </div>
+
+          <div class="preset-param-row is-unset" id="presetRow-strokeStyle">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-strokeStyle"> Border Line Style</label>
+              <span class="preset-state-pill pill-unset" id="presetPill-strokeStyle">UNSET</span>
+            </div>
+            <div class="preset-param-controls">
+              <select id="presetVal-strokeStyle">
+                <option value="solid" selected>Solid Border</option>
+                <option value="dashed">Dashed Border</option>
+                <option value="dotted">Dotted Border</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="preset-param-row is-unset" id="presetRow-shape">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-shape"> Shape Type</label>
+              <span class="preset-state-pill pill-unset" id="presetPill-shape">UNSET</span>
+            </div>
+            <div class="preset-param-controls">
+              <select id="presetVal-shape">
+                <option value="rounded" selected>Rounded Card / Service Box</option>
+                <option value="rect">Rectangle / Process Box</option>
+                <option value="pill">Pill / Stadium Terminal</option>
+                <option value="textbox">Floating Text Label Only</option>
+                <option value="callout">Callout Note / Annotation</option>
+                <option value="diamond">Decision Diamond</option>
+                <option value="hexagon">Hexagon / Microservice</option>
+                <option value="parallelogram">Parallelogram (Data I/O)</option>
+                <option value="cylinder">Database / Storage Cylinder</option>
+                <option value="cloud">Cloud Infrastructure Node</option>
+                <option value="circle">Circle / Hub Node</option>
+                <option value="axes">Graph X/Y Coordinate Axes</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="preset-param-row is-unset" id="presetRow-anim">
+            <div class="preset-param-header">
+              <label><input type="checkbox" id="presetChk-anim"> Idle Animation</label>
+              <span class="preset-state-pill pill-unset" id="presetPill-anim">UNSET</span>
+            </div>
+            <div class="preset-param-controls">
+              <select id="presetVal-anim">
+                <option value="none" selected>Static (Locked)</option>
+                <option value="pulse-border">Breathing Border Glow</option>
+                <option value="float">Gentle Vertical Float</option>
+                <option value="fade-in">Smooth Entrance Fade-In</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. ACCORDION: CONNECTORS & DATA FLOWS -->
+      <div class="accordion-section" id="acc-flows">
+        <div class="accordion-header">
+          <span style="color: #00ffcc;">🔀 Connectors &amp; Data Flows</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <button class="secondary" id="btnAddFlow" style="width: 100%; margin-bottom: 0.5rem; border-color: #00ffcc; color: #00ffcc;">+ Add Connector / Data Flow</button>
+          <div id="flowListContainer"><div class="stage-hint" id="emptyFlowHint">No flows active.</div></div>
+
+          <div id="flowEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
+            <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingFlowLabel">Editing Flow</div>
+            
+            <div class="control-row" style="background: rgba(88,166,255,0.1); padding: 0.6rem; border-radius: 6px; border: 1px solid #58a6ff;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label style="color: #58a6ff; font-weight: bold; margin: 0;">Routing Waypoints</label>
+                <div>
+                  <button class="secondary" id="btnFlowDelNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; border-color: #ff4444; color: #ff4444;">- Drop</button>
+                  <button class="primary" id="btnFlowAddNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; background: #58a6ff;">+ Add Node</button>
+                </div>
+              </div>
+              <div class="slider-row">
+                <label style="font-size: 0.75rem; width: 80px;">Target Node:</label>
+                <input type="range" id="flowNodeSlider" min="0" max="1" step="1" value="0">
+                <input type="number" class="num-input" id="flowNodeNum" readonly>
+              </div>
+              <div class="stage-hint" style="margin-top: 0.4rem; text-align: center;">Click or drag N0, N1 handles directly on the line.</div>
+            </div>
+
+            <div class="control-row">
+              <label>Connector Routing Mode</label>
+              <select id="flowRouteSelect">
+                <option value="curve" selected>Direct / Bezier Curve</option>
+                <option value="ortho-mid">Orthogonal Elbow (Z-Step 90°)</option>
+                <option value="ortho-hv">Orthogonal L-Step (Horiz &rarr; Vert)</option>
+                <option value="ortho-vh">Orthogonal L-Step (Vert &rarr; Horiz)</option>
+              </select>
+            </div>
+
+            <div class="control-row">
+              <label>Track Line Style</label>
+              <select id="flowLineStyleSelect">
+                <option value="dashed" selected>Dashed Line</option>
+                <option value="solid">Solid Continuous Line</option>
+                <option value="dotted">Dotted Line</option>
+                <option value="marching">Animated Marching Ants</option>
+                <option value="double">Double Parallel Pipe</option>
+              </select>
+            </div>
+
+            <div class="control-row">
+              <label>Directional Arrowheads</label>
+              <select id="flowArrowSelect">
+                <option value="none" selected>None</option>
+                <option value="end">Destination Arrow (&rarr;)</option>
+                <option value="start">Source Arrow (&larr;)</option>
+                <option value="both">Bidirectional (&harr;)</option>
+              </select>
+            </div>
+
+            <div class="control-row"><label>Line Thickness (px)</label><div class="slider-row"><input type="range" id="flowLineWidthSlider" min="1" max="16" step="0.5" value="2.5"><input type="number" class="num-input" id="flowLineWidthNum" value="2.5"></div></div>
+
+            <div class="control-row">
+              <label>Connector Text Label <span style="color:#8b949e; font-size:0.72rem;">(Optional)</span></label>
+              <input type="text" id="flowLabelInput" placeholder="e.g. HTTPS / 10GbE" class="text-field-input">
+            </div>
+
+            <div class="control-row">
+              <label>Traveling Payload Type</label>
+              <select id="flowTypeSelect">
+                <option value="line-only">Connector Line Only (No Payload)</option>
+                <option value="orb" selected>Glowing Orb</option>
+                <option value="packet">Data Packet</option>
+                <option value="envelope">Mail Envelope</option>
+                <option value="database">Database / Storage</option>
+                <option value="server">Server / Compute</option>
+                <option value="cloud">Cloud Instance</option>
+                <option value="lock">Security Lock</option>
+                <option value="warning">Warning Alert</option>
+                <option value="custom">Custom Graphic (PNG/SVG)</option>
+              </select>
+            </div>
+
+            <div class="control-row" id="customPayloadRow" style="display: none; margin-top: 0.5rem;">
+              <label class="upload-zone upload-zone-compact" for="customPayloadInput" style="padding: 0.8rem; border-color: #58a6ff;">
+                <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
+              </label>
+              <input type="file" id="customPayloadInput" accept="image/png,image/svg+xml" style="display: none;">
+            </div>
+            
+            <div class="control-row" style="margin-top: 0.8rem;">
+              <label class="toggle-switch"><input type="checkbox" id="flowShowLine" checked> 📏 Show visible track line</label>
+            </div>
+            <div class="control-row"><label>Line Curvature (Bezier Bend)</label><div class="slider-row"><input type="range" id="flowCurvatureSlider" min="-100" max="100" step="1" value="0"><input type="number" class="num-input" id="flowCurvatureNum"></div></div>
+
+            <div class="control-row"><label>Theme Colour</label><input type="color" id="flowColorPicker" value="#00ffcc" style="width: 100%;"></div>
+            
+            <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="flowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="flowOpacityNum"></div></div>
+            <div class="control-row"><label>Payload Glow (Radius)</label><div class="slider-row"><input type="range" id="flowGlowSlider" min="0" max="100" step="1" value="0"><input type="number" class="num-input" id="flowGlowNum"></div></div>
+            <div class="control-row"><label>Payload Size (Scale)</label><div class="slider-row"><input type="range" id="flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="flowScaleNum"></div></div>
+            
+            <div class="control-row"><label>Travel Speed (sec)</label><div class="slider-row"><input type="range" id="flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="flowSpeedNum"></div></div>
+            <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowDelayNum"></div></div>
+            
+            <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+              <label>End Delay / Pause (sec)</label>
+              <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum"></div>
+              <div class="control-row" style="margin-top: 0.4rem;">
+                <label class="toggle-switch"><input type="checkbox" id="flowHideOnDelay" checked> 👻 Hide payload during pause</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. ACCORDION: HOTSPOTS & GLOWS -->
+      <div class="accordion-section" id="acc-glows">
+        <div class="accordion-header">
+          <span style="color: #ff4466;">✨ Hotspots &amp; Glows</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <button class="secondary" id="btnAddGlow" style="width: 100%; margin-bottom: 0.5rem; border-color: #ff4466; color: #ff4466;">+ Add Glow</button>
+          <div id="glowListContainer"><div class="stage-hint" id="emptyGlowHint">No glows active.</div></div>
+
+          <div id="glowEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
+            <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingGlowLabel">Editing Glow</div>
+            <div class="stage-hint" style="margin-bottom:0.5rem;">Click or drag on the canvas to place the glow centre.</div>
+            
+            <div class="control-row">
+              <label>Shape / Object</label>
+              <select id="glowShapeSelect">
+                <option value="circle" selected>Circle (Radial Glow)</option>
+                <option value="square">Square / Block</option>
+                <option value="radar">Radar Ping</option>
+                <option value="custom">Custom Graphic (PNG/SVG)</option>
+              </select>
+            </div>
+
+            <div class="control-row" id="glowCustomRow" style="display: none; margin-top: 0.5rem;">
+              <label class="upload-zone upload-zone-compact" for="glowCustomInput" style="padding: 0.8rem; border-color: #ff0044;">
+                <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
+              </label>
+              <input type="file" id="glowCustomInput" accept="image/png,image/svg+xml" style="display: none;">
+            </div>
+            
+            <div class="control-row">
+              <label>Playback Mode</label>
+              <select id="glowPlaybackSelect">
+                <option value="pingpong" selected>Pulse (In &amp; Out)</option>
+                <option value="linear">Linear (Fade In &amp; Reset)</option>
+                <option value="once">Play Once &amp; Hold</option>
+                <option value="static">Static (Constant Overlay)</option>
+              </select>
+            </div>
+            
+            <div class="control-row" id="glowColorRow"><label>Overlay Colour</label><input type="color" id="glowColorPicker" value="#ff0044" style="width: 100%;"></div>
+            <div class="control-row"><label>Edge Softness (%)</label><div class="slider-row"><input type="range" id="glowBlurSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="glowBlurNum"></div></div>
+            <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="glowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="glowOpacityNum"></div></div>
+            
+            <div id="glowSizeContainer"><div class="control-row"><label>Size / Radius (px)</label><div class="slider-row"><input type="range" id="glowSizeSlider" min="5" max="1000" step="1" value="25"><input type="number" class="num-input" id="glowSizeNum"></div></div></div>
+            <div id="glowScaleContainer" style="display: none;"><div class="control-row"><label>Graphic Scale</label><div class="slider-row"><input type="range" id="glowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="glowScaleNum"></div></div></div>
+            
+            <div id="glowRadarContainer" style="display: none;">
+              <div class="control-row"><label>Radar Pings (Count)</label><div class="slider-row"><input type="range" id="glowRingsSlider" min="1" max="10" step="1" value="1"><input type="number" class="num-input" id="glowRingsNum"></div></div>
+              <div class="control-row"><label>Radar Core Radius (px)</label><div class="slider-row"><input type="range" id="glowCoreRSlider" min="0" max="200" step="1" value="5"><input type="number" class="num-input" id="glowCoreRNum"></div></div>
+              <div class="control-row"><label>Radar Line Thickness (px)</label><div class="slider-row"><input type="range" id="glowThickSlider" min="1" max="50" step="1" value="2"><input type="number" class="num-input" id="glowThickNum"></div></div>
+            </div>
+            
+            <div class="control-row"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="glowDurSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="glowDurNum"></div></div>
+            <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowDelayNum"></div></div>
+            
+            <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+              <label>End Delay / Pause (sec)</label>
+              <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum"></div>
+              <div class="control-row" style="margin-top: 0.4rem;">
+                <label class="toggle-switch"><input type="checkbox" id="glowHideOnDelay" checked> 👻 Hide glow during pause</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. ACCORDION: LIQUID RIPPLES -->
+      <div class="accordion-section" id="acc-ripples">
+        <div class="accordion-header">
+          <span style="color: #58a6ff;">💧 Liquid Ripples</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <button class="secondary" id="btnAddRipple" style="width: 100%; margin-bottom: 0.5rem; border-color: #58a6ff; color: #58a6ff;">+ Add Water Ripple</button>
+          <div id="rippleListContainer"><div class="stage-hint" id="emptyRippleHint">No ripples active.</div></div>
+
+          <div id="rippleEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
+            <div style="font-weight: bold; margin-bottom: 0.5rem; color: #58a6ff;" id="editingRippleLabel">Editing Ripple</div>
+            <div class="stage-hint" style="margin-bottom:0.5rem;">Click or drag on the canvas to place the ripple epicentre.</div>
+            
+            <div class="control-row"><label>Crest Highlight Colour</label><input type="color" id="rippleColorPicker" value="#ffffff" style="width: 100%;"></div>
+            <div class="control-row"><label>Highlight Opacity</label><div class="slider-row"><input type="range" id="rippleOpacitySlider" min="0" max="1.0" step="0.05" value="0.4"><input type="number" class="num-input" id="rippleOpacityNum"></div></div>
+            
+            <div class="control-row" style="margin-top: 0.5rem;"><label>Refraction Distortion</label><div class="slider-row"><input type="range" id="rippleRefractionSlider" min="0" max="150" step="1" value="35"><input type="number" class="num-input" id="rippleRefractionNum"></div></div>
+            
+            <div class="control-row"><label>Inner Start Radius (px)</label><div class="slider-row"><input type="range" id="rippleInnerRSlider" min="0" max="300" step="1" value="0"><input type="number" class="num-input" id="rippleInnerRNum"></div></div>
+            <div class="control-row"><label>Outer Fade Radius (px)</label><div class="slider-row"><input type="range" id="rippleOuterRSlider" min="10" max="1500" step="1" value="150"><input type="number" class="num-input" id="rippleOuterRNum"></div></div>
+            
+            <div class="control-row"><label>Total Rings Count</label><div class="slider-row"><input type="range" id="rippleRingsSlider" min="1" max="15" step="1" value="3"><input type="number" class="num-input" id="rippleRingsNum"></div></div>
+            <div class="control-row"><label>Wave Thickness (px)</label><div class="slider-row"><input type="range" id="rippleThickSlider" min="1" max="100" step="1" value="8"><input type="number" class="num-input" id="rippleThickNum"></div></div>
+            
+            <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0"><input type="number" class="num-input" id="rippleDurNum"></div></div>
+            <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="rippleDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="rippleDelayNum"></div></div>
+            <div class="control-row"><label>End Delay / Pause (sec)</label><div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum"></div></div>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- CENTRE STAGE -->
     <div class="stage">
-      <div class="preview-wrapper" id="previewBox" title="Click image to position target">
+      <div class="preview-wrapper" id="previewBox" title="Click or drag on canvas to position elements. Hold Space + Drag to pan zoomed stage.">
         <div id="svgContainer"></div>
-        <svg class="trajectory-overlay" id="trajectorySvg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
-          <line id="flightLine" x1="0" y1="0" x2="0" y2="0" stroke="rgba(88, 166, 255, 0.75)" stroke-width="3" stroke-dasharray="5,4" />
-          <path id="flowCurvePath" d="" stroke="#00ffcc" stroke-width="3" stroke-dasharray="5,4" fill="none" style="display:none;" />
-        </svg>
-        <div class="reticle reticle-start active-reticle" id="reticleStart">IN</div>
-        <div class="reticle reticle-end" id="reticleEnd">OUT</div>
-        <div class="reticle active-reticle" id="reticleCenter" style="display:none; background:rgba(255, 255, 255, 0.2); border-color:#fff; border-radius: 50%;">CENTRE</div>
-        <div class="reticle active-reticle" id="glowReticleTarget" style="display:none; background:rgba(255, 0, 68, 0.3); border-color:#ff0044; z-index: 12;">GLOW</div>
-        <div class="reticle active-reticle" id="rippleReticleTarget" style="display:none; background:rgba(88, 166, 255, 0.2); border-color:#58a6ff; z-index: 12; border-radius: 50%;">WAVE</div>
-        <div id="dynamicFlowReticles" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+        <div id="stageOverlayLayer" class="stage-overlay-layer">
+          <div class="canvas-border-badge" id="canvasBorderBadge">1280 &times; 720</div>
+          <svg class="trajectory-overlay" id="trajectorySvg" viewBox="0 0 1280 720" preserveAspectRatio="none">
+            <line id="flightLine" x1="0%" y1="0%" x2="0%" y2="0%" stroke="rgba(88, 166, 255, 0.75)" stroke-width="2.5" stroke-dasharray="5,4" vector-effect="non-scaling-stroke" />
+            <path id="flowCurvePath" d="" stroke="#00ffcc" stroke-width="2.5" stroke-dasharray="5,4" fill="none" style="display:none;" vector-effect="non-scaling-stroke" />
+            <rect id="nodeSelectionBox" x="0" y="0" width="0" height="0" rx="8" fill="none" stroke="#a371f7" stroke-width="2" stroke-dasharray="6,4" style="display:none;" vector-effect="non-scaling-stroke" />
+          </svg>
+          <div class="reticle reticle-start active-reticle" id="reticleStart">IN</div>
+          <div class="reticle reticle-end" id="reticleEnd">OUT</div>
+          <div class="reticle active-reticle" id="reticleCenter" style="display:none; background:rgba(255, 255, 255, 0.2); border-color:#fff; border-radius: 50%;">CENTRE</div>
+          <div class="reticle active-reticle" id="glowReticleTarget" style="display:none; background:rgba(255, 0, 68, 0.3); border-color:#ff0044; z-index: 12;">GLOW</div>
+          <div class="reticle active-reticle" id="rippleReticleTarget" style="display:none; background:rgba(88, 166, 255, 0.2); border-color:#58a6ff; z-index: 12; border-radius: 50%;">WAVE</div>
+          <div id="dynamicFlowReticles" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+        </div>
       </div>
-      <div class="stage-bar" style="margin-top: 1rem; width: 100%; display: flex; justify-content: space-between;">
-        <div class="stage-hint">Camera framing controls are independent from overlays.</div>
+
+      <div class="stage-bar">
+        <div class="stage-zoom-controls">
+          <button type="button" class="zoom-btn" id="btnZoomOut" title="Zoom Out">&minus;</button>
+          <input type="range" id="stageZoomSlider" min="25" max="300" step="5" value="100" style="width: 95px;">
+          <button type="button" class="zoom-btn" id="btnZoomIn" title="Zoom In">+</button>
+          <span id="stageZoomLabel" class="zoom-pct-label">Fit</span>
+          <button type="button" class="zoom-btn" id="btnZoomFit" title="Fit Canvas to Window">Fit</button>
+          <button type="button" class="zoom-btn" id="btnZoom100" title="Actual Pixel Size (100%)">1:1</button>
+        </div>
+        <div class="stage-hint" id="stageModeHint">Click/drag to move &bull; Ctrl+Z Undo &bull; Ctrl+Wheel Zoom &bull; Space+Drag Pan</div>
         <button class="replay" id="btnReplay"><span>&#x21bb;</span> Replay Motion</button>
       </div>
     </div>
 
     <!-- RIGHT PANEL -->
     <div class="panel right-panel" id="settingsPanel">
-      <div class="control-row"><label>Playback Mode</label><select id="loopSelect"><option value="loop">Continuous Natural Loop</option><option value="pingpong">Ping-Pong (Smooth In &amp; Out)</option><option value="once" selected>Play Once &amp; Hold</option></select></div>
-      <div class="control-row"><label>Duration / Speed (seconds)</label><div class="slider-row"><input type="range" id="durationSlider" min="1" max="60" step="0.5" value="7"><input type="number" class="num-input" id="durationNum"></div></div>
-      <div class="control-row" style="margin-top: 1rem;"><label>Canvas Background</label><div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.4rem;"><input type="color" id="canvasBgColorPicker" value="#000000" style="flex-grow: 1;"><label class="toggle-switch" style="font-size: 0.8rem; margin: 0;"><input type="checkbox" id="canvasBgTransparent"> Transparent</label></div></div>
-      
-      <div class="section-title" style="margin-top: 0.5rem;">Camera Rig &amp; Motion</div>
-      <div class="effect-group">
-        <div class="control-row"><select id="cameraMotionSelect"><option value="static">Static Locked-Off Shot</option><option value="ken-burns" selected>Ken Burns (Pan &amp; Zoom)</option><option value="perspective-tilt">3D Perspective Tilt</option><option value="handheld-drift">Organic Handheld Drift</option></select></div>
-        
-        <!-- PANEL: STATIC -->
-        <div id="panel-cam-static" style="display:none; margin-top: 0.5rem;">
-          <div class="control-row"><label>Lens Zoom</label><div class="slider-row"><input type="range" id="staticZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="staticZoomNum"></div></div>
-          <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="staticXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="staticXNum"></div></div>
-          <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="staticYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="staticYNum"></div></div>
+      <div class="panel-toolbar">
+        <span class="panel-toolbar-title">Camera, Optics &amp; Export</span>
+        <div class="panel-toolbar-actions">
+          <button type="button" class="mini-panel-btn" onclick="window.toggleAllAccordions('settingsPanel', true)">Expand All</button>
+          <button type="button" class="mini-panel-btn" onclick="window.toggleAllAccordions('settingsPanel', false)">Collapse All</button>
         </div>
+      </div>
 
-        <!-- PANEL: KEN BURNS -->
-        <div id="panel-cam-kenburns" style="margin-top: 0.5rem;">
-          <div class="target-mode-selector"><button class="mode-btn active-start" id="btnModeStart"><span>●</span> Start Pos</button><button class="mode-btn" id="btnModeEnd"><span>●</span> End Pos</button></div>
-          <div class="control-row"><label>Start Zoom</label><div class="slider-row"><input type="range" id="startXZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="startXZoomNum"></div></div>
-          <div class="control-row"><label>Start Pos X (%)</label><div class="slider-row"><input type="range" id="startXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="startXNum"></div></div>
-          <div class="control-row"><label>Start Pos Y (%)</label><div class="slider-row"><input type="range" id="startYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="startYNum"></div></div>
-          <div style="margin-top:0.8rem; border-top:1px dashed #444; padding-top:0.5rem;">
-            <div class="control-row"><label>End Zoom</label><div class="slider-row"><input type="range" id="endXZoomSlider" min="0.1" max="10.0" step="0.1" value="1.3"><input type="number" class="num-input" id="endXZoomNum"></div></div>
-            <div class="control-row"><label>End Pos X (%)</label><div class="slider-row"><input type="range" id="endXSlider" min="0" max="100" step="1" value="60"><input type="number" class="num-input" id="endXNum"></div></div>
-            <div class="control-row"><label>End Pos Y (%)</label><div class="slider-row"><input type="range" id="endYSlider" min="0" max="100" step="1" value="40"><input type="number" class="num-input" id="endYNum"></div></div>
+      <!-- 1. ACCORDION: TIMELINE & PLAYBACK -->
+      <div class="accordion-section open" id="acc-playback">
+        <div class="accordion-header">
+          <span>⏱️ Timeline &amp; Playback</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <div class="control-row" style="margin-top: 0;"><label>Playback Mode</label><select id="loopSelect"><option value="loop">Continuous Natural Loop</option><option value="pingpong">Ping-Pong (Smooth In &amp; Out)</option><option value="once" selected>Play Once &amp; Hold</option></select></div>
+          <div class="control-row"><label>Duration / Speed (seconds)</label><div class="slider-row"><input type="range" id="durationSlider" min="1" max="60" step="0.5" value="7"><input type="number" class="num-input" id="durationNum"></div></div>
+        </div>
+      </div>
+
+      <!-- 2. ACCORDION: CAMERA RIG & MOTION -->
+      <div class="accordion-section" id="acc-camera">
+        <div class="accordion-header">
+          <span>🎥 Camera Rig &amp; Motion</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <div class="control-row" style="margin-top: 0;"><select id="cameraMotionSelect"><option value="static" selected>Static Locked-Off Shot (Best for Diagrams)</option><option value="ken-burns">Ken Burns (Pan &amp; Zoom)</option><option value="perspective-tilt">3D Perspective Tilt</option><option value="handheld-drift">Organic Handheld Drift</option></select></div>
+          
+          <div id="panel-cam-static" style="margin-top: 0.5rem;">
+            <div class="control-row"><label>Lens Zoom</label><div class="slider-row"><input type="range" id="staticZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="staticZoomNum"></div></div>
+            <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="staticXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="staticXNum"></div></div>
+            <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="staticYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="staticYNum"></div></div>
+          </div>
+
+          <div id="panel-cam-kenburns" style="display:none; margin-top: 0.5rem;">
+            <div class="target-mode-selector"><button class="mode-btn active-start" id="btnModeStart"><span>●</span> Start Pos</button><button class="mode-btn" id="btnModeEnd"><span>●</span> End Pos</button></div>
+            <div class="control-row"><label>Start Zoom</label><div class="slider-row"><input type="range" id="startXZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="startXZoomNum"></div></div>
+            <div class="control-row"><label>Start Pos X (%)</label><div class="slider-row"><input type="range" id="startXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="startXNum"></div></div>
+            <div class="control-row"><label>Start Pos Y (%)</label><div class="slider-row"><input type="range" id="startYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="startYNum"></div></div>
+            <div style="margin-top:0.8rem; border-top:1px dashed #444; padding-top:0.5rem;">
+              <div class="control-row"><label>End Zoom</label><div class="slider-row"><input type="range" id="endXZoomSlider" min="0.1" max="10.0" step="0.1" value="1.3"><input type="number" class="num-input" id="endXZoomNum"></div></div>
+              <div class="control-row"><label>End Pos X (%)</label><div class="slider-row"><input type="range" id="endXSlider" min="0" max="100" step="1" value="60"><input type="number" class="num-input" id="endXNum"></div></div>
+              <div class="control-row"><label>End Pos Y (%)</label><div class="slider-row"><input type="range" id="endYSlider" min="0" max="100" step="1" value="40"><input type="number" class="num-input" id="endYNum"></div></div>
+            </div>
+          </div>
+
+          <div id="panel-cam-handheld" style="display:none; margin-top: 0.5rem;">
+            <div class="control-row"><label>Base Zoom</label><div class="slider-row"><input type="range" id="handZoomSlider" min="0.1" max="10.0" step="0.1" value="1.1"><input type="number" class="num-input" id="handZoomNum"></div></div>
+            <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="handXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="handXNum"></div></div>
+            <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="handYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="handYNum"></div></div>
+            <div style="margin-top:0.8rem; border-top:1px dashed #444; padding-top:0.5rem;">
+              <div class="control-row"><label>Translation Sway</label><div class="slider-row"><input type="range" id="driftSwaySlider" min="0" max="5.0" step="0.1" value="1.4"><input type="number" class="num-input" id="driftSwayNum"></div></div>
+              <div class="control-row"><label>Operator Breathing Zoom</label><div class="slider-row"><input type="range" id="driftBreatheSlider" min="0" max="6.0" step="0.1" value="1.8"><input type="number" class="num-input" id="driftBreatheNum"></div></div>
+            </div>
+          </div>
+
+          <div id="panel-cam-perspective" style="display:none; margin-top: 0.5rem;">
+            <div class="control-row"><label>Base Zoom</label><div class="slider-row"><input type="range" id="perspZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="perspZoomNum"></div></div>
+            <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="perspXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="perspXNum"></div></div>
+            <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="perspYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="perspYNum"></div></div>
+            <div style="margin-top:0.8rem; border-top:1px dashed #444; padding-top:0.5rem;">
+              <div class="control-row"><label>Pitch (Tilt X-Axis)</label><div class="slider-row"><input type="range" id="perspTiltXSlider" min="-60" max="60" step="1" value="25"><input type="number" class="num-input" id="perspTiltXNum"></div></div>
+              <div class="control-row"><label>Yaw (Tilt Y-Axis)</label><div class="slider-row"><input type="range" id="perspTiltYSlider" min="-60" max="60" step="1" value="0"><input type="number" class="num-input" id="perspTiltYNum"></div></div>
+            </div>
           </div>
         </div>
-
-        <!-- PANEL: HANDHELD -->
-        <div id="panel-cam-handheld" style="display:none; margin-top: 0.5rem;">
-          <div class="control-row"><label>Base Zoom</label><div class="slider-row"><input type="range" id="handZoomSlider" min="0.1" max="10.0" step="0.1" value="1.1"><input type="number" class="num-input" id="handZoomNum"></div></div>
-          <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="handXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="handXNum"></div></div>
-          <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="handYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="handYNum"></div></div>
-          <div style="margin-top:0.8rem; border-top:1px dashed #444; padding-top:0.5rem;">
-            <div class="control-row"><label>Translation Sway</label><div class="slider-row"><input type="range" id="driftSwaySlider" min="0" max="5.0" step="0.1" value="1.4"><input type="number" class="num-input" id="driftSwayNum"></div></div>
-            <div class="control-row"><label>Operator Breathing Zoom</label><div class="slider-row"><input type="range" id="driftBreatheSlider" min="0" max="6.0" step="0.1" value="1.8"><input type="number" class="num-input" id="driftBreatheNum"></div></div>
-          </div>
+      </div>
+      
+      <!-- 3. ACCORDION: OPTICAL EFFECTS & FRAME -->
+      <div class="accordion-section" id="acc-optics">
+        <div class="accordion-header">
+          <span>🔬 Optical Effects &amp; Frame</span>
+          <span class="accordion-chevron">▾</span>
         </div>
+        <div class="accordion-body">
+          <div class="control-row" style="margin-top: 0;">
+            <label>Primary Optical Shader</label>
+            <select id="effectSelect">
+              <option value="none" selected>None (Clean Image)</option>
+              <option value="focus-pull">Focus Pull (Blur &harr; Sharp)</option>
+              <option value="tilt-shift">Tilt-Shift Miniature Focus</option>
+              <option value="motion-blur">Directional Motion Blur</option>
+            </select>
+          </div>
+          
+          <div id="panel-opt-focus" style="display: none; margin-top: 0.5rem;">
+            <div class="control-row"><label>Start Blur Radius (px)</label><div class="slider-row"><input type="range" id="startBlurSlider" min="0" max="50" step="0.5" value="18"><input type="number" class="num-input" id="startBlurNum"></div></div>
+            <div class="control-row"><label>End Blur Radius (px)</label><div class="slider-row"><input type="range" id="endBlurSlider" min="0" max="50" step="0.5" value="0"><input type="number" class="num-input" id="endBlurNum"></div></div>
+            <div class="control-row"><label>Focus Duration (sec)</label><div class="slider-row"><input type="range" id="focusDurSlider" min="0.5" max="30" step="0.5" value="4"><input type="number" class="num-input" id="focusDurNum"></div></div>
+          </div>
 
-        <!-- PANEL: PERSPECTIVE TILT -->
-        <div id="panel-cam-perspective" style="display:none; margin-top: 0.5rem;">
-          <div class="control-row"><label>Base Zoom</label><div class="slider-row"><input type="range" id="perspZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="perspZoomNum"></div></div>
-          <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="perspXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="perspXNum"></div></div>
-          <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="perspYSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="perspYNum"></div></div>
-          <div style="margin-top:0.8rem; border-top:1px dashed #444; padding-top:0.5rem;">
-            <div class="control-row"><label>Pitch (Tilt X-Axis)</label><div class="slider-row"><input type="range" id="perspTiltXSlider" min="-60" max="60" step="1" value="25"><input type="number" class="num-input" id="perspTiltXNum"></div></div>
-            <div class="control-row"><label>Yaw (Tilt Y-Axis)</label><div class="slider-row"><input type="range" id="perspTiltYSlider" min="-60" max="60" step="1" value="0"><input type="number" class="num-input" id="perspTiltYNum"></div></div>
+          <div id="panel-opt-tiltshift" style="display: none; margin-top: 0.5rem;">
+            <div class="control-row"><label>Mask Shape</label><select id="tsShapeSelect"><option value="horizontal">Horizontal Band (Letterbox)</option><option value="vertical">Vertical Band (Pillarbox)</option><option value="radial">Radial Target (Inner Circle)</option></select></div>
+            <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="tsPosXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosXNum"></div></div>
+            <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="tsPosSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosNum"></div></div>
+            <div class="control-row"><label>Sharp Zone Width (%)</label><div class="slider-row"><input type="range" id="tsWidthSlider" min="5" max="80" step="1" value="20"><input type="number" class="num-input" id="tsWidthNum"></div></div>
+            <div class="control-row"><label>Background Blur (px)</label><div class="slider-row"><input type="range" id="tsBlurSlider" min="1" max="50" step="1" value="12"><input type="number" class="num-input" id="tsBlurNum"></div></div>
+          </div>
+
+          <div id="panel-opt-motionblur" style="display: none; margin-top: 0.5rem;">
+            <div class="control-row"><label>Blur Intensity (Velocity)</label><div class="slider-row"><input type="range" id="mbIntSlider" min="0" max="50" step="1" value="15"><input type="number" class="num-input" id="mbIntNum"></div></div>
+            <div class="control-row"><label>Motion Angle (Degrees)</label><div class="slider-row"><input type="range" id="mbAngSlider" min="0" max="360" step="1" value="0"><input type="number" class="num-input" id="mbAngNum"></div></div>
+          </div>
+
+          <div style="margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px dashed #30363d;">
+            <label class="toggle-switch"><input type="checkbox" id="chkModuleFrame"> 🖼️ Presentation Frame</label>
+            <div id="groupFrame" style="display:none; flex-direction:column; gap:0.4rem; margin-top:0.4rem;">
+              <div class="control-row"><select id="frameStyleSelect"><option value="walnut" selected>Heritage Walnut</option><option value="gold">Gilded Gold</option><option value="matte">Museum Matte</option><option value="obsidian">Obsidian Black</option></select></div>
+              <div class="control-row"><label>Frame Width / Depth (pixels)</label><div class="slider-row"><input type="range" id="frameDepthSlider" min="10" max="200" step="1" value="44"><input type="number" class="num-input" id="frameDepthNum"></div></div>
+            </div>
           </div>
         </div>
       </div>
       
-      <div class="section-title" style="margin-top: 1.5rem;">Primary Optical Effect</div>
-      <div class="effect-group">
-        <div class="control-row">
-          <select id="effectSelect">
-            <option value="none" selected>None (Clean Image)</option>
-            <option value="focus-pull">Focus Pull (Blur &harr; Sharp)</option>
-            <option value="tilt-shift">Tilt-Shift Miniature Focus</option>
-            <option value="motion-blur">Directional Motion Blur</option>
-          </select>
+      <!-- 4. ACCORDION: EXPORT & RENDER -->
+      <div class="accordion-section open" id="acc-export">
+        <div class="accordion-header">
+          <span>🚀 Export &amp; Render Studio</span>
+          <span class="accordion-chevron">▾</span>
         </div>
-        
-        <!-- PANEL: FOCUS PULL -->
-        <div id="panel-opt-focus" style="display: none; margin-top: 0.5rem;">
-          <div class="control-row"><label>Start Blur Radius (px)</label><div class="slider-row"><input type="range" id="startBlurSlider" min="0" max="50" step="0.5" value="18"><input type="number" class="num-input" id="startBlurNum"></div></div>
-          <div class="control-row"><label>End Blur Radius (px)</label><div class="slider-row"><input type="range" id="endBlurSlider" min="0" max="50" step="0.5" value="0"><input type="number" class="num-input" id="endBlurNum"></div></div>
-          <div class="control-row"><label>Focus Duration (sec)</label><div class="slider-row"><input type="range" id="focusDurSlider" min="0.5" max="30" step="0.5" value="4"><input type="number" class="num-input" id="focusDurNum"></div></div>
+        <div class="accordion-body">
+          <div class="btn-group">
+            <button type="button" class="primary" id="btnDownloadSVG">Download Vector SVG (Locked Ratio)</button>
+            <button type="button" class="secondary" id="btnDownloadHTML" style="margin-top: 0.45rem; width: 100%;">Download Interactive HTML</button>
+            <button type="button" class="primary" id="btnOpenStillModal" style="margin-top: 0.45rem; width: 100%; background: #1f6feb;">🖼️ Export Still / Print Image (PNG/WebP/JPG)</button>
+            <button type="button" class="primary" id="btnOpenBitmapModal" style="margin-top: 0.45rem; width: 100%; background: #8957e5;">🎬 Export Animated Bitmap (WebP/APNG)</button>
+          </div>
         </div>
-
-        <!-- PANEL: TILT SHIFT -->
-        <div id="panel-opt-tiltshift" style="display: none; margin-top: 0.5rem;">
-          <div class="control-row"><label>Mask Shape</label><select id="tsShapeSelect"><option value="horizontal">Horizontal Band (Letterbox)</option><option value="vertical">Vertical Band (Pillarbox)</option><option value="radial">Radial Target (Inner Circle)</option></select></div>
-          <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="tsPosXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosXNum"></div></div>
-          <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="tsPosSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosNum"></div></div>
-          <div class="control-row"><label>Sharp Zone Width (%)</label><div class="slider-row"><input type="range" id="tsWidthSlider" min="5" max="80" step="1" value="20"><input type="number" class="num-input" id="tsWidthNum"></div></div>
-          <div class="control-row"><label>Background Blur (px)</label><div class="slider-row"><input type="range" id="tsBlurSlider" min="1" max="50" step="1" value="12"><input type="number" class="num-input" id="tsBlurNum"></div></div>
-        </div>
-
-        <!-- PANEL: MOTION BLUR -->
-        <div id="panel-opt-motionblur" style="display: none; margin-top: 0.5rem;">
-          <div class="control-row"><label>Blur Intensity (Velocity)</label><div class="slider-row"><input type="range" id="mbIntSlider" min="0" max="50" step="1" value="15"><input type="number" class="num-input" id="mbIntNum"></div></div>
-          <div class="control-row"><label>Motion Angle (Degrees)</label><div class="slider-row"><input type="range" id="mbAngSlider" min="0" max="360" step="1" value="0"><input type="number" class="num-input" id="mbAngNum"></div></div>
-        </div>
-      </div>
-
-      <div class="section-title" style="margin-top: 1.5rem;">Atmospheric Overlays</div>
-      <div class="effect-group" style="padding-top: 0.4rem; padding-bottom: 0.4rem;">
-        <label class="toggle-switch"><input type="checkbox" id="chkModuleFrame" checked> 🖼️ Presentation Frame</label>
-        <div id="groupFrame" style="display:flex; flex-direction:column; gap:0.4rem; margin-top:0.4rem;"><div class="control-row"><select id="frameStyleSelect"><option value="walnut" selected>Heritage Walnut</option><option value="gold">Gilded Gold</option><option value="matte">Museum Matte</option><option value="obsidian">Obsidian Black</option></select></div><div class="control-row"><label>Frame Width / Depth (pixels)</label><div class="slider-row"><input type="range" id="frameDepthSlider" min="10" max="200" step="1" value="44"><input type="number" class="num-input" id="frameDepthNum"></div></div></div>
-      </div>
-      
-      <div class="section-title" style="margin-top: 1.5rem;">Export</div>
-      <div class="btn-group">
-        <button class="primary" id="btnDownloadSVG">Download SVG</button>
-        <button class="secondary" id="btnDownloadHTML" style="margin-top: 0.5rem; width: 100%;">Download HTML</button>
-        
-        <!-- NEW RASTERIZATION BUTTONS -->
-        <button class="primary" onclick="openExportModal()" style="margin-top: 0.5rem; width: 100%; background: #9b59b6;">Render Animated WebP / APNG</button>
-      </div>
-      <!-- RENDER PROGRESS INDICATOR -->
-      <div id="renderProgress" style="display: none; margin-top: 0.8rem; font-size: 0.85rem; color: #58a6ff; text-align: center; font-weight: bold; animation: htmlAnim 2s infinite;">
-        ⚙️ Rendering frames via backend... Please wait.
       </div>
     </div>
   </div>
 
-  <div id="export-modal-container"></div>
+  <!-- =========================================================================
+       MODAL 1: DEDICATED STILL FLAT IMAGE & PRINT DPI EXPORT STUDIO
+       ========================================================================= -->
+  <div id="stillExportModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2>🖼️ Still Flat Image &amp; Print Export Studio</h2>
+          <div style="font-size: 0.8rem; color: #8b949e; margin-top: 0.2rem;">Fast screen-resolution preview &bull; Full print DPI rasterization on download (PNG, WebP Still, JPEG)</div>
+        </div>
+        <button type="button" class="close-btn" id="btnCloseStillTop" title="Close">✕</button>
+      </div>
 
-  <script src="js/effects.js?v=4.2"></script>
-  <script src="js/stage.js?v=4.2"></script>
-  <script src="js/flows.js?v=4.2"></script>
-  <script src="js/glows.js?v=4.2"></script>
-  <script src="js/ripples.js?v=4.2"></script>
-  <script src="js/app.js?v=4.2"></script>
-  <script src="js/export-modal.js?v=4.2"></script>
+      <div class="modal-body">
+        <div class="export-settings">
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 1.5;">
+              <label>Output File Name</label>
+              <input type="text" id="stillFilename" value="diagram_still">
+            </div>
+            <div class="setting-group" style="flex: 1.2;">
+              <label>Still Image Format</label>
+              <select id="stillFormatSelect">
+                <option value="png" selected>PNG (Lossless / Transparent)</option>
+                <option value="webp">WebP Still (High Efficiency)</option>
+                <option value="jpeg">JPEG (Flat Opaque Document)</option>
+                <option value="all">All Three (PNG + WebP + JPG)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label>Print DPI / Final Export Scale Multiplier</label>
+            <select id="stillDpiSelect">
+              <option value="1" selected>Screen Native — 96 DPI (1&times; Working Canvas Size)</option>
+              <option value="1.5625">Draft Print — 150 DPI (1.56&times; Scale)</option>
+              <option value="2.0833">Standard Print — 200 DPI (2.08&times; Scale)</option>
+              <option value="3.125">High-Res Print — 300 DPI (3.125&times; Scale &bull; e.g. A4 = 3508&times;2480 px)</option>
+              <option value="4.1667">Fine Art Print — 400 DPI (4.17&times; Scale)</option>
+              <option value="6.25">Ultra Print — 600 DPI (6.25&times; Scale)</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label>Final Downloaded File Dimensions</label>
+              <label class="toggle-label" style="font-size: 0.78rem;">
+                <input type="checkbox" id="stillLockAspect" checked> Lock Aspect Ratio
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-group" style="flex: 1;">
+                <span class="sub-label">Output Width (px)</span>
+                <input type="number" id="stillWidthInput" min="64" max="12000" step="2">
+              </div>
+              <div class="setting-group" style="flex: 1;">
+                <span class="sub-label">Output Height (px)</span>
+                <input type="number" id="stillHeightInput" min="64" max="12000" step="2">
+              </div>
+              <div class="setting-group" style="flex: 0.8;">
+                <span class="sub-label">Quality (%)</span>
+                <input type="number" id="stillQualityInput" min="10" max="100" step="5" value="95">
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-group" style="background: rgba(88, 166, 255, 0.07); padding: 0.65rem; border-radius: 6px; border: 1px solid rgba(88, 166, 255, 0.35);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="color: #58a6ff;">Snapshot Timestamp (sec)</label>
+              <span id="stillTimeReadout" style="font-family: monospace; font-size: 0.78rem; color: #58a6ff;">t = 1.0s</span>
+            </div>
+            <div style="font-size: 0.72rem; color: #8b949e; margin-bottom: 0.35rem;">
+              Scrub the timeline to position traveling dataflow payloads, ripples, and glows at any exact moment.
+            </div>
+            <div style="display: flex; gap: 0.6rem; align-items: center;">
+              <input type="range" id="stillTimeSlider" min="0" max="14" step="0.05" value="1.0" style="flex: 1;">
+              <input type="number" id="stillTimeNum" min="0" max="60" step="0.05" value="1.0" style="width: 72px;">
+            </div>
+            <label class="toggle-label" style="margin-top: 0.45rem; font-size: 0.78rem; color: #c9d1d9;">
+              <input type="checkbox" id="stillForcePeakVis" checked> 🌟 Keep Glows &amp; Traveling Payloads at full visibility (prevents fade-out at t=0)
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <label>Layers to Include in Still Image</label>
+            <div class="layer-grid">
+              <label class="toggle-label"><input type="checkbox" id="stillEnableNodes" checked> Diagram Shapes &amp; Text Boxes</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnableFlows" checked> Connectors &amp; DataFlow Lines</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnablePayloads" checked> Traveling DataFlow Payloads (Orbs/Icons)</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnableGlows" checked> Hotspots &amp; Glows</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnableRipples" checked> Liquid Ripples</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnableCamera"> Camera Pan/Zoom Framing</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnableOptical" checked> Optical Effects (Blur / Tilt-Shift)</label>
+              <label class="toggle-label"><input type="checkbox" id="stillEnableFrame" checked> Presentation Frame</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Fast Screen-Resolution Still Preview & Generating Status Overlay -->
+        <div class="export-preview">
+          <div id="stillPreviewContainer" class="preview-box" style="position: relative;">
+            <span id="stillPreviewPlaceholder">Rendering screen-resolution preview...</span>
+
+            <!-- Generating High-Res Final Image Overlay (Strictly Contained) -->
+            <div id="stillGeneratingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(6, 8, 12, 0.85); z-index: 20; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 1.5rem; box-sizing: border-box; backdrop-filter: blur(4px); border-radius: 4px;">
+              <div id="stillGeneratingTitle" style="font-size: 0.95rem; color: #58a6ff; font-weight: 600; line-height: 1.4; word-break: break-word; max-width: 100%;">
+                ⏳ Generating your high-resolution image...
+              </div>
+              <div id="stillGeneratingSub" style="font-size: 0.75rem; color: #c9d1d9; margin-top: 0.5rem; text-align: center; line-height: 1.4; word-break: break-word; max-width: 100%;">
+                Rasterizing vector shapes, flows, and effects at full target resolution.
+              </div>
+            </div>
+
+            <img id="stillPreviewImage" style="display: none;" alt="Rendered Still Preview" />
+          </div>
+          <div id="stillPreviewMeta" class="preview-meta">Preview renders at screen resolution for speed; final download renders at full target resolution.</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="footer-left-actions">
+          <button type="button" class="btn-secondary" id="btnStillRefreshPreview">↻ Refresh Preview</button>
+        </div>
+        <div class="footer-right-actions">
+          <button type="button" class="btn-secondary" id="btnCloseStillBottom">Close</button>
+          <button type="button" class="btn-primary" id="btnDownloadStillFinal" style="background: #1f6feb;">Download Still PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 2: DEDICATED ANIMATED BITMAP EXPORT STUDIO (WebP / APNG ONLY)
+       ========================================================================= -->
+  <div id="exportModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2>🎬 Animated Bitmap Export Studio</h2>
+          <div style="font-size: 0.8rem; color: #8b949e; margin-top: 0.2rem;">Render multi-frame vector animations into standalone Animated WebP or APNG files</div>
+        </div>
+        <button type="button" class="close-btn" onclick="window.closeExportModal()" title="Close">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="export-settings">
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 2;">
+              <label>Output File Name</label>
+              <input type="text" id="expFilename" value="animation_export">
+            </div>
+            <div class="setting-group" style="flex: 1;">
+              <label>Duration (sec)</label>
+              <input type="number" id="expDuration" min="0.5" max="60" step="0.5" value="7">
+            </div>
+          </div>
+          
+          <div class="setting-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label>Target Video Resolution</label>
+              <label class="toggle-label" style="font-size: 0.78rem;">
+                <input type="checkbox" id="expLockAspect" checked> Lock Aspect Ratio
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-group" style="flex: 1;">
+                <span class="sub-label">Width (px)</span>
+                <input type="number" id="expWidth" min="64" max="3840" step="2">
+              </div>
+              <div class="setting-group" style="flex: 1;">
+                <span class="sub-label">Height (px)</span>
+                <input type="number" id="expHeight" min="64" max="3840" step="2">
+              </div>
+            </div>
+            <div class="preset-pills" style="margin-top: 0.25rem;">
+              <button type="button" class="pill-btn" onclick="window.setExportResolution('native')">100% Native</button>
+              <button type="button" class="pill-btn" onclick="window.setExportResolution('half')">50% Scale</button>
+              <button type="button" class="pill-btn" onclick="window.setExportResolution(1920)">1080p Width</button>
+              <button type="button" class="pill-btn" onclick="window.setExportResolution(1280)">720p Width</button>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 1.2;">
+              <label>Animated Format</label>
+              <select id="expFormat">
+                <option value="webp" selected>Animated WebP</option>
+                <option value="apng">Animated PNG (APNG)</option>
+                <option value="both">Both (WebP + APNG)</option>
+              </select>
+            </div>
+            <div class="setting-group" style="flex: 1;">
+              <label>Final Frame Rate</label>
+              <select id="expFps">
+                <option value="15">15 FPS (Fast Draft)</option>
+                <option value="24" selected>24 FPS (Preview &amp; Film)</option>
+                <option value="30">30 FPS (Standard)</option>
+                <option value="60">60 FPS (Smooth)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label>Playback Mode</label>
+            <select id="expLoop">
+              <option value="once">Play Once &amp; Hold (Best for Camera Pans &amp; Focus Pulls)</option>
+              <option value="loop" selected>Continuous Loop (Best for Diagrams, Flows &amp; Ripples)</option>
+              <option value="pingpong">Ping-Pong (Forward &amp; Reverse Cycle)</option>
+            </select>
+          </div>
+
+          <div class="setting-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label>Layers to Carry Over</label>
+            </div>
+            <div class="preset-pills" style="margin-bottom: 0.35rem;">
+              <button type="button" class="pill-btn" onclick="window.applyExportProfile('camera-once')">🎬 Camera / Intro (Once)</button>
+              <button type="button" class="pill-btn" onclick="window.applyExportProfile('overlays-loop')">📐 Diagram &amp; Overlays (Loop)</button>
+              <button type="button" class="pill-btn" onclick="window.applyExportProfile('all')">✨ All Active</button>
+            </div>
+
+            <div class="layer-grid">
+              <label class="toggle-label"><input type="checkbox" id="expEnableNodes" checked> Diagram Shapes &amp; Text Boxes</label>
+              <label class="toggle-label"><input type="checkbox" id="expEnableFlows" checked> Connectors &amp; Data Flows</label>
+              <label class="toggle-label"><input type="checkbox" id="expEnableGlows" checked> Hotspots &amp; Glows</label>
+              <label class="toggle-label"><input type="checkbox" id="expEnableRipples" checked> Liquid Ripples</label>
+              <label class="toggle-label"><input type="checkbox" id="expEnableCamera" checked> Camera Motion <span class="hint-tag">(Uncheck for Static BG)</span></label>
+              <label class="toggle-label"><input type="checkbox" id="expEnableOptical" checked> Optical Effects <span class="hint-tag">(Focus / Tilt-Shift / Blur)</span></label>
+              <label class="toggle-label"><input type="checkbox" id="expEnableFrame" checked> Presentation Frame</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="export-preview">
+          <div id="previewContainer" class="preview-box">
+            <span id="previewPlaceholder">Configure layers and click "Generate Preview (24 FPS)" to test...</span>
+            
+            <div id="renderProgressOverlay" class="progress-overlay" style="display: none;">
+              <div class="progress-phase" id="progressPhaseText">Initializing render engine...</div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+              </div>
+              <div class="progress-stats">
+                <span id="progressFrameCount">Frame 0 / 0</span>
+                <span id="progressPercent">0%</span>
+              </div>
+            </div>
+
+            <img id="previewImage" style="display: none;" alt="Rendered Animated Preview" />
+          </div>
+          <div id="previewMeta" class="preview-meta">RAM Preview scales to fit the preview window at 24 FPS for fast rendering.</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="footer-left-actions">
+          <button type="button" class="btn-secondary" id="btnGenPreview" onclick="window.generatePreview()">Generate Preview (24 FPS)</button>
+          <button type="button" class="btn-replay-modal" id="btnReplayPreview" onclick="window.replayPreview()" disabled>↻ Replay Preview</button>
+          <button type="button" class="btn-danger" id="btnCancelRender" onclick="window.cancelCurrentRender()" style="display: none;">✕ Cancel Render</button>
+        </div>
+        <div class="footer-right-actions">
+          <button type="button" class="btn-secondary" id="btnCloseModal" onclick="window.closeExportModal()">Close</button>
+          <button type="button" class="btn-primary" id="btnDownloadFinal" onclick="window.downloadFinal()">Download Final WebP</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULAR SCRIPTS -->
+  <script src="js/effects.js?v=5.2"></script>
+  <script src="js/stage.js?v=5.2"></script>
+  <script src="js/presets.js?v=5.2"></script>
+  <script src="js/nodes.js?v=5.2"></script>
+  <script src="js/flows.js?v=5.2"></script>
+  <script src="js/glows.js?v=5.2"></script>
+  <script src="js/ripples.js?v=5.2"></script>
+  <script src="js/history.js?v=5.2"></script>
+  <script src="js/app.js?v=5.2"></script>
+  <script src="js/still-export-modal.js?v=5.2"></script>
+  <script src="js/export-modal.js?v=5.2"></script>
 </body>
 </html>

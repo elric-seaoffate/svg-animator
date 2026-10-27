@@ -27,7 +27,7 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-main);
   height: 100vh;
-  overflow: hidden; /* Prevent full page scroll, let panels scroll */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -39,63 +39,180 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
+  padding: 0.8rem 2rem;
   background-color: var(--bg-panel);
   border-bottom: 1px solid var(--border);
-  height: 70px;
+  height: 64px;
 }
 
 header h1 {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .badge {
   background: var(--bg-input);
   border: 1px solid var(--border);
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 12px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
+.solo-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-main);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
 /* ==========================================================================
-   3-COLUMN IDE LAYOUT (GRID)
+   3-COLUMN IDE LAYOUT & ADOBE-STYLE ACCORDION PANELS
    ========================================================================== */
 .studio-layout {
   display: grid;
-  grid-template-columns: 320px 1fr 320px; 
-  gap: 1.5rem;
-  padding: 1rem 2rem;
+  grid-template-columns: 350px 1fr 330px; 
+  gap: 1.2rem;
+  padding: 0.85rem 1.4rem;
   width: 100%;
-  flex-grow: 1; /* Takes up remaining height below header */
-  height: calc(100vh - 70px);
+  flex-grow: 1;
+  height: calc(100vh - 64px);
 }
 
 .panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 1.2rem;
+  padding: 0.8rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.55rem;
   height: 100%;
-  overflow-y: auto; /* Allows left/right sidebars to scroll */
+  overflow-y: auto;
 }
 
-/* Hide scrollbar for cleaner look in panels */
 .panel::-webkit-scrollbar { width: 6px; }
 .panel::-webkit-scrollbar-track { background: transparent; }
 .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
+.panel-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.1rem;
+}
+
+.panel-toolbar-title {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.panel-toolbar-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.mini-panel-btn {
+  background: var(--bg-input);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+.mini-panel-btn:hover {
+  color: var(--text-main);
+  border-color: var(--accent-blue);
+}
+
+.dim-readout-box {
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(13, 17, 23, 0.78);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.72rem;
+  color: var(--text-main);
+  line-height: 1.45;
+}
+
+.active-dim-pill {
+  font-family: monospace;
+  font-size: 0.74rem;
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(88, 166, 255, 0.4);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+}
+
+.accordion-section {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.45);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  background: #1c222b;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text-main);
+  transition: background 0.15s ease;
+}
+
+.accordion-header:hover {
+  background: #252d38;
+}
+
+.accordion-chevron {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.accordion-section:not(.open) .accordion-chevron {
+  transform: rotate(-90deg);
+}
+
+.accordion-body {
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: none;
+}
+
+.accordion-section.open .accordion-body {
+  display: block;
+}
+
 /* ==========================================================================
-   CENTER STAGE & PREVIEW
+   CENTER STAGE, MARKED CANVAS BORDER & ZOOM BAR
    ========================================================================== */
 .stage {
   display: flex;
@@ -103,7 +220,7 @@ header h1 {
   background: var(--bg-dark);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 1rem;
+  padding: 0.85rem;
   height: 100%;
   overflow: hidden;
 }
@@ -112,35 +229,111 @@ header h1 {
   position: relative;
   width: 100%;
   flex-grow: 1;
-  background: #000;
+  background: #06080c;
   background-image: 
-    linear-gradient(45deg, #111 25%, transparent 25%), 
-    linear-gradient(-45deg, #111 25%, transparent 25%), 
-    linear-gradient(45deg, transparent 75%, #111 75%), 
-    linear-gradient(-45deg, transparent 75%, #111 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    linear-gradient(45deg, #0d1017 25%, transparent 25%), 
+    linear-gradient(-45deg, #0d1017 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #0d1017 75%), 
+    linear-gradient(-45deg, transparent 75%, #0d1017 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
   cursor: crosshair;
+  user-select: none;
 }
 
-/* Fixes the framing matrix scaling issue */
+.preview-wrapper.panning-stage,
+.preview-wrapper.dragging-photo-crop {
+  cursor: grab;
+}
+.preview-wrapper.panning-stage:active,
+.preview-wrapper.dragging-photo-crop:active {
+  cursor: grabbing;
+}
+
 #svgContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.85);
 }
+
 #svgContainer svg {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   display: block;
+}
+
+/* 1:1 Aspect-Ratio Synced Overlay Layer & Marked Canvas Border */
+.stage-overlay-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border: 2px solid rgba(88, 166, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.canvas-border-badge {
+  position: absolute;
+  top: -22px;
+  left: -2px;
+  background: rgba(22, 27, 34, 0.92);
+  color: #58a6ff;
+  border: 1px solid rgba(88, 166, 255, 0.6);
+  font-family: monospace;
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 3px 3px 0 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.stage-bar {
+  margin-top: 0.75rem;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stage-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.zoom-btn {
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.zoom-btn:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.zoom-pct-label {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--accent-blue);
+  min-width: 44px;
+  text-align: center;
 }
 
 /* ==========================================================================
@@ -148,17 +341,19 @@ header h1 {
    ========================================================================== */
 .trajectory-overlay {
   position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  overflow: visible;
 }
 
 .reticle {
   position: absolute;
   width: 24px;
   height: 24px;
-  margin-top: -12px;
-  margin-left: -12px;
+  margin: 0;
   border-radius: 50%;
   border: 2px solid #fff;
   display: flex;
@@ -168,34 +363,35 @@ header h1 {
   font-weight: bold;
   color: #fff;
   pointer-events: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transform: translate(-50%, -50%);
+  transition: box-shadow 0.15s ease;
   z-index: 10;
 }
 
 .reticle-start { background: rgba(0, 255, 204, 0.3); border-color: var(--reticle-start); text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
 .reticle-end { background: rgba(255, 0, 204, 0.3); border-color: var(--reticle-end); text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
-.active-reticle { transform: scale(1.3); box-shadow: 0 0 15px rgba(255,255,255,0.5); z-index: 11; }
+.active-reticle { transform: translate(-50%, -50%) scale(1.25); box-shadow: 0 0 14px rgba(255,255,255,0.55); z-index: 11; }
 
 /* ==========================================================================
-   DATA FLOW LIST UI (NEW)
+   DATA FLOW & NODE LIST UI
    ========================================================================== */
-#flowListContainer {
+#flowListContainer, #nodeListContainer, #matchedNodeListContainer, #freestyleNodeListContainer, #glowListContainer, #rippleListContainer {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .flow-list-item {
   background: var(--bg-input);
   border: 1px solid var(--border);
-  padding: 0.6rem 0.8rem;
+  padding: 0.5rem 0.7rem;
   border-radius: 6px;
   border-left: 4px solid var(--border);
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   transition: background 0.2s;
 }
 
@@ -206,49 +402,47 @@ header h1 {
 .flow-list-item.selected {
   background: #2a313a;
   border-color: var(--accent-blue);
-  /* The left border color will be set dynamically via JS to match the flow color */
 }
 
 /* ==========================================================================
    UI CONTROLS & FORMS
    ========================================================================== */
-.section-title {
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
 .control-row {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.8rem;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
 }
 
 .control-row label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-main);
 }
 
 .slider-row {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
 }
 
 .num-input {
-  width: 60px;
+  width: 58px;
   background: var(--bg-dark);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 0.3rem;
+  padding: 0.28rem;
   border-radius: 4px;
   text-align: center;
   font-family: monospace;
+}
+
+.text-field-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 0.42rem;
+  border-radius: 4px;
+  width: 100%;
 }
 
 select {
@@ -256,7 +450,7 @@ select {
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 0.5rem;
+  padding: 0.42rem;
   border-radius: 4px;
   outline: none;
 }
@@ -270,7 +464,7 @@ input[type="color"] {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 4px;
-  height: 36px;
+  height: 32px;
   cursor: pointer;
 }
 
@@ -281,8 +475,8 @@ button {
   cursor: pointer;
   border: none;
   border-radius: 6px;
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.84rem;
   font-weight: 500;
   transition: all 0.2s ease;
 }
@@ -300,6 +494,11 @@ button.secondary {
   border: 1px solid var(--border);
 }
 button.secondary:hover { background: #30363d; border-color: #8b949e; }
+button.secondary.active-tool-btn {
+  background: rgba(88, 166, 255, 0.22);
+  border-color: #58a6ff;
+  color: #fff;
+}
 
 button.replay {
   background: rgba(88, 166, 255, 0.15);
@@ -307,11 +506,11 @@ button.replay {
   border: 1px solid rgba(88, 166, 255, 0.4);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  white-space: nowrap;
 }
 button.replay:hover { background: rgba(88, 166, 255, 0.25); }
 
-/* Framing Target Buttons */
 .target-mode-selector {
   display: flex;
   gap: 0.5rem;
@@ -325,8 +524,8 @@ button.replay:hover { background: rgba(88, 166, 255, 0.25); }
   flex: 1;
   background: transparent;
   color: var(--text-muted);
-  padding: 0.4rem;
-  font-size: 0.8rem;
+  padding: 0.35rem;
+  font-size: 0.78rem;
 }
 .mode-btn.active-start { background: rgba(0, 255, 204, 0.15); color: var(--reticle-start); font-weight: bold; }
 .mode-btn.active-end { background: rgba(255, 0, 204, 0.15); color: var(--reticle-end); font-weight: bold; }
@@ -340,7 +539,7 @@ button.replay:hover { background: rgba(88, 166, 255, 0.25); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 0.85rem;
   border: 2px dashed var(--border);
   border-radius: 8px;
   background: var(--bg-input);
@@ -354,26 +553,14 @@ button.replay:hover { background: rgba(88, 166, 255, 0.25); }
 }
 
 .stage-hint {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
-/* --- NEW DATA FLOW UI ELEMENTS --- */
-.reticle-curve { 
-  background: rgba(255, 165, 0, 0.3); 
-  border-color: #ffa500; 
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8); 
-  display: none; 
-}
-.mode-btn.active-curve { 
-  background: rgba(255, 165, 0, 0.15); 
-  color: #ffa500; 
-  font-weight: bold; 
-}
-
-/* Hide camera reticles when editing flows */
+/* Hide camera reticles when editing overlays or diagram shapes */
 body.editing-flow #reticleStart, 
 body.editing-flow #reticleEnd, 
+body.editing-flow #reticleCenter,
 body.editing-flow #flightLine {
   display: none !important; 
 }

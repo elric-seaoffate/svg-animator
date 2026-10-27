@@ -1,70 +1,175 @@
 <div id="exportModal" class="modal-overlay" style="display: none;">
   <div class="modal-content">
     <div class="modal-header">
-      <h2>Export Studio</h2>
-      <button class="close-btn" onclick="closeExportModal()">✕</button>
+      <div>
+        <h2 id="exportModalTitle">Bitmap &amp; Still Image Export Studio</h2>
+        <div style="font-size: 0.8rem; color: #8b949e; margin-top: 0.2rem;">Render vector diagrams &amp; animations into Still Flat Images (PNG / WebP / JPEG) or Animated Bitmaps (WebP / APNG)</div>
+      </div>
+      <button type="button" class="close-btn" onclick="window.closeExportModal()" title="Close">✕</button>
     </div>
     
     <div class="modal-body">
       <!-- Left Column: Settings -->
       <div class="export-settings">
+        <!-- Export Mode Switcher (Still Flat Image vs Animated Bitmap) -->
         <div class="setting-group">
-          <label>File Name</label>
-          <input type="text" id="expFilename" value="animation_export">
+          <label>Export Output Mode</label>
+          <div class="preset-pills">
+            <button type="button" class="pill-btn" id="btnModeStill" onclick="window.setExportStudioMode('still')" style="flex: 1; padding: 0.45rem; font-weight: 600;">🖼️ Still Flat Image (PNG / WebP / JPG)</button>
+            <button type="button" class="pill-btn" id="btnModeAnimated" onclick="window.setExportStudioMode('animated')" style="flex: 1; padding: 0.45rem; font-weight: 600;">🎬 Animated Bitmap (WebP / APNG)</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-group" style="flex: 2;">
+            <label>Output File Name</label>
+            <input type="text" id="expFilename" value="diagram_export">
+          </div>
+          <div class="setting-group" id="expDurationGroup" style="flex: 1;">
+            <label>Duration (sec)</label>
+            <input type="number" id="expDuration" min="0.5" max="60" step="0.5" value="7">
+          </div>
         </div>
         
-        <div class="setting-row">
-          <div class="setting-group">
-            <label>Width (px)</label>
-            <input type="number" id="expWidth">
+        <div class="setting-group">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label>Target Image Size (Final File)</label>
+            <label class="toggle-label" style="font-size: 0.78rem;">
+              <input type="checkbox" id="expLockAspect" checked> Lock Aspect Ratio
+            </label>
           </div>
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 1;">
+              <span class="sub-label">Width (px)</span>
+              <input type="number" id="expWidth" min="64" max="3840" step="2">
+            </div>
+            <div class="setting-group" style="flex: 1;">
+              <span class="sub-label">Height (px)</span>
+              <input type="number" id="expHeight" min="64" max="3840" step="2">
+            </div>
+          </div>
+          <div class="preset-pills" style="margin-top: 0.25rem;">
+            <button type="button" class="pill-btn" onclick="window.setExportResolution('native')">100% Native</button>
+            <button type="button" class="pill-btn" onclick="window.setExportResolution('half')">50% Scale</button>
+            <button type="button" class="pill-btn" onclick="window.setExportResolution(1920)">1080p Width</button>
+            <button type="button" class="pill-btn" onclick="window.setExportResolution(1280)">720p Width</button>
+          </div>
+        </div>
+
+        <!-- STILL FLAT IMAGE SETTINGS -->
+        <div id="stillSettingsBlock" style="display: none; flex-direction: column; gap: 0.75rem;">
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 1.3;">
+              <label>Still Image Format</label>
+              <select id="expStillFormat">
+                <option value="png" selected>PNG (Lossless / Supports Transparency)</option>
+                <option value="webp">WebP Still (High Efficiency)</option>
+                <option value="jpeg">JPEG (Flat Opaque Document)</option>
+                <option value="all-still">All Three (PNG + WebP + JPEG)</option>
+              </select>
+            </div>
+            <div class="setting-group" style="flex: 1;">
+              <label>Compression Quality (%)</label>
+              <input type="number" id="expStillQuality" min="10" max="100" step="5" value="95">
+            </div>
+          </div>
+
           <div class="setting-group">
-            <label>Height (px)</label>
-            <input type="number" id="expHeight">
+            <label>Snapshot Timestamp (sec) <span class="hint-tag">(0s = Initial Diagram State)</span></label>
+            <div style="display: flex; gap: 0.6rem; align-items: center;">
+              <input type="range" id="expStillTimeSlider" min="0" max="15" step="0.1" value="0" style="flex: 1;">
+              <input type="number" id="expStillTimeNum" min="0" max="60" step="0.1" value="0" style="width: 72px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- ANIMATED BITMAP SETTINGS -->
+        <div id="animatedSettingsBlock" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 1.2;">
+              <label>Animated Format</label>
+              <select id="expFormat">
+                <option value="webp" selected>Animated WebP</option>
+                <option value="apng">Animated PNG (APNG)</option>
+                <option value="both">Both (WebP + APNG)</option>
+              </select>
+            </div>
+            <div class="setting-group" style="flex: 1;">
+              <label>Final Frame Rate</label>
+              <select id="expFps">
+                <option value="15">15 FPS (Fast Draft)</option>
+                <option value="24" selected>24 FPS (Preview &amp; Film)</option>
+                <option value="30">30 FPS (Standard)</option>
+                <option value="60">60 FPS (Smooth)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label>Playback Mode</label>
+            <select id="expLoop">
+              <option value="once">Play Once &amp; Hold (Best for Camera Pans &amp; Focus Pulls)</option>
+              <option value="loop" selected>Continuous Loop (Best for Diagrams, Flows &amp; Ripples)</option>
+              <option value="pingpong">Ping-Pong (Forward &amp; Reverse Cycle)</option>
+            </select>
           </div>
         </div>
 
         <div class="setting-group">
-          <label>Format & Quality</label>
-          <select id="expFormat">
-            <option value="webp">Animated WebP</option>
-            <option value="apng">Animated PNG (APNG)</option>
-          </select>
-          <select id="expFps">
-            <option value="15">15 FPS (Fast Draft Preview)</option>
-            <option value="30" selected>30 FPS (Standard)</option>
-            <option value="60">60 FPS (Cinematic Smooth)</option>
-          </select>
-        </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label>Layers to Include</label>
+          </div>
+          <div class="preset-pills" style="margin-bottom: 0.35rem;">
+            <button type="button" class="pill-btn" onclick="window.applyExportProfile('camera-once')" title="Play Once: Enables Camera & Optical, disables Looping Overlays">🎬 Camera / Intro</button>
+            <button type="button" class="pill-btn" onclick="window.applyExportProfile('overlays-loop')" title="Locks Camera to Static BG, enables Nodes, Flows, Glows & Ripples">📐 Diagram &amp; Overlays</button>
+            <button type="button" class="pill-btn" onclick="window.applyExportProfile('all')" title="Enable all layers">✨ All Active</button>
+          </div>
 
-        <div class="setting-group">
-          <label>Playback Mode</label>
-          <select id="expLoop">
-            <option value="once">Play Once (Stops at end)</option>
-            <option value="loop" selected>Continuous Loop</option>
-          </select>
-        </div>
-
-        <div class="setting-group">
-          <label>Effect Overrides</label>
-          <label class="toggle-label"><input type="checkbox" id="expEnableOptical" checked> Optical Blurs (Ken Burns, Tilt-Shift)</label>
-          <label class="toggle-label"><input type="checkbox" id="expEnableOverlays" checked> Looping Overlays (Data Flows, Glows)</label>
-          <label class="toggle-label"><input type="checkbox" id="expEnableFrame" checked> Physical Frame</label>
+          <div class="layer-grid">
+            <label class="toggle-label"><input type="checkbox" id="expEnableNodes" checked> Diagram Shapes &amp; Text Boxes</label>
+            <label class="toggle-label"><input type="checkbox" id="expEnableFlows" checked> Connectors &amp; Data Flows</label>
+            <label class="toggle-label"><input type="checkbox" id="expEnableGlows" checked> Hotspots &amp; Glows</label>
+            <label class="toggle-label"><input type="checkbox" id="expEnableRipples" checked> Liquid Ripples</label>
+            <label class="toggle-label"><input type="checkbox" id="expEnableCamera" checked> Camera Motion <span class="hint-tag">(Uncheck for Static BG)</span></label>
+            <label class="toggle-label"><input type="checkbox" id="expEnableOptical" checked> Optical Effects <span class="hint-tag">(Focus / Tilt-Shift / Blur)</span></label>
+            <label class="toggle-label"><input type="checkbox" id="expEnableFrame" checked> Presentation Frame</label>
+          </div>
         </div>
       </div>
 
-      <!-- Right Column: RAM Preview -->
+      <!-- Right Column: RAM Preview & Live Progress -->
       <div class="export-preview">
         <div id="previewContainer" class="preview-box">
-          <span id="previewPlaceholder">Click "Generate Preview" to render...</span>
-          <img id="previewImage" style="display: none;" />
+          <span id="previewPlaceholder">Configure layers and click "Generate Preview" to test...</span>
+          
+          <!-- Live Progress Box -->
+          <div id="renderProgressOverlay" class="progress-overlay" style="display: none;">
+            <div class="progress-phase" id="progressPhaseText">Initializing render engine...</div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-stats">
+              <span id="progressFrameCount">Frame 0 / 0</span>
+              <span id="progressPercent">0%</span>
+            </div>
+          </div>
+
+          <img id="previewImage" style="display: none;" alt="Rendered Preview" />
         </div>
+        <div id="previewMeta" class="preview-meta">Preview renders directly in the studio window before downloading.</div>
       </div>
     </div>
 
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="generatePreview()">Generate Preview (RAM)</button>
-      <button class="btn-primary" onclick="downloadFinal()">Download Final File</button>
+      <div class="footer-left-actions">
+        <button type="button" class="btn-secondary" id="btnGenPreview" onclick="window.generatePreview()">Generate Preview</button>
+        <button type="button" class="btn-replay-modal" id="btnReplayPreview" onclick="window.replayPreview()" disabled title="Restart the rendered preview animation from frame 0">↻ Replay Preview</button>
+        <button type="button" class="btn-danger" id="btnCancelRender" onclick="window.cancelCurrentRender()" style="display: none;">✕ Cancel Render</button>
+      </div>
+      <div class="footer-right-actions">
+        <button type="button" class="btn-secondary" id="btnCloseModal" onclick="window.closeExportModal()">Close</button>
+        <button type="button" class="btn-primary" id="btnDownloadFinal" onclick="window.downloadFinal()">Download Final</button>
+      </div>
     </div>
   </div>
 </div>
