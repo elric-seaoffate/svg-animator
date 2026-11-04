@@ -1,8 +1,28 @@
+/**
+ * Diagram Nodes & Shapes Module (`window.DiagramNodes`)
+ *
+ * Layer 3 (Operational API):
+ *   - `createNode(initialProps)`, `updateNode(id, patch)`, `deleteNode(id)`,
+ *     `getNode(id)`, `getAllNodes()`, `findNodeAtPct(xPct, yPct, canvasW, canvasH)`,
+ *     `getNodeEffectiveProps(node)`, `getState()`, `setState(data)`,
+ *     `injectIntoSVG(svgString, state)`, `escapeXML(str)`
+ *   - Zero direct DOM dependencies.
+ *
+ * Layer 1 (UI Presentation & Compatibility):
+ *   - `init()`, `addNode()`, `removeNode(id)`, `selectNode(id, openAccordion)`,
+ *     `deselectNode()`, `updateActive(key, value)`, `handleStageClick(x, y)`,
+ *     `syncEditorUI(node)`, `updateUIOverlay(node)`, `updateActiveDimBadge(node)`,
+ *     `renderList()`, `refreshAfterChange()`, `triggerAppRender()`
+ */
 window.DiagramNodes = {
   list: [],
   activeId: null,
   counter: 0,
   _initialized: false,
+
+  // =========================================================================
+  // Layer 3: Operational Functionality (Zero DOM Dependencies)
+  // =========================================================================
 
   escapeXML(str) {
     if (!str) return '';
@@ -28,17 +48,112 @@ window.DiagramNodes = {
     };
   },
 
-  findNodeAtPct(xPct, yPct) {
-    const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
-    const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
-    const px = (xPct / 100) * canvasW;
-    const py = (yPct / 100) * canvasH;
+  getNode(id) {
+    return this.list.find((n) => n.id === id) || null;
+  },
+
+  getAllNodes() {
+    return this.list;
+  },
+
+  getState() {
+    return {
+      nodes: JSON.parse(JSON.stringify(this.list)),
+      nodesCounter: this.counter,
+      activeId: this.activeId
+    };
+  },
+
+  setState(data) {
+    if (!data || typeof data !== 'object') return this.getState();
+    const rawList = Array.isArray(data.nodes) ? data.nodes : (Array.isArray(data.list) ? data.list : []);
+    this.list = JSON.parse(JSON.stringify(rawList));
+    const maxId = this.list.reduce((m, n) => Math.max(m, n.id || 0), 0);
+    const savedCounter = data.nodesCounter !== undefined ? data.nodesCounter : data.counter;
+    this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
+    this.activeId = null;
+    return this.getState();
+  },
+
+  createNode(initialProps = {}) {
+    this.counter++;
+    const offset = ((this.counter - 1) % 6) * 6;
+    const newNode = {
+      id: this.counter,
+      shape: initialProps.shape || 'rounded',
+      text: initialProps.text !== undefined ? initialProps.text : ('Node ' + this.counter),
+      subtext: initialProps.subtext !== undefined ? initialProps.subtext : '',
+      x: initialProps.x !== undefined ? initialProps.x : (32 + offset),
+      y: initialProps.y !== undefined ? initialProps.y : (32 + offset),
+      width: initialProps.width || 170,
+      height: initialProps.height || 80,
+      fillColor: initialProps.fillColor || '#161b22',
+      fillOpacity: initialProps.fillOpacity !== undefined ? initialProps.fillOpacity : 0.92,
+      strokeColor: initialProps.strokeColor || '#58a6ff',
+      strokeWidth: initialProps.strokeWidth !== undefined ? initialProps.strokeWidth : 2,
+      strokeStyle: initialProps.strokeStyle || 'solid',
+      textColor: initialProps.textColor || '#e6edf3',
+      fontSize: initialProps.fontSize || 15,
+      anim: initialProps.anim || 'none'
+    };
+
+    const shouldApplyPreset = initialProps.applyPreset !== undefined
+      ? !!initialProps.applyPreset
+      : (window.NodePresets ? window.NodePresets.autoApplyToNewNodes !== false : true);
+
+    if (shouldApplyPreset && window.NodePresets) {
+      window.NodePresets.applyToNodeObject(newNode);
+    }
+
+    if (initialProps.snap !== false) {
+      if (window.AppCoordinator && typeof window.AppCoordinator.snapPosition === 'function') {
+        const snapped = window.AppCoordinator.snapPosition(newNode.x, newNode.y);
+        newNode.x = snapped.x;
+        newNode.y = snapped.y;
+      } else if (window.Stage && typeof window.Stage.snapPctToGrid === 'function') {
+        const snapped = window.Stage.snapPctToGrid(newNode.x, newNode.y);
+        newNode.x = snapped.x;
+        newNode.y = snapped.y;
+      }
+    }
+
+    this.list.push(newNode);
+    return newNode;
+  },
+
+  updateNode(id, patch) {
+    const node = this.getNode(id);
+    if (!node || !patch || typeof patch !== 'object') return null;
+    Object.keys(patch).forEach((key) => {
+      if (key !== 'id') {
+        node[key] = patch[key];
+      }
+    });
+    return node;
+  },
+
+  deleteNode(id) {
+    const before = this.list.length;
+    this.list = this.list.filter((n) => n.id !== id);
+    if (this.activeId === id) {
+      this.activeId = null;
+    }
+    return this.list.length < before;
+  },
+
+  findNodeAtPct(xPct, yPct, canvasW, canvasH) {
+    const dims = (canvasW && canvasH)
+      ? { width: canvasW, height: canvasH }
+      : (window.AppCoordinator ? window.AppCoordinator.getCanvasDimensions() : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 });
+
+    const px = (xPct / 100) * dims.width;
+    const py = (yPct / 100) * dims.height;
 
     for (let i = this.list.length - 1; i >= 0; i--) {
       const n = this.list[i];
       const eff = this.getNodeEffectiveProps(n);
-      const cx = (n.x / 100) * canvasW;
-      const cy = (n.y / 100) * canvasH;
+      const cx = (n.x / 100) * dims.width;
+      const cy = (n.y / 100) * dims.height;
       const hw = (eff.width / 2) + 8;
       const hh = (eff.height / 2) + 8;
       if (px >= cx - hw && px <= cx + hw && py >= cy - hh && py <= cy + hh) {
@@ -46,291 +161,6 @@ window.DiagramNodes = {
       }
     }
     return null;
-  },
-
-  init() {
-    if (this._initialized) return;
-    this._initialized = true;
-
-    if (window.NodePresets) window.NodePresets.init();
-
-    const btnAdd = document.getElementById('btnAddNode');
-    if (btnAdd) btnAdd.addEventListener('click', () => this.addNode());
-
-    ['shape', 'strokeStyle', 'anim'].forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const el = document.getElementById('node' + cap + 'Select');
-      if (el) {
-        el.addEventListener('change', (e) => {
-          this.updateActive(key, e.target.value);
-          if (window.HistoryManager) window.HistoryManager.recordImmediate();
-        });
-      }
-    });
-
-    ['fillColor', 'strokeColor', 'textColor'].forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const el = document.getElementById('node' + cap + 'Picker');
-      if (el) {
-        el.addEventListener('input', (e) => this.updateActive(key, e.target.value));
-        el.addEventListener('change', (e) => {
-          this.updateActive(key, e.target.value);
-          if (window.HistoryManager) window.HistoryManager.recordImmediate();
-        });
-      }
-    });
-
-    ['text', 'subtext'].forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const el = document.getElementById('node' + cap + 'Input');
-      if (el) {
-        el.addEventListener('input', (e) => {
-          this.updateActive(key, e.target.value);
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-      }
-    });
-
-    ['width', 'height', 'fillOpacity', 'strokeWidth', 'fontSize'].forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const slider = document.getElementById('node' + cap + 'Slider');
-      const num = document.getElementById('node' + cap + 'Num');
-      if (slider && num) {
-        slider.addEventListener('input', (e) => {
-          num.value = e.target.value;
-          this.updateActive(key, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-        num.addEventListener('input', (e) => {
-          slider.value = e.target.value;
-          this.updateActive(key, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-      }
-    });
-  },
-
-  applyPresetToActive() {
-    if (window.NodePresets) window.NodePresets.applyToActiveNode();
-  },
-
-  updateActiveDimBadge(node) {
-    const badge = document.getElementById('activeNodeDimBadge');
-    if (!badge || !node) return;
-    badge.innerHTML = 'W: ' + Math.round(node.width || 170) + ' &times; H: ' + Math.round(node.height || 80) + ' px';
-  },
-
-  refreshAfterChange() {
-    const activeNode = this.list.find((n) => n.id === this.activeId);
-    if (activeNode) {
-      this.updateActiveDimBadge(activeNode);
-    }
-    this.renderList();
-    this.triggerAppRender();
-    if (activeNode) {
-      this.updateUIOverlay(activeNode);
-    }
-  },
-
-  addNode() {
-    this.counter++;
-    const offset = ((this.counter - 1) % 6) * 6;
-    const newNode = {
-      id: this.counter,
-      shape: 'rounded',
-      text: 'Node ' + this.counter,
-      subtext: '',
-      x: 32 + offset,
-      y: 32 + offset,
-      width: 170,
-      height: 80,
-      fillColor: '#161b22',
-      fillOpacity: 0.92,
-      strokeColor: '#58a6ff',
-      strokeWidth: 2,
-      strokeStyle: 'solid',
-      textColor: '#e6edf3',
-      fontSize: 15,
-      anim: 'none'
-    };
-
-    const autoApplyChk = document.getElementById('chkAutoApplyPreset');
-    if ((!autoApplyChk || autoApplyChk.checked) && window.NodePresets) {
-      window.NodePresets.applyToNodeObject(newNode);
-    }
-
-    if (window.Stage && typeof window.Stage.snapPctToGrid === 'function') {
-      const snapped = window.Stage.snapPctToGrid(newNode.x, newNode.y);
-      newNode.x = snapped.x;
-      newNode.y = snapped.y;
-    }
-
-    this.list.push(newNode);
-    this.selectNode(newNode.id, true);
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  selectNode(id, openAccordion = false) {
-    if (window.DataFlows) window.DataFlows.deselectFlow();
-    if (window.Glows) window.Glows.deselectGlow();
-    if (window.Ripples) window.Ripples.deselectRipple();
-
-    this.activeId = id;
-    this.renderList();
-    document.body.classList.add('editing-flow');
-
-    const node = this.list.find((n) => n.id === id);
-    if (!node) return;
-
-    if (openAccordion && window.openAccordionById) {
-      const presetsEl = document.getElementById('acc-presets');
-      const presetsOpen = presetsEl ? presetsEl.classList.contains('open') : false;
-      if (!presetsOpen) {
-        window.openAccordionById('acc-nodes');
-      }
-    }
-
-    const editor = document.getElementById('nodeEditor');
-    if (editor) editor.style.display = 'block';
-
-    const lbl = document.getElementById('editingNodeLabel');
-    if (lbl) lbl.innerText = 'Editing Shape ' + id;
-
-    this.updateActiveDimBadge(node);
-
-    const shSel = document.getElementById('nodeShapeSelect');
-    if (shSel) shSel.value = node.shape || 'rounded';
-    const txtIn = document.getElementById('nodeTextInput');
-    if (txtIn) txtIn.value = node.text || '';
-    const subIn = document.getElementById('nodeSubtextInput');
-    if (subIn) subIn.value = node.subtext || '';
-    const fPick = document.getElementById('nodeFillColorPicker');
-    if (fPick) fPick.value = node.fillColor || '#161b22';
-    const sPick = document.getElementById('nodeStrokeColorPicker');
-    if (sPick) sPick.value = node.strokeColor || '#58a6ff';
-    const tPick = document.getElementById('nodeTextColorPicker');
-    if (tPick) tPick.value = node.textColor || '#e6edf3';
-    const stSel = document.getElementById('nodeStrokeStyleSelect');
-    if (stSel) stSel.value = node.strokeStyle || 'solid';
-    const anSel = document.getElementById('nodeAnimSelect');
-    if (anSel) anSel.value = node.anim || 'none';
-
-    ['width', 'height', 'fillOpacity', 'strokeWidth', 'fontSize'].forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const sl = document.getElementById('node' + cap + 'Slider');
-      const nu = document.getElementById('node' + cap + 'Num');
-      if (sl) sl.value = node[key];
-      if (nu) nu.value = node[key];
-    });
-
-    this.updateUIOverlay(node);
-  },
-
-  deselectNode() {
-    this.activeId = null;
-    this.renderList();
-    document.body.classList.remove('editing-flow');
-    const ed = document.getElementById('nodeEditor');
-    if (ed) ed.style.display = 'none';
-    const selBox = document.getElementById('nodeSelectionBox');
-    if (selBox) selBox.style.display = 'none';
-  },
-
-  updateActive(key, value) {
-    if (this.activeId === null) return;
-    const node = this.list.find((n) => n.id === this.activeId);
-    if (node) {
-      node[key] = value;
-      this.refreshAfterChange();
-    }
-  },
-
-  handleStageClick(x, y) {
-    if (this.activeId === null) return false;
-    const node = this.list.find((n) => n.id === this.activeId);
-    if (node) {
-      node.x = x;
-      node.y = y;
-      this.updateUIOverlay(node);
-
-      const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
-      const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
-      const cx = (node.x / 100) * canvasW;
-      const cy = (node.y / 100) * canvasH;
-      const liveGroup = document.querySelector('#svgContainer [data-node-id="' + node.id + '"]');
-      if (liveGroup) {
-        liveGroup.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
-      } else {
-        this.triggerAppRender();
-      }
-      return true;
-    }
-    return false;
-  },
-
-  updateUIOverlay(node) {
-    const selBox = document.getElementById('nodeSelectionBox');
-    if (!selBox || !node) return;
-
-    const eff = this.getNodeEffectiveProps(node);
-    const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
-    const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
-    const cx = (node.x / 100) * canvasW;
-    const cy = (node.y / 100) * canvasH;
-    const pad = 10;
-    const w = eff.width + pad * 2;
-    const h = eff.height + pad * 2;
-
-    selBox.setAttribute('x', (cx - w / 2).toFixed(1));
-    selBox.setAttribute('y', (cy - h / 2).toFixed(1));
-    selBox.setAttribute('width', w.toFixed(1));
-    selBox.setAttribute('height', h.toFixed(1));
-    selBox.setAttribute('stroke', eff.strokeColor || '#a371f7');
-    selBox.style.display = 'block';
-  },
-
-  removeNode(id) {
-    this.list = this.list.filter((n) => n.id !== id);
-    if (this.activeId === id) this.deselectNode();
-    else this.renderList();
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  renderList() {
-    const container = document.getElementById('nodeListContainer');
-    if (!container) return;
-    if (this.list.length === 0) {
-      container.innerHTML = '<div class="stage-hint">No shapes or text boxes active.</div>';
-      return;
-    }
-    container.innerHTML = '';
-    this.list.forEach((node) => {
-      const eff = this.getNodeEffectiveProps(node);
-      const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === node.id ? ' selected' : '');
-      div.style.borderLeftColor = eff.strokeColor;
-      const labelPreview = (node.text || ('Node ' + node.id)).split('|')[0].substring(0, 15);
-      div.innerHTML =
-        '<span>' + this.escapeXML(labelPreview) +
-        ' <small style="color:#8b949e; font-family:monospace;">(' + node.shape + ' &bull; ' + eff.width + '&times;' + eff.height + ')</small></span>' +
-        '<div style="display:flex; gap:0.35rem; align-items:center;">' +
-        '<button type="button" title="Snap this shape to active Preset settings" style="background:rgba(137,87,229,0.22); border:1px solid rgba(163,113,247,0.5); color:#d2a8ff; padding:0.12rem 0.38rem; font-size:0.68rem; border-radius:4px; cursor:pointer;" onclick="window.DiagramNodes.selectNode(' + node.id + '); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡ Preset</button>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer; padding:0.1rem 0.25rem;" onclick="window.DiagramNodes.removeNode(' + node.id + '); event.stopPropagation();">X</button>' +
-        '</div>';
-      div.onclick = () => this.selectNode(node.id);
-      container.appendChild(div);
-    });
-  },
-
-  triggerAppRender() {
-    if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
-    } else {
-      const durSlider = document.getElementById('durationSlider');
-      if (durSlider) durSlider.dispatchEvent(new Event('input'));
-    }
   },
 
   injectIntoSVG(svgString, state) {
@@ -468,5 +298,282 @@ window.DiagramNodes = {
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="nodes-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & DOM Bindings
+  // =========================================================================
+
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
+    if (window.NodePresets) window.NodePresets.init();
+
+    const btnAdd = document.getElementById('btnAddNode');
+    if (btnAdd) btnAdd.addEventListener('click', () => this.addNode());
+
+    ['shape', 'strokeStyle', 'anim'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const el = document.getElementById('node' + cap + 'Select');
+      if (el) {
+        el.addEventListener('change', (e) => {
+          this.updateActive(key, e.target.value);
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+          else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        });
+      }
+    });
+
+    ['fillColor', 'strokeColor', 'textColor'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const el = document.getElementById('node' + cap + 'Picker');
+      if (el) {
+        el.addEventListener('input', (e) => this.updateActive(key, e.target.value));
+        el.addEventListener('change', (e) => {
+          this.updateActive(key, e.target.value);
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+          else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        });
+      }
+    });
+
+    ['text', 'subtext'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const el = document.getElementById('node' + cap + 'Input');
+      if (el) {
+        el.addEventListener('input', (e) => {
+          this.updateActive(key, e.target.value);
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+      }
+    });
+
+    ['width', 'height', 'fillOpacity', 'strokeWidth', 'fontSize'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const slider = document.getElementById('node' + cap + 'Slider');
+      const num = document.getElementById('node' + cap + 'Num');
+      if (slider && num) {
+        slider.addEventListener('input', (e) => {
+          num.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+        num.addEventListener('input', (e) => {
+          slider.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+      }
+    });
+  },
+
+  applyPresetToActive() {
+    if (window.NodePresets) window.NodePresets.applyToActiveNode();
+  },
+
+  updateActiveDimBadge(node) {
+    const badge = document.getElementById('activeNodeDimBadge');
+    if (!badge || !node) return;
+    badge.innerHTML = 'W: ' + Math.round(node.width || 170) + ' &times; H: ' + Math.round(node.height || 80) + ' px';
+  },
+
+  refreshAfterChange() {
+    const activeNode = this.getNode(this.activeId);
+    if (activeNode) {
+      this.updateActiveDimBadge(activeNode);
+    }
+    this.renderList();
+    this.triggerAppRender();
+    if (activeNode) {
+      this.updateUIOverlay(activeNode);
+    }
+  },
+
+  addNode(initialProps = {}) {
+    const autoApplyChk = document.getElementById('chkAutoApplyPreset');
+    const applyPreset = autoApplyChk ? !!autoApplyChk.checked : true;
+    const newNode = this.createNode(Object.assign({}, initialProps, { applyPreset }));
+    this.selectNode(newNode.id, true);
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newNode;
+  },
+
+  syncEditorUI(node) {
+    if (!node) return;
+    const editor = document.getElementById('nodeEditor');
+    if (editor) editor.style.display = 'block';
+
+    const lbl = document.getElementById('editingNodeLabel');
+    if (lbl) lbl.innerText = 'Editing Shape ' + node.id;
+
+    this.updateActiveDimBadge(node);
+
+    const shSel = document.getElementById('nodeShapeSelect');
+    if (shSel) shSel.value = node.shape || 'rounded';
+    const txtIn = document.getElementById('nodeTextInput');
+    if (txtIn) txtIn.value = node.text || '';
+    const subIn = document.getElementById('nodeSubtextInput');
+    if (subIn) subIn.value = node.subtext || '';
+    const fPick = document.getElementById('nodeFillColorPicker');
+    if (fPick) fPick.value = node.fillColor || '#161b22';
+    const sPick = document.getElementById('nodeStrokeColorPicker');
+    if (sPick) sPick.value = node.strokeColor || '#58a6ff';
+    const tPick = document.getElementById('nodeTextColorPicker');
+    if (tPick) tPick.value = node.textColor || '#e6edf3';
+    const stSel = document.getElementById('nodeStrokeStyleSelect');
+    if (stSel) stSel.value = node.strokeStyle || 'solid';
+    const anSel = document.getElementById('nodeAnimSelect');
+    if (anSel) anSel.value = node.anim || 'none';
+
+    ['width', 'height', 'fillOpacity', 'strokeWidth', 'fontSize'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const sl = document.getElementById('node' + cap + 'Slider');
+      const nu = document.getElementById('node' + cap + 'Num');
+      if (sl) sl.value = node[key];
+      if (nu) nu.value = node[key];
+    });
+  },
+
+  selectNode(id, openAccordion = false) {
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('node', id, { skipStageClear: true });
+    } else {
+      if (window.DataFlows) window.DataFlows.deselectFlow();
+      if (window.Glows) window.Glows.deselectGlow();
+      if (window.Ripples) window.Ripples.deselectRipple();
+    }
+
+    this.activeId = id;
+    this.renderList();
+    document.body.classList.add('editing-flow');
+
+    const node = this.getNode(id);
+    if (!node) return;
+
+    if (openAccordion && window.openAccordionById) {
+      const presetsEl = document.getElementById('acc-presets');
+      const presetsOpen = presetsEl ? presetsEl.classList.contains('open') : false;
+      if (!presetsOpen) {
+        window.openAccordionById('acc-nodes');
+      }
+    }
+
+    this.syncEditorUI(node);
+    this.updateUIOverlay(node);
+  },
+
+  deselectNode() {
+    this.activeId = null;
+    this.renderList();
+    document.body.classList.remove('editing-flow');
+    const ed = document.getElementById('nodeEditor');
+    if (ed) ed.style.display = 'none';
+    const selBox = document.getElementById('nodeSelectionBox');
+    if (selBox) selBox.style.display = 'none';
+  },
+
+  updateActive(key, value) {
+    if (this.activeId === null) return;
+    const node = this.updateNode(this.activeId, { [key]: value });
+    if (node) {
+      this.refreshAfterChange();
+    }
+  },
+
+  handleStageClick(x, y) {
+    if (this.activeId === null) return false;
+    const node = this.updateNode(this.activeId, { x, y });
+    if (node) {
+      this.updateUIOverlay(node);
+
+      const dims = window.AppCoordinator
+        ? window.AppCoordinator.getCanvasDimensions()
+        : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 };
+      const cx = (node.x / 100) * dims.width;
+      const cy = (node.y / 100) * dims.height;
+      const liveGroup = document.querySelector('#svgContainer [data-node-id="' + node.id + '"]');
+      if (liveGroup) {
+        liveGroup.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+      } else {
+        this.triggerAppRender();
+      }
+      return true;
+    }
+    return false;
+  },
+
+  updateUIOverlay(node) {
+    const selBox = document.getElementById('nodeSelectionBox');
+    if (!selBox || !node) return;
+
+    const eff = this.getNodeEffectiveProps(node);
+    const dims = window.AppCoordinator
+      ? window.AppCoordinator.getCanvasDimensions()
+      : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 };
+    const cx = (node.x / 100) * dims.width;
+    const cy = (node.y / 100) * dims.height;
+    const pad = 10;
+    const w = eff.width + pad * 2;
+    const h = eff.height + pad * 2;
+
+    selBox.setAttribute('x', (cx - w / 2).toFixed(1));
+    selBox.setAttribute('y', (cy - h / 2).toFixed(1));
+    selBox.setAttribute('width', w.toFixed(1));
+    selBox.setAttribute('height', h.toFixed(1));
+    selBox.setAttribute('stroke', eff.strokeColor || '#a371f7');
+    selBox.style.display = 'block';
+  },
+
+  removeNode(id) {
+    const wasActive = this.activeId === id;
+    this.deleteNode(id);
+    if (wasActive) this.deselectNode();
+    else this.renderList();
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  },
+
+  renderList() {
+    const container = document.getElementById('nodeListContainer');
+    if (!container) return;
+    if (this.list.length === 0) {
+      container.innerHTML = '<div class="stage-hint">No shapes or text boxes active.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    this.list.forEach((node) => {
+      const eff = this.getNodeEffectiveProps(node);
+      const div = document.createElement('div');
+      div.className = 'flow-list-item' + (this.activeId === node.id ? ' selected' : '');
+      div.style.borderLeftColor = eff.strokeColor;
+      const labelPreview = (node.text || ('Node ' + node.id)).split('|')[0].substring(0, 15);
+      div.innerHTML =
+        '<span>' + this.escapeXML(labelPreview) +
+        ' <small style="color:#8b949e; font-family:monospace;">(' + node.shape + ' &bull; ' + eff.width + '&times;' + eff.height + ')</small></span>' +
+        '<div style="display:flex; gap:0.35rem; align-items:center;">' +
+        '<button type="button" title="Snap this shape to active Preset settings" style="background:rgba(137,87,229,0.22); border:1px solid rgba(163,113,247,0.5); color:#d2a8ff; padding:0.12rem 0.38rem; font-size:0.68rem; border-radius:4px; cursor:pointer;" onclick="window.DiagramNodes.selectNode(' + node.id + '); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡ Preset</button>' +
+        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer; padding:0.1rem 0.25rem;" onclick="window.DiagramNodes.removeNode(' + node.id + '); event.stopPropagation();">X</button>' +
+        '</div>';
+      div.onclick = () => this.selectNode(node.id);
+      container.appendChild(div);
+    });
+  },
+
+  triggerAppRender() {
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    } else {
+      const durSlider = document.getElementById('durationSlider');
+      if (durSlider) durSlider.dispatchEvent(new Event('input'));
+    }
   }
 };

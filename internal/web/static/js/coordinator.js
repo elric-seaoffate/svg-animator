@@ -182,9 +182,26 @@
     },
 
     snapPosition(xPct, yPct) {
+      const cfg = this.getSnapConfig();
+      if (window.Stage && typeof window.Stage.computeSnappedPosition === 'function') {
+        return window.Stage.computeSnappedPosition(xPct, yPct, cfg);
+      }
+      if (!cfg.enabled) {
+        return {
+          x: Math.round(Math.min(100, Math.max(0, xPct)) * 10) / 10,
+          y: Math.round(Math.min(100, Math.max(0, yPct)) * 10) / 10
+        };
+      }
+      const gridPx = Math.max(2, parseFloat(cfg.gridSizePx || 20) || 20);
+      const w = cfg.canvasWidth || 1280;
+      const h = cfg.canvasHeight || 720;
+      const rawPxX = (xPct / 100) * w;
+      const rawPxY = (yPct / 100) * h;
+      const snappedPxX = Math.min(w, Math.max(0, Math.round(rawPxX / gridPx) * gridPx));
+      const snappedPxY = Math.min(h, Math.max(0, Math.round(rawPxY / gridPx) * gridPx));
       return {
-        x: this.snapPctToGrid(xPct, 'x'),
-        y: this.snapPctToGrid(yPct, 'y')
+        x: Number(((snappedPxX / w) * 100).toFixed(3)),
+        y: Number(((snappedPxY / h) * 100).toFixed(3))
       };
     }
   };

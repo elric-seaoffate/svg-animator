@@ -1,5 +1,18 @@
+/**
+ * Shape Presets Module (`window.NodePresets`)
+ *
+ * Layer 3 (Operational API):
+ *   - `getState()`, `setState(data)`, `setPresetParam(key, value, enabled)`,
+ *     `setAllEnabled(enabled)`, `applyToNodeObject(node)`, `extractFromNodeObject(node)`
+ *   - Zero direct DOM dependencies.
+ *
+ * Layer 1 (UI Presentation & Compatibility):
+ *   - `init()`, `syncRowUI(key)`, `syncAllRowsUI()`,
+ *     `applyToActiveNode()`, `applyToAllNodes()`, `copyFromActiveNode()`
+ */
 window.NodePresets = {
   _initialized: false,
+  autoApplyToNewNodes: true,
 
   presetKeys: [
     'width',
@@ -29,9 +42,97 @@ window.NodePresets = {
     anim:        { enabled: false, value: 'none' }
   },
 
+  // =========================================================================
+  // Layer 3: Operational Functionality (Zero DOM Dependencies)
+  // =========================================================================
+
+  getState() {
+    return {
+      preset: JSON.parse(JSON.stringify(this.preset)),
+      autoApplyToNewNodes: !!this.autoApplyToNewNodes
+    };
+  },
+
+  setState(data) {
+    if (!data || typeof data !== 'object') return this.getState();
+    const sourcePreset = data.preset && typeof data.preset === 'object' ? data.preset : data;
+    this.presetKeys.forEach((key) => {
+      if (sourcePreset[key] && typeof sourcePreset[key] === 'object') {
+        this.preset[key] = {
+          enabled: !!sourcePreset[key].enabled,
+          value: sourcePreset[key].value
+        };
+      }
+    });
+    if (data.autoApplyToNewNodes !== undefined) {
+      this.autoApplyToNewNodes = !!data.autoApplyToNewNodes;
+    } else if (data.autoApplyPreset !== undefined) {
+      this.autoApplyToNewNodes = !!data.autoApplyPreset;
+    }
+    return this.getState();
+  },
+
+  setPresetParam(key, value, enabled) {
+    if (!this.preset[key]) return false;
+    if (value !== undefined) {
+      this.preset[key].value = value;
+    }
+    if (enabled !== undefined) {
+      this.preset[key].enabled = !!enabled;
+    }
+    return true;
+  },
+
+  setAllEnabled(enabled) {
+    const flag = !!enabled;
+    this.presetKeys.forEach((k) => {
+      if (this.preset[k]) {
+        this.preset[k].enabled = flag;
+      }
+    });
+  },
+
+  applyToNodeObject(node) {
+    if (!node || typeof node !== 'object') return false;
+    let changed = false;
+    this.presetKeys.forEach((key) => {
+      const entry = this.preset[key];
+      if (entry && entry.enabled) {
+        node[key] = entry.value;
+        changed = true;
+      }
+    });
+    return changed;
+  },
+
+  extractFromNodeObject(node) {
+    if (!node || typeof node !== 'object') return false;
+    this.presetKeys.forEach((key) => {
+      if (node[key] !== undefined && this.preset[key]) {
+        this.preset[key].value = node[key];
+      }
+    });
+    return true;
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & DOM Bindings
+  // =========================================================================
+
   init() {
     if (this._initialized) return;
     this._initialized = true;
+
+    const autoChk = document.getElementById('chkAutoApplyPreset');
+    if (autoChk) {
+      this.autoApplyToNewNodes = !!autoChk.checked;
+      autoChk.addEventListener('change', (e) => {
+        this.autoApplyToNewNodes = !!e.target.checked;
+        if (window.SceneState) {
+          window.SceneState.setControl('chkAutoApplyPreset', this.autoApplyToNewNodes);
+        }
+      });
+    }
 
     const btnSnapInline = document.getElementById('btnSnapNodeToPreset');
     if (btnSnapInline) btnSnapInline.addEventListener('click', () => this.applyToActiveNode());
@@ -48,7 +149,7 @@ window.NodePresets = {
     const btnSetAll = document.getElementById('btnPresetSetAll');
     if (btnSetAll) {
       btnSetAll.addEventListener('click', () => {
-        this.presetKeys.forEach((k) => { this.preset[k].enabled = true; });
+        this.setAllEnabled(true);
         this.syncAllRowsUI();
       });
     }
@@ -56,7 +157,7 @@ window.NodePresets = {
     const btnUnsetAll = document.getElementById('btnPresetUnsetAll');
     if (btnUnsetAll) {
       btnUnsetAll.addEventListener('click', () => {
-        this.presetKeys.forEach((k) => { this.preset[k].enabled = false; });
+        this.setAllEnabled(false);
         this.syncAllRowsUI();
       });
     }
@@ -65,7 +166,7 @@ window.NodePresets = {
       const chk = document.getElementById('presetChk-' + key);
       if (chk) {
         chk.addEventListener('change', (e) => {
-          this.preset[key].enabled = e.target.checked;
+          this.setPresetParam(key, undefined, e.target.checked);
           this.syncRowUI(key);
         });
       }
@@ -75,18 +176,18 @@ window.NodePresets = {
       if (slider && num) {
         slider.addEventListener('input', (e) => {
           num.value = e.target.value;
-          this.preset[key].value = parseFloat(e.target.value);
+          this.setPresetParam(key, parseFloat(e.target.value));
         });
         num.addEventListener('input', (e) => {
           slider.value = e.target.value;
-          this.preset[key].value = parseFloat(e.target.value);
+          this.setPresetParam(key, parseFloat(e.target.value));
         });
       }
 
       const single = document.getElementById('presetVal-' + key);
       if (single) {
         const updateSingle = (e) => {
-          this.preset[key].value = e.target.value;
+          this.setPresetParam(key, e.target.value);
         };
         single.addEventListener('input', updateSingle);
         single.addEventListener('change', updateSingle);
@@ -123,17 +224,11 @@ window.NodePresets = {
   },
 
   syncAllRowsUI() {
+    const autoChk = document.getElementById('chkAutoApplyPreset');
+    if (autoChk) {
+      this.autoApplyToNewNodes = !!autoChk.checked;
+    }
     this.presetKeys.forEach((key) => this.syncRowUI(key));
-  },
-
-  applyToNodeObject(node) {
-    if (!node) return;
-    this.presetKeys.forEach((key) => {
-      const entry = this.preset[key];
-      if (entry && entry.enabled) {
-        node[key] = entry.value;
-      }
-    });
   },
 
   applyToActiveNode() {
@@ -141,13 +236,14 @@ window.NodePresets = {
       alert('Select a shape on the canvas or in the list first.');
       return;
     }
-    const node = window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
+    const node = window.DiagramNodes.getNode(window.DiagramNodes.activeId);
     if (!node) return;
 
     this.applyToNodeObject(node);
     window.DiagramNodes.selectNode(node.id, false);
     window.DiagramNodes.refreshAfterChange();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
   },
 
   applyToAllNodes() {
@@ -157,19 +253,16 @@ window.NodePresets = {
       window.DiagramNodes.selectNode(window.DiagramNodes.activeId, false);
     }
     window.DiagramNodes.refreshAfterChange();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
   },
 
   copyFromActiveNode() {
     if (!window.DiagramNodes || window.DiagramNodes.activeId === null) return;
-    const node = window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
+    const node = window.DiagramNodes.getNode(window.DiagramNodes.activeId);
     if (!node) return;
 
-    this.presetKeys.forEach((key) => {
-      if (node[key] !== undefined) {
-        this.preset[key].value = node[key];
-      }
-    });
+    this.extractFromNodeObject(node);
     this.syncAllRowsUI();
   }
 };
