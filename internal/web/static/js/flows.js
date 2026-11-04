@@ -1,9 +1,31 @@
+/**
+ * Data Flows & Connectors Module (`window.DataFlows`)
+ *
+ * Layer 3 (Operational API):
+ *   - `createFlow(initialProps)`, `updateFlow(id, patch)`, `deleteFlow(id)`,
+ *     `getFlow(id)`, `getAllFlows()`, `addWaypoint(flowId, x, y)`,
+ *     `removeWaypoint(flowId, waypointIdx)`, `updateWaypoint(flowId, waypointIdx, x, y)`,
+ *     `generatePathString(nodes, curvature, width, height, routeMode)`,
+ *     `getMidpoint(nodes, curvature, width, height)`,
+ *     `getState()`, `setState(data)`, `injectIntoSVG(svgString, stateOrWidth, heightArg)`
+ *   - Zero direct DOM dependencies.
+ *
+ * Layer 1 (UI Presentation & Compatibility):
+ *   - `init()`, `addFlow()`, `addNodeToActive()`, `dropNodeFromActive()`,
+ *     `refreshNodeSlider(f)`, `syncEditorUI(f)`, `selectFlow(id)`, `deselectFlow()`,
+ *     `updateActive(key, value)`, `handleStageClick(x, y)`, `updateUIOverlay()`,
+ *     `removeFlow(id)`, `renderList()`, `triggerAppRender()`
+ */
 window.DataFlows = {
   list: [],
   activeId: null,
   activeNodeIdx: 0,
   counter: 0,
   _initialized: false,
+
+  // =========================================================================
+  // Layer 3: Operational Functionality (Zero DOM Dependencies)
+  // =========================================================================
 
   escapeXML(str) {
     if (!str) return '';
@@ -15,269 +37,121 @@ window.DataFlows = {
       .replace(/'/g, '&apos;');
   },
 
-  init() {
-    if (this._initialized) return;
-    this._initialized = true;
-
-    const btnAdd = document.getElementById('btnAddFlow');
-    if (btnAdd) btnAdd.addEventListener('click', () => this.addFlow());
-
-    const btnAddNode = document.getElementById('btnFlowAddNode');
-    if (btnAddNode) btnAddNode.addEventListener('click', () => this.addNodeToActive());
-
-    const btnDelNode = document.getElementById('btnFlowDelNode');
-    if (btnDelNode) btnDelNode.addEventListener('click', () => this.dropNodeFromActive());
-
-    const sliderNumEvents = ['opacity', 'glow', 'scale', 'speed', 'delay', 'endDelay', 'curvature', 'lineWidth'];
-    sliderNumEvents.forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const slider = document.getElementById('flow' + cap + 'Slider');
-      const num = document.getElementById('flow' + cap + 'Num');
-      if (slider && num) {
-        slider.addEventListener('input', (e) => {
-          num.value = e.target.value;
-          this.updateActive(key, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-        num.addEventListener('input', (e) => {
-          slider.value = e.target.value;
-          this.updateActive(key, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-      }
-    });
-
-    ['type', 'color', 'showLine', 'hideOnDelay', 'route', 'lineStyle', 'arrow'].forEach((key) => {
-      let elId = 'flow' + key.charAt(0).toUpperCase() + key.slice(1);
-      if (key === 'color') elId += 'Picker';
-      else if (['type', 'route', 'lineStyle', 'arrow'].includes(key)) elId += 'Select';
-
-      const el = document.getElementById(elId);
-      if (el) {
-        if (key === 'color') {
-          el.addEventListener('input', (e) => this.updateActive('color', e.target.value));
-        }
-        el.addEventListener('change', (e) => {
-          this.updateActive(key, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
-          if (key === 'type') {
-            const cRow = document.getElementById('customPayloadRow');
-            if (cRow) cRow.style.display = e.target.value === 'custom' ? 'block' : 'none';
-          }
-          if (window.HistoryManager) window.HistoryManager.recordImmediate();
-        });
-      }
-    });
-
-    const lblIn = document.getElementById('flowLabelInput');
-    if (lblIn) {
-      lblIn.addEventListener('input', (e) => {
-        this.updateActive('label', e.target.value);
-        if (window.HistoryManager) window.HistoryManager.recordDebounced();
-      });
-    }
-
-    const nodeSlider = document.getElementById('flowNodeSlider');
-    if (nodeSlider) {
-      nodeSlider.addEventListener('input', (e) => {
-        this.activeNodeIdx = parseInt(e.target.value, 10);
-        const nodeNum = document.getElementById('flowNodeNum');
-        if (nodeNum) nodeNum.value = this.activeNodeIdx;
-        this.updateUIOverlay();
-      });
-    }
-
-    const customIn = document.getElementById('customPayloadInput');
-    if (customIn) {
-      customIn.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const dataUrl = ev.target.result;
-          const img = new Image();
-          img.onload = () => {
-            if (this.activeId !== null) {
-              const f = this.list.find((flow) => flow.id === this.activeId);
-              if (f) {
-                f.customB64 = dataUrl.split(',')[1];
-                f.customMime = file.type;
-                f.customW = img.naturalWidth;
-                f.customH = img.naturalHeight;
-                this.triggerAppRender();
-                if (window.HistoryManager) window.HistoryManager.recordImmediate();
-              }
-            }
-          };
-          img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-      });
-    }
+  getFlow(id) {
+    return this.list.find((f) => f.id === id) || null;
   },
 
-  addFlow() {
+  getAllFlows() {
+    return this.list;
+  },
+
+  getState() {
+    return {
+      flows: JSON.parse(JSON.stringify(this.list)),
+      flowsCounter: this.counter,
+      activeId: this.activeId,
+      activeNodeIdx: this.activeNodeIdx
+    };
+  },
+
+  setState(data) {
+    if (!data || typeof data !== 'object') return this.getState();
+    const rawList = Array.isArray(data.flows) ? data.flows : (Array.isArray(data.list) ? data.list : []);
+    this.list = JSON.parse(JSON.stringify(rawList));
+    const maxId = this.list.reduce((m, f) => Math.max(m, f.id || 0), 0);
+    const savedCounter = data.flowsCounter !== undefined ? data.flowsCounter : data.counter;
+    this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
+    this.activeId = null;
+    this.activeNodeIdx = 0;
+    return this.getState();
+  },
+
+  createFlow(initialProps = {}) {
     this.counter++;
+    const defaultNodes = Array.isArray(initialProps.nodes) && initialProps.nodes.length >= 2
+      ? JSON.parse(JSON.stringify(initialProps.nodes))
+      : [{ x: 25, y: 50 }, { x: 75, y: 50 }];
+
     const newFlow = {
       id: this.counter,
-      nodes: [{ x: 25, y: 50 }, { x: 75, y: 50 }],
-      type: 'orb',
-      route: 'curve',
-      lineStyle: 'dashed',
-      arrow: 'none',
-      lineWidth: 2.5,
-      label: '',
-      color: '#00ffcc',
-      showLine: true,
-      curvature: 0,
-      opacity: 1.0,
-      glow: 20,
-      scale: 1.0,
-      speed: 2.0,
-      delay: 0.0,
-      endDelay: 0.0,
-      hideOnDelay: true,
-      customB64: null,
-      customMime: null
+      nodes: defaultNodes,
+      type: initialProps.type || 'orb',
+      route: initialProps.route || 'curve',
+      lineStyle: initialProps.lineStyle || 'dashed',
+      arrow: initialProps.arrow || 'none',
+      lineWidth: initialProps.lineWidth !== undefined ? initialProps.lineWidth : 2.5,
+      label: initialProps.label !== undefined ? initialProps.label : '',
+      color: initialProps.color || '#00ffcc',
+      showLine: initialProps.showLine !== undefined ? !!initialProps.showLine : true,
+      curvature: initialProps.curvature !== undefined ? initialProps.curvature : 0,
+      opacity: initialProps.opacity !== undefined ? initialProps.opacity : 1.0,
+      glow: initialProps.glow !== undefined ? initialProps.glow : 20,
+      scale: initialProps.scale !== undefined ? initialProps.scale : 1.0,
+      speed: initialProps.speed !== undefined ? initialProps.speed : 2.0,
+      delay: initialProps.delay !== undefined ? initialProps.delay : 0.0,
+      endDelay: initialProps.endDelay !== undefined ? initialProps.endDelay : 0.0,
+      hideOnDelay: initialProps.hideOnDelay !== undefined ? !!initialProps.hideOnDelay : true,
+      customB64: initialProps.customB64 || null,
+      customMime: initialProps.customMime || null
     };
+    if (initialProps.customW) newFlow.customW = initialProps.customW;
+    if (initialProps.customH) newFlow.customH = initialProps.customH;
+
     this.list.push(newFlow);
-    this.selectFlow(newFlow.id);
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newFlow;
   },
 
-  addNodeToActive() {
-    const f = this.list.find((flow) => flow.id === this.activeId);
-    if (!f) return;
-    const lastNode = f.nodes[f.nodes.length - 1];
-    f.nodes.push({ x: Math.min(95, lastNode.x + 5), y: Math.min(95, lastNode.y + 5) });
-    this.activeNodeIdx = f.nodes.length - 1;
-    this.refreshNodeSlider(f);
-    this.updateUIOverlay();
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  dropNodeFromActive() {
-    const f = this.list.find((flow) => flow.id === this.activeId);
-    if (!f || f.nodes.length <= 2) {
-      alert('A flow must have at least 2 waypoints (Start and End).');
-      return;
-    }
-    f.nodes.splice(this.activeNodeIdx, 1);
-    this.activeNodeIdx = Math.max(0, this.activeNodeIdx - 1);
-    this.refreshNodeSlider(f);
-    this.updateUIOverlay();
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  refreshNodeSlider(f) {
-    const slider = document.getElementById('flowNodeSlider');
-    const num = document.getElementById('flowNodeNum');
-    if (slider && num) {
-      slider.max = f.nodes.length - 1;
-      slider.value = this.activeNodeIdx;
-      num.value = this.activeNodeIdx;
-    }
-  },
-
-  selectFlow(id) {
-    if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-    if (window.Glows) window.Glows.deselectGlow();
-    if (window.Ripples) window.Ripples.deselectRipple();
-
-    this.activeId = id;
-    this.activeNodeIdx = 0;
-    this.renderList();
-    document.body.classList.add('editing-flow');
-
-    const f = this.list.find((flow) => flow.id === id);
-    if (f) {
-      const ed = document.getElementById('flowEditor');
-      if (ed) ed.style.display = 'block';
-      const lbl = document.getElementById('editingFlowLabel');
-      if (lbl) lbl.innerText = 'Editing Connector / Flow ' + id;
-
-      const tSel = document.getElementById('flowTypeSelect');
-      if (tSel) tSel.value = f.type || 'orb';
-      const rSel = document.getElementById('flowRouteSelect');
-      if (rSel) rSel.value = f.route || 'curve';
-      const lsSel = document.getElementById('flowLineStyleSelect');
-      if (lsSel) lsSel.value = f.lineStyle || 'dashed';
-      const arSel = document.getElementById('flowArrowSelect');
-      if (arSel) arSel.value = f.arrow || 'none';
-      const lIn = document.getElementById('flowLabelInput');
-      if (lIn) lIn.value = f.label || '';
-      const cPick = document.getElementById('flowColorPicker');
-      if (cPick) cPick.value = f.color;
-      const sLine = document.getElementById('flowShowLine');
-      if (sLine) sLine.checked = f.showLine;
-      const hDel = document.getElementById('flowHideOnDelay');
-      if (hDel) hDel.checked = f.hideOnDelay !== false;
-      const cRow = document.getElementById('customPayloadRow');
-      if (cRow) cRow.style.display = f.type === 'custom' ? 'block' : 'none';
-
-      this.refreshNodeSlider(f);
-
-      ['opacity', 'glow', 'scale', 'speed', 'delay', 'endDelay', 'curvature', 'lineWidth'].forEach((key) => {
-        const val = f[key] !== undefined ? f[key] : (key === 'curvature' ? 0 : (key === 'lineWidth' ? 2.5 : 1));
-        const cap = key.charAt(0).toUpperCase() + key.slice(1);
-        const sl = document.getElementById('flow' + cap + 'Slider');
-        const nu = document.getElementById('flow' + cap + 'Num');
-        if (sl) sl.value = val;
-        if (nu) nu.value = val;
-      });
-      this.updateUIOverlay();
-    }
-  },
-
-  deselectFlow() {
-    this.activeId = null;
-    this.renderList();
-    document.body.classList.remove('editing-flow');
-    const editor = document.getElementById('flowEditor');
-    if (editor) editor.style.display = 'none';
-    const ret = document.getElementById('dynamicFlowReticles');
-    if (ret) ret.innerHTML = '';
-    const path = document.getElementById('flowCurvePath');
-    if (path) path.style.display = 'none';
-  },
-
-  updateActive(key, value) {
-    if (this.activeId === null) return;
-    const f = this.list.find((flow) => flow.id === this.activeId);
-    if (f) {
-      f[key] = value;
-      this.renderList();
-      this.triggerAppRender();
-      this.updateUIOverlay();
-    }
-  },
-
-  handleStageClick(x, y) {
-    if (this.activeId === null) return false;
-    const f = this.list.find((flow) => flow.id === this.activeId);
-    if (f && f.nodes[this.activeNodeIdx]) {
-      f.nodes[this.activeNodeIdx].x = x;
-      f.nodes[this.activeNodeIdx].y = y;
-      this.updateUIOverlay();
-
-      const w = (window.Stage && window.Stage.canvasWidth) || 1280;
-      const h = (window.Stage && window.Stage.canvasHeight) || 720;
-      const newD = this.generatePathString(f.nodes, f.curvature || 0, w, h, f.route || 'curve');
-      const livePath = document.getElementById('flowPath-' + f.id);
-      if (livePath && f.lineStyle !== 'double' && (!f.label || f.label.trim() === '')) {
-        livePath.setAttribute('d', newD);
-      } else {
-        this.triggerAppRender();
+  updateFlow(id, patch) {
+    const f = this.getFlow(id);
+    if (!f || !patch || typeof patch !== 'object') return null;
+    Object.keys(patch).forEach((key) => {
+      if (key !== 'id') {
+        f[key] = patch[key];
       }
-      return true;
+    });
+    return f;
+  },
+
+  deleteFlow(id) {
+    const before = this.list.length;
+    this.list = this.list.filter((f) => f.id !== id);
+    if (this.activeId === id) {
+      this.activeId = null;
+      this.activeNodeIdx = 0;
     }
-    return false;
+    return this.list.length < before;
+  },
+
+  addWaypoint(flowId, x, y) {
+    const f = this.getFlow(flowId);
+    if (!f || !Array.isArray(f.nodes) || f.nodes.length === 0) return null;
+    const lastNode = f.nodes[f.nodes.length - 1];
+    const nextPt = {
+      x: x !== undefined ? x : Math.min(95, lastNode.x + 5),
+      y: y !== undefined ? y : Math.min(95, lastNode.y + 5)
+    };
+    f.nodes.push(nextPt);
+    return { flow: f, waypointIdx: f.nodes.length - 1 };
+  },
+
+  removeWaypoint(flowId, waypointIdx) {
+    const f = this.getFlow(flowId);
+    if (!f || !Array.isArray(f.nodes) || f.nodes.length <= 2) return null;
+    const idx = Math.max(0, Math.min(f.nodes.length - 1, waypointIdx));
+    f.nodes.splice(idx, 1);
+    return { flow: f, waypointIdx: Math.max(0, idx - 1) };
+  },
+
+  updateWaypoint(flowId, waypointIdx, x, y) {
+    const f = this.getFlow(flowId);
+    if (!f || !Array.isArray(f.nodes) || !f.nodes[waypointIdx]) return null;
+    if (x !== undefined) f.nodes[waypointIdx].x = x;
+    if (y !== undefined) f.nodes[waypointIdx].y = y;
+    return f.nodes[waypointIdx];
   },
 
   generatePathString(nodes, curvature, width, height, routeMode = 'curve') {
-    if (nodes.length < 2) return '';
+    if (!nodes || nodes.length < 2) return '';
     const px = (pct) => Number(((pct / 100) * width).toFixed(2));
     const py = (pct) => Number(((pct / 100) * height).toFixed(2));
 
@@ -355,90 +229,6 @@ window.DataFlows = {
       my += ny * bend;
     }
     return { x: mx, y: my };
-  },
-
-  updateUIOverlay() {
-    const f = this.list.find((flow) => flow.id === this.activeId);
-    const container = document.getElementById('dynamicFlowReticles');
-    const pathEl = document.getElementById('flowCurvePath');
-    if (!f || !container || !pathEl) return;
-
-    const w = (window.Stage && window.Stage.canvasWidth) || 1280;
-    const h = (window.Stage && window.Stage.canvasHeight) || 720;
-
-    if (f.nodes.length >= 2) {
-      pathEl.style.display = 'block';
-      pathEl.setAttribute('d', this.generatePathString(f.nodes, f.curvature, w, h, f.route || 'curve'));
-      pathEl.setAttribute('stroke', f.color);
-    } else {
-      pathEl.style.display = 'none';
-    }
-
-    const existingReticles = container.querySelectorAll('[data-flow-node-idx]');
-    if (existingReticles.length === f.nodes.length) {
-      f.nodes.forEach((node, idx) => {
-        const isActive = idx === this.activeNodeIdx;
-        const el = existingReticles[idx];
-        el.className = 'reticle' + (isActive ? ' active-reticle' : '');
-        el.style.left = node.x + '%';
-        el.style.top = node.y + '%';
-        el.style.background = isActive ? (f.color + '4D') : 'rgba(0,0,0,0.65)';
-        el.style.borderColor = f.color;
-        el.style.zIndex = isActive ? '12' : '11';
-      });
-    } else {
-      let html = '';
-      f.nodes.forEach((node, idx) => {
-        const isActive = idx === this.activeNodeIdx;
-        html +=
-          '<div class="reticle' + (isActive ? ' active-reticle' : '') + '" ' +
-          'data-flow-node-idx="' + idx + '" ' +
-          'style="left:' + node.x + '%; top:' + node.y + '%; pointer-events: auto; ' +
-          'background:' + (isActive ? (f.color + '4D') : 'rgba(0,0,0,0.65)') + '; ' +
-          'border-color:' + f.color + '; z-index:' + (isActive ? 12 : 11) + '; cursor: grab;">' +
-          'N' + idx +
-          '</div>';
-      });
-      container.innerHTML = html;
-    }
-  },
-
-  removeFlow(id) {
-    this.list = this.list.filter((f) => f.id !== id);
-    if (this.activeId === id) this.deselectFlow();
-    else this.renderList();
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  renderList() {
-    const container = document.getElementById('flowListContainer');
-    if (!container) return;
-    if (this.list.length === 0) {
-      container.innerHTML = '<div class="stage-hint" id="emptyFlowHint">No flows active.</div>';
-      return;
-    }
-    container.innerHTML = '';
-    this.list.forEach((f) => {
-      const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === f.id ? ' selected' : '');
-      div.style.borderLeftColor = f.color;
-      const tag = f.label ? this.escapeXML(f.label) : ('Flow ' + f.id + ' [' + f.nodes.length + ' Nodes]');
-      div.innerHTML =
-        '<span>' + tag + '</span>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">X</button>';
-      div.onclick = () => this.selectFlow(f.id);
-      container.appendChild(div);
-    });
-  },
-
-  triggerAppRender() {
-    if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
-    } else {
-      const durSlider = document.getElementById('durationSlider');
-      if (durSlider) durSlider.dispatchEvent(new Event('input'));
-    }
   },
 
   injectIntoSVG(svgString, stateOrWidth, heightArg) {
@@ -561,5 +351,354 @@ window.DataFlows = {
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="flows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & DOM Bindings
+  // =========================================================================
+
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
+    const btnAdd = document.getElementById('btnAddFlow');
+    if (btnAdd) btnAdd.addEventListener('click', () => this.addFlow());
+
+    const btnAddNode = document.getElementById('btnFlowAddNode');
+    if (btnAddNode) btnAddNode.addEventListener('click', () => this.addNodeToActive());
+
+    const btnDelNode = document.getElementById('btnFlowDelNode');
+    if (btnDelNode) btnDelNode.addEventListener('click', () => this.dropNodeFromActive());
+
+    const sliderNumEvents = ['opacity', 'glow', 'scale', 'speed', 'delay', 'endDelay', 'curvature', 'lineWidth'];
+    sliderNumEvents.forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const slider = document.getElementById('flow' + cap + 'Slider');
+      const num = document.getElementById('flow' + cap + 'Num');
+      if (slider && num) {
+        slider.addEventListener('input', (e) => {
+          num.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+        num.addEventListener('input', (e) => {
+          slider.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+      }
+    });
+
+    ['type', 'color', 'showLine', 'hideOnDelay', 'route', 'lineStyle', 'arrow'].forEach((key) => {
+      let elId = 'flow' + key.charAt(0).toUpperCase() + key.slice(1);
+      if (key === 'color') elId += 'Picker';
+      else if (['type', 'route', 'lineStyle', 'arrow'].includes(key)) elId += 'Select';
+
+      const el = document.getElementById(elId);
+      if (el) {
+        if (key === 'color') {
+          el.addEventListener('input', (e) => this.updateActive('color', e.target.value));
+        }
+        el.addEventListener('change', (e) => {
+          this.updateActive(key, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+          if (key === 'type') {
+            const cRow = document.getElementById('customPayloadRow');
+            if (cRow) cRow.style.display = e.target.value === 'custom' ? 'block' : 'none';
+          }
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+          else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        });
+      }
+    });
+
+    const lblIn = document.getElementById('flowLabelInput');
+    if (lblIn) {
+      lblIn.addEventListener('input', (e) => {
+        this.updateActive('label', e.target.value);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+        else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+      });
+    }
+
+    const nodeSlider = document.getElementById('flowNodeSlider');
+    if (nodeSlider) {
+      nodeSlider.addEventListener('input', (e) => {
+        this.activeNodeIdx = parseInt(e.target.value, 10);
+        const nodeNum = document.getElementById('flowNodeNum');
+        if (nodeNum) nodeNum.value = this.activeNodeIdx;
+        this.updateUIOverlay();
+      });
+    }
+
+    const customIn = document.getElementById('customPayloadInput');
+    if (customIn) {
+      customIn.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target.result;
+          const img = new Image();
+          img.onload = () => {
+            if (this.activeId !== null) {
+              const updated = this.updateFlow(this.activeId, {
+                customB64: dataUrl.split(',')[1],
+                customMime: file.type,
+                customW: img.naturalWidth,
+                customH: img.naturalHeight
+              });
+              if (updated) {
+                this.triggerAppRender();
+                if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+                else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+              }
+            }
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  },
+
+  addFlow(initialProps = {}) {
+    const newFlow = this.createFlow(initialProps);
+    this.selectFlow(newFlow.id);
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newFlow;
+  },
+
+  addNodeToActive() {
+    if (this.activeId === null) return;
+    const res = this.addWaypoint(this.activeId);
+    if (!res) return;
+    this.activeNodeIdx = res.waypointIdx;
+    this.refreshNodeSlider(res.flow);
+    this.updateUIOverlay();
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  },
+
+  dropNodeFromActive() {
+    const f = this.getFlow(this.activeId);
+    if (!f || f.nodes.length <= 2) {
+      alert('A flow must have at least 2 waypoints (Start and End).');
+      return;
+    }
+    const res = this.removeWaypoint(this.activeId, this.activeNodeIdx);
+    if (!res) return;
+    this.activeNodeIdx = res.waypointIdx;
+    this.refreshNodeSlider(res.flow);
+    this.updateUIOverlay();
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  },
+
+  refreshNodeSlider(f) {
+    const slider = document.getElementById('flowNodeSlider');
+    const num = document.getElementById('flowNodeNum');
+    if (slider && num && f) {
+      slider.max = f.nodes.length - 1;
+      slider.value = this.activeNodeIdx;
+      num.value = this.activeNodeIdx;
+    }
+  },
+
+  syncEditorUI(f) {
+    if (!f) return;
+    const ed = document.getElementById('flowEditor');
+    if (ed) ed.style.display = 'block';
+    const lbl = document.getElementById('editingFlowLabel');
+    if (lbl) lbl.innerText = 'Editing Connector / Flow ' + f.id;
+
+    const tSel = document.getElementById('flowTypeSelect');
+    if (tSel) tSel.value = f.type || 'orb';
+    const rSel = document.getElementById('flowRouteSelect');
+    if (rSel) rSel.value = f.route || 'curve';
+    const lsSel = document.getElementById('flowLineStyleSelect');
+    if (lsSel) lsSel.value = f.lineStyle || 'dashed';
+    const arSel = document.getElementById('flowArrowSelect');
+    if (arSel) arSel.value = f.arrow || 'none';
+    const lIn = document.getElementById('flowLabelInput');
+    if (lIn) lIn.value = f.label || '';
+    const cPick = document.getElementById('flowColorPicker');
+    if (cPick) cPick.value = f.color;
+    const sLine = document.getElementById('flowShowLine');
+    if (sLine) sLine.checked = f.showLine;
+    const hDel = document.getElementById('flowHideOnDelay');
+    if (hDel) hDel.checked = f.hideOnDelay !== false;
+    const cRow = document.getElementById('customPayloadRow');
+    if (cRow) cRow.style.display = f.type === 'custom' ? 'block' : 'none';
+
+    this.refreshNodeSlider(f);
+
+    ['opacity', 'glow', 'scale', 'speed', 'delay', 'endDelay', 'curvature', 'lineWidth'].forEach((key) => {
+      const val = f[key] !== undefined ? f[key] : (key === 'curvature' ? 0 : (key === 'lineWidth' ? 2.5 : 1));
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const sl = document.getElementById('flow' + cap + 'Slider');
+      const nu = document.getElementById('flow' + cap + 'Num');
+      if (sl) sl.value = val;
+      if (nu) nu.value = val;
+    });
+  },
+
+  selectFlow(id) {
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('flow', id, { skipStageClear: true });
+    } else {
+      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
+      if (window.Glows) window.Glows.deselectGlow();
+      if (window.Ripples) window.Ripples.deselectRipple();
+    }
+
+    this.activeId = id;
+    this.activeNodeIdx = 0;
+    this.renderList();
+    document.body.classList.add('editing-flow');
+
+    const f = this.getFlow(id);
+    if (f) {
+      this.syncEditorUI(f);
+      this.updateUIOverlay();
+    }
+  },
+
+  deselectFlow() {
+    this.activeId = null;
+    this.renderList();
+    document.body.classList.remove('editing-flow');
+    const editor = document.getElementById('flowEditor');
+    if (editor) editor.style.display = 'none';
+    const ret = document.getElementById('dynamicFlowReticles');
+    if (ret) ret.innerHTML = '';
+    const path = document.getElementById('flowCurvePath');
+    if (path) path.style.display = 'none';
+  },
+
+  updateActive(key, value) {
+    if (this.activeId === null) return;
+    const f = this.updateFlow(this.activeId, { [key]: value });
+    if (f) {
+      this.renderList();
+      this.triggerAppRender();
+      this.updateUIOverlay();
+    }
+  },
+
+  handleStageClick(x, y) {
+    if (this.activeId === null) return false;
+    const f = this.getFlow(this.activeId);
+    if (f && f.nodes[this.activeNodeIdx]) {
+      this.updateWaypoint(this.activeId, this.activeNodeIdx, x, y);
+      this.updateUIOverlay();
+
+      const dims = window.AppCoordinator
+        ? window.AppCoordinator.getCanvasDimensions()
+        : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 };
+      const newD = this.generatePathString(f.nodes, f.curvature || 0, dims.width, dims.height, f.route || 'curve');
+      const livePath = document.getElementById('flowPath-' + f.id);
+      if (livePath && f.lineStyle !== 'double' && (!f.label || f.label.trim() === '')) {
+        livePath.setAttribute('d', newD);
+      } else {
+        this.triggerAppRender();
+      }
+      return true;
+    }
+    return false;
+  },
+
+  updateUIOverlay() {
+    const f = this.getFlow(this.activeId);
+    const container = document.getElementById('dynamicFlowReticles');
+    const pathEl = document.getElementById('flowCurvePath');
+    if (!f || !container || !pathEl) return;
+
+    const dims = window.AppCoordinator
+      ? window.AppCoordinator.getCanvasDimensions()
+      : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 };
+
+    if (f.nodes.length >= 2) {
+      pathEl.style.display = 'block';
+      pathEl.setAttribute('d', this.generatePathString(f.nodes, f.curvature, dims.width, dims.height, f.route || 'curve'));
+      pathEl.setAttribute('stroke', f.color);
+    } else {
+      pathEl.style.display = 'none';
+    }
+
+    const existingReticles = container.querySelectorAll('[data-flow-node-idx]');
+    if (existingReticles.length === f.nodes.length) {
+      f.nodes.forEach((node, idx) => {
+        const isActive = idx === this.activeNodeIdx;
+        const el = existingReticles[idx];
+        el.className = 'reticle' + (isActive ? ' active-reticle' : '');
+        el.style.left = node.x + '%';
+        el.style.top = node.y + '%';
+        el.style.background = isActive ? (f.color + '4D') : 'rgba(0,0,0,0.65)';
+        el.style.borderColor = f.color;
+        el.style.zIndex = isActive ? '12' : '11';
+      });
+    } else {
+      let html = '';
+      f.nodes.forEach((node, idx) => {
+        const isActive = idx === this.activeNodeIdx;
+        html +=
+          '<div class="reticle' + (isActive ? ' active-reticle' : '') + '" ' +
+          'data-flow-node-idx="' + idx + '" ' +
+          'style="left:' + node.x + '%; top:' + node.y + '%; pointer-events: auto; ' +
+          'background:' + (isActive ? (f.color + '4D') : 'rgba(0,0,0,0.65)') + '; ' +
+          'border-color:' + f.color + '; z-index:' + (isActive ? 12 : 11) + '; cursor: grab;">' +
+          'N' + idx +
+          '</div>';
+      });
+      container.innerHTML = html;
+    }
+  },
+
+  removeFlow(id) {
+    const wasActive = this.activeId === id;
+    this.deleteFlow(id);
+    if (wasActive) this.deselectFlow();
+    else this.renderList();
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  },
+
+  renderList() {
+    const container = document.getElementById('flowListContainer');
+    if (!container) return;
+    if (this.list.length === 0) {
+      container.innerHTML = '<div class="stage-hint" id="emptyFlowHint">No flows active.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    this.list.forEach((f) => {
+      const div = document.createElement('div');
+      div.className = 'flow-list-item' + (this.activeId === f.id ? ' selected' : '');
+      div.style.borderLeftColor = f.color;
+      const tag = f.label ? this.escapeXML(f.label) : ('Flow ' + f.id + ' [' + f.nodes.length + ' Nodes]');
+      div.innerHTML =
+        '<span>' + tag + '</span>' +
+        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">X</button>';
+      div.onclick = () => this.selectFlow(f.id);
+      container.appendChild(div);
+    });
+  },
+
+  triggerAppRender() {
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    } else {
+      const durSlider = document.getElementById('durationSlider');
+      if (durSlider) durSlider.dispatchEvent(new Event('input'));
+    }
   }
 };

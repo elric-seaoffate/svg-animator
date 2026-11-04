@@ -1,251 +1,102 @@
+/**
+ * Hotspot Glows & Radar Pings Module (`window.Glows`)
+ *
+ * Layer 3 (Operational API):
+ *   - `createGlow(initialProps)`, `updateGlow(id, patch)`, `deleteGlow(id)`,
+ *     `getGlow(id)`, `getAllGlows()`, `getState()`, `setState(data)`,
+ *     `injectIntoSVG(svgString, width, height)`
+ *   - Zero direct DOM dependencies.
+ *
+ * Layer 1 (UI Presentation & Compatibility):
+ *   - `init()`, `addGlow()`, `syncEditorUI(glow)`, `selectGlow(id)`,
+ *     `deselectGlow()`, `updateActive(key, value)`, `handleStageClick(x, y)`,
+ *     `updateUIOverlay(glow)`, `removeGlow(id)`, `renderList()`, `triggerAppRender()`
+ */
 window.Glows = {
   list: [],
   activeId: null,
   counter: 0,
   _initialized: false,
 
-  init() {
-    if (this._initialized) return;
-    this._initialized = true;
+  // =========================================================================
+  // Layer 3: Operational Functionality (Zero DOM Dependencies)
+  // =========================================================================
 
-    const btnAdd = document.getElementById('btnAddGlow');
-    if (btnAdd) btnAdd.addEventListener('click', () => this.addGlow());
-
-    ['playback', 'color', 'shape', 'hideOnDelay'].forEach((key) => {
-      let elId = 'glow' + key.charAt(0).toUpperCase() + key.slice(1);
-      if (key === 'color') elId += 'Picker';
-      else if (key === 'shape' || key === 'playback') elId += 'Select';
-
-      const el = document.getElementById(elId);
-      if (el) {
-        if (key === 'color') {
-          el.addEventListener('input', (e) => this.updateActive('color', e.target.value));
-        }
-        el.addEventListener('change', (e) => {
-          this.updateActive(key, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
-          if (key === 'shape') {
-            const cRow = document.getElementById('glowCustomRow');
-            const colRow = document.getElementById('glowColorRow');
-            const szCont = document.getElementById('glowSizeContainer');
-            const scCont = document.getElementById('glowScaleContainer');
-            const radCont = document.getElementById('glowRadarContainer');
-            if (cRow) cRow.style.display = e.target.value === 'custom' ? 'block' : 'none';
-            if (colRow) colRow.style.display = e.target.value === 'custom' ? 'none' : 'flex';
-            if (szCont) szCont.style.display = e.target.value === 'custom' ? 'none' : 'block';
-            if (scCont) scCont.style.display = e.target.value === 'custom' ? 'block' : 'none';
-            if (radCont) radCont.style.display = e.target.value === 'radar' ? 'block' : 'none';
-          }
-          if (window.HistoryManager) window.HistoryManager.recordImmediate();
-        });
-      }
-    });
-
-    const customIn = document.getElementById('glowCustomInput');
-    if (customIn) {
-      customIn.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const dataUrl = ev.target.result;
-          const img = new Image();
-          img.onload = () => {
-            if (this.activeId !== null) {
-              const glow = this.list.find((g) => g.id === this.activeId);
-              if (glow) {
-                glow.customB64 = dataUrl.split(',')[1];
-                glow.customMime = file.type;
-                glow.customW = img.naturalWidth;
-                glow.customH = img.naturalHeight;
-                this.triggerAppRender();
-                if (window.HistoryManager) window.HistoryManager.recordImmediate();
-              }
-            }
-          };
-          img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    ['size', 'dur', 'speed', 'delay', 'opacity', 'blur', 'scale', 'endDelay', 'thick', 'coreR', 'rings'].forEach((key) => {
-      const propKey = key === 'speed' ? 'dur' : key;
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const slider = document.getElementById('glow' + cap + 'Slider');
-      const num = document.getElementById('glow' + cap + 'Num');
-      if (slider && num) {
-        slider.addEventListener('input', (e) => {
-          num.value = e.target.value;
-          this.updateActive(propKey, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-        num.addEventListener('input', (e) => {
-          slider.value = e.target.value;
-          this.updateActive(propKey, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-      }
-    });
+  getGlow(id) {
+    return this.list.find((g) => g.id === id) || null;
   },
 
-  addGlow() {
+  getAllGlows() {
+    return this.list;
+  },
+
+  getState() {
+    return {
+      glows: JSON.parse(JSON.stringify(this.list)),
+      glowsCounter: this.counter,
+      activeId: this.activeId
+    };
+  },
+
+  setState(data) {
+    if (!data || typeof data !== 'object') return this.getState();
+    const rawList = Array.isArray(data.glows) ? data.glows : (Array.isArray(data.list) ? data.list : []);
+    this.list = JSON.parse(JSON.stringify(rawList));
+    const maxId = this.list.reduce((m, g) => Math.max(m, g.id || 0), 0);
+    const savedCounter = data.glowsCounter !== undefined ? data.glowsCounter : data.counter;
+    this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
+    this.activeId = null;
+    return this.getState();
+  },
+
+  createGlow(initialProps = {}) {
     this.counter++;
     const newGlow = {
       id: this.counter,
-      shape: 'circle',
-      color: '#ff0044',
-      playback: 'pingpong',
-      hideOnDelay: true,
-      size: 25,
-      scale: 1.0,
-      blur: 50,
-      dur: 2.0,
-      delay: 0.0,
-      endDelay: 0.0,
-      opacity: 1.0,
-      thick: 2,
-      coreR: 5,
-      rings: 1,
-      x: 50,
-      y: 50
+      shape: initialProps.shape || 'circle',
+      color: initialProps.color || '#ff0044',
+      playback: initialProps.playback || 'pingpong',
+      hideOnDelay: initialProps.hideOnDelay !== undefined ? !!initialProps.hideOnDelay : true,
+      size: initialProps.size !== undefined ? initialProps.size : 25,
+      scale: initialProps.scale !== undefined ? initialProps.scale : 1.0,
+      blur: initialProps.blur !== undefined ? initialProps.blur : 50,
+      dur: initialProps.dur !== undefined ? initialProps.dur : 2.0,
+      delay: initialProps.delay !== undefined ? initialProps.delay : 0.0,
+      endDelay: initialProps.endDelay !== undefined ? initialProps.endDelay : 0.0,
+      opacity: initialProps.opacity !== undefined ? initialProps.opacity : 1.0,
+      thick: initialProps.thick !== undefined ? initialProps.thick : 2,
+      coreR: initialProps.coreR !== undefined ? initialProps.coreR : 5,
+      rings: initialProps.rings !== undefined ? initialProps.rings : 1,
+      x: initialProps.x !== undefined ? initialProps.x : 50,
+      y: initialProps.y !== undefined ? initialProps.y : 50
     };
+    if (initialProps.customB64) newGlow.customB64 = initialProps.customB64;
+    if (initialProps.customMime) newGlow.customMime = initialProps.customMime;
+    if (initialProps.customW) newGlow.customW = initialProps.customW;
+    if (initialProps.customH) newGlow.customH = initialProps.customH;
+
     this.list.push(newGlow);
-    this.selectGlow(newGlow.id);
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newGlow;
   },
 
-  selectGlow(id) {
-    if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-    if (window.DataFlows) window.DataFlows.deselectFlow();
-    if (window.Ripples) window.Ripples.deselectRipple();
-
-    this.activeId = id;
-    this.renderList();
-    document.body.classList.add('editing-flow');
-
-    const glow = this.list.find((g) => g.id === id);
-    if (glow) {
-      const ed = document.getElementById('glowEditor');
-      if (ed) ed.style.display = 'block';
-      const lbl = document.getElementById('editingGlowLabel');
-      if (lbl) lbl.innerText = 'Editing Glow ' + id;
-
-      const shSel = document.getElementById('glowShapeSelect');
-      if (shSel) shSel.value = glow.shape || 'circle';
-      const pbSel = document.getElementById('glowPlaybackSelect');
-      if (pbSel) pbSel.value = glow.playback;
-      const colPick = document.getElementById('glowColorPicker');
-      if (colPick) colPick.value = glow.color;
-      const hideChk = document.getElementById('glowHideOnDelay');
-      if (hideChk) hideChk.checked = glow.hideOnDelay !== false;
-
-      const cRow = document.getElementById('glowCustomRow');
-      const colRow = document.getElementById('glowColorRow');
-      const szCont = document.getElementById('glowSizeContainer');
-      const scCont = document.getElementById('glowScaleContainer');
-      const radCont = document.getElementById('glowRadarContainer');
-      if (cRow) cRow.style.display = glow.shape === 'custom' ? 'block' : 'none';
-      if (colRow) colRow.style.display = glow.shape === 'custom' ? 'none' : 'flex';
-      if (szCont) szCont.style.display = glow.shape === 'custom' ? 'none' : 'block';
-      if (scCont) scCont.style.display = glow.shape === 'custom' ? 'block' : 'none';
-      if (radCont) radCont.style.display = glow.shape === 'radar' ? 'block' : 'none';
-
-      ['opacity', 'blur', 'scale', 'size', 'dur', 'delay', 'endDelay', 'thick', 'coreR', 'rings'].forEach((key) => {
-        const val = glow[key] !== undefined ? glow[key] : (key === 'opacity' || key === 'scale' ? 1.0 : (key === 'size' ? 25 : 0));
-        const cap = key.charAt(0).toUpperCase() + key.slice(1);
-        const sl = document.getElementById('glow' + cap + 'Slider') || (key === 'dur' ? document.getElementById('glowSpeedSlider') : null);
-        const nu = document.getElementById('glow' + cap + 'Num') || (key === 'dur' ? document.getElementById('glowSpeedNum') : null);
-        if (sl) sl.value = val;
-        if (nu) nu.value = val;
-      });
-
-      this.updateUIOverlay(glow);
-      const ret = document.getElementById('glowReticleTarget');
-      if (ret) ret.style.display = 'flex';
-    }
-  },
-
-  deselectGlow() {
-    this.activeId = null;
-    this.renderList();
-    document.body.classList.remove('editing-flow');
-    const editor = document.getElementById('glowEditor');
-    if (editor) editor.style.display = 'none';
-    const ret = document.getElementById('glowReticleTarget');
-    if (ret) ret.style.display = 'none';
-  },
-
-  updateActive(key, value) {
-    if (this.activeId === null) return;
-    const glow = this.list.find((g) => g.id === this.activeId);
-    if (glow) {
-      glow[key] = value;
-      this.renderList();
-      this.triggerAppRender();
-      if (key === 'color' || key === 'shape') this.updateUIOverlay(glow);
-    }
-  },
-
-  handleStageClick(x, y) {
-    if (this.activeId === null) return false;
-    const glow = this.list.find((g) => g.id === this.activeId);
-    if (glow) {
-      glow.x = x;
-      glow.y = y;
-      this.updateUIOverlay(glow);
-      this.triggerAppRender();
-      return true;
-    }
-    return false;
-  },
-
-  updateUIOverlay(glow) {
-    const ret = document.getElementById('glowReticleTarget');
-    if (ret && glow) {
-      ret.style.left = glow.x + '%';
-      ret.style.top = glow.y + '%';
-      ret.style.borderColor = glow.color;
-      ret.style.backgroundColor = glow.shape === 'custom' ? 'rgba(88,166,255,0.3)' : (glow.color + '4D');
-      ret.style.borderRadius = (glow.shape === 'square' || glow.shape === 'custom') ? '4px' : '50%';
-    }
-  },
-
-  removeGlow(id) {
-    this.list = this.list.filter((g) => g.id !== id);
-    if (this.activeId === id) this.deselectGlow();
-    else this.renderList();
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  renderList() {
-    const container = document.getElementById('glowListContainer');
-    if (!container) return;
-    if (this.list.length === 0) {
-      container.innerHTML = '<div class="stage-hint" id="emptyGlowHint">No glows active.</div>';
-      return;
-    }
-    container.innerHTML = '';
-    this.list.forEach((glow) => {
-      const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === glow.id ? ' selected' : '');
-      div.style.borderLeftColor = glow.color;
-      div.innerHTML =
-        '<span>Glow ' + glow.id + '</span>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">X</button>';
-      div.onclick = () => this.selectGlow(glow.id);
-      container.appendChild(div);
+  updateGlow(id, patch) {
+    const glow = this.getGlow(id);
+    if (!glow || !patch || typeof patch !== 'object') return null;
+    Object.keys(patch).forEach((key) => {
+      if (key !== 'id') {
+        glow[key] = patch[key];
+      }
     });
+    return glow;
   },
 
-  triggerAppRender() {
-    if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
-    } else {
-      const durSlider = document.getElementById('durationSlider');
-      if (durSlider) durSlider.dispatchEvent(new Event('input'));
+  deleteGlow(id) {
+    const before = this.list.length;
+    this.list = this.list.filter((g) => g.id !== id);
+    if (this.activeId === id) {
+      this.activeId = null;
     }
+    return this.list.length < before;
   },
 
   injectIntoSVG(svgString, width, height) {
@@ -355,5 +206,244 @@ window.Glows = {
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="glows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & DOM Bindings
+  // =========================================================================
+
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
+    const btnAdd = document.getElementById('btnAddGlow');
+    if (btnAdd) btnAdd.addEventListener('click', () => this.addGlow());
+
+    ['playback', 'color', 'shape', 'hideOnDelay'].forEach((key) => {
+      let elId = 'glow' + key.charAt(0).toUpperCase() + key.slice(1);
+      if (key === 'color') elId += 'Picker';
+      else if (key === 'shape' || key === 'playback') elId += 'Select';
+
+      const el = document.getElementById(elId);
+      if (el) {
+        if (key === 'color') {
+          el.addEventListener('input', (e) => this.updateActive('color', e.target.value));
+        }
+        el.addEventListener('change', (e) => {
+          this.updateActive(key, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+          if (key === 'shape') {
+            this.syncShapeVisibilityUI(e.target.value);
+          }
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+          else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        });
+      }
+    });
+
+    const customIn = document.getElementById('glowCustomInput');
+    if (customIn) {
+      customIn.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target.result;
+          const img = new Image();
+          img.onload = () => {
+            if (this.activeId !== null) {
+              const updated = this.updateGlow(this.activeId, {
+                customB64: dataUrl.split(',')[1],
+                customMime: file.type,
+                customW: img.naturalWidth,
+                customH: img.naturalHeight
+              });
+              if (updated) {
+                this.triggerAppRender();
+                if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+                else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+              }
+            }
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    ['size', 'dur', 'speed', 'delay', 'opacity', 'blur', 'scale', 'endDelay', 'thick', 'coreR', 'rings'].forEach((key) => {
+      const propKey = key === 'speed' ? 'dur' : key;
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const slider = document.getElementById('glow' + cap + 'Slider');
+      const num = document.getElementById('glow' + cap + 'Num');
+      if (slider && num) {
+        slider.addEventListener('input', (e) => {
+          num.value = e.target.value;
+          this.updateActive(propKey, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+        num.addEventListener('input', (e) => {
+          slider.value = e.target.value;
+          this.updateActive(propKey, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+      }
+    });
+  },
+
+  syncShapeVisibilityUI(shape) {
+    const cRow = document.getElementById('glowCustomRow');
+    const colRow = document.getElementById('glowColorRow');
+    const szCont = document.getElementById('glowSizeContainer');
+    const scCont = document.getElementById('glowScaleContainer');
+    const radCont = document.getElementById('glowRadarContainer');
+    if (cRow) cRow.style.display = shape === 'custom' ? 'block' : 'none';
+    if (colRow) colRow.style.display = shape === 'custom' ? 'none' : 'flex';
+    if (szCont) szCont.style.display = shape === 'custom' ? 'none' : 'block';
+    if (scCont) scCont.style.display = shape === 'custom' ? 'block' : 'none';
+    if (radCont) radCont.style.display = shape === 'radar' ? 'block' : 'none';
+  },
+
+  addGlow(initialProps = {}) {
+    const newGlow = this.createGlow(initialProps);
+    this.selectGlow(newGlow.id);
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newGlow;
+  },
+
+  syncEditorUI(glow) {
+    if (!glow) return;
+    const ed = document.getElementById('glowEditor');
+    if (ed) ed.style.display = 'block';
+    const lbl = document.getElementById('editingGlowLabel');
+    if (lbl) lbl.innerText = 'Editing Glow ' + glow.id;
+
+    const shSel = document.getElementById('glowShapeSelect');
+    if (shSel) shSel.value = glow.shape || 'circle';
+    const pbSel = document.getElementById('glowPlaybackSelect');
+    if (pbSel) pbSel.value = glow.playback;
+    const colPick = document.getElementById('glowColorPicker');
+    if (colPick) colPick.value = glow.color;
+    const hideChk = document.getElementById('glowHideOnDelay');
+    if (hideChk) hideChk.checked = glow.hideOnDelay !== false;
+
+    this.syncShapeVisibilityUI(glow.shape || 'circle');
+
+    ['opacity', 'blur', 'scale', 'size', 'dur', 'delay', 'endDelay', 'thick', 'coreR', 'rings'].forEach((key) => {
+      const val = glow[key] !== undefined ? glow[key] : (key === 'opacity' || key === 'scale' ? 1.0 : (key === 'size' ? 25 : 0));
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const sl = document.getElementById('glow' + cap + 'Slider') || (key === 'dur' ? document.getElementById('glowSpeedSlider') : null);
+      const nu = document.getElementById('glow' + cap + 'Num') || (key === 'dur' ? document.getElementById('glowSpeedNum') : null);
+      if (sl) sl.value = val;
+      if (nu) nu.value = val;
+    });
+  },
+
+  selectGlow(id) {
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('glow', id, { skipStageClear: true });
+    } else {
+      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
+      if (window.DataFlows) window.DataFlows.deselectFlow();
+      if (window.Ripples) window.Ripples.deselectRipple();
+    }
+
+    this.activeId = id;
+    this.renderList();
+    document.body.classList.add('editing-flow');
+
+    const glow = this.getGlow(id);
+    if (glow) {
+      this.syncEditorUI(glow);
+      this.updateUIOverlay(glow);
+      const ret = document.getElementById('glowReticleTarget');
+      if (ret) ret.style.display = 'flex';
+    }
+  },
+
+  deselectGlow() {
+    this.activeId = null;
+    this.renderList();
+    document.body.classList.remove('editing-flow');
+    const editor = document.getElementById('glowEditor');
+    if (editor) editor.style.display = 'none';
+    const ret = document.getElementById('glowReticleTarget');
+    if (ret) ret.style.display = 'none';
+  },
+
+  updateActive(key, value) {
+    if (this.activeId === null) return;
+    const glow = this.updateGlow(this.activeId, { [key]: value });
+    if (glow) {
+      this.renderList();
+      this.triggerAppRender();
+      if (key === 'color' || key === 'shape') this.updateUIOverlay(glow);
+    }
+  },
+
+  handleStageClick(x, y) {
+    if (this.activeId === null) return false;
+    const glow = this.updateGlow(this.activeId, { x, y });
+    if (glow) {
+      this.updateUIOverlay(glow);
+      this.triggerAppRender();
+      return true;
+    }
+    return false;
+  },
+
+  updateUIOverlay(glow) {
+    const ret = document.getElementById('glowReticleTarget');
+    if (ret && glow) {
+      ret.style.left = glow.x + '%';
+      ret.style.top = glow.y + '%';
+      ret.style.borderColor = glow.color;
+      ret.style.backgroundColor = glow.shape === 'custom' ? 'rgba(88,166,255,0.3)' : (glow.color + '4D');
+      ret.style.borderRadius = (glow.shape === 'square' || glow.shape === 'custom') ? '4px' : '50%';
+    }
+  },
+
+  removeGlow(id) {
+    const wasActive = this.activeId === id;
+    this.deleteGlow(id);
+    if (wasActive) this.deselectGlow();
+    else this.renderList();
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  },
+
+  renderList() {
+    const container = document.getElementById('glowListContainer');
+    if (!container) return;
+    if (this.list.length === 0) {
+      container.innerHTML = '<div class="stage-hint" id="emptyGlowHint">No glows active.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    this.list.forEach((glow) => {
+      const div = document.createElement('div');
+      div.className = 'flow-list-item' + (this.activeId === glow.id ? ' selected' : '');
+      div.style.borderLeftColor = glow.color;
+      div.innerHTML =
+        '<span>Glow ' + glow.id + '</span>' +
+        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">X</button>';
+      div.onclick = () => this.selectGlow(glow.id);
+      container.appendChild(div);
+    });
+  },
+
+  triggerAppRender() {
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    } else {
+      const durSlider = document.getElementById('durationSlider');
+      if (durSlider) durSlider.dispatchEvent(new Event('input'));
+    }
   }
 };

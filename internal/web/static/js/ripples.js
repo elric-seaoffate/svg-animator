@@ -1,178 +1,93 @@
+/**
+ * Refractive Water Ripples Module (`window.Ripples`)
+ *
+ * Layer 3 (Operational API):
+ *   - `createRipple(initialProps)`, `updateRipple(id, patch)`, `deleteRipple(id)`,
+ *     `getRipple(id)`, `getAllRipples()`, `getState()`, `setState(data)`,
+ *     `injectIntoSVG(svgString, state)`
+ *   - Zero direct DOM dependencies.
+ *
+ * Layer 1 (UI Presentation & Compatibility):
+ *   - `init()`, `addRipple()`, `syncEditorUI(rp)`, `selectRipple(id)`,
+ *     `deselectRipple()`, `updateActive(key, value)`, `handleStageClick(x, y)`,
+ *     `updateUIOverlay(rp)`, `removeRipple(id)`, `renderList()`, `triggerAppRender()`
+ */
 window.Ripples = {
   list: [],
   activeId: null,
   counter: 0,
   _initialized: false,
 
-  init() {
-    if (this._initialized) return;
-    this._initialized = true;
+  // =========================================================================
+  // Layer 3: Operational Functionality (Zero DOM Dependencies)
+  // =========================================================================
 
-    const btnAdd = document.getElementById('btnAddRipple');
-    if (btnAdd) btnAdd.addEventListener('click', () => this.addRipple());
-
-    const colPick = document.getElementById('rippleColorPicker');
-    if (colPick) {
-      colPick.addEventListener('input', (e) => this.updateActive('color', e.target.value));
-      colPick.addEventListener('change', (e) => {
-        this.updateActive('color', e.target.value);
-        if (window.HistoryManager) window.HistoryManager.recordImmediate();
-      });
-    }
-
-    ['outerR', 'innerR', 'rings', 'thick', 'refraction', 'opacity', 'dur', 'delay', 'endDelay'].forEach((key) => {
-      const cap = key.charAt(0).toUpperCase() + key.slice(1);
-      const slider = document.getElementById('ripple' + cap + 'Slider');
-      const num = document.getElementById('ripple' + cap + 'Num');
-      if (slider && num) {
-        slider.addEventListener('input', (e) => {
-          num.value = e.target.value;
-          this.updateActive(key, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-        num.addEventListener('input', (e) => {
-          slider.value = e.target.value;
-          this.updateActive(key, parseFloat(e.target.value));
-          if (window.HistoryManager) window.HistoryManager.recordDebounced();
-        });
-      }
-    });
+  getRipple(id) {
+    return this.list.find((r) => r.id === id) || null;
   },
 
-  addRipple() {
+  getAllRipples() {
+    return this.list;
+  },
+
+  getState() {
+    return {
+      ripples: JSON.parse(JSON.stringify(this.list)),
+      ripplesCounter: this.counter,
+      activeId: this.activeId
+    };
+  },
+
+  setState(data) {
+    if (!data || typeof data !== 'object') return this.getState();
+    const rawList = Array.isArray(data.ripples) ? data.ripples : (Array.isArray(data.list) ? data.list : []);
+    this.list = JSON.parse(JSON.stringify(rawList));
+    const maxId = this.list.reduce((m, r) => Math.max(m, r.id || 0), 0);
+    const savedCounter = data.ripplesCounter !== undefined ? data.ripplesCounter : data.counter;
+    this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
+    this.activeId = null;
+    return this.getState();
+  },
+
+  createRipple(initialProps = {}) {
     this.counter++;
     const newRipple = {
       id: this.counter,
-      color: '#ffffff',
-      opacity: 0.4,
-      innerR: 0,
-      outerR: 150,
-      rings: 3,
-      thick: 8,
-      refraction: 35,
-      dur: 3.0,
-      delay: 0.0,
-      endDelay: 1.0,
-      x: 50,
-      y: 50
+      color: initialProps.color || '#ffffff',
+      opacity: initialProps.opacity !== undefined ? initialProps.opacity : 0.4,
+      innerR: initialProps.innerR !== undefined ? initialProps.innerR : 0,
+      outerR: initialProps.outerR !== undefined ? initialProps.outerR : 150,
+      rings: initialProps.rings !== undefined ? initialProps.rings : 3,
+      thick: initialProps.thick !== undefined ? initialProps.thick : 8,
+      refraction: initialProps.refraction !== undefined ? initialProps.refraction : 35,
+      dur: initialProps.dur !== undefined ? initialProps.dur : 3.0,
+      delay: initialProps.delay !== undefined ? initialProps.delay : 0.0,
+      endDelay: initialProps.endDelay !== undefined ? initialProps.endDelay : 1.0,
+      x: initialProps.x !== undefined ? initialProps.x : 50,
+      y: initialProps.y !== undefined ? initialProps.y : 50
     };
     this.list.push(newRipple);
-    this.selectRipple(newRipple.id);
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newRipple;
   },
 
-  selectRipple(id) {
-    if (window.DataFlows) window.DataFlows.deselectFlow();
-    if (window.Glows) window.Glows.deselectGlow();
-    if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-    this.activeId = id;
-    this.renderList();
-    document.body.classList.add('editing-flow');
-
-    const rp = this.list.find((r) => r.id === id);
-    if (rp) {
-      const ed = document.getElementById('rippleEditor');
-      if (ed) ed.style.display = 'block';
-      const lbl = document.getElementById('editingRippleLabel');
-      if (lbl) lbl.innerText = 'Editing Ripple ' + id;
-      const colPick = document.getElementById('rippleColorPicker');
-      if (colPick) colPick.value = rp.color;
-
-      ['outerR', 'innerR', 'rings', 'thick', 'refraction', 'opacity', 'dur', 'delay', 'endDelay'].forEach((key) => {
-        const val = rp[key] !== undefined ? rp[key] : 0;
-        const cap = key.charAt(0).toUpperCase() + key.slice(1);
-        const sl = document.getElementById('ripple' + cap + 'Slider');
-        const nu = document.getElementById('ripple' + cap + 'Num');
-        if (sl) sl.value = val;
-        if (nu) nu.value = val;
-      });
-
-      this.updateUIOverlay(rp);
-      const ret = document.getElementById('rippleReticleTarget');
-      if (ret) ret.style.display = 'flex';
-    }
-  },
-
-  deselectRipple() {
-    this.activeId = null;
-    this.renderList();
-    document.body.classList.remove('editing-flow');
-    const editor = document.getElementById('rippleEditor');
-    if (editor) editor.style.display = 'none';
-    const ret = document.getElementById('rippleReticleTarget');
-    if (ret) ret.style.display = 'none';
-  },
-
-  updateActive(key, value) {
-    if (this.activeId === null) return;
-    const rp = this.list.find((r) => r.id === this.activeId);
-    if (rp) {
-      rp[key] = value;
-      this.renderList();
-      this.triggerAppRender();
-      if (key === 'color') this.updateUIOverlay(rp);
-    }
-  },
-
-  handleStageClick(x, y) {
-    if (this.activeId === null) return false;
-    const rp = this.list.find((r) => r.id === this.activeId);
-    if (rp) {
-      rp.x = x;
-      rp.y = y;
-      this.updateUIOverlay(rp);
-      this.triggerAppRender();
-      return true;
-    }
-    return false;
-  },
-
-  updateUIOverlay(rp) {
-    const ret = document.getElementById('rippleReticleTarget');
-    if (ret && rp) {
-      ret.style.left = rp.x + '%';
-      ret.style.top = rp.y + '%';
-      ret.style.borderColor = rp.color;
-      ret.style.backgroundColor = rp.color + '33';
-    }
-  },
-
-  removeRipple(id) {
-    this.list = this.list.filter((r) => r.id !== id);
-    if (this.activeId === id) this.deselectRipple();
-    else this.renderList();
-    this.triggerAppRender();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  },
-
-  renderList() {
-    const container = document.getElementById('rippleListContainer');
-    if (!container) return;
-    if (this.list.length === 0) {
-      container.innerHTML = '<div class="stage-hint" id="emptyRippleHint">No ripples active.</div>';
-      return;
-    }
-    container.innerHTML = '';
-    this.list.forEach((rp) => {
-      const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === rp.id ? ' selected' : '');
-      div.style.borderLeftColor = '#58a6ff';
-      div.innerHTML =
-        '<span>Ripple ' + rp.id + '</span>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">X</button>';
-      div.onclick = () => this.selectRipple(rp.id);
-      container.appendChild(div);
+  updateRipple(id, patch) {
+    const rp = this.getRipple(id);
+    if (!rp || !patch || typeof patch !== 'object') return null;
+    Object.keys(patch).forEach((key) => {
+      if (key !== 'id') {
+        rp[key] = patch[key];
+      }
     });
+    return rp;
   },
 
-  triggerAppRender() {
-    if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
-    } else {
-      const durSlider = document.getElementById('durationSlider');
-      if (durSlider) durSlider.dispatchEvent(new Event('input'));
+  deleteRipple(id) {
+    const before = this.list.length;
+    this.list = this.list.filter((r) => r.id !== id);
+    if (this.activeId === id) {
+      this.activeId = null;
     }
+    return this.list.length < before;
   },
 
   injectIntoSVG(svgString, state) {
@@ -235,5 +150,179 @@ window.Ripples = {
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="ripples-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & DOM Bindings
+  // =========================================================================
+
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
+    const btnAdd = document.getElementById('btnAddRipple');
+    if (btnAdd) btnAdd.addEventListener('click', () => this.addRipple());
+
+    const colPick = document.getElementById('rippleColorPicker');
+    if (colPick) {
+      colPick.addEventListener('input', (e) => this.updateActive('color', e.target.value));
+      colPick.addEventListener('change', (e) => {
+        this.updateActive('color', e.target.value);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+        else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      });
+    }
+
+    ['outerR', 'innerR', 'rings', 'thick', 'refraction', 'opacity', 'dur', 'delay', 'endDelay'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const slider = document.getElementById('ripple' + cap + 'Slider');
+      const num = document.getElementById('ripple' + cap + 'Num');
+      if (slider && num) {
+        slider.addEventListener('input', (e) => {
+          num.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+        num.addEventListener('input', (e) => {
+          slider.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+      }
+    });
+  },
+
+  addRipple(initialProps = {}) {
+    const newRipple = this.createRipple(initialProps);
+    this.selectRipple(newRipple.id);
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    return newRipple;
+  },
+
+  syncEditorUI(rp) {
+    if (!rp) return;
+    const ed = document.getElementById('rippleEditor');
+    if (ed) ed.style.display = 'block';
+    const lbl = document.getElementById('editingRippleLabel');
+    if (lbl) lbl.innerText = 'Editing Ripple ' + rp.id;
+    const colPick = document.getElementById('rippleColorPicker');
+    if (colPick) colPick.value = rp.color;
+
+    ['outerR', 'innerR', 'rings', 'thick', 'refraction', 'opacity', 'dur', 'delay', 'endDelay'].forEach((key) => {
+      const val = rp[key] !== undefined ? rp[key] : 0;
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const sl = document.getElementById('ripple' + cap + 'Slider');
+      const nu = document.getElementById('ripple' + cap + 'Num');
+      if (sl) sl.value = val;
+      if (nu) nu.value = val;
+    });
+  },
+
+  selectRipple(id) {
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('ripple', id, { skipStageClear: true });
+    } else {
+      if (window.DataFlows) window.DataFlows.deselectFlow();
+      if (window.Glows) window.Glows.deselectGlow();
+      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
+    }
+
+    this.activeId = id;
+    this.renderList();
+    document.body.classList.add('editing-flow');
+
+    const rp = this.getRipple(id);
+    if (rp) {
+      this.syncEditorUI(rp);
+      this.updateUIOverlay(rp);
+      const ret = document.getElementById('rippleReticleTarget');
+      if (ret) ret.style.display = 'flex';
+    }
+  },
+
+  deselectRipple() {
+    this.activeId = null;
+    this.renderList();
+    document.body.classList.remove('editing-flow');
+    const editor = document.getElementById('rippleEditor');
+    if (editor) editor.style.display = 'none';
+    const ret = document.getElementById('rippleReticleTarget');
+    if (ret) ret.style.display = 'none';
+  },
+
+  updateActive(key, value) {
+    if (this.activeId === null) return;
+    const rp = this.updateRipple(this.activeId, { [key]: value });
+    if (rp) {
+      this.renderList();
+      this.triggerAppRender();
+      if (key === 'color') this.updateUIOverlay(rp);
+    }
+  },
+
+  handleStageClick(x, y) {
+    if (this.activeId === null) return false;
+    const rp = this.updateRipple(this.activeId, { x, y });
+    if (rp) {
+      this.updateUIOverlay(rp);
+      this.triggerAppRender();
+      return true;
+    }
+    return false;
+  },
+
+  updateUIOverlay(rp) {
+    const ret = document.getElementById('rippleReticleTarget');
+    if (ret && rp) {
+      ret.style.left = rp.x + '%';
+      ret.style.top = rp.y + '%';
+      ret.style.borderColor = rp.color;
+      ret.style.backgroundColor = rp.color + '33';
+    }
+  },
+
+  removeRipple(id) {
+    const wasActive = this.activeId === id;
+    this.deleteRipple(id);
+    if (wasActive) this.deselectRipple();
+    else this.renderList();
+    this.triggerAppRender();
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  },
+
+  renderList() {
+    const container = document.getElementById('rippleListContainer');
+    if (!container) return;
+    if (this.list.length === 0) {
+      container.innerHTML = '<div class="stage-hint" id="emptyRippleHint">No ripples active.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    this.list.forEach((rp) => {
+      const div = document.createElement('div');
+      div.className = 'flow-list-item' + (this.activeId === rp.id ? ' selected' : '');
+      div.style.borderLeftColor = '#58a6ff';
+      div.innerHTML =
+        '<span>Ripple ' + rp.id + '</span>' +
+        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">X</button>';
+      div.onclick = () => this.selectRipple(rp.id);
+      container.appendChild(div);
+    });
+  },
+
+  triggerAppRender() {
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    } else {
+      const durSlider = document.getElementById('durationSlider');
+      if (durSlider) durSlider.dispatchEvent(new Event('input'));
+    }
   }
 };
