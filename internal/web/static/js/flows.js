@@ -266,7 +266,7 @@ window.DataFlows = {
       const h = (window.Stage && window.Stage.canvasHeight) || 720;
       const newD = this.generatePathString(f.nodes, f.curvature || 0, w, h, f.route || 'curve');
       const livePath = document.getElementById('flowPath-' + f.id);
-      if (livePath) {
+      if (livePath && f.lineStyle !== 'double' && (!f.label || f.label.trim() === '')) {
         livePath.setAttribute('d', newD);
       } else {
         this.triggerAppRender();
@@ -481,19 +481,19 @@ window.DataFlows = {
       if (f.showLine) {
         const lStyle = f.lineStyle || 'dashed';
         if (lStyle === 'solid') {
-          elements += '<path id="' + pathId + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"' + markerAttrs + ' />';
         } else if (lStyle === 'dotted') {
-          elements += '<path id="' + pathId + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
         } else if (lStyle === 'marching') {
-          elements += '<path id="' + pathId + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
+          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
         } else if (lStyle === 'double') {
-          elements += '<path d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
-          elements += '<path id="' + pathId + '" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
+          elements += '<path class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
         } else {
-          elements += '<path id="' + pathId + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="8,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="8,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"' + markerAttrs + ' />';
         }
       } else {
-        elements += '<path id="' + pathId + '" d="' + pathD + '" fill="none" stroke="none" />';
+        elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="none" />';
       }
 
       if (f.label && f.label.trim() !== '') {
@@ -502,7 +502,7 @@ window.DataFlows = {
         const badgeW = Math.max(44, f.label.trim().length * 8.2 + 16);
         const badgeH = 22;
         elements +=
-          '<g transform="translate(' + mid.x.toFixed(1) + ', ' + mid.y.toFixed(1) + ')" pointer-events="none">' +
+          '<g class="flow-label-badge" transform="translate(' + mid.x.toFixed(1) + ', ' + mid.y.toFixed(1) + ')" pointer-events="none">' +
           '<rect x="' + (-badgeW / 2).toFixed(1) + '" y="' + (-badgeH / 2).toFixed(1) + '" width="' + badgeW.toFixed(1) + '" height="' + badgeH + '" rx="5" fill="#0d1117" fill-opacity="0.9" stroke="' + f.color + '" stroke-width="1.2" />' +
           '<text x="0" y="4.5" fill="#e6edf3" font-family="monospace" font-size="12" font-weight="600" text-anchor="middle">' + cleanLabel + '</text>' +
           '</g>';
@@ -557,7 +557,7 @@ window.DataFlows = {
         opAnim = '<animate attributeName="opacity" values="0; ' + f.opacity + '; ' + f.opacity + '; 0" keyTimes="0; 0.08; 0.92; 1" dur="' + f.speed + 's" begin="' + f.delay + 's" repeatCount="indefinite" />';
       }
 
-      elements += '<g ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + opAnim + motionAnim + payloadSVG + '</g></g>';
+      elements += '<g class="flow-payload-wrapper" ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + opAnim + motionAnim + payloadSVG + '</g></g>';
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="flows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');

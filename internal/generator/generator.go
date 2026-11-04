@@ -3,6 +3,7 @@ package generator
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -15,6 +16,37 @@ import (
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/effects"
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/rasterizer"
 )
+
+// decodeWebPConfig parses RIFF/WEBP headers (VP8, VP8L, VP8X) without requiring external Go module dependencies.
+func decodeWebPConfig(data []byte) (int, int, error) {
+	if len(data) < 30 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return 0, 0, fmt.Errorf("not a valid RIFF WEBP header")
+	}
+	chunk := string(data[12:16])
+	switch chunk {
+	case "VP8 ":
+		if data[23] != 0x9d || data[24] != 0x01 || data[25] != 0x2a {
+			return 0, 0, fmt.Errorf("invalid VP8 frame tag")
+		}
+		w := int(binary.LittleEndian.Uint16(data[26:28])) & 0x3fff
+		h := int(binary.LittleEndian.Uint16(data[28:30])) & 0x3fff
+		return w, h, nil
+	case "VP8L":
+		if data[20] != 0x2f {
+			return 0, 0, fmt.Errorf("invalid VP8L signature")
+		}
+		bits := binary.LittleEndian.Uint32(data[21:25])
+		w := int(bits&0x3fff) + 1
+		h := int((bits>>14)&0x3fff) + 1
+		return w, h, nil
+	case "VP8X":
+		w := int(data[24]) | int(data[25])<<8 | int(data[26])<<16 + 1
+		h := int(data[27]) | int(data[28])<<8 | int(data[29])<<16 + 1
+		return w, h, nil
+	default:
+		return 0, 0, fmt.Errorf("unsupported WEBP chunk %q", chunk)
+	}
+}
 
 // BuildStandaloneSVG builds the self-contained SVG text with embedded editing instructions.
 func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Options) string {
@@ -160,22 +192,33 @@ func Run(opts Options) error {
 		return fmt.Errorf("reading input %q: %w", cleanInput, err)
 	}
 
-	cfg, imgFormat, err := image.DecodeConfig(bytes.NewReader(fileBytes))
-	if err != nil {
-		return fmt.Errorf("decoding image: %w", err)
-	}
-
+	var imgW, imgH int
 	mimeType := "image/jpeg"
-	if strings.ToLower(imgFormat) == "png" {
-		mimeType = "image/png"
+
+	cfg, imgFormat, err := image.DecodeConfig(bytes.NewReader(fileBytes))
+	if err == nil {
+		imgW = cfg.Width
+		imgH = cfg.Height
+		if strings.ToLower(imgFormat) == "png" {
+			mimeType = "image/png"
+		}
+	} else if w, h, webpErr := decodeWebPConfig(fileBytes); webpErr == nil {
+		imgW = w
+		imgH = h
+		mimeType = "image/webp"
+	} else {
+		return fmt.Errorf("decoding image: %w", err)
 	}
 
 	if opts.FrameSlicePath != "" && opts.FrameMouldingData == "" {
 		sliceBytes, err := os.ReadFile(filepath.Clean(opts.FrameSlicePath))
 		if err == nil {
 			sliceMime := "image/jpeg"
-			if strings.HasSuffix(strings.ToLower(opts.FrameSlicePath), ".png") {
+			lowerSlice := strings.ToLower(opts.FrameSlicePath)
+			if strings.HasSuffix(lowerSlice, ".png") {
 				sliceMime = "image/png"
+			} else if strings.HasSuffix(lowerSlice, ".webp") {
+				sliceMime = "image/webp"
 			}
 			opts.FrameMouldingData = fmt.Sprintf("data:%s;base64,%s", sliceMime, base64.StdEncoding.EncodeToString(sliceBytes))
 		}
@@ -192,8 +235,8 @@ func Run(opts Options) error {
 	}
 
 	b64String := base64.StdEncoding.EncodeToString(fileBytes)
-	svgText := BuildStandaloneSVG(cfg.Width, cfg.Height, mimeType, b64String, opts)
-	htmlText := BuildStandaloneHTML(baseName, cfg.Width, cfg.Height, svgText)
+	svgText := BuildStandaloneSVG(imgW, imgH, mimeType, b64String, opts)
+	htmlText := BuildStandaloneHTML(baseName, imgW, imgH, svgText)
 
 	genFormat := strings.ToLower(opts.Format)
 
@@ -213,7 +256,7 @@ func Run(opts Options) error {
 		fmt.Printf("[OK] SVG written:  %s\n", svgPath)
 	}
 
-	if genFormat == "webp" || genFormat == "apng" || genFormat == "all" {
+	if genFormat == "webp" || genFormat == "apng" || genFormat == "mp4" || genFormat == "all" {
 		localTemp := filepath.Join(".", "render_workspace")
 		os.MkdirAll(localTemp, 0755)
 
@@ -237,7 +280,7 @@ func Run(opts Options) error {
 		if genFormat == "webp" || genFormat == "all" {
 			outPath := filepath.Join(outDir, baseName+".webp")
 			fmt.Printf(">> Rendering %s frames to %s...\n", opts.Duration, outPath)
-			if err := rasterizer.Export(tempHTMLPath, outPath, "webp", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
+			if err := rasterizer.Export(tempHTMLPath, outPath, "webp", durFloat, opts.FPS, opts.LoopMode, imgW, imgH); err != nil {
 				return err
 			}
 			fmt.Printf("[OK] WebP written: %s\n", outPath)
@@ -246,10 +289,19 @@ func Run(opts Options) error {
 		if genFormat == "apng" || genFormat == "all" {
 			outPath := filepath.Join(outDir, baseName+".png")
 			fmt.Printf(">> Rendering %s frames to APNG %s...\n", opts.Duration, outPath)
-			if err := rasterizer.Export(tempHTMLPath, outPath, "apng", durFloat, opts.FPS, opts.LoopMode, cfg.Width, cfg.Height); err != nil {
+			if err := rasterizer.Export(tempHTMLPath, outPath, "apng", durFloat, opts.FPS, opts.LoopMode, imgW, imgH); err != nil {
 				return err
 			}
 			fmt.Printf("[OK] APNG written: %s\n", outPath)
+		}
+
+		if genFormat == "mp4" || genFormat == "all" {
+			outPath := filepath.Join(outDir, baseName+".mp4")
+			fmt.Printf(">> Rendering %s frames to MP4 %s...\n", opts.Duration, outPath)
+			if err := rasterizer.Export(tempHTMLPath, outPath, "mp4", durFloat, opts.FPS, opts.LoopMode, imgW, imgH); err != nil {
+				return err
+			}
+			fmt.Printf("[OK] MP4 written:  %s\n", outPath)
 		}
 	}
 

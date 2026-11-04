@@ -30,6 +30,9 @@ window.HistoryManager = {
     'durationSlider',
     'durationNum',
     'cameraMotionSelect',
+    'camLoopSelect',
+    'camDurationSlider',
+    'camDurationNum',
     'staticZoomSlider',
     'staticZoomNum',
     'staticXSlider',
@@ -91,7 +94,14 @@ window.HistoryManager = {
     'chkModuleFrame',
     'frameStyleSelect',
     'frameDepthSlider',
-    'frameDepthNum'
+    'frameDepthNum',
+    'chkFrameLighting',
+    'frameLightDirSelect',
+    'frameLightIntSlider',
+    'frameLightIntNum',
+    'frameShadowSlider',
+    'frameShadowNum',
+    'chkFrameFillet'
   ],
 
   init() {
@@ -118,7 +128,6 @@ window.HistoryManager = {
       }
     });
 
-    // Record initial baseline state once the app is ready
     setTimeout(() => {
       this.recordImmediate();
     }, 80);
@@ -133,8 +142,15 @@ window.HistoryManager = {
       }
     });
 
+    const loadedPhoto = typeof window.getLoadedPhoto === 'function' ? window.getLoadedPhoto() : null;
+    const presets = window.NodePresets ? JSON.parse(JSON.stringify(window.NodePresets.preset)) : null;
+    const autoApplyPreset = document.getElementById('chkAutoApplyPreset')?.checked ?? true;
+
     return JSON.stringify({
       controls: controls,
+      loadedPhoto: loadedPhoto,
+      presets: presets,
+      autoApplyPreset: autoApplyPreset,
       nodes: window.DiagramNodes ? window.DiagramNodes.list : [],
       nodesCounter: window.DiagramNodes ? window.DiagramNodes.counter : 0,
       flows: window.DataFlows ? window.DataFlows.list : [],
@@ -177,6 +193,11 @@ window.HistoryManager = {
     this.isRestoring = true;
     try {
       const data = JSON.parse(snapStr);
+
+      if (typeof window.setLoadedPhoto === 'function') {
+        window.setLoadedPhoto(data.loadedPhoto || null);
+      }
+
       if (data.controls) {
         Object.keys(data.controls).forEach((id) => {
           const el = document.getElementById(id);
@@ -185,6 +206,15 @@ window.HistoryManager = {
             else el.value = data.controls[id];
           }
         });
+      }
+
+      if (data.presets && window.NodePresets) {
+        window.NodePresets.preset = data.presets;
+        window.NodePresets.syncAllRowsUI();
+      }
+      const autoChk = document.getElementById('chkAutoApplyPreset');
+      if (autoChk && data.autoApplyPreset !== undefined) {
+        autoChk.checked = !!data.autoApplyPreset;
       }
 
       if (window.DiagramNodes) {

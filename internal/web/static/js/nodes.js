@@ -394,7 +394,7 @@ window.DiagramNodes = {
         shapeSVG =
           '<g filter="url(#nodeDropShadow)">' +
           '<path d="M ' + (-hw) + ',' + bodyTop + ' L ' + (-hw) + ',' + bodyBot + ' A ' + hw + ',' + ry + ' 0 0,0 ' + hw + ',' + bodyBot + ' L ' + hw + ',' + bodyTop + ' Z" ' + commonStyle + ' />' +
-          '<ellipse cx="0" cy="' + bodyTop + '" rx="' + hw + ',' + ry + '" ' + commonStyle + ' />' +
+          '<ellipse cx="0" cy="' + bodyTop + '" rx="' + hw + '" ry="' + ry + '" ' + commonStyle + ' />' +
           '</g>';
       } else if (n.shape === 'cloud') {
         shapeSVG =

@@ -3,14 +3,30 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentImage = null;
   window.currentRenderState = null;
 
-  // Standard Print Paper definitions (96 DPI Working Base -> 300 DPI Print Equivalent)
+  window.getLoadedPhoto = function() {
+    return loadedPhoto;
+  };
+
+  window.setLoadedPhoto = function(photoObj) {
+    loadedPhoto = photoObj || null;
+    const dropLabel = document.getElementById('uploadDropLabel');
+    const dropMeta = document.getElementById('uploadPhotoMeta');
+    if (loadedPhoto) {
+      if (dropLabel) dropLabel.innerText = '📷 ' + (loadedPhoto.filename || 'Loaded Photo');
+      if (dropMeta) dropMeta.innerText = 'Native: ' + loadedPhoto.naturalWidth + ' \u00d7 ' + loadedPhoto.naturalHeight + 'px (Click to replace)';
+    } else {
+      if (dropLabel) dropLabel.innerText = 'Upload Background Photo';
+      if (dropMeta) dropMeta.innerText = 'Drop JPEG, PNG, or WebP here';
+    }
+  };
+
   const paperSpecs = {
-    '1123x794':  { name: 'A4 Landscape',      dpi300: '3508 × 2480 px' },
-    '794x1123':  { name: 'A4 Portrait',       dpi300: '2480 × 3508 px' },
-    '1587x1123': { name: 'A3 Landscape',      dpi300: '4960 × 3508 px' },
-    '1123x1587': { name: 'A3 Portrait',       dpi300: '3508 × 4960 px' },
-    '794x559':   { name: 'A5 Landscape',      dpi300: '2480 × 1748 px' },
-    '559x794':   { name: 'A5 Portrait',       dpi300: '1748 × 2480 px' },
+    '1123x794':  { name: 'A4 Landscape',        dpi300: '3508 × 2480 px' },
+    '794x1123':  { name: 'A4 Portrait',         dpi300: '2480 × 3508 px' },
+    '1587x1123': { name: 'A3 Landscape',        dpi300: '4960 × 3508 px' },
+    '1123x1587': { name: 'A3 Portrait',         dpi300: '3508 × 4960 px' },
+    '794x559':   { name: 'A5 Landscape',        dpi300: '2480 × 1748 px' },
+    '559x794':   { name: 'A5 Portrait',         dpi300: '1748 × 2480 px' },
     '1056x816':  { name: 'US Letter Landscape', dpi300: '3300 × 2550 px' },
     '816x1056':  { name: 'US Letter Portrait',  dpi300: '2550 × 3300 px' },
     '1344x816':  { name: 'US Legal Landscape',  dpi300: '4200 × 2550 px' },
@@ -65,54 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   initAccordions();
-
-  // Wire mutual exclusion & automatic Undo History hooks across all overlay modules
-  function wireModuleHooks() {
-    if (window.Glows && !window.Glows._mutualHooked) {
-      const origGlow = window.Glows.selectGlow.bind(window.Glows);
-      window.Glows.selectGlow = (id) => {
-        if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-        if (window.DataFlows) window.DataFlows.deselectFlow();
-        if (window.Ripples) window.Ripples.deselectRipple();
-        origGlow(id);
-      };
-      const origAddGlow = window.Glows.addGlow.bind(window.Glows);
-      window.Glows.addGlow = () => { origAddGlow(); if (window.HistoryManager) window.HistoryManager.recordImmediate(); };
-      const origRemGlow = window.Glows.removeGlow.bind(window.Glows);
-      window.Glows.removeGlow = (id) => { origRemGlow(id); if (window.HistoryManager) window.HistoryManager.recordImmediate(); };
-      window.Glows._mutualHooked = true;
-    }
-
-    if (window.Ripples && !window.Ripples._mutualHooked) {
-      const origRipple = window.Ripples.selectRipple.bind(window.Ripples);
-      window.Ripples.selectRipple = (id) => {
-        if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-        if (window.DataFlows) window.DataFlows.deselectFlow();
-        if (window.Glows) window.Glows.deselectGlow();
-        origRipple(id);
-      };
-      const origAddRipple = window.Ripples.addRipple.bind(window.Ripples);
-      window.Ripples.addRipple = () => { origAddRipple(); if (window.HistoryManager) window.HistoryManager.recordImmediate(); };
-      const origRemRipple = window.Ripples.removeRipple.bind(window.Ripples);
-      window.Ripples.removeRipple = (id) => { origRemRipple(id); if (window.HistoryManager) window.HistoryManager.recordImmediate(); };
-      window.Ripples._mutualHooked = true;
-    }
-
-    if (window.DataFlows && !window.DataFlows._mutualHooked) {
-      const origFlow = window.DataFlows.selectFlow.bind(window.DataFlows);
-      window.DataFlows.selectFlow = (id) => {
-        if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-        if (window.Glows) window.Glows.deselectGlow();
-        if (window.Ripples) window.Ripples.deselectRipple();
-        origFlow(id);
-      };
-      const origAddFlow = window.DataFlows.addFlow.bind(window.DataFlows);
-      window.DataFlows.addFlow = () => { origAddFlow(); if (window.HistoryManager) window.HistoryManager.recordImmediate(); };
-      const origRemFlow = window.DataFlows.removeFlow.bind(window.DataFlows);
-      window.DataFlows.removeFlow = (id) => { origRemFlow(id); if (window.HistoryManager) window.HistoryManager.recordImmediate(); };
-      window.DataFlows._mutualHooked = true;
-    }
-  }
 
   function setDragPhotoCropMode(enabled) {
     if (!window.Stage) return;
@@ -392,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     render();
   }, (imgData) => {
-    loadedPhoto = imgData;
+    window.setLoadedPhoto(imgData);
     const patternSelect = document.getElementById('canvasPatternSelect');
     if (patternSelect) patternSelect.value = 'photo';
 
@@ -406,19 +374,9 @@ document.addEventListener('DOMContentLoaded', () => {
     syncPresetDropdownFromInputs();
     updateOrientationAndPaperUI();
 
-    const dropLabel = document.getElementById('uploadDropLabel');
-    const dropMeta = document.getElementById('uploadPhotoMeta');
-    if (dropLabel) dropLabel.innerText = '📷 ' + imgData.filename;
-    if (dropMeta) dropMeta.innerText = 'Native: ' + imgData.naturalWidth + ' \u00d7 ' + imgData.naturalHeight + 'px (Click to replace)';
-
     syncBackgroundUIVisibility();
     render();
     if (window.HistoryManager) window.HistoryManager.recordImmediate();
-  });
-
-  // Record Undo History whenever a canvas drag completes
-  document.getElementById('previewBox')?.addEventListener('pointerup', () => {
-    if (window.HistoryManager) window.HistoryManager.recordDebounced(120);
   });
 
   document.getElementById('btnOrientLandscape')?.addEventListener('click', () => applyCanvasDimensionSwap('landscape'));
@@ -491,7 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('canvasWidthInput').value = pw;
         document.getElementById('canvasHeightInput').value = ph;
 
-        // If user selected a Paper Size, auto-select 300 DPI in Still Export Studio so it prints at 300 DPI by default
         const dpiSel = document.getElementById('stillDpiSelect');
         if (dpiSel && paperSpecs[pw + 'x' + ph]) {
           dpiSel.value = '3.125';
@@ -624,14 +581,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  function syncCameraPanelVisibility(v) {
+    document.getElementById('panel-cam-static').style.display = v === 'static' ? 'block' : 'none';
+    document.getElementById('panel-cam-kenburns').style.display = v === 'ken-burns' ? 'block' : 'none';
+    document.getElementById('panel-cam-handheld').style.display = v === 'handheld-drift' ? 'block' : 'none';
+    document.getElementById('panel-cam-perspective').style.display = v === 'perspective-tilt' ? 'block' : 'none';
+    const timingBox = document.getElementById('panel-cam-timing');
+    if (timingBox) {
+      timingBox.style.display = (v === 'ken-burns' || v === 'handheld-drift') ? 'block' : 'none';
+    }
+  }
+
   const camMotionSel = document.getElementById('cameraMotionSelect');
   if (camMotionSel) {
     camMotionSel.addEventListener('change', (e) => {
-      const v = e.target.value;
-      document.getElementById('panel-cam-static').style.display = v === 'static' ? 'block' : 'none';
-      document.getElementById('panel-cam-kenburns').style.display = v === 'ken-burns' ? 'block' : 'none';
-      document.getElementById('panel-cam-handheld').style.display = v === 'handheld-drift' ? 'block' : 'none';
-      document.getElementById('panel-cam-perspective').style.display = v === 'perspective-tilt' ? 'block' : 'none';
+      syncCameraPanelVisibility(e.target.value);
       render();
       if (window.HistoryManager) window.HistoryManager.recordImmediate();
     });
@@ -659,6 +623,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const chkFrameLight = document.getElementById('chkFrameLighting');
+  if (chkFrameLight) {
+    chkFrameLight.addEventListener('change', (e) => {
+      const details = document.getElementById('frameLightingDetails');
+      if (details) details.style.display = e.target.checked ? 'flex' : 'none';
+      render();
+      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    });
+  }
+
   document.querySelectorAll('#settingsPanel select, #settingsPanel input[type="checkbox"], #settingsPanel input[type="color"]').forEach((el) => {
     el.addEventListener('change', () => {
       render();
@@ -668,13 +642,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.syncUIAfterHistoryRestore = function() {
+    syncPresetDropdownFromInputs();
     syncBackgroundUIVisibility();
     updateOrientationAndPaperUI();
     const cm = document.getElementById('cameraMotionSelect')?.value || 'static';
-    document.getElementById('panel-cam-static').style.display = cm === 'static' ? 'block' : 'none';
-    document.getElementById('panel-cam-kenburns').style.display = cm === 'ken-burns' ? 'block' : 'none';
-    document.getElementById('panel-cam-handheld').style.display = cm === 'handheld-drift' ? 'block' : 'none';
-    document.getElementById('panel-cam-perspective').style.display = cm === 'perspective-tilt' ? 'block' : 'none';
+    syncCameraPanelVisibility(cm);
 
     const ef = document.getElementById('effectSelect')?.value || 'none';
     document.getElementById('panel-opt-focus').style.display = ef === 'focus-pull' ? 'block' : 'none';
@@ -684,6 +656,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const fr = document.getElementById('chkModuleFrame')?.checked;
     const grp = document.getElementById('groupFrame');
     if (grp) grp.style.display = fr ? 'flex' : 'none';
+
+    const flOn = document.getElementById('chkFrameLighting')?.checked !== false;
+    const flDetails = document.getElementById('frameLightingDetails');
+    if (flDetails) flDetails.style.display = flOn ? 'flex' : 'none';
 
     render();
   };
@@ -749,19 +725,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgPick = document.getElementById('canvasBgColorPicker');
     const bgTr = document.getElementById('canvasBgTransparent');
     const loopSel = document.getElementById('loopSelect');
+    const camLoopSel = document.getElementById('camLoopSelect');
     const optSel = document.getElementById('effectSelect');
     const tsShapeSel = document.getElementById('tsShapeSelect');
     const frChk = document.getElementById('chkModuleFrame');
     const frStyleSel = document.getElementById('frameStyleSelect');
+    const frLightChk = document.getElementById('chkFrameLighting');
+    const frLightDirSel = document.getElementById('frameLightDirSelect');
+    const frFilletChk = document.getElementById('chkFrameFillet');
+
+    const sceneDur = getNumVal('durationSlider', 7);
+    const camDur = getNumVal('camDurationSlider', 7);
 
     const state = {
       image: currentImage,
-      duration: getNumVal('durationSlider', 7),
+      duration: sceneDur,
       loop: loopSel ? loopSel.value : 'once',
       camera: {
         bgColor: bgPick ? bgPick.value : '#0d1117',
         bgTransparent: bgTr ? bgTr.checked : false,
         motion: camMode,
+        camDuration: camDur,
+        camLoop: camLoopSel ? camLoopSel.value : 'once',
         startX: sx,
         startY: sy,
         startZoom: sz,
@@ -789,7 +774,12 @@ document.addEventListener('DOMContentLoaded', () => {
       overlays: {
         frame: frChk ? frChk.checked : false,
         frameStyle: frStyleSel ? frStyleSel.value : 'walnut',
-        frameDepth: getNumVal('frameDepthSlider', 40)
+        frameDepth: getNumVal('frameDepthSlider', 44),
+        frameLighting: frLightChk ? frLightChk.checked : true,
+        frameLightDir: frLightDirSel ? frLightDirSel.value : 'tl',
+        frameLightInt: getNumVal('frameLightIntSlider', 70),
+        frameShadow: getNumVal('frameShadowSlider', 0.55),
+        frameFillet: frFilletChk ? frFilletChk.checked : true
       }
     };
 
@@ -908,11 +898,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.DataFlows) window.DataFlows.init();
   if (window.Glows) window.Glows.init();
   if (window.Ripples) window.Ripples.init();
-  wireModuleHooks();
   syncBackgroundUIVisibility();
   updateOrientationAndPaperUI();
   if (camMotionSel) camMotionSel.dispatchEvent(new Event('change'));
   if (effSel) effSel.dispatchEvent(new Event('change'));
   if (chkFrame) chkFrame.dispatchEvent(new Event('change'));
   if (window.HistoryManager) window.HistoryManager.init();
+  if (window.ProjectManager) window.ProjectManager.init();
 });

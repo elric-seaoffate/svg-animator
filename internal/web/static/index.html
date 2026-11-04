@@ -4,111 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SVG Animator Studio</title>
-  <link rel="stylesheet" href="css/style.css?v=5.2">
-  <link rel="stylesheet" href="css/export-modal.css?v=5.2">
-  <style>
-    .header-history-group {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-    .history-btn {
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 0.28rem 0.6rem;
-      font-size: 0.78rem;
-      border-radius: 6px;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-    }
-    .history-btn:hover:not(:disabled) {
-      border-color: var(--accent-blue);
-      color: #ffffff;
-    }
-    .history-btn:disabled {
-      opacity: 0.38;
-      cursor: not-allowed;
-    }
-    .orient-btn-group {
-      display: flex;
-      gap: 0.35rem;
-      margin-top: 0.35rem;
-    }
-    .orient-btn {
-      flex: 1;
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 0.32rem 0.45rem;
-      font-size: 0.75rem;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-    .orient-btn.active-orient {
-      background: rgba(88, 166, 255, 0.18);
-      border-color: #58a6ff;
-      color: #ffffff;
-    }
-    .preset-param-row {
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.45rem 0.55rem;
-      margin-top: 0.45rem;
-      background: rgba(22, 27, 34, 0.75);
-      transition: opacity 0.15s ease, border-color 0.15s ease;
-    }
-    .preset-param-row.is-unset {
-      opacity: 0.52;
-      background: rgba(13, 17, 23, 0.35);
-      border-style: dashed;
-    }
-    .preset-param-row.is-set {
-      border-color: rgba(163, 113, 247, 0.55);
-    }
-    .preset-param-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.3rem;
-    }
-    .preset-param-header label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .preset-state-pill {
-      font-family: monospace;
-      font-size: 0.66rem;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      font-weight: 700;
-      letter-spacing: 0.4px;
-    }
-    .preset-state-pill.pill-set {
-      background: rgba(163, 113, 247, 0.22);
-      color: #d2a8ff;
-      border: 1px solid rgba(163, 113, 247, 0.5);
-    }
-    .preset-state-pill.pill-unset {
-      background: rgba(139, 148, 158, 0.15);
-      color: #8b949e;
-      border: 1px solid rgba(139, 148, 158, 0.3);
-    }
-    .preset-param-row.is-unset .preset-param-controls {
-      pointer-events: none;
-    }
-  </style>
+  <link rel="stylesheet" href="css/style.css?v=5.8">
+  <link rel="stylesheet" href="css/export-modal.css?v=5.8">
 </head>
 <body>
   <header>
     <h1>SVG Animator Studio <span class="badge">Diagram &amp; Motion Pipeline</span></h1>
-    <div style="display: flex; align-items: center; gap: 0.85rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <div class="header-history-group">
+        <span id="activeProjectHeaderName" class="project-pill-badge" title="Active SQLite Project">Untitled Project (Unsaved)</span>
+        <button type="button" class="history-btn" id="btnOpenProjectsModal" style="border-color: rgba(88,166,255,0.5); color: #58a6ff;" title="Open SQLite Project Library">🗄️ Projects</button>
+        <button type="button" class="history-btn" id="btnQuickSaveProject" style="border-color: rgba(46,160,67,0.5); color: #3fb950;" title="Quick Save Project (Ctrl+S)">💾 Save</button>
+      </div>
       <div class="header-history-group">
         <button type="button" class="history-btn" id="btnUndo" disabled title="Undo last change (Ctrl+Z)">&#x21B6; Undo</button>
         <button type="button" class="history-btn" id="btnRedo" disabled title="Redo change (Ctrl+Y / Ctrl+Shift+Z)">&#x21B7; Redo</button>
@@ -150,7 +57,6 @@
             </select>
           </div>
 
-          <!-- Integrated Upload Photo Box -->
           <div id="bgUploadArea" style="margin-top: 0.6rem;">
             <label class="upload-zone" id="uploadDrop" for="fileInput" style="padding: 0.7rem;">
               <div style="font-size: 1.15rem; margin-bottom: 0.1rem;">📁</div>
@@ -160,7 +66,6 @@
             <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg,image/webp" style="display: none;">
           </div>
 
-          <!-- Canvas Dimensions, Screen/Paper Presets & Landscape/Portrait Orientation -->
           <div class="control-row" style="margin-top: 0.65rem;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label>Screen &amp; Paper Size Preset</label>
@@ -187,7 +92,6 @@
               </optgroup>
             </select>
 
-            <!-- Landscape / Portrait / Swap Buttons -->
             <div class="orient-btn-group">
               <button type="button" class="orient-btn active-orient" id="btnOrientLandscape" title="Set canvas to Landscape (wider than tall)">▭ Landscape</button>
               <button type="button" class="orient-btn" id="btnOrientPortrait" title="Set canvas to Portrait (taller than wide)">▯ Portrait</button>
@@ -207,7 +111,6 @@
             <div id="paperPrintHint" class="stage-hint" style="margin-top: 0.25rem; color: #58a6ff; display: none;"></div>
           </div>
 
-          <!-- Snap to Grid Controls -->
           <div class="effect-group" style="background: rgba(88, 166, 255, 0.07); padding: 0.55rem 0.65rem; border-radius: 6px; border: 1px solid rgba(88, 166, 255, 0.35); margin-top: 0.65rem;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 600; color: #58a6ff; cursor: pointer;">
@@ -224,7 +127,6 @@
             </div>
           </div>
 
-          <!-- Photo Fit, Resize & Interactive Drag-Crop Controls -->
           <div id="photoSizingControls" style="display: none; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
             <div class="control-row" style="margin-top: 0;">
               <label>Photo Fit &amp; Crop Mode</label>
@@ -246,7 +148,6 @@
             </div>
           </div>
 
-          <!-- Background Colour Picker -->
           <div class="control-row" id="canvasBgColorRow" style="margin-top: 0.65rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
             <label>Background Colour</label>
             <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 0.25rem;">
@@ -257,7 +158,6 @@
             </div>
           </div>
 
-          <!-- Contextual Grid / Pattern Controls -->
           <div id="gridControlsRow" style="margin-top: 0.65rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
             <div class="control-row" style="margin-top: 0;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -382,7 +282,7 @@
         </div>
       </div>
 
-      <!-- 3. ACCORDION: SHAPE PRESET & SNAP SETTINGS (SELECTIVE SET / UNSET) -->
+      <!-- 3. ACCORDION: SHAPE PRESET & SNAP SETTINGS -->
       <div class="accordion-section" id="acc-presets">
         <div class="accordion-header">
           <span style="color: #a371f7;">🎛️ Shape Preset &amp; Snap Settings</span>
@@ -796,7 +696,7 @@
           <button type="button" class="zoom-btn" id="btnZoomFit" title="Fit Canvas to Window">Fit</button>
           <button type="button" class="zoom-btn" id="btnZoom100" title="Actual Pixel Size (100%)">1:1</button>
         </div>
-        <div class="stage-hint" id="stageModeHint">Click/drag to move &bull; Ctrl+Z Undo &bull; Ctrl+Wheel Zoom &bull; Space+Drag Pan</div>
+        <div class="stage-hint" id="stageModeHint">Click/drag to move &bull; Ctrl+S Save &bull; Ctrl+Z Undo &bull; Space+Drag Pan</div>
         <button class="replay" id="btnReplay"><span>&#x21bb;</span> Replay Motion</button>
       </div>
     </div>
@@ -811,26 +711,67 @@
         </div>
       </div>
 
-      <!-- 1. ACCORDION: TIMELINE & PLAYBACK -->
+      <!-- 1. ACCORDION: TIMELINE & PLAYBACK (OVERALL SCENE / EXPORT LENGTH) -->
       <div class="accordion-section open" id="acc-playback">
         <div class="accordion-header">
-          <span>⏱️ Timeline &amp; Playback</span>
+          <span>⏱️ Scene &amp; Export Timeline</span>
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <div class="control-row" style="margin-top: 0;"><label>Playback Mode</label><select id="loopSelect"><option value="loop">Continuous Natural Loop</option><option value="pingpong">Ping-Pong (Smooth In &amp; Out)</option><option value="once" selected>Play Once &amp; Hold</option></select></div>
-          <div class="control-row"><label>Duration / Speed (seconds)</label><div class="slider-row"><input type="range" id="durationSlider" min="1" max="60" step="0.5" value="7"><input type="number" class="num-input" id="durationNum"></div></div>
+          <div class="stage-hint" style="margin-bottom: 0.45rem;">Controls the total scene &amp; video export length. Camera motion has its own independent duration in the Camera Rig panel below.</div>
+          <div class="control-row" style="margin-top: 0;">
+            <label>Overall Scene Playback Mode</label>
+            <select id="loopSelect">
+              <option value="loop">Continuous Loop</option>
+              <option value="pingpong">Ping-Pong (Forward &amp; Reverse)</option>
+              <option value="once" selected>Play Once &amp; Hold</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Overall Scene / Export Duration (sec)</label>
+            <div class="slider-row">
+              <input type="range" id="durationSlider" min="1" max="300" step="0.5" value="7">
+              <input type="number" class="num-input" id="durationNum" value="7" min="0.5" max="300" step="0.5">
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 2. ACCORDION: CAMERA RIG & MOTION -->
+      <!-- 2. ACCORDION: CAMERA RIG & MOTION (WITH INDEPENDENT CAMERA DURATION) -->
       <div class="accordion-section" id="acc-camera">
         <div class="accordion-header">
           <span>🎥 Camera Rig &amp; Motion</span>
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <div class="control-row" style="margin-top: 0;"><select id="cameraMotionSelect"><option value="static" selected>Static Locked-Off Shot (Best for Diagrams)</option><option value="ken-burns">Ken Burns (Pan &amp; Zoom)</option><option value="perspective-tilt">3D Perspective Tilt</option><option value="handheld-drift">Organic Handheld Drift</option></select></div>
+          <div class="control-row" style="margin-top: 0;">
+            <label>Camera Motion Type</label>
+            <select id="cameraMotionSelect">
+              <option value="static" selected>Static Locked-Off Shot (Best for Diagrams)</option>
+              <option value="ken-burns">Ken Burns (Pan &amp; Zoom)</option>
+              <option value="perspective-tilt">3D Perspective Tilt</option>
+              <option value="handheld-drift">Organic Handheld Drift</option>
+            </select>
+          </div>
+
+          <!-- Independent Camera Motion Duration & Loop (Shown for Ken Burns & Handheld) -->
+          <div id="panel-cam-timing" style="display: none; background: rgba(163, 113, 247, 0.08); border: 1px solid rgba(163, 113, 247, 0.35); border-radius: 6px; padding: 0.55rem; margin-top: 0.5rem;">
+            <div class="control-row" style="margin-top: 0;">
+              <label style="color: #d2a8ff; font-weight: 600;">Camera Move Behavior</label>
+              <select id="camLoopSelect">
+                <option value="once" selected>Play Camera Move Once &amp; Hold Still</option>
+                <option value="loop">Repeat Camera Move (Continuous Loop)</option>
+                <option value="pingpong">Ping-Pong Camera Move (In &amp; Out)</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label style="color: #d2a8ff;">Camera Move Duration (sec)</label>
+              <div class="slider-row">
+                <input type="range" id="camDurationSlider" min="0.5" max="120" step="0.5" value="7">
+                <input type="number" class="num-input" id="camDurationNum" value="7" min="0.5" max="120" step="0.5">
+              </div>
+            </div>
+          </div>
           
           <div id="panel-cam-static" style="margin-top: 0.5rem;">
             <div class="control-row"><label>Lens Zoom</label><div class="slider-row"><input type="range" id="staticZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="staticZoomNum"></div></div>
@@ -910,9 +851,74 @@
 
           <div style="margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px dashed #30363d;">
             <label class="toggle-switch"><input type="checkbox" id="chkModuleFrame"> 🖼️ Presentation Frame</label>
-            <div id="groupFrame" style="display:none; flex-direction:column; gap:0.4rem; margin-top:0.4rem;">
-              <div class="control-row"><select id="frameStyleSelect"><option value="walnut" selected>Heritage Walnut</option><option value="gold">Gilded Gold</option><option value="matte">Museum Matte</option><option value="obsidian">Obsidian Black</option></select></div>
-              <div class="control-row"><label>Frame Width / Depth (pixels)</label><div class="slider-row"><input type="range" id="frameDepthSlider" min="10" max="200" step="1" value="44"><input type="number" class="num-input" id="frameDepthNum"></div></div>
+            <div id="groupFrame" style="display:none; flex-direction:column; gap:0.45rem; margin-top:0.45rem;">
+              <div class="control-row" style="margin-top: 0;">
+                <label>Frame Moulding / Bezel Style</label>
+                <select id="frameStyleSelect">
+                  <optgroup label="Classic 3D Mitered Mouldings">
+                    <option value="walnut" selected>Heritage Walnut &amp; Gold Fillet</option>
+                    <option value="mahogany">Royal Mahogany &amp; Brass Fillet</option>
+                    <option value="gold">Gilded Baroque Gold</option>
+                    <option value="silver">Brushed Anodized Aluminium</option>
+                    <option value="matte">Museum Conservation Matte</option>
+                    <option value="obsidian">Obsidian Carbon Black</option>
+                  </optgroup>
+                  <optgroup label="Technical, OS &amp; Display Bezels">
+                    <option value="blueprint-border">Engineering Schematic Title Block</option>
+                    <option value="cyber-hud">Tactical Cyber HUD Bezel</option>
+                    <option value="mac-window">Desktop OS App Window</option>
+                    <option value="crt-vintage">Retro CRT Monitor &amp; Scanlines</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <div class="control-row">
+                <label>Frame Width / Depth (px)</label>
+                <div class="slider-row">
+                  <input type="range" id="frameDepthSlider" min="10" max="200" step="1" value="44">
+                  <input type="number" class="num-input" id="frameDepthNum" value="44">
+                </div>
+              </div>
+
+              <!-- Frame Lighting, Shadow & Trim Controls -->
+              <div style="background: rgba(88, 166, 255, 0.06); border: 1px solid rgba(88, 166, 255, 0.28); border-radius: 6px; padding: 0.55rem; margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.45rem;">
+                <label class="toggle-switch" style="font-size: 0.78rem; color: #58a6ff; font-weight: 600; cursor: pointer;">
+                  <input type="checkbox" id="chkFrameLighting" checked> 💡 3D Bevel Lighting &amp; Relief
+                </label>
+
+                <div id="frameLightingDetails" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label style="font-size: 0.74rem;">Light Source Direction</label>
+                    <select id="frameLightDirSelect">
+                      <option value="front">⏺ Head-On / Flat Symmetric (All 4 Edges Equal)</option>
+                      <option value="tl" selected>↖ Top-Left Gallery Light</option>
+                      <option value="tr">↗ Top-Right Gallery Light</option>
+                      <option value="bl">↙ Bottom-Left Uplight</option>
+                      <option value="br">↘ Bottom-Right Uplight</option>
+                    </select>
+                  </div>
+
+                  <div class="control-row" style="margin-top: 0;">
+                    <label style="font-size: 0.74rem;">Bevel Contrast / Light Intensity (%)</label>
+                    <div class="slider-row">
+                      <input type="range" id="frameLightIntSlider" min="0" max="100" step="5" value="70">
+                      <input type="number" class="num-input" id="frameLightIntNum" value="70">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="control-row" style="margin-top: 0; padding-top: 0.35rem; border-top: 1px dashed rgba(88, 166, 255, 0.25);">
+                  <label style="font-size: 0.74rem;">Inner Aperture Drop Shadow</label>
+                  <div class="slider-row">
+                    <input type="range" id="frameShadowSlider" min="0" max="1.0" step="0.05" value="0.55">
+                    <input type="number" class="num-input" id="frameShadowNum" value="0.55">
+                  </div>
+                </div>
+
+                <label class="toggle-switch" style="font-size: 0.76rem; cursor: pointer; margin-top: 0.1rem;">
+                  <input type="checkbox" id="chkFrameFillet" checked> ✨ Inner Metallic Fillet / Detail Trim
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -929,8 +935,68 @@
             <button type="button" class="primary" id="btnDownloadSVG">Download Vector SVG (Locked Ratio)</button>
             <button type="button" class="secondary" id="btnDownloadHTML" style="margin-top: 0.45rem; width: 100%;">Download Interactive HTML</button>
             <button type="button" class="primary" id="btnOpenStillModal" style="margin-top: 0.45rem; width: 100%; background: #1f6feb;">🖼️ Export Still / Print Image (PNG/WebP/JPG)</button>
-            <button type="button" class="primary" id="btnOpenBitmapModal" style="margin-top: 0.45rem; width: 100%; background: #8957e5;">🎬 Export Animated Bitmap (WebP/APNG)</button>
+            <button type="button" class="primary" id="btnOpenBitmapModal" style="margin-top: 0.45rem; width: 100%; background: #8957e5;">🎬 Export Video / Animated (MP4/WebP/APNG)</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 0: SQLITE PROJECT LIBRARY
+       ========================================================================= -->
+  <div id="projectsModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="width: 920px; max-height: 86vh;">
+      <div class="modal-header">
+        <div>
+          <h2>🗄️ SQLite Project Library</h2>
+          <div style="font-size: 0.8rem; color: #8b949e; margin-top: 0.2rem;">Save and load complete studio scenes (shapes, flows, glows, ripples, camera &amp; uploaded photos) in <code>studio_library.db</code></div>
+        </div>
+        <button type="button" class="close-btn" id="btnCloseProjectsTop" title="Close">✕</button>
+      </div>
+
+      <div class="modal-body" style="flex-direction: column; gap: 1.1rem;">
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+            <strong style="color: #58a6ff; font-size: 0.88rem; text-transform: uppercase;">Save Active Studio Scene</strong>
+            <button type="button" class="mini-panel-btn" id="btnNewBlankProject">+ Start New Blank Project</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-group" style="flex: 1.2;">
+              <label>Project Name</label>
+              <input type="text" id="projectNameInput" value="Untitled Project" placeholder="e.g. Orchard VLAN Topology">
+            </div>
+            <div class="setting-group" style="flex: 1.8;">
+              <label>Description / Notes (Optional)</label>
+              <input type="text" id="projectDescInput" placeholder="e.g. Production v100 NFS &amp; Reverse Proxy Flow">
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.8rem;">
+            <span id="projectModalStatus" style="font-size: 0.8rem; color: #58a6ff;">Ready.</span>
+            <div style="display: flex; gap: 0.6rem;">
+              <button type="button" class="btn-secondary" id="btnSaveProjectOverwrite" disabled>💾 Overwrite Current</button>
+              <button type="button" class="btn-primary" id="btnSaveProjectAsNew">➕ Save as New Project</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.6rem; flex: 1; min-height: 260px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="color: #c9d1d9; font-size: 0.85rem; text-transform: uppercase;">Saved Projects in Database</strong>
+            <input type="text" id="projectSearchInput" placeholder="🔍 Filter projects by name or notes..." style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 0.38rem 0.65rem; border-radius: 6px; width: 280px; font-size: 0.8rem;">
+          </div>
+          <div id="projectsListContainer" style="display: flex; flex-direction: column; gap: 0.45rem; overflow-y: auto; max-height: 340px; padding-right: 0.25rem;">
+            <div class="stage-hint">Loading projects...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="footer-left-actions">
+          <span class="stage-hint">Tip: Press <strong>Ctrl+S</strong> anytime on the canvas to quick-save the active project.</span>
+        </div>
+        <div class="footer-right-actions">
+          <button type="button" class="btn-secondary" id="btnCloseProjectsBottom">Close</button>
         </div>
       </div>
     </div>
@@ -1011,8 +1077,8 @@
               Scrub the timeline to position traveling dataflow payloads, ripples, and glows at any exact moment.
             </div>
             <div style="display: flex; gap: 0.6rem; align-items: center;">
-              <input type="range" id="stillTimeSlider" min="0" max="14" step="0.05" value="1.0" style="flex: 1;">
-              <input type="number" id="stillTimeNum" min="0" max="60" step="0.05" value="1.0" style="width: 72px;">
+              <input type="range" id="stillTimeSlider" min="0" max="300" step="0.05" value="1.0" style="flex: 1;">
+              <input type="number" id="stillTimeNum" min="0" max="300" step="0.05" value="1.0" style="width: 72px;">
             </div>
             <label class="toggle-label" style="margin-top: 0.45rem; font-size: 0.78rem; color: #c9d1d9;">
               <input type="checkbox" id="stillForcePeakVis" checked> 🌟 Keep Glows &amp; Traveling Payloads at full visibility (prevents fade-out at t=0)
@@ -1034,12 +1100,10 @@
           </div>
         </div>
 
-        <!-- Right Column: Fast Screen-Resolution Still Preview & Generating Status Overlay -->
         <div class="export-preview">
           <div id="stillPreviewContainer" class="preview-box" style="position: relative;">
             <span id="stillPreviewPlaceholder">Rendering screen-resolution preview...</span>
 
-            <!-- Generating High-Res Final Image Overlay (Strictly Contained) -->
             <div id="stillGeneratingOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(6, 8, 12, 0.85); z-index: 20; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 1.5rem; box-sizing: border-box; backdrop-filter: blur(4px); border-radius: 4px;">
               <div id="stillGeneratingTitle" style="font-size: 0.95rem; color: #58a6ff; font-weight: 600; line-height: 1.4; word-break: break-word; max-width: 100%;">
                 ⏳ Generating your high-resolution image...
@@ -1068,14 +1132,14 @@
   </div>
 
   <!-- =========================================================================
-       MODAL 2: DEDICATED ANIMATED BITMAP EXPORT STUDIO (WebP / APNG ONLY)
+       MODAL 2: ANIMATED BITMAP & MP4 VIDEO EXPORT STUDIO
        ========================================================================= -->
   <div id="exportModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h2>🎬 Animated Bitmap Export Studio</h2>
-          <div style="font-size: 0.8rem; color: #8b949e; margin-top: 0.2rem;">Render multi-frame vector animations into standalone Animated WebP or APNG files</div>
+          <h2>🎬 Animated Bitmap &amp; MP4 Video Export Studio</h2>
+          <div style="font-size: 0.8rem; color: #8b949e; margin-top: 0.2rem;">Zero-disk RAM pipe rasterizer &bull; Independent Camera Motion timing &amp; Total Video/Audio duration</div>
         </div>
         <button type="button" class="close-btn" onclick="window.closeExportModal()" title="Close">✕</button>
       </div>
@@ -1083,13 +1147,34 @@
       <div class="modal-body">
         <div class="export-settings">
           <div class="setting-row">
-            <div class="setting-group" style="flex: 2;">
+            <div class="setting-group" style="flex: 1.6;">
               <label>Output File Name</label>
               <input type="text" id="expFilename" value="animation_export">
             </div>
-            <div class="setting-group" style="flex: 1;">
-              <label>Duration (sec)</label>
-              <input type="number" id="expDuration" min="0.5" max="60" step="0.5" value="7">
+            <div class="setting-group" style="flex: 1.1;">
+              <label title="Total length of the exported video/animation file in seconds">Total Video Length (s)</label>
+              <input type="number" id="expDuration" min="0.5" max="300" step="0.5" value="7">
+            </div>
+          </div>
+
+          <!-- Independent Camera Motion Timing vs Total Video Length -->
+          <div class="setting-group" style="background: rgba(163, 113, 247, 0.08); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(163, 113, 247, 0.35);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="color: #d2a8ff;">🎥 Camera &amp; Focus Timing (Independent of Video Length)</label>
+            </div>
+            <div class="setting-row" style="margin-top: 0.2rem;">
+              <div class="setting-group" style="flex: 1;">
+                <span class="sub-label">Camera Move Duration (s)</span>
+                <input type="number" id="expCamDuration" min="0.5" max="120" step="0.5" value="7" title="How long the Ken Burns / Camera move takes (e.g. 7s), even if the total video is 60s">
+              </div>
+              <div class="setting-group" style="flex: 1.5;">
+                <span class="sub-label">Camera Move Behavior</span>
+                <select id="expCamLoop">
+                  <option value="once" selected>Play Camera Move Once &amp; Hold</option>
+                  <option value="loop">Repeat Camera Move (Loop)</option>
+                  <option value="pingpong">Ping-Pong Camera Move (In &amp; Out)</option>
+                </select>
+              </div>
             </div>
           </div>
           
@@ -1119,12 +1204,14 @@
           </div>
 
           <div class="setting-row">
-            <div class="setting-group" style="flex: 1.2;">
-              <label>Animated Format</label>
+            <div class="setting-group" style="flex: 1.35;">
+              <label>Animated / Video Format</label>
               <select id="expFormat">
-                <option value="webp" selected>Animated WebP</option>
+                <option value="mp4" selected>MP4 Video (H.264 / Universal)</option>
+                <option value="webp">Animated WebP</option>
                 <option value="apng">Animated PNG (APNG)</option>
-                <option value="both">Both (WebP + APNG)</option>
+                <option value="both">Both Bitmaps (WebP + APNG)</option>
+                <option value="all">All Three (MP4 + WebP + APNG)</option>
               </select>
             </div>
             <div class="setting-group" style="flex: 1;">
@@ -1138,11 +1225,48 @@
             </div>
           </div>
 
+          <!-- Optional Audio Track Upload, True Length Probe & Header Repair -->
+          <div class="setting-group" id="expAudioGroup" style="background: rgba(88, 166, 255, 0.07); padding: 0.65rem; border-radius: 6px; border: 1px solid rgba(88, 166, 255, 0.35); gap: 0.45rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="color: #58a6ff;">🔊 Optional Audio Track (MP4 Sync)</label>
+              <button type="button" class="mini-panel-btn" id="btnClearExportAudio" style="display: none; color: #ff7b72; border-color: #ff7b72;" onclick="window.clearExportAudio()">✕ Remove</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <label class="pill-btn" for="expAudioInput" style="cursor: pointer; margin: 0; text-align: center; flex: 1; padding: 0.4rem;">
+                🎵 <span id="expAudioLabel">Attach .MP3 / .WAV / .M4A Audio...</span>
+              </label>
+              <input type="file" id="expAudioInput" accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/x-m4a,.mp3,.wav,.ogg,.m4a" style="display: none;">
+            </div>
+
+            <div id="expAudioTools" style="display: none; flex-direction: column; gap: 0.4rem; margin-top: 0.15rem; padding-top: 0.45rem; border-top: 1px dashed rgba(88, 166, 255, 0.3);">
+              <div id="expAudioProbeReadout" style="font-family: monospace; font-size: 0.74rem; color: #c9d1d9; line-height: 1.4;">
+                Probing true decoded audio length...
+              </div>
+              <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                <button type="button" class="mini-panel-btn" id="btnMatchVideoToAudio" onclick="window.matchVideoToAudioDuration()" style="flex: 1; color: #58a6ff; border-color: rgba(88,166,255,0.5); padding: 0.25rem 0.5rem;" title="Set Total Video Length to match the true decoded audio length while keeping Camera Move Duration untouched">
+                  ⏱️ Match Total Video to Audio
+                </button>
+                <button type="button" class="mini-panel-btn" id="btnFixAndDownloadAudio" onclick="window.fixAndDownloadAudioFile()" style="flex: 1; color: #3fb950; border-color: rgba(63,185,80,0.5); padding: 0.25rem 0.5rem;" title="Rebuild MP3 Xing/VBR header via FFmpeg so Windows and Linux report the exact same length">
+                  🔧 Download Fixed Audio
+                </button>
+              </div>
+              <div class="setting-group" style="margin-top: 0.15rem;">
+                <span class="sub-label">Audio Length vs. Video Length Fit Mode</span>
+                <select id="expAudioFit" style="padding: 0.35rem; font-size: 0.78rem;">
+                  <option value="loop" selected>🔁 Loop Audio if shorter / Trim if longer (Default)</option>
+                  <option value="pad">🔇 Play Audio Once &amp; Pad Silence (Never cut video short)</option>
+                  <option value="fade">📉 Play Audio &amp; Smooth 0.5s Fade-Out at Video End</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div class="setting-group">
-            <label>Playback Mode</label>
+            <label>Output File Loop Mode (WebP / APNG Container)</label>
             <select id="expLoop">
-              <option value="once">Play Once &amp; Hold (Best for Camera Pans &amp; Focus Pulls)</option>
-              <option value="loop" selected>Continuous Loop (Best for Diagrams, Flows &amp; Ripples)</option>
+              <option value="loop" selected>Continuous Loop (Default for WebP / APNG)</option>
+              <option value="once">Play Once &amp; Stop</option>
               <option value="pingpong">Ping-Pong (Forward &amp; Reverse Cycle)</option>
             </select>
           </div>
@@ -1185,6 +1309,7 @@
             </div>
 
             <img id="previewImage" style="display: none;" alt="Rendered Animated Preview" />
+            <video id="previewVideo" controls loop playsinline style="display: none; width: 100%; height: 100%; object-fit: contain; outline: none;"></video>
           </div>
           <div id="previewMeta" class="preview-meta">RAM Preview scales to fit the preview window at 24 FPS for fast rendering.</div>
         </div>
@@ -1198,23 +1323,24 @@
         </div>
         <div class="footer-right-actions">
           <button type="button" class="btn-secondary" id="btnCloseModal" onclick="window.closeExportModal()">Close</button>
-          <button type="button" class="btn-primary" id="btnDownloadFinal" onclick="window.downloadFinal()">Download Final WebP</button>
+          <button type="button" class="btn-primary" id="btnDownloadFinal" onclick="window.downloadFinal()">Download Final MP4</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODULAR SCRIPTS -->
-  <script src="js/effects.js?v=5.2"></script>
-  <script src="js/stage.js?v=5.2"></script>
-  <script src="js/presets.js?v=5.2"></script>
-  <script src="js/nodes.js?v=5.2"></script>
-  <script src="js/flows.js?v=5.2"></script>
-  <script src="js/glows.js?v=5.2"></script>
-  <script src="js/ripples.js?v=5.2"></script>
-  <script src="js/history.js?v=5.2"></script>
-  <script src="js/app.js?v=5.2"></script>
-  <script src="js/still-export-modal.js?v=5.2"></script>
-  <script src="js/export-modal.js?v=5.2"></script>
+  <!-- MODULAR SCRIPTS (BUMPED TO v5.8 TO FLUSH CACHE) -->
+  <script src="js/effects.js?v=5.8"></script>
+  <script src="js/stage.js?v=5.8"></script>
+  <script src="js/presets.js?v=5.8"></script>
+  <script src="js/nodes.js?v=5.8"></script>
+  <script src="js/flows.js?v=5.8"></script>
+  <script src="js/glows.js?v=5.8"></script>
+  <script src="js/ripples.js?v=5.8"></script>
+  <script src="js/history.js?v=5.8"></script>
+  <script src="js/projects.js?v=5.8"></script>
+  <script src="js/app.js?v=5.8"></script>
+  <script src="js/still-export-modal.js?v=5.8"></script>
+  <script src="js/export-modal.js?v=5.8"></script>
 </body>
 </html>

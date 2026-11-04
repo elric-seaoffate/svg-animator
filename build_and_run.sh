@@ -1,17 +1,40 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "=> Compiling SVG Animator Studio for Linux/macOS..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# Ensure dependencies are tidy
+mkdir -p bin release render_workspace
+
+# Ensure default config.json exists in working directory
+if [ ! -f "config.json" ]; then
+  cat << 'EOF' > config.json
+{
+  "host": "0.0.0.0",
+  "port": 8088,
+  "data_dir": "."
+}
+EOF
+  echo ">> Created default config.json"
+fi
+
+echo ">> Tidying Go module dependencies..."
 go mod tidy
 
-# Build the binary
-go build -o svg-animator ./cmd/svg-animator/main.go
+echo ">> Building Linux binary (./svg-animator and ./bin/svg-animator-linux)..."
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ./bin/svg-animator-linux ./cmd/svg-animator/main.go
+cp -f ./bin/svg-animator-linux ./svg-animator
+chmod +x ./svg-animator ./bin/svg-animator-linux
 
-echo "=> Build successful! Binary created: ./svg-animator"
-echo "=> Starting Web Studio on http://localhost:8088 ..."
-echo "   (Press Ctrl+C to stop the server)"
+if [ "${BUILD_WINDOWS:-0}" = "1" ]; then
+  echo ">> Cross-compiling Windows binary (./bin/svg-animator-windows.exe)..."
+  CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ./bin/svg-animator-windows.exe ./cmd/svg-animator/main.go
+fi
 
-# Run the server
-./svg-animator -serve :8088
+if [ "${BUILD_ONLY:-0}" = "1" ]; then
+  echo ">> Build complete (BUILD_ONLY=1). Skipping server start."
+  exit 0
+fi
+
+echo ">> Starting SVG Animator Studio..."
+exec ./svg-animator "$@"

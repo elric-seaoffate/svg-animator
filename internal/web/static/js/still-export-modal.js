@@ -344,7 +344,8 @@ window.StillExportStudio = {
         if (!payloadGroup) return;
 
         if (!includePayloads) {
-          payloadGroup.remove();
+          const wrapper = payloadGroup.closest('.flow-payload-wrapper') || payloadGroup;
+          wrapper.remove();
           return;
         }
 
@@ -394,16 +395,14 @@ window.StillExportStudio = {
       if (!includeLines) {
         const flowsLayer = svgEl.querySelector('#flows-layer');
         if (flowsLayer) {
-          Array.from(flowsLayer.children).forEach((child) => {
-            if (child.tagName.toLowerCase() === 'path') {
-              child.setAttribute('stroke', 'none');
-              child.removeAttribute('marker-start');
-              child.removeAttribute('marker-end');
-            } else if (child.tagName.toLowerCase() === 'g' && child.getAttribute('transform')?.startsWith('translate(')) {
-              // Midpoint text badge group
-              child.remove();
+          flowsLayer.querySelectorAll('path').forEach((p) => {
+            if (!p.closest('.flow-payload-wrapper')) {
+              p.setAttribute('stroke', 'none');
+              p.removeAttribute('marker-start');
+              p.removeAttribute('marker-end');
             }
           });
+          flowsLayer.querySelectorAll('.flow-label-badge').forEach((badge) => badge.remove());
         }
       }
 
@@ -436,6 +435,18 @@ window.StillExportStudio = {
       });
 
       svgEl.querySelectorAll('animateTransform').forEach((animT) => {
+        const parent = animT.parentElement;
+        const tType = animT.getAttribute('type') || 'translate';
+        const effectiveTime = (snapshotSec === 0 && forcePeakVis) ? ((parseFloat(animT.getAttribute('dur')) || 2.0) * 0.5) : snapshotSec;
+        const val = this.evaluateSMILAnimate(animT, effectiveTime);
+
+        if (parent && val !== null && tType === 'translate') {
+          const parts = val.split(/[\s,]+/).map(parseFloat);
+          const dx = !isNaN(parts[0]) ? parts[0] : 0;
+          const dy = !isNaN(parts[1]) ? parts[1] : 0;
+          const baseTransform = parent.getAttribute('transform') || '';
+          parent.setAttribute('transform', (baseTransform + ' translate(' + dx.toFixed(2) + ', ' + dy.toFixed(2) + ')').trim());
+        }
         animT.remove();
       });
 

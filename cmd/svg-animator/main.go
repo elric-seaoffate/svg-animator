@@ -1,17 +1,136 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/generator"
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/web"
 )
 
+// AppConfig defines the JSON configuration file schema.
+type AppConfig struct {
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
+	DataDir string `json:"data_dir"`
+}
+
+func defaultAppConfig() AppConfig {
+	return AppConfig{
+		Host:    "0.0.0.0",
+		Port:    8088,
+		DataDir: ".",
+	}
+}
+
+// loadOrCreateConfig loads the JSON config file. If the default config.json does not
+// exist yet, it writes a clean default config.json so the user can edit it later.
+func loadOrCreateConfig(configPath string, explicitConfigFlag bool) (AppConfig, error) {
+	cfg := defaultAppConfig()
+
+	if envCfg := strings.TrimSpace(os.Getenv("SVG_ANIMATOR_CONFIG")); envCfg != "" && !explicitConfigFlag {
+		configPath = envCfg
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if explicitConfigFlag {
+				return cfg, fmt.Errorf("specified config file not found at %s", configPath)
+			}
+			// Auto-create default config.json in working directory if possible
+			if outBytes, mErr := json.MarshalIndent(cfg, "", "  "); mErr == nil {
+				_ = os.WriteFile(configPath, append(outBytes, '\n'), 0644)
+			}
+			return cfg, nil
+		}
+		return cfg, fmt.Errorf("reading config file %s: %w", configPath, err)
+	}
+
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg, fmt.Errorf("parsing config file %s: %w", configPath, err)
+	}
+
+	if strings.TrimSpace(cfg.Host) == "" {
+		cfg.Host = "0.0.0.0"
+	}
+	if cfg.Port <= 0 || cfg.Port > 65535 {
+		cfg.Port = 8088
+	}
+	if strings.TrimSpace(cfg.DataDir) == "" {
+		cfg.DataDir = "."
+	}
+
+	return cfg, nil
+}
+
+func resolveListenAddr(cfg AppConfig, explicitFlags map[string]bool, hostFlag string, portFlag int, serveFlag string) string {
+	host := cfg.Host
+	port := cfg.Port
+
+	// Layer 2: Environment variable overrides
+	if envHost := strings.TrimSpace(os.Getenv("SVG_ANIMATOR_HOST")); envHost != "" {
+		host = envHost
+	}
+	if envPortStr := strings.TrimSpace(os.Getenv("SVG_ANIMATOR_PORT")); envPortStr != "" {
+		if p, err := strconv.Atoi(envPortStr); err == nil && p > 0 && p <= 65535 {
+			port = p
+		}
+	} else if envPortStr := strings.TrimSpace(os.Getenv("PORT")); envPortStr != "" {
+		if p, err := strconv.Atoi(envPortStr); err == nil && p > 0 && p <= 65535 {
+			port = p
+		}
+	}
+
+	// Layer 3: Explicit CLI flags at service start (highest priority)
+	if explicitFlags["serve"] && strings.TrimSpace(serveFlag) != "" {
+		raw := strings.TrimSpace(serveFlag)
+		if !strings.Contains(raw, ":") {
+			// Handle bare port passed to -serve (e.g. -serve 8090)
+			if p, err := strconv.Atoi(raw); err == nil && p > 0 && p <= 65535 {
+				port = p
+			}
+		} else {
+			h, pStr, err := net.SplitHostPort(raw)
+			if err == nil {
+				if h != "" {
+					host = h
+				}
+				if p, convErr := strconv.Atoi(pStr); convErr == nil && p > 0 && p <= 65535 {
+					port = p
+				}
+			} else {
+				return raw
+			}
+		}
+	}
+
+	if explicitFlags["host"] && strings.TrimSpace(hostFlag) != "" {
+		host = strings.TrimSpace(hostFlag)
+	}
+	if explicitFlags["port"] && portFlag > 0 && portFlag <= 65535 {
+		port = portFlag
+	}
+
+	return fmt.Sprintf("%s:%d", host, port)
+}
+
 func main() {
+	// Server & Config Flags
+	configPath := flag.String("config", "config.json", "Path to JSON configuration file")
+	hostFlag := flag.String("host", "0.0.0.0", "HTTP listen host/IP (overrides config.json)")
+	portFlag := flag.Int("port", 8088, "HTTP listen port (overrides config.json)")
+	serveAddr := flag.String("serve", ":8088", "HTTP listen address [host]:port for the interactive web studio")
+	dataDirFlag := flag.String("datadir", ".", "Directory for studio_library.db and render_workspace (overrides config.json)")
+
+	// CLI Processing Flags
 	input := flag.String("in", "", "Path to source image for headless CLI processing (optional)")
-	serveAddr := flag.String("serve", ":8088", "HTTP listen address for the interactive web studio")
 	outDir := flag.String("outdir", "./dist", "Directory to write output files in CLI mode")
 	name := flag.String("name", "", "Custom base name for output files")
 	format := flag.String("format", "both", "CLI target format: svg, html, webp, apng, both, or all")
@@ -68,19 +187,44 @@ func main() {
 
 	flag.Parse()
 
-	if *input == "" {
-		if err := web.StartServer(*serveAddr); err != nil {
-			fmt.Fprintf(os.Stderr, "Server failed: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-
 	// Track which flags were explicitly set by the user on the command line
 	explicitFlags := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
+
+	if *input == "" {
+		cfg, err := loadOrCreateConfig(*configPath, explicitFlags["config"])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Configuration error: %v\n", err)
+			os.Exit(1)
+		}
+
+		bindAddr := resolveListenAddr(cfg, explicitFlags, *hostFlag, *portFlag, *serveAddr)
+
+		dataDir := cfg.DataDir
+		if envDataDir := strings.TrimSpace(os.Getenv("SVG_ANIMATOR_DATA_DIR")); envDataDir != "" {
+			dataDir = envDataDir
+		}
+		if explicitFlags["datadir"] && strings.TrimSpace(*dataDirFlag) != "" {
+			dataDir = strings.TrimSpace(*dataDirFlag)
+		}
+		if absDir, err := filepath.Abs(dataDir); err == nil {
+			dataDir = absDir
+		}
+
+		srvCfg := web.ServerConfig{
+			BindAddr:   bindAddr,
+			DataDir:    dataDir,
+			ConfigPath: *configPath,
+		}
+
+		if err := web.StartServerWithConfig(srvCfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Server failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// Apply preset defaults only if the corresponding flag was not explicitly passed
 	switch *preset {
