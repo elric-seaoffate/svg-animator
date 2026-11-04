@@ -1,3 +1,19 @@
+/**
+ * Interactive Stage Viewport & Coordinate Math Module (`window.Stage`)
+ *
+ * Layer 3 (Operational Viewport & Coordinate Math — Zero DOM Dependencies):
+ *   - `computeSnappedPosition(xPct, yPct, snapConfig)`
+ *   - `computeSnappedPct(valPct, axis, snapConfig)`
+ *   - `computeFitScale(viewportW, viewportH, canvasW, canvasH, padding)`
+ *   - `rectClientToPct(clientX, clientY, rect)`
+ *
+ * Layer 1 (Stage UI, Zoom/Pan Controls, and Pointer/Drag Listeners):
+ *   - `init(onPlaceCallback, onFileLoadedCallback)`, `initZoomControls()`,
+ *     `snapPctToGrid(xPct, yPct)`, `setManualZoomPct(pct)`, `getFitScale()`,
+ *     `getEffectiveScale()`, `syncOverlayBounds(canvasW, canvasH)`,
+ *     `clientToCanvasPct(clientX, clientY)`, `setActive(target)`, `clearActive()`,
+ *     `updateReticles(sX, sY, eX, eY)`, `loadFile(file, callback)`
+ */
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach((evt) => {
   document.addEventListener(evt, (e) => e.preventDefault(), false);
 });
@@ -22,20 +38,21 @@ window.Stage = {
   nodeGrabOffsetX: 0,
   nodeGrabOffsetY: 0,
 
-  snapPctToGrid(xPct, yPct) {
-    const snapChk = document.getElementById('chkSnapToGrid');
-    if (!snapChk || !snapChk.checked) {
+  // =========================================================================
+  // Layer 3: Operational Viewport & Coordinate Math (Zero DOM Dependencies)
+  // =========================================================================
+
+  computeSnappedPosition(xPct, yPct, snapConfig = {}) {
+    if (!snapConfig || !snapConfig.enabled) {
       return {
         x: Math.round(Math.min(100, Math.max(0, xPct)) * 10) / 10,
         y: Math.round(Math.min(100, Math.max(0, yPct)) * 10) / 10
       };
     }
 
-    const snapSizeEl = document.getElementById('snapGridSizeNum') || document.getElementById('snapGridSizeSlider');
-    const gridPx = Math.max(2, parseFloat(snapSizeEl ? snapSizeEl.value : 20) || 20);
-
-    const w = this.canvasWidth || 1280;
-    const h = this.canvasHeight || 720;
+    const gridPx = Math.max(2, parseFloat(snapConfig.gridSizePx || 20) || 20);
+    const w = snapConfig.canvasWidth || this.canvasWidth || 1280;
+    const h = snapConfig.canvasHeight || this.canvasHeight || 720;
 
     const rawPxX = (xPct / 100) * w;
     const rawPxY = (yPct / 100) * h;
@@ -47,6 +64,55 @@ window.Stage = {
       x: Number(((snappedPxX / w) * 100).toFixed(3)),
       y: Number(((snappedPxY / h) * 100).toFixed(3))
     };
+  },
+
+  computeSnappedPct(valPct, axis = 'x', snapConfig = {}) {
+    const pos = axis === 'y'
+      ? this.computeSnappedPosition(0, valPct, snapConfig)
+      : this.computeSnappedPosition(valPct, 0, snapConfig);
+    return axis === 'y' ? pos.y : pos.x;
+  },
+
+  computeFitScale(viewportW, viewportH, canvasW, canvasH, padding = 28) {
+    const cW = Math.max(1, canvasW || 1280);
+    const cH = Math.max(1, canvasH || 720);
+    const availW = Math.max(64, (viewportW || 0) - padding * 2);
+    const availH = Math.max(64, (viewportH || 0) - padding * 2);
+    return Math.min(availW / cW, availH / cH);
+  },
+
+  rectClientToPct(clientX, clientY, rect) {
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return { x: 50, y: 50 };
+    }
+    const rawX = ((clientX - rect.left) / rect.width) * 100;
+    const rawY = ((clientY - rect.top) / rect.height) * 100;
+    return {
+      x: Math.round(Math.min(100, Math.max(0, rawX)) * 10) / 10,
+      y: Math.round(Math.min(100, Math.max(0, rawY)) * 10) / 10
+    };
+  },
+
+  // =========================================================================
+  // Layer 1: Stage UI & Compatibility Methods
+  // =========================================================================
+
+  snapPctToGrid(xPct, yPct) {
+    if (window.AppCoordinator && typeof window.AppCoordinator.getSnapConfig === 'function') {
+      const cfg = window.AppCoordinator.getSnapConfig();
+      cfg.canvasWidth = this.canvasWidth || cfg.canvasWidth || 1280;
+      cfg.canvasHeight = this.canvasHeight || cfg.canvasHeight || 720;
+      return this.computeSnappedPosition(xPct, yPct, cfg);
+    }
+
+    const snapChk = document.getElementById('chkSnapToGrid');
+    const snapSizeEl = document.getElementById('snapGridSizeNum') || document.getElementById('snapGridSizeSlider');
+    return this.computeSnappedPosition(xPct, yPct, {
+      enabled: !!(snapChk && snapChk.checked),
+      gridSizePx: parseFloat(snapSizeEl ? snapSizeEl.value : 20) || 20,
+      canvasWidth: this.canvasWidth || 1280,
+      canvasHeight: this.canvasHeight || 720
+    });
   },
 
   init(onPlaceCallback, onFileLoadedCallback) {
@@ -131,7 +197,9 @@ window.Stage = {
           const idx = parseInt(flowReticle.getAttribute('data-flow-node-idx'), 10);
           if (!isNaN(idx)) {
             window.DataFlows.activeNodeIdx = idx;
-            const activeFlow = window.DataFlows.list.find((fl) => fl.id === window.DataFlows.activeId);
+            const activeFlow = window.DataFlows.getFlow
+              ? window.DataFlows.getFlow(window.DataFlows.activeId)
+              : window.DataFlows.list.find((fl) => fl.id === window.DataFlows.activeId);
             if (activeFlow) window.DataFlows.refreshNodeSlider(activeFlow);
             window.DataFlows.updateUIOverlay();
           }
@@ -154,10 +222,12 @@ window.Stage = {
           const nodeGroup = e.target.closest ? e.target.closest('[data-node-id]') : null;
           if (nodeGroup) {
             const clickedId = parseInt(nodeGroup.getAttribute('data-node-id'), 10);
-            clickedNode = window.DiagramNodes.list.find((n) => n.id === clickedId) || null;
+            clickedNode = window.DiagramNodes.getNode
+              ? window.DiagramNodes.getNode(clickedId)
+              : (window.DiagramNodes.list.find((n) => n.id === clickedId) || null);
           }
           if (!clickedNode && typeof window.DiagramNodes.findNodeAtPct === 'function') {
-            clickedNode = window.DiagramNodes.findNodeAtPct(coords.x, coords.y);
+            clickedNode = window.DiagramNodes.findNodeAtPct(coords.x, coords.y, this.canvasWidth, this.canvasHeight);
           }
 
           if (clickedNode) {
@@ -224,10 +294,14 @@ window.Stage = {
         try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
 
         if (wasDragging) {
-          if (typeof window.triggerAppRender === 'function') {
+          if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+            window.AppCoordinator.requestRender();
+          } else if (typeof window.triggerAppRender === 'function') {
             window.triggerAppRender();
           }
-          if (window.HistoryManager) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.recordHistoryImmediate === 'function') {
+            window.AppCoordinator.recordHistoryImmediate();
+          } else if (window.HistoryManager) {
             window.HistoryManager.recordImmediate();
           }
         }
@@ -243,7 +317,9 @@ window.Stage = {
             window.DataFlows.updateUIOverlay();
           }
           if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
-            const activeNode = window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
+            const activeNode = window.DiagramNodes.getNode
+              ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
+              : window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
             if (activeNode) window.DiagramNodes.updateUIOverlay(activeNode);
           }
         });
@@ -324,10 +400,7 @@ window.Stage = {
   getFitScale() {
     if (!this.previewBox) return 1.0;
     const rect = this.previewBox.getBoundingClientRect();
-    const pad = 28;
-    const availW = Math.max(64, rect.width - pad * 2);
-    const availH = Math.max(64, rect.height - pad * 2);
-    return Math.min(availW / this.canvasWidth, availH / this.canvasHeight);
+    return this.computeFitScale(rect.width, rect.height, this.canvasWidth, this.canvasHeight, 28);
   },
 
   getEffectiveScale() {
@@ -374,9 +447,13 @@ window.Stage = {
     if (zoomLabel) zoomLabel.innerText = this.zoomMode === 'fit' ? ('Fit (' + pct + '%)') : (pct + '%');
     if (zoomSlider && this.zoomMode === 'fit') zoomSlider.value = Math.min(300, Math.max(25, pct));
     if (this.borderBadge) {
-      const snapOn = document.getElementById('chkSnapToGrid')?.checked;
-      const snapStep = document.getElementById('snapGridSizeNum')?.value || 20;
-      const snapTag = snapOn ? (' &bull; 🧲 Grid ' + snapStep + 'px') : '';
+      const snapCfg = window.AppCoordinator
+        ? window.AppCoordinator.getSnapConfig()
+        : {
+            enabled: !!document.getElementById('chkSnapToGrid')?.checked,
+            gridSizePx: document.getElementById('snapGridSizeNum')?.value || 20
+          };
+      const snapTag = snapCfg.enabled ? (' &bull; 🧲 Grid ' + snapCfg.gridSizePx + 'px') : '';
       this.borderBadge.innerHTML = this.canvasWidth + ' &times; ' + this.canvasHeight + ' px &bull; ' + pct + '%' + snapTag;
     }
   },
@@ -385,17 +462,13 @@ window.Stage = {
     const targetBox = this.svgContainer || this.overlayLayer || this.previewBox;
     if (!targetBox) return { x: 50, y: 50 };
     const rect = targetBox.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return { x: 50, y: 50 };
-
-    const rawX = ((clientX - rect.left) / rect.width) * 100;
-    const rawY = ((clientY - rect.top) / rect.height) * 100;
-    return {
-      x: Math.round(Math.min(100, Math.max(0, rawX)) * 10) / 10,
-      y: Math.round(Math.min(100, Math.max(0, rawY)) * 10) / 10
-    };
+    return this.rectClientToPct(clientX, clientY, rect);
   },
 
   setActive(target) {
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('camera', target, { skipStageClear: true });
+    }
     this.activePlacement = target;
     const btnStart = document.getElementById('btnModeStart');
     const btnEnd = document.getElementById('btnModeEnd');
@@ -407,6 +480,13 @@ window.Stage = {
       retS.classList.toggle('active-reticle', target === 'start');
       retE.classList.toggle('active-reticle', target === 'end');
     }
+  },
+
+  clearActive() {
+    const retS = document.getElementById('reticleStart');
+    const retE = document.getElementById('reticleEnd');
+    if (retS) retS.classList.remove('active-reticle');
+    if (retE) retE.classList.remove('active-reticle');
   },
 
   updateReticles(sX, sY, eX, eY) {

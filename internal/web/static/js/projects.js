@@ -1,9 +1,262 @@
+/**
+ * Project Persistence & SQLite Library Manager (`window.ProjectManager`)
+ *
+ * Layer 3 (Operational Serialization & REST Client):
+ *   - `serializeStudioState()`, `applyStudioState(schemaJsonStr)` (Schema v1.2.0)
+ *   - `fetchProjectsList()`, `fetchProjectById(id)`,
+ *     `postSaveProject(payload)`, `postDeleteProject(id)`
+ *
+ * Layer 1 (Project Library Modal UI & Keyboard Shortcut Bindings):
+ *   - `init()`, `openModal()`, `closeModal()`, `setStatusMessage(msg, isError)`,
+ *     `updateHeaderBadge()`, `refreshProjectsList()`, `renderProjectsList()`,
+ *     `quickSave()`, `saveProject(saveAsNew, silentQuickSave)`,
+ *     `loadProject(id)`, `deleteProject(id)`, `resetToNewProject()`
+ */
 window.ProjectManager = {
   currentProjectId: 0,
   currentProjectName: 'Untitled Project',
   currentProjectDesc: '',
   projectsList: [],
   _initialized: false,
+
+  // =========================================================================
+  // Layer 3: Operational Serialization & REST API Client
+  // =========================================================================
+
+  escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
+  serializeStudioState() {
+    const trackedIds = (window.HistoryManager && Array.isArray(window.HistoryManager.trackedControlIds))
+      ? window.HistoryManager.trackedControlIds
+      : (window.SceneState ? window.SceneState.trackedControlIds : []);
+
+    let controls = {};
+    if (window.ControlStateAdaptor && window.SceneState) {
+      window.ControlStateAdaptor.syncFromDOM(trackedIds);
+      controls = window.SceneState.getControlsSnapshot(trackedIds);
+    } else {
+      trackedIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+          controls[id] = el.type === 'checkbox' ? el.checked : el.value;
+        }
+      });
+    }
+
+    const loadedPhoto = (window.SceneState && typeof window.SceneState.getLoadedPhoto === 'function')
+      ? window.SceneState.getLoadedPhoto()
+      : (typeof window.getLoadedPhoto === 'function' ? window.getLoadedPhoto() : null);
+
+    const presetState = (window.NodePresets && typeof window.NodePresets.getState === 'function')
+      ? window.NodePresets.getState()
+      : {
+          preset: window.NodePresets ? JSON.parse(JSON.stringify(window.NodePresets.preset)) : null,
+          autoApplyToNewNodes: document.getElementById('chkAutoApplyPreset')?.checked ?? true
+        };
+
+    const nodeState = (window.DiagramNodes && typeof window.DiagramNodes.getState === 'function')
+      ? window.DiagramNodes.getState()
+      : {
+          nodes: window.DiagramNodes ? window.DiagramNodes.list : [],
+          nodesCounter: window.DiagramNodes ? window.DiagramNodes.counter : 0
+        };
+
+    const flowState = (window.DataFlows && typeof window.DataFlows.getState === 'function')
+      ? window.DataFlows.getState()
+      : {
+          flows: window.DataFlows ? window.DataFlows.list : [],
+          flowsCounter: window.DataFlows ? window.DataFlows.counter : 0
+        };
+
+    const glowState = (window.Glows && typeof window.Glows.getState === 'function')
+      ? window.Glows.getState()
+      : {
+          glows: window.Glows ? window.Glows.list : [],
+          glowsCounter: window.Glows ? window.Glows.counter : 0
+        };
+
+    const rippleState = (window.Ripples && typeof window.Ripples.getState === 'function')
+      ? window.Ripples.getState()
+      : {
+          ripples: window.Ripples ? window.Ripples.list : [],
+          ripplesCounter: window.Ripples ? window.Ripples.counter : 0
+        };
+
+    return JSON.stringify({
+      version: '1.2.0',
+      controls: controls,
+      loadedPhoto: loadedPhoto,
+      presets: presetState.preset,
+      autoApplyPreset: presetState.autoApplyToNewNodes,
+      nodes: nodeState.nodes,
+      nodesCounter: nodeState.nodesCounter,
+      flows: flowState.flows,
+      flowsCounter: flowState.flowsCounter,
+      glows: glowState.glows,
+      glowsCounter: glowState.glowsCounter,
+      ripples: rippleState.ripples,
+      ripplesCounter: rippleState.ripplesCounter
+    });
+  },
+
+  applyStudioState(schemaJsonStr) {
+    const data = typeof schemaJsonStr === 'string' ? JSON.parse(schemaJsonStr) : schemaJsonStr;
+    if (!data || typeof data !== 'object') return;
+
+    if (typeof window.setLoadedPhoto === 'function') {
+      window.setLoadedPhoto(data.loadedPhoto || null);
+    } else if (window.SceneState) {
+      window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
+    }
+
+    if (data.controls) {
+      if (window.ControlStateAdaptor) {
+        window.ControlStateAdaptor.syncToDOM(data.controls);
+      } else {
+        Object.keys(data.controls).forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) {
+            if (el.type === 'checkbox') el.checked = !!data.controls[id];
+            else el.value = data.controls[id];
+          }
+        });
+      }
+    }
+
+    const autoChk = document.getElementById('chkAutoApplyPreset');
+    if (autoChk && data.autoApplyPreset !== undefined) {
+      autoChk.checked = !!data.autoApplyPreset;
+    }
+
+    if (data.presets && window.NodePresets) {
+      if (typeof window.NodePresets.setState === 'function') {
+        window.NodePresets.setState({
+          preset: data.presets,
+          autoApplyToNewNodes: data.autoApplyPreset !== undefined ? !!data.autoApplyPreset : true
+        });
+      } else {
+        window.NodePresets.preset = data.presets;
+      }
+      window.NodePresets.syncAllRowsUI();
+    }
+
+    if (window.DiagramNodes) {
+      if (typeof window.DiagramNodes.setState === 'function') {
+        window.DiagramNodes.setState({
+          nodes: data.nodes || [],
+          nodesCounter: data.nodesCounter || 0
+        });
+      } else {
+        window.DiagramNodes.list = data.nodes || [];
+        window.DiagramNodes.counter = data.nodesCounter || 0;
+      }
+      window.DiagramNodes.deselectNode();
+    }
+
+    if (window.DataFlows) {
+      if (typeof window.DataFlows.setState === 'function') {
+        window.DataFlows.setState({
+          flows: data.flows || [],
+          flowsCounter: data.flowsCounter || 0
+        });
+      } else {
+        window.DataFlows.list = data.flows || [];
+        window.DataFlows.counter = data.flowsCounter || 0;
+      }
+      window.DataFlows.deselectFlow();
+    }
+
+    if (window.Glows) {
+      if (typeof window.Glows.setState === 'function') {
+        window.Glows.setState({
+          glows: data.glows || [],
+          glowsCounter: data.glowsCounter || 0
+        });
+      } else {
+        window.Glows.list = data.glows || [];
+        window.Glows.counter = data.glowsCounter || 0;
+      }
+      window.Glows.deselectGlow();
+    }
+
+    if (window.Ripples) {
+      if (typeof window.Ripples.setState === 'function') {
+        window.Ripples.setState({
+          ripples: data.ripples || [],
+          ripplesCounter: data.ripplesCounter || 0
+        });
+      } else {
+        window.Ripples.list = data.ripples || [];
+        window.Ripples.counter = data.ripplesCounter || 0;
+      }
+      window.Ripples.deselectRipple();
+    }
+
+    if (typeof window.syncUIAfterHistoryRestore === 'function') {
+      window.syncUIAfterHistoryRestore();
+    } else if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    }
+
+    if (window.HistoryManager) {
+      window.HistoryManager.undoStack = [];
+      window.HistoryManager.redoStack = [];
+      window.HistoryManager.recordImmediate();
+    }
+  },
+
+  async fetchProjectsList() {
+    const res = await fetch('/api/export/projects', { cache: 'no-store' });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + text.trim());
+    }
+    return await res.json();
+  },
+
+  async fetchProjectById(id) {
+    const res = await fetch('/api/export/projects/get?id=' + encodeURIComponent(id), { cache: 'no-store' });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + text.trim());
+    }
+    return await res.json();
+  },
+
+  async postSaveProject(payload) {
+    const res = await fetch('/api/export/projects/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + text.trim());
+    }
+    return await res.json();
+  },
+
+  async postDeleteProject(id) {
+    const res = await fetch('/api/export/projects/delete?id=' + encodeURIComponent(id), { method: 'POST' });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + text.trim());
+    }
+    return true;
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & Modal Bindings
+  // =========================================================================
 
   init() {
     if (this._initialized) return;
@@ -32,15 +285,6 @@ window.ProjectManager = {
     this.updateHeaderBadge();
   },
 
-  escapeHTML(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  },
-
   updateHeaderBadge() {
     const lbl = document.getElementById('activeProjectHeaderName');
     if (lbl) {
@@ -54,98 +298,6 @@ window.ProjectManager = {
       overwriteBtn.textContent = this.currentProjectId > 0
         ? ('💾 Overwrite #' + this.currentProjectId)
         : '💾 Overwrite Current';
-    }
-  },
-
-  serializeStudioState() {
-    const controls = {};
-    if (window.HistoryManager && Array.isArray(window.HistoryManager.trackedControlIds)) {
-      window.HistoryManager.trackedControlIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) {
-          controls[id] = el.type === 'checkbox' ? el.checked : el.value;
-        }
-      });
-    }
-
-    const loadedPhoto = typeof window.getLoadedPhoto === 'function' ? window.getLoadedPhoto() : null;
-    const presets = window.NodePresets ? JSON.parse(JSON.stringify(window.NodePresets.preset)) : null;
-    const autoApplyPreset = document.getElementById('chkAutoApplyPreset')?.checked ?? true;
-
-    return JSON.stringify({
-      version: '1.2.0',
-      controls: controls,
-      loadedPhoto: loadedPhoto,
-      presets: presets,
-      autoApplyPreset: autoApplyPreset,
-      nodes: window.DiagramNodes ? window.DiagramNodes.list : [],
-      nodesCounter: window.DiagramNodes ? window.DiagramNodes.counter : 0,
-      flows: window.DataFlows ? window.DataFlows.list : [],
-      flowsCounter: window.DataFlows ? window.DataFlows.counter : 0,
-      glows: window.Glows ? window.Glows.list : [],
-      glowsCounter: window.Glows ? window.Glows.counter : 0,
-      ripples: window.Ripples ? window.Ripples.list : [],
-      ripplesCounter: window.Ripples ? window.Ripples.counter : 0
-    });
-  },
-
-  applyStudioState(schemaJsonStr) {
-    const data = JSON.parse(schemaJsonStr);
-
-    if (typeof window.setLoadedPhoto === 'function') {
-      window.setLoadedPhoto(data.loadedPhoto || null);
-    }
-
-    if (data.controls) {
-      Object.keys(data.controls).forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) {
-          if (el.type === 'checkbox') el.checked = !!data.controls[id];
-          else el.value = data.controls[id];
-        }
-      });
-    }
-
-    if (data.presets && window.NodePresets) {
-      window.NodePresets.preset = data.presets;
-      window.NodePresets.syncAllRowsUI();
-    }
-    const autoChk = document.getElementById('chkAutoApplyPreset');
-    if (autoChk && data.autoApplyPreset !== undefined) {
-      autoChk.checked = !!data.autoApplyPreset;
-    }
-
-    if (window.DiagramNodes) {
-      window.DiagramNodes.list = data.nodes || [];
-      window.DiagramNodes.counter = data.nodesCounter || 0;
-      window.DiagramNodes.deselectNode();
-    }
-    if (window.DataFlows) {
-      window.DataFlows.list = data.flows || [];
-      window.DataFlows.counter = data.flowsCounter || 0;
-      window.DataFlows.deselectFlow();
-    }
-    if (window.Glows) {
-      window.Glows.list = data.glows || [];
-      window.Glows.counter = data.glowsCounter || 0;
-      window.Glows.deselectGlow();
-    }
-    if (window.Ripples) {
-      window.Ripples.list = data.ripples || [];
-      window.Ripples.counter = data.ripplesCounter || 0;
-      window.Ripples.deselectRipple();
-    }
-
-    if (typeof window.syncUIAfterHistoryRestore === 'function') {
-      window.syncUIAfterHistoryRestore();
-    } else if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
-    }
-
-    if (window.HistoryManager) {
-      window.HistoryManager.undoStack = [];
-      window.HistoryManager.redoStack = [];
-      window.HistoryManager.recordImmediate();
     }
   },
 
@@ -181,12 +333,7 @@ window.ProjectManager = {
       container.innerHTML = '<div class="stage-hint" style="padding: 1rem; text-align: center;">Loading projects...</div>';
     }
     try {
-      const res = await fetch('/api/export/projects', { cache: 'no-store' });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error('HTTP ' + res.status + ': ' + text.trim());
-      }
-      this.projectsList = await res.json();
+      this.projectsList = await this.fetchProjectsList();
       this.renderProjectsList();
       this.setStatusMessage('Ready (' + this.projectsList.length + ' saved in SQLite).');
     } catch (err) {
@@ -265,29 +412,24 @@ window.ProjectManager = {
       ? (this.currentProjectDesc || '')
       : (descIn ? descIn.value.trim() : '');
 
-    const canvasW = parseInt(document.getElementById('canvasWidthInput')?.value || 1280, 10) || 1280;
-    const canvasH = parseInt(document.getElementById('canvasHeightInput')?.value || 720, 10) || 720;
+    const dims = window.AppCoordinator
+      ? window.AppCoordinator.getCanvasDimensions()
+      : {
+          width: parseInt(document.getElementById('canvasWidthInput')?.value || 1280, 10) || 1280,
+          height: parseInt(document.getElementById('canvasHeightInput')?.value || 720, 10) || 720
+        };
 
     const payload = {
       id: saveAsNew ? 0 : this.currentProjectId,
       name: name,
       description: desc,
-      canvasWidth: canvasW,
-      canvasHeight: canvasH,
+      canvasWidth: dims.width,
+      canvasHeight: dims.height,
       schemaJson: this.serializeStudioState()
     };
 
     try {
-      const res = await fetch('/api/export/projects/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error('HTTP ' + res.status + ': ' + text.trim());
-      }
-      const saved = await res.json();
+      const saved = await this.postSaveProject(payload);
 
       this.currentProjectId = saved.id;
       this.currentProjectName = saved.name;
@@ -317,12 +459,7 @@ window.ProjectManager = {
   async loadProject(id) {
     try {
       this.setStatusMessage('Loading project #' + id + '...');
-      const res = await fetch('/api/export/projects/get?id=' + encodeURIComponent(id), { cache: 'no-store' });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error('HTTP ' + res.status + ': ' + text.trim());
-      }
-      const proj = await res.json();
+      const proj = await this.fetchProjectById(id);
 
       this.applyStudioState(proj.schemaJson);
       this.currentProjectId = proj.id;
@@ -346,11 +483,7 @@ window.ProjectManager = {
   async deleteProject(id) {
     if (!confirm('Delete project #' + id + ' permanently from the SQLite library?')) return;
     try {
-      const res = await fetch('/api/export/projects/delete?id=' + encodeURIComponent(id), { method: 'POST' });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error('HTTP ' + res.status + ': ' + text.trim());
-      }
+      await this.postDeleteProject(id);
       if (this.currentProjectId === id) {
         this.currentProjectId = 0;
         this.updateHeaderBadge();
@@ -369,17 +502,37 @@ window.ProjectManager = {
     this.currentProjectDesc = '';
 
     if (typeof window.setLoadedPhoto === 'function') window.setLoadedPhoto(null);
-    const patSel = document.getElementById('canvasPatternSelect');
-    if (patSel) patSel.value = 'blueprint';
-    const wIn = document.getElementById('canvasWidthInput');
-    const hIn = document.getElementById('canvasHeightInput');
-    if (wIn) wIn.value = 1280;
-    if (hIn) hIn.value = 720;
+    if (window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.syncToDOM({
+        canvasPatternSelect: 'blueprint',
+        canvasWidthInput: 1280,
+        canvasHeightInput: 720
+      });
+    } else {
+      const patSel = document.getElementById('canvasPatternSelect');
+      if (patSel) patSel.value = 'blueprint';
+      const wIn = document.getElementById('canvasWidthInput');
+      const hIn = document.getElementById('canvasHeightInput');
+      if (wIn) wIn.value = 1280;
+      if (hIn) hIn.value = 720;
+    }
 
-    if (window.DiagramNodes) { window.DiagramNodes.list = []; window.DiagramNodes.counter = 0; window.DiagramNodes.deselectNode(); }
-    if (window.DataFlows) { window.DataFlows.list = []; window.DataFlows.counter = 0; window.DataFlows.deselectFlow(); }
-    if (window.Glows) { window.Glows.list = []; window.Glows.counter = 0; window.Glows.deselectGlow(); }
-    if (window.Ripples) { window.Ripples.list = []; window.Ripples.counter = 0; window.Ripples.deselectRipple(); }
+    if (window.DiagramNodes) {
+      if (typeof window.DiagramNodes.setState === 'function') window.DiagramNodes.setState({ nodes: [], nodesCounter: 0 });
+      window.DiagramNodes.deselectNode();
+    }
+    if (window.DataFlows) {
+      if (typeof window.DataFlows.setState === 'function') window.DataFlows.setState({ flows: [], flowsCounter: 0 });
+      window.DataFlows.deselectFlow();
+    }
+    if (window.Glows) {
+      if (typeof window.Glows.setState === 'function') window.Glows.setState({ glows: [], glowsCounter: 0 });
+      window.Glows.deselectGlow();
+    }
+    if (window.Ripples) {
+      if (typeof window.Ripples.setState === 'function') window.Ripples.setState({ ripples: [], ripplesCounter: 0 });
+      window.Ripples.deselectRipple();
+    }
 
     if (typeof window.syncUIAfterHistoryRestore === 'function') {
       window.syncUIAfterHistoryRestore();
