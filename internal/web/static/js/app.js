@@ -1,26 +1,39 @@
+/**
+ * Main Studio UI Controller & Initialization (`app.js`)
+ *
+ * Layer 1 (UI Presentation & Control Bindings):
+ *   - Accordion expand/collapse (`window.openAccordionById`, `window.toggleAllAccordions`)
+ *   - Canvas preset, orientation, background pattern, and photo crop UI bindings
+ *   - Paired slider/number input synchronization and settings panel listeners
+ *   - Standalone SVG/HTML download handlers
+ *
+ * Delegates Layer 2 coordination to `window.AppCoordinator` (`coordinator.js`)
+ * and Layer 3 scene state / SVG compilation to `window.SceneState` (`scene-state.js`).
+ */
 document.addEventListener('DOMContentLoaded', () => {
-  let loadedPhoto = null;
   let currentImage = null;
   window.currentRenderState = null;
 
   window.getLoadedPhoto = function() {
-    return loadedPhoto;
+    return window.SceneState ? window.SceneState.getLoadedPhoto() : null;
   };
 
   window.setLoadedPhoto = function(photoObj) {
-    loadedPhoto = photoObj || null;
+    const normalized = window.SceneState
+      ? window.SceneState.setLoadedPhoto(photoObj)
+      : (photoObj || null);
     const dropLabel = document.getElementById('uploadDropLabel');
     const dropMeta = document.getElementById('uploadPhotoMeta');
-    if (loadedPhoto) {
-      if (dropLabel) dropLabel.innerText = '📷 ' + (loadedPhoto.filename || 'Loaded Photo');
-      if (dropMeta) dropMeta.innerText = 'Native: ' + loadedPhoto.naturalWidth + ' \u00d7 ' + loadedPhoto.naturalHeight + 'px (Click to replace)';
+    if (normalized) {
+      if (dropLabel) dropLabel.innerText = '📷 ' + (normalized.filename || 'Loaded Photo');
+      if (dropMeta) dropMeta.innerText = 'Native: ' + normalized.naturalWidth + ' \u00d7 ' + normalized.naturalHeight + 'px (Click to replace)';
     } else {
       if (dropLabel) dropLabel.innerText = 'Upload Background Photo';
       if (dropMeta) dropMeta.innerText = 'Drop JPEG, PNG, or WebP here';
     }
   };
 
-  const paperSpecs = {
+  const paperSpecs = (window.SceneState && window.SceneState.paperSpecs) || {
     '1123x794':  { name: 'A4 Landscape',        dpi300: '3508 × 2480 px' },
     '794x1123':  { name: 'A4 Portrait',         dpi300: '2480 × 3508 px' },
     '1587x1123': { name: 'A3 Landscape',        dpi300: '4960 × 3508 px' },
@@ -34,6 +47,16 @@ document.addEventListener('DOMContentLoaded', () => {
     '1632x1056': { name: 'Tabloid Landscape',   dpi300: '5100 × 3300 px' },
     '1056x1632': { name: 'Tabloid Portrait',    dpi300: '3300 × 5100 px' }
   };
+
+  function recordImmediate() {
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+    else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+  }
+
+  function recordDebounced() {
+    if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+    else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+  }
 
   function initAccordions() {
     document.querySelectorAll('.accordion-header').forEach((header) => {
@@ -136,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wEl.value = h;
     hEl.value = w;
 
+    const loadedPhoto = window.getLoadedPhoto();
     const fitSelect = document.getElementById('photoFitSelect');
     const patSelect = document.getElementById('canvasPatternSelect');
     if (loadedPhoto && patSelect && patSelect.value === 'photo' && fitSelect && fitSelect.value === 'match') {
@@ -146,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncPresetDropdownFromInputs();
     updateOrientationAndPaperUI();
     render();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    recordImmediate();
   }
 
   function syncBackgroundUIVisibility() {
@@ -163,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const gridSizeWrap = document.getElementById('gridSizeControlWrap');
     const gridColorLabel = document.getElementById('gridColorLabel');
 
+    const loadedPhoto = window.getLoadedPhoto();
     const isPhotoMode = pattern === 'photo' && !!loadedPhoto;
 
     if (photoSizingControls) photoSizingControls.style.display = isPhotoMode ? 'block' : 'none';
@@ -201,113 +226,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const revKey = h + 'x' + w;
     const match = Array.from(presetSelect.options).find((opt) => opt.value === key || opt.value === revKey);
     presetSelect.value = match ? match.value : 'custom';
-  }
-
-  function buildCurrentCanvasState() {
-    const patternSelect = document.getElementById('canvasPatternSelect');
-    let pattern = patternSelect ? patternSelect.value : 'blueprint';
-
-    if (pattern === 'photo' && !loadedPhoto) {
-      pattern = 'blueprint';
-      if (patternSelect) patternSelect.value = 'blueprint';
+    if (window.SceneState) {
+      window.SceneState.setControl('canvasPresetSelect', presetSelect.value);
     }
-
-    const widthInput = document.getElementById('canvasWidthInput');
-    const heightInput = document.getElementById('canvasHeightInput');
-    const fitSelect = document.getElementById('photoFitSelect');
-    const fitMode = fitSelect ? fitSelect.value : 'match';
-
-    if (pattern === 'photo' && loadedPhoto) {
-      if (fitMode === 'match') {
-        if (widthInput) widthInput.value = loadedPhoto.naturalWidth;
-        if (heightInput) heightInput.value = loadedPhoto.naturalHeight;
-        syncPresetDropdownFromInputs();
-      }
-      const w = Math.max(64, parseInt(widthInput ? widthInput.value : loadedPhoto.naturalWidth, 10));
-      const h = Math.max(64, parseInt(heightInput ? heightInput.value : loadedPhoto.naturalHeight, 10));
-
-      const czEl = document.getElementById('photoCropZoomSlider');
-      const cxEl = document.getElementById('photoCropXSlider');
-      const cyEl = document.getElementById('photoCropYSlider');
-
-      return {
-        filename: loadedPhoto.filename || 'photo_export',
-        isBlankCanvas: false,
-        pattern: 'photo',
-        photoFit: fitMode,
-        cropZoom: parseFloat(czEl ? czEl.value : 100),
-        cropX: parseFloat(cxEl ? cxEl.value : 50),
-        cropY: parseFloat(cyEl ? cyEl.value : 50),
-        width: w,
-        height: h,
-        naturalWidth: loadedPhoto.naturalWidth,
-        naturalHeight: loadedPhoto.naturalHeight,
-        mime: loadedPhoto.mime,
-        b64: loadedPhoto.b64
-      };
-    }
-
-    const w = Math.max(200, parseInt(widthInput ? widthInput.value : 1280, 10));
-    const h = Math.max(200, parseInt(heightInput ? heightInput.value : 720, 10));
-    const gcEl = document.getElementById('canvasGridColorPicker');
-    const gsEl = document.getElementById('canvasGridSizeSlider');
-
-    return {
-      filename: 'diagram_canvas',
-      isBlankCanvas: true,
-      pattern: pattern,
-      gridColor: gcEl ? gcEl.value : '#1e293b',
-      gridSize: parseFloat(gsEl ? gsEl.value : 40),
-      width: w,
-      height: h,
-      mime: 'image/svg+xml',
-      b64: ''
-    };
   }
 
   window.buildFullSVG = function(state, overrides = {}) {
-    if (!state || !window.Effects) return '';
-    const includeFlows = overrides.includeFlows !== false;
-    const includeGlows = overrides.includeGlows !== false;
-    const includeRipples = overrides.includeRipples !== false;
-    const includeNodes = overrides.includeNodes !== false;
-
-    let svgString = window.Effects.build(state);
-    if (includeRipples && window.Ripples) svgString = window.Ripples.injectIntoSVG(svgString, state);
-    if (includeGlows && window.Glows) svgString = window.Glows.injectIntoSVG(svgString, state.image.width, state.image.height);
-    if (includeFlows && window.DataFlows) svgString = window.DataFlows.injectIntoSVG(svgString, state);
-    if (includeNodes && window.DiagramNodes) svgString = window.DiagramNodes.injectIntoSVG(svgString, state);
-    return svgString;
+    if (window.SceneState && typeof window.SceneState.buildFullSVG === 'function') {
+      return window.SceneState.buildFullSVG(state, overrides);
+    }
+    return '';
   };
 
   window.serializeSVGForExport = function(rawSvg) {
-    if (!rawSvg) throw new Error('SVG generation returned empty.');
-
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(rawSvg, 'image/svg+xml');
-
-    const parserError = xmlDoc.getElementsByTagName('parsererror');
-    if (parserError.length > 0) {
-      throw new Error('XML Parsing Failed: ' + parserError[0].textContent);
+    if (window.SceneState && typeof window.SceneState.serializeSVGForExport === 'function') {
+      return window.SceneState.serializeSVGForExport(rawSvg);
     }
-
-    const svgRoot = xmlDoc.documentElement;
-    const XLINK_NS = 'http://www.w3.org/1999/xlink';
-
-    if (!svgRoot.hasAttribute('xmlns:xlink')) {
-      svgRoot.setAttribute('xmlns:xlink', XLINK_NS);
-    }
-
-    const elementsWithHref = xmlDoc.querySelectorAll('[href]');
-    elementsWithHref.forEach((el) => {
-      const hrefVal = el.getAttribute('href');
-      if (hrefVal) {
-        el.setAttributeNS(XLINK_NS, 'xlink:href', hrefVal);
-      }
-    });
-
-    const serializer = new XMLSerializer();
-    return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + serializer.serializeToString(svgRoot);
+    return rawSvg;
   };
 
   function getExportSVG() {
@@ -318,6 +253,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function getCleanBaseName() {
     if (!currentImage || !currentImage.filename) return 'export';
     return currentImage.filename.includes('.') ? currentImage.filename.split('.')[0] : currentImage.filename;
+  }
+
+  function syncVal(id, val) {
+    if (window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.setPairValue(id, val);
+    } else {
+      const el = document.getElementById(id + 'Slider');
+      const num = document.getElementById(id + 'Num');
+      if (el) el.value = val;
+      if (num) num.value = val;
+    }
   }
 
   Stage.init((placement, x, y) => {
@@ -376,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     syncBackgroundUIVisibility();
     render();
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    recordImmediate();
   });
 
   document.getElementById('btnOrientLandscape')?.addEventListener('click', () => applyCanvasDimensionSwap('landscape'));
@@ -384,23 +330,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnOrientSwap')?.addEventListener('click', () => applyCanvasDimensionSwap('swap'));
 
   document.getElementById('chkSnapToGrid')?.addEventListener('change', () => {
+    if (window.ControlStateAdaptor) window.ControlStateAdaptor.syncFromDOM(['chkSnapToGrid']);
     if (window.Stage) window.Stage.syncOverlayBounds(window.Stage.canvasWidth, window.Stage.canvasHeight);
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    recordImmediate();
   });
 
   document.getElementById('btnSyncSnapToBgGrid')?.addEventListener('click', () => {
     const bgGridVal = parseFloat(document.getElementById('canvasGridSizeNum')?.value || 40) || 40;
-    const snapSlider = document.getElementById('snapGridSizeSlider');
-    const snapNum = document.getElementById('snapGridSizeNum');
-    if (snapSlider) snapSlider.value = bgGridVal;
-    if (snapNum) snapNum.value = bgGridVal;
+    syncVal('snapGridSize', bgGridVal);
     const chk = document.getElementById('chkSnapToGrid');
     if (chk) chk.checked = true;
+    if (window.ControlStateAdaptor) window.ControlStateAdaptor.syncFromDOM(['chkSnapToGrid', 'snapGridSizeSlider', 'snapGridSizeNum']);
     if (window.Stage) window.Stage.syncOverlayBounds(window.Stage.canvasWidth, window.Stage.canvasHeight);
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    recordImmediate();
   });
 
   window.Stage.onPhotoCropDrag = (dx, dy) => {
+    const loadedPhoto = window.getLoadedPhoto();
     if (!loadedPhoto || !currentImage) return;
     const w = currentImage.width;
     const h = currentImage.height;
@@ -454,6 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
           dpiSel.value = '3.125';
         }
 
+        const loadedPhoto = window.getLoadedPhoto();
         const fitSelect = document.getElementById('photoFitSelect');
         const patSelect = document.getElementById('canvasPatternSelect');
         if (loadedPhoto && patSelect && patSelect.value === 'photo' && fitSelect && fitSelect.value === 'match') {
@@ -462,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateOrientationAndPaperUI();
         render();
-        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        recordImmediate();
       }
     });
   }
@@ -470,12 +417,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const patSel = document.getElementById('canvasPatternSelect');
   if (patSel) {
     patSel.addEventListener('change', (e) => {
-      if (e.target.value === 'photo' && !loadedPhoto) {
+      if (e.target.value === 'photo' && !window.getLoadedPhoto()) {
         document.getElementById('fileInput')?.click();
       }
       syncBackgroundUIVisibility();
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
@@ -484,13 +431,14 @@ document.addEventListener('DOMContentLoaded', () => {
     fitSel.addEventListener('change', () => {
       syncBackgroundUIVisibility();
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
   const btnMatch = document.getElementById('btnMatchPhotoSize');
   if (btnMatch) {
     btnMatch.addEventListener('click', () => {
+      const loadedPhoto = window.getLoadedPhoto();
       if (!loadedPhoto) return;
       document.getElementById('canvasWidthInput').value = loadedPhoto.naturalWidth;
       document.getElementById('canvasHeightInput').value = loadedPhoto.naturalHeight;
@@ -499,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateOrientationAndPaperUI();
       syncBackgroundUIVisibility();
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
@@ -509,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
       el.addEventListener('input', () => {
         syncPresetDropdownFromInputs();
         updateOrientationAndPaperUI();
+        const loadedPhoto = window.getLoadedPhoto();
         const fitSelect = document.getElementById('photoFitSelect');
         const patSelect = document.getElementById('canvasPatternSelect');
         if (loadedPhoto && patSelect && patSelect.value === 'photo' && fitSelect && fitSelect.value === 'match') {
@@ -516,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
           syncBackgroundUIVisibility();
         }
         render();
-        if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        recordDebounced();
       });
     }
   });
@@ -527,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
       el.addEventListener('input', render);
       el.addEventListener('change', () => {
         render();
-        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        recordImmediate();
       });
     }
   });
@@ -536,30 +485,31 @@ document.addEventListener('DOMContentLoaded', () => {
   if (bgTrans) {
     bgTrans.addEventListener('change', () => {
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
-  function syncVal(id, val) {
-    const el = document.getElementById(id + 'Slider');
-    const num = document.getElementById(id + 'Num');
-    if (el) el.value = val;
-    if (num) num.value = val;
-  }
-
   document.getElementById('btnModeStart')?.addEventListener('click', () => {
-    if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-    if (window.DataFlows) window.DataFlows.deselectFlow();
-    if (window.Glows) window.Glows.deselectGlow();
-    if (window.Ripples) window.Ripples.deselectRipple();
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('camera', 'start', { skipStageClear: true });
+    } else {
+      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
+      if (window.DataFlows) window.DataFlows.deselectFlow();
+      if (window.Glows) window.Glows.deselectGlow();
+      if (window.Ripples) window.Ripples.deselectRipple();
+    }
     if (window.Stage) Stage.setActive('start');
   });
 
   document.getElementById('btnModeEnd')?.addEventListener('click', () => {
-    if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-    if (window.DataFlows) window.DataFlows.deselectFlow();
-    if (window.Glows) window.Glows.deselectGlow();
-    if (window.Ripples) window.Ripples.deselectRipple();
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('camera', 'end', { skipStageClear: true });
+    } else {
+      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
+      if (window.DataFlows) window.DataFlows.deselectFlow();
+      if (window.Glows) window.Glows.deselectGlow();
+      if (window.Ripples) window.Ripples.deselectRipple();
+    }
     if (window.Stage) Stage.setActive('end');
   });
 
@@ -571,12 +521,12 @@ document.addEventListener('DOMContentLoaded', () => {
       slider.addEventListener('input', () => {
         num.value = slider.value;
         render();
-        if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        recordDebounced();
       });
       num.addEventListener('input', () => {
         slider.value = num.value;
         render();
-        if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        recordDebounced();
       });
     }
   });
@@ -597,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
     camMotionSel.addEventListener('change', (e) => {
       syncCameraPanelVisibility(e.target.value);
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
@@ -609,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('panel-opt-tiltshift').style.display = v === 'tilt-shift' ? 'block' : 'none';
       document.getElementById('panel-opt-motionblur').style.display = v === 'motion-blur' ? 'block' : 'none';
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
@@ -619,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const group = document.getElementById('groupFrame');
       if (group) group.style.display = e.target.checked ? 'flex' : 'none';
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
@@ -629,14 +579,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const details = document.getElementById('frameLightingDetails');
       if (details) details.style.display = e.target.checked ? 'flex' : 'none';
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
   }
 
   document.querySelectorAll('#settingsPanel select, #settingsPanel input[type="checkbox"], #settingsPanel input[type="color"]').forEach((el) => {
     el.addEventListener('change', () => {
       render();
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      recordImmediate();
     });
     if (el.type === 'color') el.addEventListener('input', render);
   });
@@ -664,16 +614,29 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
   };
 
-  function getNumVal(id, fallback) {
-    const el = document.getElementById(id);
-    if (!el) return fallback;
-    const v = parseFloat(el.value);
-    return isNaN(v) ? fallback : v;
-  }
-
   function render() {
-    currentImage = buildCurrentCanvasState();
-    if (!currentImage) return;
+    if (window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.syncFromDOM();
+    }
+
+    const state = window.SceneState ? window.SceneState.buildRenderState() : null;
+    if (!state || !state.image) return;
+    currentImage = state.image;
+
+    if (window.SceneState && window.SceneState.controls.canvasPatternSelect === 'blueprint') {
+      const patSelEl = document.getElementById('canvasPatternSelect');
+      if (patSelEl && patSelEl.value === 'photo' && !window.getLoadedPhoto()) {
+        patSelEl.value = 'blueprint';
+      }
+    }
+
+    if (currentImage.pattern === 'photo' && currentImage.photoFit === 'match' && window.getLoadedPhoto()) {
+      const wInput = document.getElementById('canvasWidthInput');
+      const hInput = document.getElementById('canvasHeightInput');
+      if (wInput) wInput.value = currentImage.width;
+      if (hInput) hInput.value = currentImage.height;
+      syncPresetDropdownFromInputs();
+    }
 
     const dim = document.getElementById('imgDimensions');
     if (dim) {
@@ -684,106 +647,11 @@ document.addEventListener('DOMContentLoaded', () => {
       window.Stage.syncOverlayBounds(currentImage.width, currentImage.height);
     }
 
-    const camSel = document.getElementById('cameraMotionSelect');
-    const camMode = camSel ? camSel.value : 'static';
-    let sx = 50;
-    let sy = 50;
-    let sz = 1.0;
-    let ex = 60;
-    let ey = 40;
-    let ez = 1.3;
-    let pSway = 1.4;
-    let pBreathe = 1.8;
-    let pTiltX = 0;
-    let pTiltY = 0;
-
-    if (camMode === 'static') {
-      sx = ex = getNumVal('staticXSlider', 50);
-      sy = ey = getNumVal('staticYSlider', 50);
-      sz = ez = getNumVal('staticZoomSlider', 1.0);
-    } else if (camMode === 'ken-burns') {
-      sx = getNumVal('startXSlider', 50);
-      sy = getNumVal('startYSlider', 50);
-      sz = getNumVal('startXZoomSlider', 1.0);
-      ex = getNumVal('endXSlider', 60);
-      ey = getNumVal('endYSlider', 40);
-      ez = getNumVal('endXZoomSlider', 1.3);
-    } else if (camMode === 'handheld-drift') {
-      sx = ex = getNumVal('handXSlider', 50);
-      sy = ey = getNumVal('handYSlider', 50);
-      sz = ez = getNumVal('handZoomSlider', 1.1);
-      pSway = getNumVal('driftSwaySlider', 1.4);
-      pBreathe = getNumVal('driftBreatheSlider', 1.8);
-    } else if (camMode === 'perspective-tilt') {
-      sx = ex = getNumVal('perspXSlider', 50);
-      sy = ey = getNumVal('perspYSlider', 50);
-      sz = ez = getNumVal('perspZoomSlider', 1.0);
-      pTiltX = getNumVal('perspTiltXSlider', 25);
-      pTiltY = getNumVal('perspTiltYSlider', 0);
-    }
-
-    const bgPick = document.getElementById('canvasBgColorPicker');
-    const bgTr = document.getElementById('canvasBgTransparent');
-    const loopSel = document.getElementById('loopSelect');
-    const camLoopSel = document.getElementById('camLoopSelect');
-    const optSel = document.getElementById('effectSelect');
-    const tsShapeSel = document.getElementById('tsShapeSelect');
-    const frChk = document.getElementById('chkModuleFrame');
-    const frStyleSel = document.getElementById('frameStyleSelect');
-    const frLightChk = document.getElementById('chkFrameLighting');
-    const frLightDirSel = document.getElementById('frameLightDirSelect');
-    const frFilletChk = document.getElementById('chkFrameFillet');
-
-    const sceneDur = getNumVal('durationSlider', 7);
-    const camDur = getNumVal('camDurationSlider', 7);
-
-    const state = {
-      image: currentImage,
-      duration: sceneDur,
-      loop: loopSel ? loopSel.value : 'once',
-      camera: {
-        bgColor: bgPick ? bgPick.value : '#0d1117',
-        bgTransparent: bgTr ? bgTr.checked : false,
-        motion: camMode,
-        camDuration: camDur,
-        camLoop: camLoopSel ? camLoopSel.value : 'once',
-        startX: sx,
-        startY: sy,
-        startZoom: sz,
-        endX: ex,
-        endY: ey,
-        endZoom: ez,
-        sway: pSway,
-        breathe: pBreathe,
-        tiltX: pTiltX,
-        tiltY: pTiltY
-      },
-      optical: {
-        type: optSel ? optSel.value : 'none',
-        startBlur: getNumVal('startBlurSlider', 0),
-        endBlur: getNumVal('endBlurSlider', 0),
-        focusDur: getNumVal('focusDurSlider', 4),
-        tsShape: tsShapeSel ? tsShapeSel.value : 'horizontal',
-        tsPosX: getNumVal('tsPosXSlider', 50),
-        tsPos: getNumVal('tsPosSlider', 50),
-        tsWidth: getNumVal('tsWidthSlider', 20),
-        tsBlur: getNumVal('tsBlurSlider', 12),
-        mbInt: getNumVal('mbIntSlider', 15),
-        mbAng: getNumVal('mbAngSlider', 0)
-      },
-      overlays: {
-        frame: frChk ? frChk.checked : false,
-        frameStyle: frStyleSel ? frStyleSel.value : 'walnut',
-        frameDepth: getNumVal('frameDepthSlider', 44),
-        frameLighting: frLightChk ? frLightChk.checked : true,
-        frameLightDir: frLightDirSel ? frLightDirSel.value : 'tl',
-        frameLightInt: getNumVal('frameLightIntSlider', 70),
-        frameShadow: getNumVal('frameShadowSlider', 0.55),
-        frameFillet: frFilletChk ? frFilletChk.checked : true
-      }
-    };
-
-    window.currentRenderState = state;
+    const camMode = state.camera.motion;
+    const sx = state.camera.startX;
+    const sy = state.camera.startY;
+    const ex = state.camera.endX;
+    const ey = state.camera.endY;
 
     const rStart = document.getElementById('reticleStart');
     const rEnd = document.getElementById('reticleEnd');
@@ -809,7 +677,9 @@ document.addEventListener('DOMContentLoaded', () => {
       window.DataFlows.updateUIOverlay();
     }
     if (editingNode && window.DiagramNodes) {
-      const activeNode = window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
+      const activeNode = window.DiagramNodes.getNode
+        ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
+        : window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
       if (activeNode) window.DiagramNodes.updateUIOverlay(activeNode);
     }
 
@@ -824,6 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.triggerAppRender = render;
+  if (window.AppCoordinator) {
+    window.AppCoordinator.registerRenderHandler(render);
+  }
 
   document.getElementById('btnReplay')?.addEventListener('click', () => {
     const container = document.getElementById('svgContainer');
@@ -860,10 +733,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!currentImage || !window.currentRenderState) return;
       const w = currentImage.width || 1280;
       const h = currentImage.height || 720;
-      const bgTr = document.getElementById('canvasBgTransparent');
-      const bgPick = document.getElementById('canvasBgColorPicker');
-      const isTransparent = bgTr ? bgTr.checked : false;
-      const bgColor = isTransparent ? 'transparent' : (bgPick ? bgPick.value : '#0d1117');
+      const isTransparent = !!(window.currentRenderState.camera && window.currentRenderState.camera.bgTransparent);
+      const bgColor = isTransparent
+        ? 'transparent'
+        : ((window.currentRenderState.camera && window.currentRenderState.camera.bgColor) || '#0d1117');
       const svgData = getExportSVG();
 
       const htmlData =

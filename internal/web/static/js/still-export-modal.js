@@ -1,3 +1,16 @@
+/**
+ * Still & Print Export Studio (`window.StillExportStudio`)
+ *
+ * Layer 3 (Operational SMIL Evaluation & Static SVG Baking):
+ *   - `solveCubicBezier(x1, y1, x2, y2, x)`
+ *   - `evaluateSMILAnimate(anim, sec)`
+ *   - `bakeStaticSVGAtTime(rawSvg, snapshotSec, renderW, renderH, forcePeakVis, includeLines, includePayloads)`
+ *   - `buildStillRenderConfig(baseState, options)` (Zero DOM input queries)
+ *
+ * Layer 1 (Still Export Modal UI & Canvas Rasterization):
+ *   - `init()`, `open()`, `close()`, `readExportOptionsFromDOM(forPreview)`,
+ *     `buildStillBlob(mimeType, forPreview)`, `renderPreview()`, `download()`
+ */
 window.StillExportStudio = {
   baseWidth: 1280,
   baseHeight: 720,
@@ -7,6 +20,10 @@ window.StillExportStudio = {
   previewTimer: null,
   isGeneratingFinal: false,
   _initialized: false,
+
+  // =========================================================================
+  // Layer 3: Operational SMIL Evaluation & Static SVG Baking
+  // =========================================================================
 
   solveCubicBezier(x1, y1, x2, y2, x) {
     if (x <= 0) return 0;
@@ -27,195 +44,6 @@ window.StillExportStudio = {
     const by = 3 * (y2 - y1) - cy;
     const ay = 1 - cy - by;
     return ((ay * t + by) * t + cy) * t;
-  },
-
-  init() {
-    if (this._initialized) return;
-    this._initialized = true;
-
-    document.getElementById('btnOpenStillModal')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      this.open();
-    });
-    document.getElementById('btnCloseStillTop')?.addEventListener('click', () => this.close());
-    document.getElementById('btnCloseStillBottom')?.addEventListener('click', () => this.close());
-    document.getElementById('btnStillRefreshPreview')?.addEventListener('click', () => this.renderPreview());
-    document.getElementById('btnDownloadStillFinal')?.addEventListener('click', () => this.download());
-
-    const dpiSel = document.getElementById('stillDpiSelect');
-    const wInput = document.getElementById('stillWidthInput');
-    const hInput = document.getElementById('stillHeightInput');
-    const lockChk = document.getElementById('stillLockAspect');
-    const fmtSel = document.getElementById('stillFormatSelect');
-    const tSlider = document.getElementById('stillTimeSlider');
-    const tNum = document.getElementById('stillTimeNum');
-    const tReadout = document.getElementById('stillTimeReadout');
-
-    dpiSel?.addEventListener('change', () => {
-      const mult = parseFloat(dpiSel.value) || 1.0;
-      if (wInput && hInput) {
-        wInput.value = Math.max(64, Math.round(this.baseWidth * mult));
-        hInput.value = Math.max(64, Math.round(this.baseHeight * mult));
-      }
-      this.updateButtonLabel();
-      this.schedulePreview(60);
-    });
-
-    wInput?.addEventListener('input', () => {
-      if (lockChk && lockChk.checked && this.aspectRatio > 0 && hInput) {
-        const w = parseInt(wInput.value, 10);
-        if (!isNaN(w) && w > 0) {
-          hInput.value = Math.max(2, Math.round(w / this.aspectRatio));
-        }
-      }
-      this.updateButtonLabel();
-      this.schedulePreview(100);
-    });
-
-    hInput?.addEventListener('input', () => {
-      if (lockChk && lockChk.checked && this.aspectRatio > 0 && wInput) {
-        const h = parseInt(hInput.value, 10);
-        if (!isNaN(h) && h > 0) {
-          wInput.value = Math.max(2, Math.round(h * this.aspectRatio));
-        }
-      }
-      this.updateButtonLabel();
-      this.schedulePreview(100);
-    });
-
-    if (tSlider && tNum) {
-      tSlider.addEventListener('input', () => {
-        tNum.value = tSlider.value;
-        if (tReadout) tReadout.textContent = 't = ' + parseFloat(tSlider.value).toFixed(2) + 's';
-        this.schedulePreview(40);
-      });
-      tNum.addEventListener('input', () => {
-        tSlider.value = tNum.value;
-        if (tReadout) tReadout.textContent = 't = ' + parseFloat(tNum.value || 0).toFixed(2) + 's';
-        this.schedulePreview(40);
-      });
-    }
-
-    fmtSel?.addEventListener('change', () => {
-      this.updateButtonLabel();
-      this.schedulePreview(40);
-    });
-
-    [
-      'stillForcePeakVis',
-      'stillEnableNodes',
-      'stillEnableFlows',
-      'stillEnablePayloads',
-      'stillEnableGlows',
-      'stillEnableRipples',
-      'stillEnableCamera',
-      'stillEnableOptical',
-      'stillEnableFrame',
-      'stillQualityInput'
-    ].forEach((id) => {
-      document.getElementById(id)?.addEventListener('change', () => this.schedulePreview(40));
-    });
-  },
-
-  schedulePreview(delayMs = 60) {
-    if (this.isGeneratingFinal) return;
-    if (this.previewTimer) clearTimeout(this.previewTimer);
-    this.previewTimer = setTimeout(() => {
-      this.renderPreview();
-    }, delayMs);
-  },
-
-  updateButtonLabel() {
-    if (this.isGeneratingFinal) return;
-    const fmt = document.getElementById('stillFormatSelect')?.value || 'png';
-    const btn = document.getElementById('btnDownloadStillFinal');
-    const outW = parseInt(document.getElementById('stillWidthInput')?.value, 10) || this.baseWidth;
-    const outH = parseInt(document.getElementById('stillHeightInput')?.value, 10) || this.baseHeight;
-    if (!btn) return;
-    if (fmt === 'all') {
-      btn.textContent = 'Download All (' + outW + '×' + outH + ')';
-    } else {
-      btn.textContent = 'Download Still ' + fmt.toUpperCase() + ' (' + outW + '×' + outH + ')';
-    }
-  },
-
-  getScreenPreviewDimensions(targetW, targetH) {
-    const container = document.getElementById('stillPreviewContainer');
-    let maxW = 720;
-    let maxH = 460;
-
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      if (rect.width > 100 && rect.height > 100) {
-        maxW = Math.max(320, Math.floor(rect.width - 20));
-        maxH = Math.max(220, Math.floor(rect.height - 20));
-      }
-    }
-
-    const scale = Math.min(1.0, maxW / targetW, maxH / targetH);
-    const pw = Math.max(64, Math.round((targetW * scale) / 2) * 2);
-    const ph = Math.max(64, Math.round((targetH * scale) / 2) * 2);
-    return { width: pw, height: ph };
-  },
-
-  open() {
-    if (!window.currentRenderState && typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
-    }
-    if (!window.currentRenderState || !window.currentRenderState.image) {
-      alert('Please initialize a canvas or load an image first.');
-      return;
-    }
-
-    const st = window.currentRenderState;
-    this.baseWidth = st.image.width || 1280;
-    this.baseHeight = st.image.height || 720;
-    this.aspectRatio = this.baseWidth / this.baseHeight;
-
-    const dpiSel = document.getElementById('stillDpiSelect');
-    const mult = parseFloat(dpiSel ? dpiSel.value : '1') || 1.0;
-
-    document.getElementById('stillWidthInput').value = Math.round(this.baseWidth * mult);
-    document.getElementById('stillHeightInput').value = Math.round(this.baseHeight * mult);
-
-    if (st.image.filename) {
-      const cleanBase = st.image.filename.includes('.') ? st.image.filename.split('.')[0] : st.image.filename;
-      document.getElementById('stillFilename').value = cleanBase + '_still';
-    }
-
-    const dur = st.duration || 7;
-    const tSlider = document.getElementById('stillTimeSlider');
-    const tNum = document.getElementById('stillTimeNum');
-    const tReadout = document.getElementById('stillTimeReadout');
-    if (tSlider) {
-      tSlider.max = dur;
-      if (parseFloat(tSlider.value) > dur) tSlider.value = (dur / 2).toFixed(1);
-    }
-    if (tNum && tSlider) {
-      tNum.value = tSlider.value;
-      if (tReadout) tReadout.textContent = 't = ' + parseFloat(tSlider.value).toFixed(2) + 's';
-    }
-
-    document.getElementById('stillEnableNodes').checked = window.DiagramNodes ? window.DiagramNodes.list.length > 0 : true;
-    document.getElementById('stillEnableFlows').checked = window.DataFlows ? window.DataFlows.list.length > 0 : true;
-    document.getElementById('stillEnablePayloads').checked = window.DataFlows ? window.DataFlows.list.length > 0 : true;
-    document.getElementById('stillEnableGlows').checked = window.Glows ? window.Glows.list.length > 0 : true;
-    document.getElementById('stillEnableRipples').checked = window.Ripples ? window.Ripples.list.length > 0 : true;
-    document.getElementById('stillEnableCamera').checked = st.camera.motion !== 'static';
-    document.getElementById('stillEnableOptical').checked = st.optical.type !== 'none';
-    document.getElementById('stillEnableFrame').checked = !!st.overlays.frame;
-
-    this.updateButtonLabel();
-    document.getElementById('stillExportModal').style.display = 'flex';
-
-    requestAnimationFrame(() => {
-      this.renderPreview();
-    });
-  },
-
-  close() {
-    if (this.isGeneratingFinal) return;
-    document.getElementById('stillExportModal').style.display = 'none';
   },
 
   evaluateSMILAnimate(anim, sec) {
@@ -459,35 +287,33 @@ window.StillExportStudio = {
     }
   },
 
-  async buildStillBlob(mimeType, forPreview = false) {
-    const payloadState = JSON.parse(JSON.stringify(window.currentRenderState));
-    const fullTargetW = Math.max(64, parseInt(document.getElementById('stillWidthInput')?.value, 10) || this.baseWidth);
-    const fullTargetH = Math.max(64, parseInt(document.getElementById('stillHeightInput')?.value, 10) || this.baseHeight);
+  /**
+   * Pure operational builder that prepares the cloned render state and SVG overrides
+   * from a plain options object without querying DOM elements directly.
+   */
+  buildStillRenderConfig(baseState, options = {}) {
+    const payloadState = JSON.parse(JSON.stringify(baseState));
+    const fullTargetW = Math.max(64, parseInt(options.width, 10) || this.baseWidth);
+    const fullTargetH = Math.max(64, parseInt(options.height, 10) || this.baseHeight);
+    const renderW = options.renderWidth || fullTargetW;
+    const renderH = options.renderHeight || fullTargetH;
 
-    let renderW = fullTargetW;
-    let renderH = fullTargetH;
-    if (forPreview) {
-      const fitted = this.getScreenPreviewDimensions(fullTargetW, fullTargetH);
-      renderW = fitted.width;
-      renderH = fitted.height;
-    }
+    const qual = Math.min(1, Math.max(0.1, (parseFloat(options.quality !== undefined ? options.quality : 95) / 100)));
+    const snapSec = Math.max(0, parseFloat(options.snapSec || 0));
+    const forcePeakVis = !!options.forcePeakVis;
 
-    const qual = Math.min(1, Math.max(0.1, (parseFloat(document.getElementById('stillQualityInput')?.value || 95) / 100)));
-    const snapSec = Math.max(0, parseFloat(document.getElementById('stillTimeNum')?.value || 0));
-    const forcePeakVis = !!document.getElementById('stillForcePeakVis')?.checked;
+    const enableNodes = options.enableNodes !== false;
+    const enableFlows = options.enableFlows !== false;
+    const enablePayloads = options.enablePayloads !== false;
+    const enableGlows = options.enableGlows !== false;
+    const enableRipples = options.enableRipples !== false;
+    const enableCamera = options.enableCamera !== false;
+    const enableOptical = options.enableOptical !== false;
+    const enableFrame = options.enableFrame !== false;
 
-    const enableNodes = !!document.getElementById('stillEnableNodes')?.checked;
-    const enableFlows = !!document.getElementById('stillEnableFlows')?.checked;
-    const enablePayloads = !!document.getElementById('stillEnablePayloads')?.checked;
-    const enableGlows = !!document.getElementById('stillEnableGlows')?.checked;
-    const enableRipples = !!document.getElementById('stillEnableRipples')?.checked;
-    const enableCamera = !!document.getElementById('stillEnableCamera')?.checked;
-    const enableOptical = !!document.getElementById('stillEnableOptical')?.checked;
-    const enableFrame = !!document.getElementById('stillEnableFrame')?.checked;
-
-    if (!enableCamera) payloadState.camera.motion = 'static';
-    if (!enableOptical) payloadState.optical.type = 'none';
-    if (!enableFrame) payloadState.overlays.frame = false;
+    if (!enableCamera && payloadState.camera) payloadState.camera.motion = 'static';
+    if (!enableOptical && payloadState.optical) payloadState.optical.type = 'none';
+    if (!enableFrame && payloadState.overlays) payloadState.overlays.frame = false;
 
     const rawSvg = window.buildFullSVG(payloadState, {
       includeNodes: enableNodes,
@@ -496,7 +322,257 @@ window.StillExportStudio = {
       includeRipples: enableRipples
     });
 
-    const bakedSvg = this.bakeStaticSVGAtTime(rawSvg, snapSec, renderW, renderH, forcePeakVis, enableFlows, enablePayloads);
+    return {
+      payloadState,
+      rawSvg,
+      fullTargetW,
+      fullTargetH,
+      renderW,
+      renderH,
+      qual,
+      snapSec,
+      forcePeakVis,
+      enableFlows,
+      enablePayloads
+    };
+  },
+
+  // =========================================================================
+  // Layer 1: UI Presentation & Modal Bindings
+  // =========================================================================
+
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
+    document.getElementById('btnOpenStillModal')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.open();
+    });
+    document.getElementById('btnCloseStillTop')?.addEventListener('click', () => this.close());
+    document.getElementById('btnCloseStillBottom')?.addEventListener('click', () => this.close());
+    document.getElementById('btnStillRefreshPreview')?.addEventListener('click', () => this.renderPreview());
+    document.getElementById('btnDownloadStillFinal')?.addEventListener('click', () => this.download());
+
+    const dpiSel = document.getElementById('stillDpiSelect');
+    const wInput = document.getElementById('stillWidthInput');
+    const hInput = document.getElementById('stillHeightInput');
+    const lockChk = document.getElementById('stillLockAspect');
+    const fmtSel = document.getElementById('stillFormatSelect');
+    const tSlider = document.getElementById('stillTimeSlider');
+    const tNum = document.getElementById('stillTimeNum');
+    const tReadout = document.getElementById('stillTimeReadout');
+
+    dpiSel?.addEventListener('change', () => {
+      const mult = parseFloat(dpiSel.value) || 1.0;
+      if (wInput && hInput) {
+        wInput.value = Math.max(64, Math.round(this.baseWidth * mult));
+        hInput.value = Math.max(64, Math.round(this.baseHeight * mult));
+      }
+      this.updateButtonLabel();
+      this.schedulePreview(60);
+    });
+
+    wInput?.addEventListener('input', () => {
+      if (lockChk && lockChk.checked && this.aspectRatio > 0 && hInput) {
+        const w = parseInt(wInput.value, 10);
+        if (!isNaN(w) && w > 0) {
+          hInput.value = Math.max(2, Math.round(w / this.aspectRatio));
+        }
+      }
+      this.updateButtonLabel();
+      this.schedulePreview(100);
+    });
+
+    hInput?.addEventListener('input', () => {
+      if (lockChk && lockChk.checked && this.aspectRatio > 0 && wInput) {
+        const h = parseInt(hInput.value, 10);
+        if (!isNaN(h) && h > 0) {
+          wInput.value = Math.max(2, Math.round(h * this.aspectRatio));
+        }
+      }
+      this.updateButtonLabel();
+      this.schedulePreview(100);
+    });
+
+    if (tSlider && tNum) {
+      tSlider.addEventListener('input', () => {
+        tNum.value = tSlider.value;
+        if (tReadout) tReadout.textContent = 't = ' + parseFloat(tSlider.value).toFixed(2) + 's';
+        this.schedulePreview(40);
+      });
+      tNum.addEventListener('input', () => {
+        tSlider.value = tNum.value;
+        if (tReadout) tReadout.textContent = 't = ' + parseFloat(tNum.value || 0).toFixed(2) + 's';
+        this.schedulePreview(40);
+      });
+    }
+
+    fmtSel?.addEventListener('change', () => {
+      this.updateButtonLabel();
+      this.schedulePreview(40);
+    });
+
+    [
+      'stillForcePeakVis',
+      'stillEnableNodes',
+      'stillEnableFlows',
+      'stillEnablePayloads',
+      'stillEnableGlows',
+      'stillEnableRipples',
+      'stillEnableCamera',
+      'stillEnableOptical',
+      'stillEnableFrame',
+      'stillQualityInput'
+    ].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', () => this.schedulePreview(40));
+    });
+  },
+
+  schedulePreview(delayMs = 60) {
+    if (this.isGeneratingFinal) return;
+    if (this.previewTimer) clearTimeout(this.previewTimer);
+    this.previewTimer = setTimeout(() => {
+      this.renderPreview();
+    }, delayMs);
+  },
+
+  updateButtonLabel() {
+    if (this.isGeneratingFinal) return;
+    const fmt = document.getElementById('stillFormatSelect')?.value || 'png';
+    const btn = document.getElementById('btnDownloadStillFinal');
+    const outW = parseInt(document.getElementById('stillWidthInput')?.value, 10) || this.baseWidth;
+    const outH = parseInt(document.getElementById('stillHeightInput')?.value, 10) || this.baseHeight;
+    if (!btn) return;
+    if (fmt === 'all') {
+      btn.textContent = 'Download All (' + outW + '×' + outH + ')';
+    } else {
+      btn.textContent = 'Download Still ' + fmt.toUpperCase() + ' (' + outW + '×' + outH + ')';
+    }
+  },
+
+  getScreenPreviewDimensions(targetW, targetH) {
+    const container = document.getElementById('stillPreviewContainer');
+    let maxW = 720;
+    let maxH = 460;
+
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 100 && rect.height > 100) {
+        maxW = Math.max(320, Math.floor(rect.width - 20));
+        maxH = Math.max(220, Math.floor(rect.height - 20));
+      }
+    }
+
+    const scale = Math.min(1.0, maxW / targetW, maxH / targetH);
+    const pw = Math.max(64, Math.round((targetW * scale) / 2) * 2);
+    const ph = Math.max(64, Math.round((targetH * scale) / 2) * 2);
+    return { width: pw, height: ph };
+  },
+
+  open() {
+    if (!window.currentRenderState && typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    }
+    if (!window.currentRenderState || !window.currentRenderState.image) {
+      alert('Please initialize a canvas or load an image first.');
+      return;
+    }
+
+    const st = window.currentRenderState;
+    this.baseWidth = st.image.width || 1280;
+    this.baseHeight = st.image.height || 720;
+    this.aspectRatio = this.baseWidth / this.baseHeight;
+
+    const dpiSel = document.getElementById('stillDpiSelect');
+    const mult = parseFloat(dpiSel ? dpiSel.value : '1') || 1.0;
+
+    document.getElementById('stillWidthInput').value = Math.round(this.baseWidth * mult);
+    document.getElementById('stillHeightInput').value = Math.round(this.baseHeight * mult);
+
+    if (st.image.filename) {
+      const cleanBase = st.image.filename.includes('.') ? st.image.filename.split('.')[0] : st.image.filename;
+      document.getElementById('stillFilename').value = cleanBase + '_still';
+    }
+
+    const dur = st.duration || 7;
+    const tSlider = document.getElementById('stillTimeSlider');
+    const tNum = document.getElementById('stillTimeNum');
+    const tReadout = document.getElementById('stillTimeReadout');
+    if (tSlider) {
+      tSlider.max = dur;
+      if (parseFloat(tSlider.value) > dur) tSlider.value = (dur / 2).toFixed(1);
+    }
+    if (tNum && tSlider) {
+      tNum.value = tSlider.value;
+      if (tReadout) tReadout.textContent = 't = ' + parseFloat(tSlider.value).toFixed(2) + 's';
+    }
+
+    document.getElementById('stillEnableNodes').checked = window.DiagramNodes ? window.DiagramNodes.list.length > 0 : true;
+    document.getElementById('stillEnableFlows').checked = window.DataFlows ? window.DataFlows.list.length > 0 : true;
+    document.getElementById('stillEnablePayloads').checked = window.DataFlows ? window.DataFlows.list.length > 0 : true;
+    document.getElementById('stillEnableGlows').checked = window.Glows ? window.Glows.list.length > 0 : true;
+    document.getElementById('stillEnableRipples').checked = window.Ripples ? window.Ripples.list.length > 0 : true;
+    document.getElementById('stillEnableCamera').checked = st.camera.motion !== 'static';
+    document.getElementById('stillEnableOptical').checked = st.optical.type !== 'none';
+    document.getElementById('stillEnableFrame').checked = !!st.overlays.frame;
+
+    this.updateButtonLabel();
+    document.getElementById('stillExportModal').style.display = 'flex';
+
+    requestAnimationFrame(() => {
+      this.renderPreview();
+    });
+  },
+
+  close() {
+    if (this.isGeneratingFinal) return;
+    document.getElementById('stillExportModal').style.display = 'none';
+  },
+
+  readExportOptionsFromDOM(forPreview = false) {
+    const fullTargetW = Math.max(64, parseInt(document.getElementById('stillWidthInput')?.value, 10) || this.baseWidth);
+    const fullTargetH = Math.max(64, parseInt(document.getElementById('stillHeightInput')?.value, 10) || this.baseHeight);
+    let renderW = fullTargetW;
+    let renderH = fullTargetH;
+    if (forPreview) {
+      const fitted = this.getScreenPreviewDimensions(fullTargetW, fullTargetH);
+      renderW = fitted.width;
+      renderH = fitted.height;
+    }
+
+    return {
+      width: fullTargetW,
+      height: fullTargetH,
+      renderWidth: renderW,
+      renderHeight: renderH,
+      quality: parseFloat(document.getElementById('stillQualityInput')?.value || 95),
+      snapSec: Math.max(0, parseFloat(document.getElementById('stillTimeNum')?.value || 0)),
+      forcePeakVis: !!document.getElementById('stillForcePeakVis')?.checked,
+      enableNodes: !!document.getElementById('stillEnableNodes')?.checked,
+      enableFlows: !!document.getElementById('stillEnableFlows')?.checked,
+      enablePayloads: !!document.getElementById('stillEnablePayloads')?.checked,
+      enableGlows: !!document.getElementById('stillEnableGlows')?.checked,
+      enableRipples: !!document.getElementById('stillEnableRipples')?.checked,
+      enableCamera: !!document.getElementById('stillEnableCamera')?.checked,
+      enableOptical: !!document.getElementById('stillEnableOptical')?.checked,
+      enableFrame: !!document.getElementById('stillEnableFrame')?.checked
+    };
+  },
+
+  async buildStillBlob(mimeType, forPreview = false) {
+    const options = this.readExportOptionsFromDOM(forPreview);
+    const cfg = this.buildStillRenderConfig(window.currentRenderState, options);
+
+    const bakedSvg = this.bakeStaticSVGAtTime(
+      cfg.rawSvg,
+      cfg.snapSec,
+      cfg.renderW,
+      cfg.renderH,
+      cfg.forcePeakVis,
+      cfg.enableFlows,
+      cfg.enablePayloads
+    );
     const svgBlob = new Blob([bakedSvg], { type: 'image/svg+xml;charset=utf-8' });
     const blobUrl = URL.createObjectURL(svgBlob);
 
@@ -509,28 +585,28 @@ window.StillExportStudio = {
       });
 
       const canvas = document.createElement('canvas');
-      canvas.width = renderW;
-      canvas.height = renderH;
+      canvas.width = cfg.renderW;
+      canvas.height = cfg.renderH;
       const ctx = canvas.getContext('2d');
 
-      if (mimeType === 'image/jpeg' || !payloadState.camera.bgTransparent) {
-        ctx.fillStyle = payloadState.camera.bgColor || '#0d1117';
-        ctx.fillRect(0, 0, renderW, renderH);
+      if (mimeType === 'image/jpeg' || !cfg.payloadState.camera.bgTransparent) {
+        ctx.fillStyle = cfg.payloadState.camera.bgColor || '#0d1117';
+        ctx.fillRect(0, 0, cfg.renderW, cfg.renderH);
       }
 
-      ctx.drawImage(img, 0, 0, renderW, renderH);
+      ctx.drawImage(img, 0, 0, cfg.renderW, cfg.renderH);
 
       const outBlob = await new Promise((resolve, reject) => {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))), mimeType, qual);
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))), mimeType, cfg.qual);
       });
 
       return {
         blob: outBlob,
-        renderWidth: renderW,
-        renderHeight: renderH,
-        finalWidth: fullTargetW,
-        finalHeight: fullTargetH,
-        snapSec: snapSec
+        renderWidth: cfg.renderW,
+        renderHeight: cfg.renderH,
+        finalWidth: cfg.fullTargetW,
+        finalHeight: cfg.fullTargetH,
+        snapSec: cfg.snapSec
       };
     } finally {
       URL.revokeObjectURL(blobUrl);

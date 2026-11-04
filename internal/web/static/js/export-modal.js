@@ -1,3 +1,16 @@
+/**
+ * Animated Multi-Frame Export Studio (`export-modal.js` / `window.AnimatedExportStudio`)
+ *
+ * Layer 3 (Operational Payload Construction & REST API Client):
+ *   - `constructExportJobPayload(baseState, config)` (Zero DOM input queries)
+ *   - `requestBitmapRender(payload, signal)`
+ *   - `inspectAudioStream(audioB64, audioName, fixHeader)`
+ *
+ * Layer 1 (Animated Export Modal UI & Progress Polling):
+ *   - `openExportModal`, `closeExportModal`, `setExportResolution`, `applyExportProfile`,
+ *     `clearExportAudio`, `matchVideoToAudioDuration`, `fixAndDownloadAudioFile`,
+ *     `generatePreview`, `replayPreview`, `cancelCurrentRender`, `downloadFinal`
+ */
 (function initExportStudioModule() {
   let cachedPreviewBlob = null;
   let cachedPreviewBlobUrl = null;
@@ -19,6 +32,160 @@
   let progressPollTimer = null;
 
   const PREVIEW_FPS = 24;
+
+  // =========================================================================
+  // Layer 3: Operational Payload Construction & REST API Client
+  // =========================================================================
+
+  function constructExportJobPayload(baseState, config = {}) {
+    const payloadState = JSON.parse(JSON.stringify(baseState));
+
+    const fullWidth = Math.max(64, parseInt(config.width, 10) || payloadState.image.width);
+    const fullHeight = Math.max(64, parseInt(config.height, 10) || payloadState.image.height);
+
+    const totalVideoDuration = Math.max(0.5, parseFloat(config.duration) || payloadState.duration || 7);
+    const cameraMoveDuration = Math.max(
+      0.5,
+      parseFloat(config.camDuration) ||
+      (payloadState.camera && payloadState.camera.camDuration) ||
+      7
+    );
+    const cameraBehavior = config.camLoop ||
+      (payloadState.camera && payloadState.camera.camLoop) ||
+      'once';
+    const containerLoop = config.loop || payloadState.loop || 'loop';
+
+    const selectedFormat = config.format || 'mp4';
+    const selectedFps = parseInt(config.fps, 10) || 24;
+    const selectedAudioFit = config.audioFit || 'loop';
+
+    let renderWidth = fullWidth;
+    let renderHeight = fullHeight;
+    let renderFps = selectedFps;
+    let renderFormat = selectedFormat;
+
+    if (config.forPreview) {
+      if (config.fittedDimensions && config.fittedDimensions.width && config.fittedDimensions.height) {
+        renderWidth = config.fittedDimensions.width;
+        renderHeight = config.fittedDimensions.height;
+      }
+      renderFps = PREVIEW_FPS;
+      if (renderFormat === 'both') {
+        renderFormat = 'webp';
+      } else if (renderFormat === 'all') {
+        renderFormat = 'mp4';
+      }
+    }
+
+    payloadState.duration = totalVideoDuration;
+    payloadState.loop = containerLoop;
+    payloadState.camera.camDuration = cameraMoveDuration;
+    payloadState.camera.camLoop = cameraBehavior;
+
+    const enableNodes = config.enableNodes !== false;
+    const enableFlows = config.enableFlows !== false;
+    const enableGlows = config.enableGlows !== false;
+    const enableRipples = config.enableRipples !== false;
+    const enableCamera = config.enableCamera !== false;
+    const enableOptical = config.enableOptical !== false;
+    const enableFrame = config.enableFrame !== false;
+
+    if (!enableCamera) payloadState.camera.motion = 'static';
+    if (!enableOptical) payloadState.optical.type = 'none';
+    if (!enableFrame) payloadState.overlays.frame = false;
+
+    const overrides = {
+      includeNodes: enableNodes,
+      includeFlows: enableFlows,
+      includeGlows: enableGlows,
+      includeRipples: enableRipples
+    };
+
+    const rawSvg = window.buildFullSVG(payloadState, overrides);
+    const svgMarkup = window.serializeSVGForExport(rawSvg);
+
+    const backendState = JSON.parse(JSON.stringify(payloadState));
+    backendState.duration = totalVideoDuration;
+    backendState.loop = containerLoop;
+
+    const audioB64 = config.audioB64 !== undefined ? config.audioB64 : loadedAudioB64;
+    const audioName = config.audioName !== undefined ? config.audioName : loadedAudioName;
+    const includeAudio = (renderFormat === 'mp4' || renderFormat === 'all') && !!audioB64;
+
+    return {
+      jobId: config.jobId || '',
+      format: renderFormat,
+      duration: totalVideoDuration,
+      fps: renderFps,
+      width: renderWidth,
+      height: renderHeight,
+      svgMarkup: svgMarkup,
+      audioB64: includeAudio ? audioB64 : '',
+      audioName: includeAudio ? audioName : '',
+      audioFit: selectedAudioFit,
+      state: backendState
+    };
+  }
+
+  async function inspectAudioStream(audioB64, audioName, fixHeader = false) {
+    const res = await fetch('/api/export/audio/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audioB64: audioB64,
+        audioName: audioName,
+        fixHeader: fixHeader
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+    return await res.json();
+  }
+
+  async function requestBitmapRender(payload, signal) {
+    const response = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: signal
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText || 'Server failed to render');
+    }
+
+    if (payload.format === 'both' || payload.format === 'all') {
+      const data = await response.json();
+      const bId = encodeURIComponent(data.bundleId);
+      const fetches = [
+        fetch('/api/export/bundle?bundleId=' + bId + '&fmt=webp', { signal: signal }),
+        fetch('/api/export/bundle?bundleId=' + bId + '&fmt=apng', { signal: signal })
+      ];
+      if (payload.format === 'all') {
+        fetches.push(fetch('/api/export/bundle?bundleId=' + bId + '&fmt=mp4', { signal: signal }));
+      }
+
+      const responses = await Promise.all(fetches);
+      if (responses.some((r) => !r.ok)) {
+        throw new Error('Failed to stream rendered bundle files from server');
+      }
+
+      const webpBlob = await responses[0].blob();
+      const apngBlob = await responses[1].blob();
+      const mp4Blob = payload.format === 'all' ? await responses[2].blob() : null;
+      return { mode: payload.format, webpBlob: webpBlob, apngBlob: apngBlob, mp4Blob: mp4Blob };
+    }
+
+    const singleBlob = await response.blob();
+    return { mode: 'single', blob: singleBlob };
+  }
+
+  // =========================================================================
+  // Layer 1: UI Presentation & Modal DOM Bindings
+  // =========================================================================
 
   function setElVal(id, val) {
     const el = document.getElementById(id);
@@ -125,21 +292,7 @@
         fixBtn.textContent = '⏳ Rebuilding Header...';
       }
 
-      const res = await fetch('/api/export/audio/inspect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audioB64: loadedAudioB64,
-          audioName: loadedAudioName,
-          fixHeader: fixHeader
-        })
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      const data = await res.json();
+      const data = await inspectAudioStream(loadedAudioB64, loadedAudioName, fixHeader);
       if (data.decodedDuration > 0) {
         loadedAudioTrueDuration = Number(data.decodedDuration.toFixed(2));
       }
@@ -187,9 +340,15 @@
     }
     const rounded = Math.max(0.5, Number(loadedAudioTrueDuration.toFixed(1)));
     setElVal('expDuration', rounded);
-    setElVal('durationSlider', rounded);
-    setElVal('durationNum', rounded);
-    if (typeof window.triggerAppRender === 'function') {
+    if (window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.setPairValue('duration', rounded);
+    } else {
+      setElVal('durationSlider', rounded);
+      setElVal('durationNum', rounded);
+    }
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
       window.triggerAppRender();
     }
     cachedFinalSignature = null;
@@ -397,91 +556,39 @@
     return { width: w, height: h };
   }
 
-  function buildExportPayload(forPreview = false, jobId = '') {
-    const payloadState = JSON.parse(JSON.stringify(window.currentRenderState));
-
-    const fullWidth = Math.max(64, parseInt(document.getElementById('expWidth')?.value, 10) || payloadState.image.width);
-    const fullHeight = Math.max(64, parseInt(document.getElementById('expHeight')?.value, 10) || payloadState.image.height);
-
-    const totalVideoDuration = Math.max(0.5, parseFloat(document.getElementById('expDuration')?.value) || payloadState.duration || 7);
-    const cameraMoveDuration = Math.max(
-      0.5,
-      parseFloat(document.getElementById('expCamDuration')?.value) ||
-      (payloadState.camera && payloadState.camera.camDuration) ||
-      7
-    );
-    const cameraBehavior = document.getElementById('expCamLoop')?.value ||
-      (payloadState.camera && payloadState.camera.camLoop) ||
-      'once';
-    const containerLoop = document.getElementById('expLoop')?.value || payloadState.loop || 'loop';
-
-    const selectedFormat = document.getElementById('expFormat')?.value || 'mp4';
-    const selectedFps = parseInt(document.getElementById('expFps')?.value, 10) || 24;
-    const selectedAudioFit = document.getElementById('expAudioFit')?.value || 'loop';
-
-    let renderWidth = fullWidth;
-    let renderHeight = fullHeight;
-    let renderFps = selectedFps;
-    let renderFormat = selectedFormat;
-
-    if (forPreview) {
-      const fitted = getFittedPreviewDimensions(fullWidth, fullHeight);
-      renderWidth = fitted.width;
-      renderHeight = fitted.height;
-      renderFps = PREVIEW_FPS;
-      if (renderFormat === 'both') {
-        renderFormat = 'webp';
-      } else if (renderFormat === 'all') {
-        renderFormat = 'mp4';
-      }
-    }
-
-    payloadState.duration = totalVideoDuration;
-    payloadState.loop = containerLoop;
-    payloadState.camera.camDuration = cameraMoveDuration;
-    payloadState.camera.camLoop = cameraBehavior;
-
-    const enableNodes = getElChecked('expEnableNodes', true);
-    const enableFlows = getElChecked('expEnableFlows', true);
-    const enableGlows = getElChecked('expEnableGlows', true);
-    const enableRipples = getElChecked('expEnableRipples', true);
-    const enableCamera = getElChecked('expEnableCamera', true);
-    const enableOptical = getElChecked('expEnableOptical', true);
-    const enableFrame = getElChecked('expEnableFrame', true);
-
-    if (!enableCamera) payloadState.camera.motion = 'static';
-    if (!enableOptical) payloadState.optical.type = 'none';
-    if (!enableFrame) payloadState.overlays.frame = false;
-
-    const overrides = {
-      includeNodes: enableNodes,
-      includeFlows: enableFlows,
-      includeGlows: enableGlows,
-      includeRipples: enableRipples
-    };
-
-    const rawSvg = window.buildFullSVG(payloadState, overrides);
-    const svgMarkup = window.serializeSVGForExport(rawSvg);
-
-    const backendState = JSON.parse(JSON.stringify(payloadState));
-    backendState.duration = totalVideoDuration;
-    backendState.loop = containerLoop;
-
-    const includeAudio = (renderFormat === 'mp4' || renderFormat === 'all') && !!loadedAudioB64;
+  function readModalConfigFromDOM(forPreview = false, jobId = '') {
+    const baseState = window.currentRenderState;
+    const fullWidth = Math.max(64, parseInt(document.getElementById('expWidth')?.value, 10) || (baseState && baseState.image ? baseState.image.width : 1280));
+    const fullHeight = Math.max(64, parseInt(document.getElementById('expHeight')?.value, 10) || (baseState && baseState.image ? baseState.image.height : 720));
 
     return {
       jobId: jobId,
-      format: renderFormat,
-      duration: totalVideoDuration,
-      fps: renderFps,
-      width: renderWidth,
-      height: renderHeight,
-      svgMarkup: svgMarkup,
-      audioB64: includeAudio ? loadedAudioB64 : '',
-      audioName: includeAudio ? loadedAudioName : '',
-      audioFit: selectedAudioFit,
-      state: backendState
+      forPreview: forPreview,
+      width: fullWidth,
+      height: fullHeight,
+      fittedDimensions: forPreview ? getFittedPreviewDimensions(fullWidth, fullHeight) : null,
+      duration: document.getElementById('expDuration')?.value,
+      camDuration: document.getElementById('expCamDuration')?.value,
+      camLoop: document.getElementById('expCamLoop')?.value,
+      loop: document.getElementById('expLoop')?.value,
+      format: document.getElementById('expFormat')?.value || 'mp4',
+      fps: document.getElementById('expFps')?.value || 24,
+      audioFit: document.getElementById('expAudioFit')?.value || 'loop',
+      enableNodes: getElChecked('expEnableNodes', true),
+      enableFlows: getElChecked('expEnableFlows', true),
+      enableGlows: getElChecked('expEnableGlows', true),
+      enableRipples: getElChecked('expEnableRipples', true),
+      enableCamera: getElChecked('expEnableCamera', true),
+      enableOptical: getElChecked('expEnableOptical', true),
+      enableFrame: getElChecked('expEnableFrame', true),
+      audioB64: loadedAudioB64,
+      audioName: loadedAudioName
     };
+  }
+
+  function buildExportPayload(forPreview = false, jobId = '') {
+    const cfg = readModalConfigFromDOM(forPreview, jobId);
+    return constructExportJobPayload(window.currentRenderState, cfg);
   }
 
   function showPreviewMedia(blobUrl, isVideo) {
@@ -594,45 +701,6 @@
     if (btnDown) btnDown.disabled = isRendering;
     if (btnReplay) btnReplay.disabled = isRendering || !cachedPreviewBlob;
     if (btnCancel) btnCancel.style.display = isRendering ? 'inline-block' : 'none';
-  }
-
-  async function requestBitmapRender(payload, signal) {
-    const response = await fetch('/api/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: signal
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || 'Server failed to render');
-    }
-
-    if (payload.format === 'both' || payload.format === 'all') {
-      const data = await response.json();
-      const bId = encodeURIComponent(data.bundleId);
-      const fetches = [
-        fetch('/api/export/bundle?bundleId=' + bId + '&fmt=webp', { signal: signal }),
-        fetch('/api/export/bundle?bundleId=' + bId + '&fmt=apng', { signal: signal })
-      ];
-      if (payload.format === 'all') {
-        fetches.push(fetch('/api/export/bundle?bundleId=' + bId + '&fmt=mp4', { signal: signal }));
-      }
-
-      const responses = await Promise.all(fetches);
-      if (responses.some((r) => !r.ok)) {
-        throw new Error('Failed to stream rendered bundle files from server');
-      }
-
-      const webpBlob = await responses[0].blob();
-      const apngBlob = await responses[1].blob();
-      const mp4Blob = payload.format === 'all' ? await responses[2].blob() : null;
-      return { mode: payload.format, webpBlob: webpBlob, apngBlob: apngBlob, mp4Blob: mp4Blob };
-    }
-
-    const singleBlob = await response.blob();
-    return { mode: 'single', blob: singleBlob };
   }
 
   async function generatePreview() {
@@ -867,6 +935,24 @@
       openExportModal();
     });
   });
+
+  window.AnimatedExportStudio = {
+    constructExportJobPayload,
+    requestBitmapRender,
+    inspectAudioStream,
+    buildExportPayload,
+    openExportModal,
+    closeExportModal,
+    setExportResolution,
+    applyExportProfile,
+    clearExportAudio,
+    matchVideoToAudioDuration,
+    fixAndDownloadAudioFile,
+    generatePreview,
+    replayPreview,
+    cancelCurrentRender,
+    downloadFinal
+  };
 
   window.openExportModal = openExportModal;
   window.closeExportModal = closeExportModal;
