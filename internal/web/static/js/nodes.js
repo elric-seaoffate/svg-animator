@@ -103,6 +103,19 @@ window.DiagramNodes = {
 
     if (shouldApplyPreset && window.NodePresets) {
       window.NodePresets.applyToNodeObject(newNode);
+      // Explicitly supplied node properties take precedence over preset defaults.
+      // Control options (applyPreset, snap) and internal properties (id) are excluded.
+      const explicitProps = [
+        'shape', 'text', 'subtext', 'x', 'y',
+        'width', 'height', 'fillColor', 'fillOpacity',
+        'strokeColor', 'strokeWidth', 'strokeStyle',
+        'textColor', 'fontSize', 'anim'
+      ];
+      explicitProps.forEach((prop) => {
+        if (initialProps[prop] !== undefined) {
+          newNode[prop] = initialProps[prop];
+        }
+      });
     }
 
     if (initialProps.snap !== false) {

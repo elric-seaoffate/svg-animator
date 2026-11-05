@@ -146,6 +146,15 @@
           height: window.Stage.canvasHeight
         };
       }
+      if (window.SceneState) {
+        const w = (typeof window.SceneState.getNumControl === 'function'
+          ? window.SceneState.getNumControl('canvasWidthInput', 1280)
+          : parseInt(window.SceneState.controls && window.SceneState.controls.canvasWidthInput, 10)) || 1280;
+        const h = (typeof window.SceneState.getNumControl === 'function'
+          ? window.SceneState.getNumControl('canvasHeightInput', 720)
+          : parseInt(window.SceneState.controls && window.SceneState.controls.canvasHeightInput, 10)) || 720;
+        return { width: w, height: h };
+      }
       return { width: 1280, height: 720 };
     },
 

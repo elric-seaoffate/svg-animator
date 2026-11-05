@@ -78,15 +78,19 @@ function runHarness() {
   assert.strictEqual(snapCfg.canvasWidth, 1600);
   assert.strictEqual(snapCfg.canvasHeight, 900);
 
-  const canvasDims = window.AppCoordinator.getCanvasDimensions();
-  assert.strictEqual(canvasDims.width, 1600);
-  assert.strictEqual(canvasDims.height, 900);
+  const dimsBefore = window.AppCoordinator.getCanvasDimensions();
+  assert.strictEqual(dimsBefore.width, 1600, 'Dimensions before render-state construction must reflect SceneState controls fallback');
+  assert.strictEqual(dimsBefore.height, 900);
 
   const renderState = window.SceneState.buildRenderState();
   assert.ok(renderState && renderState.image, 'buildRenderState must return state.image');
   assert.strictEqual(renderState.image.width, 1600);
   assert.strictEqual(renderState.image.height, 900);
   assert.strictEqual(renderState.camera.motion, 'ken-burns');
+
+  const dimsAfter = window.AppCoordinator.getCanvasDimensions();
+  assert.strictEqual(dimsAfter.width, 1600, 'Dimensions after render-state construction must reflect currentImage');
+  assert.strictEqual(dimsAfter.height, 900);
 
   const baseSvg = window.Effects.build(renderState);
   assert.ok(
@@ -96,9 +100,13 @@ function runHarness() {
 
   // ===========================================================================
   // STAGE 2: Viewport Math & Component Operational CRUD
-  //          (Minimal no-op window.addEventListener so stage.js loads)
+  //          (Browser event listener and getElementById test mock for stage.js & snap math)
   // ===========================================================================
   window.addEventListener = function() {};
+  global.document = {
+    addEventListener() {},
+    getElementById() { return null; }
+  };
 
   loadProductionScript('stage.js');
   loadProductionScript('presets.js');
@@ -114,7 +122,7 @@ function runHarness() {
     canvasWidth: 1000,
     canvasHeight: 1000
   });
-  assert.strictEqual(snappedOn.x, 5);
+  assert.strictEqual(snappedOn.x, 2.5);
   assert.strictEqual(snappedOn.y, 5);
 
   const snappedOff = window.Stage.computeSnappedPosition(3.7, 5.0, { enabled: false });
@@ -126,7 +134,7 @@ function runHarness() {
     canvasWidth: 1000,
     canvasHeight: 1000
   });
-  assert.strictEqual(snappedPctX, 5);
+  assert.strictEqual(snappedPctX, 2.5);
 
   const fitScale = window.Stage.computeFitScale(1000, 600, 1600, 900, 80);
   assert.ok(fitScale > 0 && fitScale < 1, 'computeFitScale must calculate positive scale');
@@ -151,6 +159,7 @@ function runHarness() {
   assert.strictEqual(node1.fillColor, '#112233', 'Preset fillColor should apply to node1 when autoApplyToNewNodes is true');
   assert.strictEqual(node1.width, 180, 'Preset width should apply to node1');
   assert.strictEqual(node2.fillColor, '#224466', 'Explicit initialProps.fillColor on node2 overrides preset');
+  assert.strictEqual(node2.width, 160, 'Explicit initialProps.width on node2 overrides preset');
 
   window.DiagramNodes.updateNode(node1.id, { text: 'OAuth2 Service', width: 200, height: 90 });
   assert.strictEqual(window.DiagramNodes.getNode(node1.id).text, 'OAuth2 Service');
