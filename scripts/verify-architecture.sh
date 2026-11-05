@@ -241,6 +241,7 @@ dom_pattern = r"\b(document\.(getElementById|querySelector|querySelectorAll|crea
 
 eff_raw, eff_strip = load_file("effects.js")
 coord_raw, coord_strip = load_file("coordinator.js")
+sr_raw, sr_strip = load_file("shape-registry.js")
 ss_raw, ss_strip = load_file("scene-state.js")
 
 serialize_line = None
@@ -253,22 +254,23 @@ for idx, line in enumerate(ss_raw, start=1):
 
 eff_hits = find_pattern_lines(eff_strip, dom_pattern)
 coord_hits = find_pattern_lines(coord_strip, dom_pattern)
+sr_hits = find_pattern_lines(sr_strip, dom_pattern)
 ss_core_end = (serialize_line - 1) if serialize_line else (adaptor_line - 1 if adaptor_line else len(ss_strip))
 ss_core_hits = find_pattern_lines(ss_strip, dom_pattern, 1, ss_core_end)
 
-if not eff_hits and not coord_hits and not ss_core_hits:
+if not eff_hits and not coord_hits and not sr_hits and not ss_core_hits:
     record(
         "PASS",
         "ARCH-01",
-        f"No recognised direct DOM access found in inspected operational/coordination core (effects.js, coordinator.js, scene-state.js lines 1..{ss_core_end})",
-        f"effects.js=0, coordinator.js=0, scene-state.js(1..{ss_core_end})=0"
+        f"No recognised direct DOM access found in inspected operational/coordination core (effects.js, coordinator.js, shape-registry.js, scene-state.js lines 1..{ss_core_end})",
+        f"effects.js=0, coordinator.js=0, shape-registry.js=0, scene-state.js(1..{ss_core_end})=0"
     )
 else:
     record(
         "FAIL",
         "ARCH-01",
         "Unexpected DOM access in operational/coordination core modules",
-        f"effects.js={eff_hits}, coordinator.js={coord_hits}, scene-state.js={ss_core_hits}"
+        f"effects.js={eff_hits}, coordinator.js={coord_hits}, shape-registry.js={sr_hits}, scene-state.js={ss_core_hits}"
     )
 
 # -----------------------------------------------------------------------------
@@ -577,6 +579,7 @@ expected_scripts = [
     "js/scene-state.js",
     "js/coordinator.js",
     "js/stage.js",
+    "js/shape-registry.js",
     "js/presets.js",
     "js/nodes.js",
     "js/flows.js",
@@ -596,6 +599,7 @@ required_contracts = {
     "scene-state.js": ["window.SceneState", "window.ControlStateAdaptor", "buildCurrentCanvasState", "buildRenderState", "buildFullSVG", "syncFromDOM", "syncToDOM", "setPairValue"],
     "coordinator.js": ["window.AppCoordinator", "selectObject", "clearSelection", "requestRender", "recordHistoryImmediate", "recordHistoryDebounced", "snapPctToGrid", "snapPosition"],
     "stage.js": ["window.Stage", "computeSnappedPosition", "computeSnappedPct", "computeFitScale", "rectClientToPct"],
+    "shape-registry.js": ["window.ShapeRegistry", "get", "has", "getAll", "getIds"],
     "presets.js": ["window.NodePresets", "getState", "setState", "setPresetParam", "setAllEnabled", "applyToNodeObject", "extractFromNodeObject"],
     "nodes.js": ["window.DiagramNodes", "getState", "setState", "createNode", "updateNode", "deleteNode", "getNode", "getAllNodes", "findNodeAtPct", "injectIntoSVG"],
     "flows.js": ["window.DataFlows", "getState", "setState", "createFlow", "updateFlow", "deleteFlow", "getFlow", "getAllFlows", "addWaypoint", "removeWaypoint", "updateWaypoint", "generatePathString", "getMidpoint", "injectIntoSVG"],
@@ -642,7 +646,7 @@ if script_tags == expected_scripts and not missing_contracts:
     record(
         "PASS",
         "ARCH-10",
-        "All 14 <script> tags in index.html are in exact dependency order and all required window.* globals/method definitions are present in stripped source (static definition check)",
+        "All 15 <script> tags in index.html are in exact dependency order and all required window.* globals/method definitions are present in stripped source (static definition check)",
         f"scripts={len(script_tags)}, method_and_global_definitions_verified={sum(len(v) for v in required_contracts.values())}"
     )
 else:
@@ -661,6 +665,7 @@ print("    generators, accessors, or dynamic attachments will produce FAIL.)")
 print("   1. Inspected Operational Regions with No Recognised Direct DOM/UI Pattern Hits:")
 print("      - effects.js (window.Effects)")
 print("      - coordinator.js (window.AppCoordinator)")
+print("      - shape-registry.js (window.ShapeRegistry)")
 print(f"      - scene-state.js (window.SceneState lines 1..{ss_core_end})")
 print("      - Inspected Layer 3 regions of presets.js, nodes.js, flows.js, glows.js, ripples.js, stage.js, export-modal.js")
 print("   2. Intentional or Legacy DOM/Web-API Access in Operational/Adaptor Code:")

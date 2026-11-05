@@ -207,66 +207,11 @@ window.DiagramNodes = {
         'fill="' + eff.fillColor + '" fill-opacity="' + eff.fillOpacity + '" stroke="' + eff.strokeColor + '" stroke-width="' + eff.strokeWidth + '" ' + dashAttr;
       let shapeSVG = '';
 
-      if (n.shape === 'textbox') {
-        shapeSVG = '<rect x="' + (-hw) + '" y="' + (-hh) + '" width="' + w + '" height="' + h + '" fill="transparent" stroke="none" />';
-      } else if (n.shape === 'rect') {
-        shapeSVG = '<rect x="' + (-hw) + '" y="' + (-hh) + '" width="' + w + '" height="' + h + '" rx="2" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'rounded') {
-        shapeSVG = '<rect x="' + (-hw) + '" y="' + (-hh) + '" width="' + w + '" height="' + h + '" rx="12" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'pill') {
-        const r = Math.min(hw, hh);
-        shapeSVG = '<rect x="' + (-hw) + '" y="' + (-hh) + '" width="' + w + '" height="' + h + '" rx="' + r + '" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'circle') {
-        const r = Math.min(hw, hh);
-        shapeSVG = '<circle cx="0" cy="0" r="' + r + '" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'diamond') {
-        shapeSVG = '<polygon points="0,' + (-hh) + ' ' + hw + ',0 0,' + hh + ' ' + (-hw) + ',0" stroke-linejoin="round" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'hexagon') {
-        const inset = w * 0.22;
-        shapeSVG =
-          '<polygon points="' + (-hw + inset) + ',' + (-hh) + ' ' + (hw - inset) + ',' + (-hh) + ' ' + hw + ',0 ' +
-          (hw - inset) + ',' + hh + ' ' + (-hw + inset) + ',' + hh + ' ' + (-hw) + ',0" stroke-linejoin="round" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'parallelogram') {
-        const skew = w * 0.16;
-        shapeSVG =
-          '<polygon points="' + (-hw + skew) + ',' + (-hh) + ' ' + hw + ',' + (-hh) + ' ' + (hw - skew) + ',' + hh + ' ' + (-hw) + ',' + hh + '" stroke-linejoin="round" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'cylinder') {
-        const ry = Math.max(8, Math.min(22, h * 0.18));
-        const bodyTop = -hh + ry;
-        const bodyBot = hh - ry;
-        shapeSVG =
-          '<g filter="url(#nodeDropShadow)">' +
-          '<path d="M ' + (-hw) + ',' + bodyTop + ' L ' + (-hw) + ',' + bodyBot + ' A ' + hw + ',' + ry + ' 0 0,0 ' + hw + ',' + bodyBot + ' L ' + hw + ',' + bodyTop + ' Z" ' + commonStyle + ' />' +
-          '<ellipse cx="0" cy="' + bodyTop + '" rx="' + hw + '" ry="' + ry + '" ' + commonStyle + ' />' +
-          '</g>';
-      } else if (n.shape === 'cloud') {
-        shapeSVG =
-          '<path d="M ' + (-hw * 0.55) + ',' + (hh * 0.65) +
-          ' C ' + (-hw * 0.95) + ',' + (hh * 0.65) + ' ' + (-hw) + ',' + (hh * 0.05) + ' ' + (-hw * 0.72) + ',' + (-hh * 0.2) +
-          ' C ' + (-hw * 0.75) + ',' + (-hh * 0.75) + ' ' + (-hw * 0.15) + ',' + (-hh * 0.95) + ' ' + (hw * 0.08) + ',' + (-hh * 0.6) +
-          ' C ' + (hw * 0.45) + ',' + (-hh * 0.9) + ' ' + (hw * 0.92) + ',' + (-hh * 0.5) + ' ' + (hw * 0.8) + ',' + (-hh * 0.05) +
-          ' C ' + (hw * 1.05) + ',' + (hh * 0.25) + ' ' + (hw * 0.85) + ',' + (hh * 0.65) + ' ' + (hw * 0.5) + ',' + (hh * 0.65) + ' Z"' +
-          ' stroke-linejoin="round" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
-      } else if (n.shape === 'callout') {
-        const fold = 16;
-        shapeSVG =
-          '<g filter="url(#nodeDropShadow)">' +
-          '<polygon points="' + (-hw) + ',' + (-hh) + ' ' + (hw - fold) + ',' + (-hh) + ' ' + hw + ',' + (-hh + fold) + ' ' + hw + ',' + hh + ' ' + (-hw) + ',' + hh + '" stroke-linejoin="round" ' + commonStyle + ' />' +
-          '<polyline points="' + (hw - fold) + ',' + (-hh) + ' ' + (hw - fold) + ',' + (-hh + fold) + ' ' + hw + ',' + (-hh + fold) + '" fill="none" stroke="' + eff.strokeColor + '" stroke-width="' + eff.strokeWidth + '" />' +
-          '</g>';
-      } else if (n.shape === 'axes') {
-        let gridLines = '';
-        const steps = 4;
-        for (let i = 1; i <= steps; i++) {
-          const gx = -hw + (w / steps) * i;
-          const gy = hh - (h / steps) * i;
-          gridLines += '<line x1="' + gx + '" y1="' + (-hh) + '" x2="' + gx + '" y2="' + hh + '" stroke="' + eff.strokeColor + '" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" />';
-          gridLines += '<line x1="' + (-hw) + '" y1="' + gy + '" x2="' + hw + '" y2="' + gy + '" stroke="' + eff.strokeColor + '" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" />';
+      if (window.ShapeRegistry && typeof window.ShapeRegistry.get === 'function') {
+        const shapeDef = window.ShapeRegistry.get(n.shape);
+        if (shapeDef && typeof shapeDef.buildSVG === 'function') {
+          shapeSVG = shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
         }
-        shapeSVG =
-          '<rect x="' + (-hw) + '" y="' + (-hh) + '" width="' + w + '" height="' + h + '" fill="' + eff.fillColor + '" fill-opacity="' + eff.fillOpacity + '" stroke="none" />' +
-          gridLines +
-          '<polyline points="' + (-hw) + ',' + (-hh) + ' ' + (-hw) + ',' + hh + ' ' + hw + ',' + hh + '" fill="none" stroke="' + eff.strokeColor + '" stroke-width="' + Math.max(2, eff.strokeWidth) + '" stroke-linecap="round" stroke-linejoin="round" />';
       }
 
       const lines = (n.text || '').split('|').map((s) => s.trim()).filter(Boolean);

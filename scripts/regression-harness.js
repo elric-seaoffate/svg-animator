@@ -109,6 +109,7 @@ function runHarness() {
   };
 
   loadProductionScript('stage.js');
+  loadProductionScript('shape-registry.js');
   loadProductionScript('presets.js');
   loadProductionScript('nodes.js');
   loadProductionScript('flows.js');
@@ -175,6 +176,212 @@ function runHarness() {
   window.NodePresets.setPresetParam('fillColor', '#112233', true);
   window.NodePresets.applyToNodeObject(node2);
   assert.strictEqual(window.DiagramNodes.getNode(node2.id).fillColor, '#112233');
+
+  // 2.3b ShapeRegistry operational API & Golden Fixture Invariants
+  assert.ok(window.ShapeRegistry, 'window.ShapeRegistry must exist');
+  assert.strictEqual(Object.isFrozen(window.ShapeRegistry), true, 'window.ShapeRegistry must be frozen');
+  assert.strictEqual(typeof window.ShapeRegistry.get, 'function');
+  assert.strictEqual(typeof window.ShapeRegistry.has, 'function');
+  assert.strictEqual(typeof window.ShapeRegistry.getAll, 'function');
+  assert.strictEqual(typeof window.ShapeRegistry.getIds, 'function');
+
+  const shapeIds = window.ShapeRegistry.getIds();
+  assert.strictEqual(shapeIds.length, 12, 'ShapeRegistry must contain exactly 12 built-in shapes');
+  assert.strictEqual(window.ShapeRegistry.has('rounded'), true);
+  assert.strictEqual(window.ShapeRegistry.has('unknown_test_shape'), false);
+  assert.strictEqual(window.ShapeRegistry.get('unknown_test_shape'), null);
+
+  const roundedDef = window.ShapeRegistry.get('rounded');
+  assert.ok(roundedDef && typeof roundedDef.buildSVG === 'function');
+  assert.strictEqual(Object.isFrozen(roundedDef), true);
+
+  const allDefs = window.ShapeRegistry.getAll();
+  assert.strictEqual(allDefs.length, 12);
+  allDefs.forEach((d) => assert.strictEqual(Object.isFrozen(d), true));
+
+  // Balanced <g>-tag depth scanner for extracting complete nodes-layer without truncation
+  function extractBalancedNodesLayer(svgString) {
+    assert.strictEqual(typeof svgString, 'string', 'Input to extractBalancedNodesLayer must be a string');
+    const startIdx = svgString.indexOf('<g id="nodes-layer">');
+    if (startIdx === -1) {
+      throw new Error('Missing <g id="nodes-layer"> element in SVG string');
+    }
+
+    // Determine outer unclosed <g> depth preceding the nodes-layer element
+    const beforeLayer = svgString.slice(0, startIdx);
+    const beforeTagRegex = /<\/?g\b[^>]*>/g;
+    let outerDepthBefore = 0;
+    let mBefore;
+    while ((mBefore = beforeTagRegex.exec(beforeLayer)) !== null) {
+      if (mBefore[0].startsWith('</')) {
+        outerDepthBefore--;
+      } else if (!/\/>\s*$/.test(mBefore[0])) {
+        outerDepthBefore++;
+      }
+    }
+
+    const tagRegex = /<\/?g\b[^>]*>/g;
+    tagRegex.lastIndex = startIdx;
+    let layerDepth = 0;
+    let endIdx = -1;
+    let match;
+
+    while ((match = tagRegex.exec(svgString)) !== null) {
+      if (match[0].startsWith('</')) {
+        layerDepth--;
+        if (layerDepth === 0) {
+          endIdx = tagRegex.lastIndex;
+          break;
+        }
+        if (layerDepth < 0) {
+          throw new Error('Malformed SVG: Extra closing </g> tag encountered in nodes-layer');
+        }
+      } else if (!/\/>\s*$/.test(match[0])) {
+        layerDepth++;
+      }
+    }
+
+    if (layerDepth > 0 || endIdx === -1) {
+      throw new Error(`Malformed SVG: Unclosed <g> tags in nodes-layer (remaining depth: ${layerDepth})`);
+    }
+
+    // Validate remainder of svgString does not contain unmatched closing </g> tags
+    const afterTagRegex = /<\/?g\b[^>]*>/g;
+    afterTagRegex.lastIndex = endIdx;
+    let remainingOuterDepth = outerDepthBefore;
+    let mAfter;
+    while ((mAfter = afterTagRegex.exec(svgString)) !== null) {
+      if (mAfter[0].startsWith('</')) {
+        remainingOuterDepth--;
+        if (remainingOuterDepth < 0) {
+          throw new Error('Malformed SVG: Extra closing </g> tag encountered in nodes-layer');
+        }
+      } else if (!/\/>\s*$/.test(mAfter[0])) {
+        remainingOuterDepth++;
+      }
+    }
+
+    const extracted = svgString.slice(startIdx, endIdx);
+    const openCount = (extracted.match(/<g\b[^>]*>/g) || []).filter((t) => !/\/>\s*$/.test(t)).length;
+    const closeCount = (extracted.match(/<\/g>/g) || []).length;
+    assert.strictEqual(openCount, closeCount, 'Extracted nodes-layer tag count must be balanced');
+    return extracted;
+  }
+
+  // Focused validation of extractBalancedNodesLayer against valid and malformed structures
+  // 1. A valid nested layer
+  const validNested = '<svg><g id="nodes-layer"><g data-node-id="1"><text>nested</text></g></g></svg>';
+  assert.strictEqual(
+    extractBalancedNodesLayer(validNested),
+    '<g id="nodes-layer"><g data-node-id="1"><text>nested</text></g></g>'
+  );
+
+  // 2. A missing layer root
+  assert.throws(
+    () => extractBalancedNodesLayer('<svg><rect width="100" height="100" /></svg>'),
+    /Missing <g id="nodes-layer"> element/
+  );
+
+  // 3. An unclosed nested group
+  assert.throws(
+    () => extractBalancedNodesLayer('<g id="nodes-layer"><g data-node-id="1">unclosed</g>'),
+    /Unclosed <g> tags in nodes-layer/
+  );
+
+  // 4. An extra closing group tag inside the layer
+  assert.throws(
+    () => extractBalancedNodesLayer('<g id="nodes-layer"><g data-node-id="1">extra-close</g></g></g>'),
+    /Extra closing <\/g> tag encountered in nodes-layer/
+  );
+  assert.throws(
+    () => extractBalancedNodesLayer('<g id="nodes-layer"><g data-node-id="1">inner</g></g><text>trailing</text></g>'),
+    /Extra closing <\/g> tag encountered in nodes-layer/
+  );
+
+  // 5. A valid surrounding SVG group after the completed nodes-layer
+  const validSurrounding = '<svg><g id="nodes-layer"><g data-node-id="1">node</g></g><g id="camera-rig"><circle cx="10" cy="10" r="5" /></g></svg>';
+  assert.strictEqual(
+    extractBalancedNodesLayer(validSurrounding),
+    '<g id="nodes-layer"><g data-node-id="1">node</g></g>'
+  );
+
+  // Golden baseline fixtures for all 12 shapes plus unknown shape fallback
+  const GOLDEN_SHAPE_FIXTURES = {
+    textbox: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><rect x="-85" y="-40" width="170" height="80" fill="transparent" stroke="none" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    rect: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><rect x="-85" y="-40" width="170" height="80" rx="2" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    rounded: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><rect x="-85" y="-40" width="170" height="80" rx="12" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    pill: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><rect x="-85" y="-40" width="170" height="80" rx="40" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    circle: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><circle cx="0" cy="0" r="40" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    diamond: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><polygon points="0,-40 85,0 0,40 -85,0" stroke-linejoin="round" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    hexagon: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><polygon points="-47.6,-40 47.6,-40 85,0 47.6,40 -47.6,40 -85,0" stroke-linejoin="round" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    parallelogram: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><polygon points="-57.8,-40 85,-40 57.8,40 -85,40" stroke-linejoin="round" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    cylinder: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><g filter="url(#nodeDropShadow)"><path d="M -85,-25.6 L -85,25.6 A 85,14.399999999999999 0 0,0 85,25.6 L 85,-25.6 Z" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  /><ellipse cx="0" cy="-25.6" rx="85" ry="14.399999999999999" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  /></g><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    cloud: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><path d="M -46.75000000000001,26 C -80.75,26 -85,2 -61.199999999999996,-8 C -63.75,-30 -12.75,-38 6.8,-24 C 38.25,-36 78.2,-20 68,-2 C 89.25,10 72.25,26 42.5,26 Z" stroke-linejoin="round" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  filter="url(#nodeDropShadow)" /><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    callout: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><g filter="url(#nodeDropShadow)"><polygon points="-85,-40 69,-40 85,-24 85,40 -85,40" stroke-linejoin="round" fill="#161b22" fill-opacity="0.92" stroke="#58a6ff" stroke-width="2"  /><polyline points="69,-40 69,-24 85,-24" fill="none" stroke="#58a6ff" stroke-width="2" /></g><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>',
+    axes: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><rect x="-85" y="-40" width="170" height="80" fill="#161b22" fill-opacity="0.92" stroke="none" /><line x1="-42.5" y1="-40" x2="-42.5" y2="40" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="-85" y1="20" x2="85" y2="20" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="0" y1="-40" x2="0" y2="40" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="-85" y1="0" x2="85" y2="0" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="42.5" y1="-40" x2="42.5" y2="40" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="-85" y1="-20" x2="85" y2="-20" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="85" y1="-40" x2="85" y2="40" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><line x1="-85" y1="-40" x2="85" y2="-40" stroke="#58a6ff" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" /><polyline points="-85,-40 -85,40 85,40" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><text x="-85" y="-50" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="start">Shape Label</text><text x="85" y="60" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="end">Subtext 1</text></g>\n</g>',
+    unknown_test_shape: '<g id="nodes-layer">\n<g data-node-id="1" transform="translate(640.00, 360.00)" style="cursor: move;"><text x="0" y="-5.5" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle">Shape Label</text><text x="0" y="15.7" fill="#e6edf3" fill-opacity="0.75" font-family="monospace" font-size="12" text-anchor="middle">Subtext 1</text></g>\n</g>'
+  };
+
+  const savedDiagramNodesState = window.DiagramNodes.getState();
+  const fixtureRenderState = {
+    canvasWidth: 1280,
+    canvasHeight: 720,
+    filterId: 'none',
+    frameStyle: 'none',
+    showGrid: false,
+    cameraZoom: 1,
+    cameraPanX: 0,
+    cameraPanY: 0,
+    depth3D: 0,
+    tiltX: 0,
+    tiltY: 0,
+    stageBackground: '#1e1e2e',
+    image: { width: 1280, height: 720 }
+  };
+  const fixtureBaseSvg = window.Effects.build(fixtureRenderState);
+
+  for (const [sId, expectedLayerSvg] of Object.entries(GOLDEN_SHAPE_FIXTURES)) {
+    window.DiagramNodes.setState({
+      nodes: [{
+        id: 1,
+        shape: sId,
+        text: 'Shape Label',
+        subtext: 'Subtext 1',
+        x: 50,
+        y: 50,
+        width: 170,
+        height: 80,
+        fillColor: '#161b22',
+        fillOpacity: 0.92,
+        strokeColor: '#58a6ff',
+        strokeWidth: 2,
+        strokeStyle: 'solid',
+        textColor: '#e6edf3',
+        fontSize: 15,
+        anim: 'none'
+      }],
+      nodesCounter: 1,
+      selectedNodeId: null
+    });
+    const injected = window.DiagramNodes.injectIntoSVG(fixtureBaseSvg, fixtureRenderState);
+    const actualLayerSvg = extractBalancedNodesLayer(injected);
+    assert.strictEqual(
+      actualLayerSvg,
+      expectedLayerSvg,
+      `SVG markup for shape "${sId}" must match baseline golden fixture 100% character-for-character`
+    );
+
+    // Verify balance & node content invariants
+    const openGCount = (actualLayerSvg.match(/<g\b[^>]*>/g) || []).length;
+    const closeGCount = (actualLayerSvg.match(/<\/g>/g) || []).length;
+    assert.strictEqual(openGCount, closeGCount, `Shape "${sId}" must have balanced <g> tags`);
+    assert.ok(actualLayerSvg.startsWith('<g id="nodes-layer">'), `Shape "${sId}" must start with nodes-layer`);
+    assert.ok(actualLayerSvg.endsWith('</g>\n</g>'), `Shape "${sId}" must close both node and nodes-layer`);
+    assert.ok(actualLayerSvg.includes('Shape Label'), `Shape "${sId}" must contain primary text`);
+    assert.ok(actualLayerSvg.includes('Subtext 1'), `Shape "${sId}" must contain subtext`);
+  }
+  // Restore original node state
+  window.DiagramNodes.setState(savedDiagramNodesState);
 
   // 2.4 DataFlows CRUD, waypoints (nodes array), path generation, and midpoint calculation
   // Actual DataFlows properties: id, nodes ([{x,y}, ...]), type, route ('curve'|'ortho-hv'|'ortho-vh'|'ortho-mid'), label, curvature, etc.

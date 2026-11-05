@@ -25,6 +25,7 @@ func TestEmbeddedStaticAssetsAndScriptOrder(t *testing.T) {
 		"static/js/scene-state.js",
 		"static/js/coordinator.js",
 		"static/js/stage.js",
+		"static/js/shape-registry.js",
 		"static/js/presets.js",
 		"static/js/nodes.js",
 		"static/js/flows.js",
@@ -60,10 +61,11 @@ func TestEmbeddedStaticAssetsAndScriptOrder(t *testing.T) {
 }
 
 func TestPhase1ArchitecturalInvariants(t *testing.T) {
-	// 1. effects.js and coordinator.js must remain completely free of direct DOM element lookups
+	// 1. effects.js, coordinator.js, and shape-registry.js must remain completely free of direct DOM element lookups
 	pureFiles := []string{
 		"static/js/effects.js",
 		"static/js/coordinator.js",
+		"static/js/shape-registry.js",
 	}
 	for _, path := range pureFiles {
 		data, err := fs.ReadFile(staticFS, path)
