@@ -25,49 +25,58 @@ func TestSQLiteProjectPersistence(t *testing.T) {
 
 	// Sample schema_json v1.2.0 payload matching ProjectManager.serializeStudioState()
 	sampleSchema := map[string]interface{}{
-		"version":   "1.2.0",
-		"timestamp": "2026-04-11T10:00:00.000Z",
+		"version": "1.2.0",
 		"controls": map[string]interface{}{
-			"canvasWidth":  "1920",
-			"canvasHeight": "1080",
-			"chk3DFrame":   true,
+			"canvasPatternSelect": "blueprint",
+			"canvasPresetSelect":  "1920x1080",
+			"canvasWidthInput":    "1920",
+			"canvasHeightInput":   "1080",
+			"chkSnapToGrid":       false,
+			"chkModuleFrame":      true,
+			"frameStyleSelect":    "walnut",
 		},
-		"loadedPhoto": map[string]interface{}{
-			"dataUrl": "",
-			"width":   0,
-			"height":  0,
-			"aspect":  1.0,
-		},
+		"loadedPhoto": nil,
 		"presets": map[string]interface{}{
-			"enableAll": true,
-			"presets":   map[string]interface{}{},
+			"width":       map[string]interface{}{"enabled": true, "value": 170},
+			"height":      map[string]interface{}{"enabled": false, "value": 80},
+			"fillColor":   map[string]interface{}{"enabled": true, "value": "#161b22"},
+			"strokeColor": map[string]interface{}{"enabled": true, "value": "#58a6ff"},
+			"textColor":   map[string]interface{}{"enabled": true, "value": "#e6edf3"},
+			"fontSize":    map[string]interface{}{"enabled": true, "value": 15},
+			"fillOpacity": map[string]interface{}{"enabled": false, "value": 0.92},
+			"strokeWidth": map[string]interface{}{"enabled": false, "value": 2},
+			"strokeStyle": map[string]interface{}{"enabled": false, "value": "solid"},
+			"shape":       map[string]interface{}{"enabled": false, "value": "rounded"},
+			"anim":        map[string]interface{}{"enabled": false, "value": "none"},
 		},
-		"nodes": map[string]interface{}{
-			"counter": 1,
-			"items": []map[string]interface{}{
-				{
-					"id":    "node_1",
-					"shape": "rounded",
-					"x":     50.0,
-					"y":     50.0,
-					"w":     140.0,
-					"h":     64.0,
-					"text":  "Primary Server",
-				},
+		"autoApplyPreset": true,
+		"nodes": []map[string]interface{}{
+			{
+				"id":          1,
+				"shape":       "rounded",
+				"text":        "Primary Server",
+				"subtext":     "10.0.0.1",
+				"x":           50.0,
+				"y":           50.0,
+				"width":       170.0,
+				"height":      80.0,
+				"fillColor":   "#161b22",
+				"fillOpacity": 0.92,
+				"strokeColor": "#58a6ff",
+				"strokeWidth": 2.0,
+				"strokeStyle": "solid",
+				"textColor":   "#e6edf3",
+				"fontSize":    15.0,
+				"anim":        "none",
 			},
 		},
-		"flows": map[string]interface{}{
-			"counter": 0,
-			"items":   []interface{}{},
-		},
-		"glows": map[string]interface{}{
-			"counter": 0,
-			"items":   []interface{}{},
-		},
-		"ripples": map[string]interface{}{
-			"counter": 0,
-			"items":   []interface{}{},
-		},
+		"nodesCounter":   1,
+		"flows":          []interface{}{},
+		"flowsCounter":   0,
+		"glows":          []interface{}{},
+		"glowsCounter":   0,
+		"ripples":        []interface{}{},
+		"ripplesCounter": 0,
 	}
 	schemaBytes, err := json.Marshal(sampleSchema)
 	if err != nil {
@@ -77,9 +86,9 @@ func TestSQLiteProjectPersistence(t *testing.T) {
 	// 1. Insert new project
 	savedSummary, err := SaveProject(ProjectRecord{
 		ProjectSummary: ProjectSummary{
-			Name:        "Phase 1 Test Topology",
-			Description: "Automated verification project",
-			CanvasWidth: 1920,
+			Name:         "Phase 1 Test Topology",
+			Description:  "Automated verification project",
+			CanvasWidth:  1920,
 			CanvasHeight: 1080,
 		},
 		SchemaJSON: string(schemaBytes),
@@ -104,7 +113,7 @@ func TestSQLiteProjectPersistence(t *testing.T) {
 	}
 
 	// 3. Update existing project
-	sampleSchema["timestamp"] = "2026-04-11T10:05:00.000Z"
+	sampleSchema["autoApplyPreset"] = false
 	updatedBytes, _ := json.Marshal(sampleSchema)
 	updatedSummary, err := SaveProject(ProjectRecord{
 		ProjectSummary: ProjectSummary{

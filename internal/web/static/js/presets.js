@@ -226,7 +226,7 @@ window.NodePresets = {
   syncAllRowsUI() {
     const autoChk = document.getElementById('chkAutoApplyPreset');
     if (autoChk) {
-      this.autoApplyToNewNodes = !!autoChk.checked;
+      autoChk.checked = !!this.autoApplyToNewNodes;
     }
     this.presetKeys.forEach((key) => this.syncRowUI(key));
   },

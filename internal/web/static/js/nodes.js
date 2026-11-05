@@ -394,9 +394,11 @@ window.DiagramNodes = {
   },
 
   addNode(initialProps = {}) {
-    const autoApplyChk = document.getElementById('chkAutoApplyPreset');
-    const applyPreset = autoApplyChk ? !!autoApplyChk.checked : true;
-    const newNode = this.createNode(Object.assign({}, initialProps, { applyPreset }));
+    const props = (initialProps && typeof initialProps === 'object') ? Object.assign({}, initialProps) : {};
+    if (props.applyPreset === undefined) {
+      props.applyPreset = window.NodePresets ? window.NodePresets.autoApplyToNewNodes !== false : true;
+    }
+    const newNode = this.createNode(props);
     this.selectNode(newNode.id, true);
     this.triggerAppRender();
     if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();

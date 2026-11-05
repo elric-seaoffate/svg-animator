@@ -28,7 +28,7 @@ Layer 1: UI Presentation  ──►  Layer 2: Application Coordination  ──�
 | :--- | :--- | :--- |
 | **Layer 1: UI Presentation** | HTML/CSS, accordion panels, form input listeners, DOM list rendering, stage pointer/keyboard listeners, and modal dialogs. | `index.html`, `css/*.css`, UI controllers inside `app.js`, `stage.js`, `presets.js`, `nodes.js`, `flows.js`, `glows.js`, `ripples.js`, `projects.js`, `still-export-modal.js`, `export-modal.js` |
 | **Layer 2: Application Coordination** | Receives UI commands, coordinates single-active-object selection across all object types, coordinates `HistoryManager` recording, synchronizes `ControlStateAdaptor` <-> `SceneState`, triggers rendering, and emits UI notifications. | `js/coordinator.js` (`window.AppCoordinator`) |
-| **Layer 3: Operational Functionality** | Pure state ownership, CRUD operations, geometry/coordinate math, SVG filter/node/flow/glow/ripple/frame generation, history stack management, project JSON serialization (`v1.2.0`), and SMIL frame evaluation. Zero direct DOM input queries. | `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`), `js/effects.js` (`window.Effects`), and operational APIs on `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, `Stage`, `HistoryManager`, `ProjectManager`, `StillExportStudio` |
+| **Layer 3: Operational Functionality** | Pure state ownership, CRUD operations, geometry/coordinate math, SVG filter/node/flow/glow/ripple/frame generation, history stack management (`undoStack`/`redoStack`), project JSON serialization (`v1.2.0`), and SMIL frame evaluation. Operational CRUD, math, and SVG builders do not query DOM inputs directly (`ControlStateAdaptor` bridges the 95 tracked DOM controls). | `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`), `js/effects.js` (`window.Effects`), and operational APIs on `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, `Stage`, `HistoryManager`, `ProjectManager`, `StillExportStudio`, `AnimatedExportStudio` |
 
 ---
 
@@ -40,16 +40,16 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 2. `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`) — Operational canvas/control/photo state and DOM control synchronization adaptor.
 3. `js/coordinator.js` (`window.AppCoordinator`) — Central coordination layer for selection, history recording, rendering, and cross-module commands.
 4. `js/stage.js` (`window.Stage`) — Stage viewport geometry, grid snapping math, and pointer/wheel/drag interaction.
-5. `js/presets.js` (`window.NodePresets`) — Shape preset parameters (`presetKeys`, `presetEnabled`) and node preset application.
+5. `js/presets.js` (`window.NodePresets`) — Shape preset parameters (`preset`, `presetKeys`, `autoApplyToNewNodes`) and node preset application.
 6. `js/nodes.js` (`window.DiagramNodes`) — Diagram node state, CRUD API, SVG generation (`injectIntoSVG`), and node list/overlay UI.
 7. `js/flows.js` (`window.DataFlows`) — Data flow connector state, CRUD/waypoint API, path math, SVG generation, and flow UI.
 8. `js/glows.js` (`window.Glows`) — Hotspot/radar ping state, CRUD API, SVG generation, and glow UI.
 9. `js/ripples.js` (`window.Ripples`) — Refractive water ripple state, CRUD API, displacement filter/ring SVG generation, and ripple UI.
-10. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stack (`maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
-11. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` REST client, and library modal UI.
-12. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, and master preview compilation (`window.triggerAppRender`, `window.buildFullSVG`).
-13. `js/still-export-modal.js` (`window.StillExportStudio`) — Time-scrubbed SMIL frame evaluation (`evaluateSMILAtTime`) and still/print export modal.
-14. `js/export-modal.js` — Multi-frame animated export modal (`POST /api/export`, SSE progress polling, bundle downloads).
+10. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stacks (`undoStack`, `redoStack`, `maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
+11. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` (and `/api/projects*`) REST client, and library modal UI.
+12. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, and master preview compilation (`window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`).
+13. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
+14. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
 
 ---
 

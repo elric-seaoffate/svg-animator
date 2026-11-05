@@ -17,9 +17,9 @@ The frontend uses browser globals loaded in a deterministic order at the bottom 
 | 9 | `js/ripples.js` | `window.Ripples` | Layer 3 (Ripple Ops) + Layer 1 (Ripple UI) |
 | 10 | `js/history.js` | `window.HistoryManager` | Layer 3 (History Stack) + Layer 1 (Undo/Redo Buttons) |
 | 11 | `js/projects.js` | `window.ProjectManager` | Layer 3 (Serializer/REST) + Layer 1 (Library Modal UI) |
-| 12 | `js/app.js` | `window.triggerAppRender`, `window.buildFullSVG`, etc. | Layer 1 (App UI Bindings & Compatibility Entrypoints) |
-| 13 | `js/still-export-modal.js` | `window.StillExportStudio` | Layer 3 (SMIL Evaluator) + Layer 1 (Still Modal UI) |
-| 14 | `js/export-modal.js` | `window.openExportModal`, `window.startExportJob`, etc. | Layer 3 (Payload Builder) + Layer 1 (Animated Modal UI) |
+| 12 | `js/app.js` | `window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`, etc. | Layer 1 (App UI Bindings & Compatibility Entrypoints) |
+| 13 | `js/still-export-modal.js` | `window.StillExportStudio` | Layer 3 (SMIL Evaluator & Still Config Builder) + Layer 1 (Still Modal UI) |
+| 14 | `js/export-modal.js` | `window.AnimatedExportStudio`, `window.openExportModal` | Layer 3 (Payload Builder & REST Helpers) + Layer 1 (Animated Modal UI) |
 
 ---
 
@@ -53,23 +53,22 @@ flowchart TD
 
     Scene --> Effects
     Scene --> Ripples
-    Scene --> Nodes
-    Scene --> Flows
     Scene --> Glows
+    Scene --> Flows
+    Scene --> Nodes
 
     Nodes --> Presets
-    Flows --> Nodes
 ```
 
 ---
 
 ## 3. Dependency Rules
 
-1. **No upward dependencies:** Operational methods in Layer 3 must never call `document.getElementById` or read/write DOM input values directly.
+1. **No upward dependencies in operational methods:** Layer 3 CRUD, geometry/coordinate calculation, and SVG builder methods do not call `document.getElementById` or read/write DOM input values directly. DOM control synchronization is handled through `ControlStateAdaptor` (`js/scene-state.js`).
 2. **No lateral UI coupling between object collections:**
-   - Selecting a node in `DiagramNodes` must **not** directly mutate `DataFlows.activeFlowId`, `Glows.activeGlowId`, or `Ripples.activeRippleId`. Instead, selection transitions route through `AppCoordinator.selectObject(type, id, options)`.
-   - `Stage` pointer/drag handlers delegate hit-testing and coordinate snapping through `AppCoordinator` and operational APIs rather than reading `#chkSnapToGrid` or mutating `DiagramNodes.nodes` directly.
+   - Selecting an object in `DiagramNodes`, `DataFlows`, `Glows`, or `Ripples` routes through `AppCoordinator.selectObject(type, id)` rather than directly mutating sibling modules' `activeId` properties.
+   - Coordinate snapping routes through `AppCoordinator.snapPosition(xPct, yPct)` (which delegates to `SceneState.getSnapConfig()` and `Stage.snapPctToGrid()`).
 3. **Allowed operational relationships:**
-   - `DiagramNodes.getNodeEffectiveProps(node)` may query `NodePresets` operational state (`presetEnabled`, `presetValues`) to merge preset defaults when `node.usePreset` is `true`.
-   - `DataFlows` path calculation (`getFlowEndpoints`, `generatePathString`) may query `DiagramNodes.getNode(id)` and `DiagramNodes.getNodeEffectiveProps(node)` to compute perimeter connection ports for attached nodes (`fromNodeId`, `toNodeId`).
-   - `SceneState.buildFullSVG(state, overrides)` invokes `Effects.build`, `Ripples.injectIntoSVG`, `DiagramNodes.injectIntoSVG`, `DataFlows.injectIntoSVG`, and `Glows.injectIntoSVG` in sequence.
+   - `DiagramNodes.createNode(initialProps)` applies enabled preset properties via `NodePresets.applyToNodeObject(newNode)` when `applyPreset` (or `NodePresets.autoApplyToNewNodes`) is active, and snaps initial coordinates via `AppCoordinator.snapPosition`.
+   - `DataFlows` waypoints use free percentage coordinates (`nodes: [{ x, y }, ...]`); `DataFlows.generatePathString(pts, curviness, w, h, routingMode)` and `DataFlows.injectIntoSVG(svgString, state)` are completely independent of `DiagramNodes`.
+   - `SceneState.buildFullSVG(state, overrides)` invokes `Effects.build(state)`, `Ripples.injectIntoSVG(svgString, state)`, `Glows.injectIntoSVG(svgString, width, height)`, `DataFlows.injectIntoSVG(svgString, state)`, and `DiagramNodes.injectIntoSVG(svgString, state)` in sequence.
