@@ -170,6 +170,13 @@ window.Stage = {
       }, { passive: false });
 
       this.previewBox.addEventListener('pointerdown', (e) => {
+        if (e.target && e.target.closest && (
+          e.target.closest('#btnCanvasContextEdit') ||
+          e.target.closest('#floatingContextEditor')
+        )) {
+          return;
+        }
+
         if (e.button === 1 || (e.button === 0 && this.spacePressed)) {
           e.preventDefault();
           this.isPanningStage = true;

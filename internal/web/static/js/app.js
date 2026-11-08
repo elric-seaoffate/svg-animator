@@ -840,8 +840,9 @@ window.FloatingPropertiesEditor = {
     let relLeft = targetRect.right - pRect.left + 8;
     let relTop = targetRect.top - pRect.top - 8;
 
-    if (relLeft + 95 > (pRect.width || 1280)) {
-      relLeft = (targetRect.left - pRect.left) - 95;
+    const btnW = btn.offsetWidth || 110;
+    if (relLeft + btnW > (pRect.width || 1280)) {
+      relLeft = (targetRect.left - pRect.left) - btnW - 8;
     }
     if (relTop < 10) relTop = 10;
     if (relLeft < 10) relLeft = 10;
@@ -1132,11 +1133,54 @@ window.FloatingPropertiesEditor = {
 
     const contextBtn = document.getElementById('btnCanvasContextEdit');
     if (contextBtn) {
-      contextBtn.addEventListener('click', (e) => {
+      const handleOpen = (e) => {
+        if (e) {
+          if (typeof e.stopPropagation === 'function') e.stopPropagation();
+          if (typeof e.preventDefault === 'function') e.preventDefault();
+        }
+        let type = null;
+        let id = null;
+        if (window.AppCoordinator && typeof window.AppCoordinator.getActiveSelection === 'function') {
+          const sel = window.AppCoordinator.getActiveSelection();
+          if (sel && sel.type && sel.id !== null) {
+            type = sel.type;
+            id = sel.id;
+          }
+        }
+        if (!type || id === null) {
+          if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+            type = 'node';
+            id = window.DiagramNodes.activeId;
+          } else if (window.DataFlows && window.DataFlows.activeId !== null) {
+            type = 'flow';
+            id = window.DataFlows.activeId;
+          } else if (window.Glows && window.Glows.activeId !== null) {
+            type = 'glow';
+            id = window.Glows.activeId;
+          } else if (window.Ripples && window.Ripples.activeId !== null) {
+            type = 'ripple';
+            id = window.Ripples.activeId;
+          }
+        }
+        if (type && id !== null) {
+          this.openFor(type, id);
+        }
+      };
+
+      const stopPropagationOnly = (e) => {
         if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
-        const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
-        if (sel && sel.type && sel.id !== null) {
-          this.openFor(sel.type, sel.id);
+      };
+
+      contextBtn.addEventListener('pointerdown', stopPropagationOnly);
+      contextBtn.addEventListener('mousedown', stopPropagationOnly);
+      contextBtn.addEventListener('click', handleOpen);
+      contextBtn.addEventListener('contextmenu', (e) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        handleOpen(e);
+      });
+      contextBtn.addEventListener('keydown', (e) => {
+        if (e && (e.key === 'Enter' || e.key === ' ')) {
+          handleOpen(e);
         }
       });
     }

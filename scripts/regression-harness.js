@@ -523,10 +523,22 @@ async function runHarness() {
       },
       dispatchEvent(evt) {
         const type = typeof evt === 'string' ? evt : (evt ? evt.type : '');
+        const e = typeof evt === 'object' ? evt : { type, target: this };
+        if (!e.target) e.target = this;
+        let isStopped = false;
+        const prevStop = e.stopPropagation;
+        e.stopPropagation = function() {
+          isStopped = true;
+          if (typeof prevStop === 'function') prevStop.call(e);
+        };
+        if (typeof e.preventDefault !== 'function') {
+          e.preventDefault = function() { e.defaultPrevented = true; };
+        }
         if (this._listeners && this._listeners[type]) {
-          const e = typeof evt === 'object' ? evt : { type, target: this };
-          if (!e.target) e.target = this;
-          this._listeners[type].forEach((fn) => fn(e));
+          this._listeners[type].slice().forEach((fn) => fn(e));
+        }
+        if (!isStopped && this.parentElement && typeof this.parentElement.dispatchEvent === 'function') {
+          this.parentElement.dispatchEvent(e);
         }
       },
       focus() {
@@ -587,8 +599,13 @@ async function runHarness() {
       closest(sel) {
         let cur = this;
         while (cur) {
-          if (sel.startsWith('.') && cur.classList.contains(sel.slice(1))) return cur;
+          if (sel.startsWith('.') && cur.classList && cur.classList.contains(sel.slice(1))) return cur;
           if (sel.startsWith('#') && cur.id === sel.slice(1)) return cur;
+          if (sel.startsWith('[') && sel.endsWith(']')) {
+            const attr = sel.slice(1, -1);
+            if (cur.hasAttribute && cur.hasAttribute(attr)) return cur;
+            if (cur.getAttribute && cur.getAttribute(attr) !== null) return cur;
+          }
           if (cur.tagName && cur.tagName.toLowerCase() === sel.toLowerCase()) return cur;
           cur = cur.parentElement;
         }
@@ -2199,6 +2216,160 @@ async function runHarness() {
   assert.strictEqual(window.FloatingPropertiesEditor.activeId, btnTestNode.id);
   window.FloatingPropertiesEditor.close();
   window.DiagramNodes.deleteNode(btnTestNode.id);
+
+  // ===========================================================================
+  // Phase 4 Critical Interaction Test: Pointer-Event Isolation & Coordinate Protection
+  // ===========================================================================
+  const previewBoxEl = document.getElementById('previewBox');
+  const stageOverlayLayerEl = document.getElementById('stageOverlayLayer');
+  previewBoxEl.appendChild(stageOverlayLayerEl);
+  stageOverlayLayerEl.appendChild(contextBtnEl);
+
+  // Initialize Stage interaction with the production callback
+  window.Stage.init((placement, x, y) => {
+    if (window.DataFlows && window.DataFlows.activeId !== null) {
+      window.DataFlows.handleStageClick(x, y);
+      return;
+    }
+    if (window.Glows && window.Glows.activeId !== null) {
+      window.Glows.handleStageClick(x, y);
+      return;
+    }
+    if (window.Ripples && window.Ripples.activeId !== null) {
+      window.Ripples.handleStageClick(x, y);
+      return;
+    }
+    if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+      window.DiagramNodes.handleStageClick(x, y);
+      return;
+    }
+  });
+
+  // Re-bind FloatingPropertiesEditor controls & events with the full previewBox tree
+  window.FloatingPropertiesEditor.init();
+
+  // Test 1: Node selection and pointer interaction with #btnCanvasContextEdit
+  const testNode = window.DiagramNodes.createNode({ text: 'NoMoveTest', x: 38.4, y: 52.6 });
+  window.AppCoordinator.selectObject('node', testNode.id);
+  const origNodeX = window.DiagramNodes.getNode(testNode.id).x;
+  const origNodeY = window.DiagramNodes.getNode(testNode.id).y;
+  const historyLenBeforeNode = window.HistoryManager.undoStack.length;
+
+  // Dispatch full pointer sequence on #btnCanvasContextEdit (coords that would otherwise move the node)
+  const pdownEvt = {
+    type: 'pointerdown',
+    button: 0,
+    clientX: 250,
+    clientY: 180,
+    pointerId: 1,
+    target: contextBtnEl
+  };
+  contextBtnEl.dispatchEvent(pdownEvt);
+
+  assert.strictEqual(window.Stage.isDragging, false, 'Stage must NOT start dragging when context button is pressed');
+  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).x, origNodeX, 'Node X must not change on pointerdown on context button');
+  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).y, origNodeY, 'Node Y must not change on pointerdown on context button');
+
+  // Complete click sequence
+  contextBtnEl.dispatchEvent({ type: 'mousedown', button: 0, target: contextBtnEl });
+  contextBtnEl.dispatchEvent({ type: 'pointerup', button: 0, target: contextBtnEl });
+  contextBtnEl.dispatchEvent({ type: 'mouseup', button: 0, target: contextBtnEl });
+  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Floating editor must open on context button click');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'node');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testNode.id);
+  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).x, origNodeX, 'Node X must remain unchanged after opening context editor');
+  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).y, origNodeY, 'Node Y must remain unchanged after opening context editor');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeNode, 'Opening editor via button must not pollute undo stack');
+
+  // Test property edit in popup updates node
+  const nodeTextInp = document.getElementById('fctx-nodeTextInput');
+  if (nodeTextInp) {
+    nodeTextInp.value = 'UpdatedViaContextPopup';
+    nodeTextInp.dispatchEvent({ type: 'input', target: nodeTextInp });
+    assert.strictEqual(window.DiagramNodes.getNode(testNode.id).text, 'UpdatedViaContextPopup', 'Node text must update from context popup');
+  }
+
+  window.FloatingPropertiesEditor.close();
+  window.DiagramNodes.deleteNode(testNode.id);
+
+  // Test 2: Flow interaction protection
+  const testFlow = window.DataFlows.createFlow({ label: 'FlowProtectTest' });
+  window.AppCoordinator.selectObject('flow', testFlow.id);
+  const flowBeforeSnap = JSON.stringify(window.DataFlows.getFlow(testFlow.id));
+  const historyLenBeforeFlow = window.HistoryManager.undoStack.length;
+
+  contextBtnEl.dispatchEvent({ type: 'pointerdown', button: 0, clientX: 300, clientY: 200, target: contextBtnEl });
+  assert.strictEqual(window.Stage.isDragging, false, 'Flow must not start drag from context button');
+  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for flow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'flow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testFlow.id);
+  assert.strictEqual(JSON.stringify(window.DataFlows.getFlow(testFlow.id)), flowBeforeSnap, 'Flow data must remain untouched');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeFlow, 'Flow context activation must not add history entries');
+  window.FloatingPropertiesEditor.close();
+  window.DataFlows.deleteFlow(testFlow.id);
+
+  // Test 3: Glow interaction protection
+  const testGlow = window.Glows.createGlow({ color: '#ff5533', size: 30 });
+  window.AppCoordinator.selectObject('glow', testGlow.id);
+  const glowX = window.Glows.getGlow(testGlow.id).x;
+  const glowY = window.Glows.getGlow(testGlow.id).y;
+  const historyLenBeforeGlow = window.HistoryManager.undoStack.length;
+
+  contextBtnEl.dispatchEvent({ type: 'pointerdown', button: 0, clientX: 400, clientY: 300, target: contextBtnEl });
+  assert.strictEqual(window.Stage.isDragging, false, 'Glow must not start drag from context button');
+  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for glow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testGlow.id);
+  assert.strictEqual(window.Glows.getGlow(testGlow.id).x, glowX, 'Glow X must remain unchanged');
+  assert.strictEqual(window.Glows.getGlow(testGlow.id).y, glowY, 'Glow Y must remain unchanged');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeGlow, 'Glow context activation must not add history entries');
+  window.FloatingPropertiesEditor.close();
+  window.Glows.deleteGlow(testGlow.id);
+
+  // Test 4: Ripple interaction protection
+  const testRipple = window.Ripples.createRipple({ color: '#44aaff', refraction: 35 });
+  window.AppCoordinator.selectObject('ripple', testRipple.id);
+  const rippleX = window.Ripples.getRipple(testRipple.id).x;
+  const rippleY = window.Ripples.getRipple(testRipple.id).y;
+  const historyLenBeforeRipple = window.HistoryManager.undoStack.length;
+
+  contextBtnEl.dispatchEvent({ type: 'pointerdown', button: 0, clientX: 450, clientY: 250, target: contextBtnEl });
+  assert.strictEqual(window.Stage.isDragging, false, 'Ripple must not start drag from context button');
+  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for ripple');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testRipple.id);
+  assert.strictEqual(window.Ripples.getRipple(testRipple.id).x, rippleX, 'Ripple X must remain unchanged');
+  assert.strictEqual(window.Ripples.getRipple(testRipple.id).y, rippleY, 'Ripple Y must remain unchanged');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeRipple, 'Ripple context activation must not add history entries');
+  window.FloatingPropertiesEditor.close();
+  window.Ripples.deleteRipple(testRipple.id);
+
+  // Test 5: Double-click activation on canvas object
+  const dblNode = window.DiagramNodes.createNode({ text: 'DblClickNode', x: 20, y: 20 });
+  const nodeSvgEl = makeStubElement('g');
+  nodeSvgEl.setAttribute('data-node-id', String(dblNode.id));
+  previewBoxEl.appendChild(nodeSvgEl);
+
+  previewBoxEl.dispatchEvent({
+    type: 'dblclick',
+    target: nodeSvgEl
+  });
+
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Double-click on node SVG element must open editor');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'node');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, dblNode.id);
+  assert.strictEqual(window.DiagramNodes.getNode(dblNode.id).x, 20, 'Node X must not change on double-click');
+  assert.strictEqual(window.DiagramNodes.getNode(dblNode.id).y, 20, 'Node Y must not change on double-click');
+  window.FloatingPropertiesEditor.close();
+  window.DiagramNodes.deleteNode(dblNode.id);
 
   // CSS structure and frozen layout verification
   const phase4CssSource = fs.readFileSync(STYLE_CSS_PATH, 'utf8');
