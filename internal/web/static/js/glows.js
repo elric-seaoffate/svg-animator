@@ -449,6 +449,7 @@ window.Glows = {
       div.style.borderLeftColor = glow.color || '#ff0044';
       const icon = glowIcons[glow.shape] || '✨';
       const safeLabel = 'Glow ' + glow.id;
+      div.title = safeLabel + ' (' + glow.shape + ')';
 
       div.innerHTML =
         '<span class="instance-icon" style="color:' + (glow.color || '#ff0044') + ';" title="' + (glow.shape || 'circle') + '">' + icon + '</span>' +

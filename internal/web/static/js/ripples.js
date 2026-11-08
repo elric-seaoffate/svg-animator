@@ -321,6 +321,7 @@ window.Ripples = {
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = '#58a6ff';
       const safeLabel = 'Ripple ' + rp.id;
+      div.title = safeLabel + ' (' + (rp.rings || 3) + ' rings)';
 
       div.innerHTML =
         '<span class="instance-icon" style="color:#58a6ff;" title="Ripple">💧</span>' +

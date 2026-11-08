@@ -549,6 +549,7 @@ window.DiagramNodes = {
       const icon = shapeIcons[node.shape] || '▢';
       const labelText = (node.text || ('Node ' + node.id)).split('|')[0];
       const safeLabel = this.escapeXML(labelText);
+      div.title = safeLabel + ' (' + node.shape + ', ' + eff.width + 'x' + eff.height + 'px)';
 
       div.innerHTML =
         '<span class="instance-icon" style="color:' + (eff.strokeColor || '#58a6ff') + ';" title="' + this.escapeXML(node.shape) + '">' + icon + '</span>' +

@@ -861,19 +861,20 @@ header h1 {
 
 /* Compact Instance Row (~28-32px) */
 .flow-list-item.compact-instance-row {
-  min-height: 30px;
-  height: 30px;
-  padding: 0 0.5rem;
+  min-height: 28px;
+  height: 28px;
+  padding: 0 0.35rem;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   cursor: pointer;
   box-sizing: border-box;
+  min-width: 0;
   transition: background 0.15s, border-color 0.15s;
 }
 
@@ -888,22 +889,24 @@ header h1 {
 }
 
 .compact-instance-row .instance-icon {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: 14px;
   flex-shrink: 0;
 }
 
 .compact-instance-row .instance-label {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 500;
   color: var(--text-main);
+  font-size: 0.74rem;
 }
 
 .compact-instance-row .compact-meta {
@@ -911,14 +914,14 @@ header h1 {
   font-family: monospace;
   color: var(--text-dim);
   flex-shrink: 0;
-  margin-right: 0.25rem;
+  margin-right: 0.2rem;
 }
 
 .compact-instance-row .btn-row-action {
   background: transparent;
   border: none;
-  font-size: 0.75rem;
-  padding: 0.1rem 0.25rem;
+  font-size: 0.72rem;
+  padding: 0.08rem 0.2rem;
   line-height: 1;
   border-radius: 3px;
   cursor: pointer;
@@ -944,8 +947,8 @@ header h1 {
   color: #d2a8ff;
   border: 1px solid rgba(163, 113, 247, 0.4);
   background: rgba(137, 87, 229, 0.15);
-  font-size: 0.68rem;
-  padding: 0.1rem 0.3rem;
+  font-size: 0.65rem;
+  padding: 0.08rem 0.22rem;
 }
 
 .inspector-empty-state {
@@ -972,7 +975,7 @@ header h1 {
 /* Expanded Inspector Drawer for Object-Based Tools */
 @media (min-width: 1280px) {
   .drawer.left-drawer.expanded-inspector:not(.collapsed) {
-    --drawer-width: 520px;
+    --drawer-width: 420px;
     width: var(--drawer-width);
     min-width: var(--drawer-width);
     max-width: var(--drawer-width);
@@ -980,8 +983,8 @@ header h1 {
 
   .drawer.expanded-inspector .inspector-split-layout {
     display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    gap: 0.65rem;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 0.5rem;
     align-items: start;
   }
 
@@ -991,7 +994,8 @@ header h1 {
 
   .drawer.expanded-inspector .inspector-master-column {
     border-right: 1px solid var(--border);
-    padding-right: 0.65rem;
+    padding-right: 0.5rem;
+    min-width: 0;
   }
 
   .drawer.expanded-inspector .inspector-detail-column {
@@ -999,12 +1003,18 @@ header h1 {
     max-height: calc(100vh - 180px);
     overflow-y: auto;
     padding-right: 0.2rem;
+    min-width: 0;
+  }
+
+  /* In compact 40% column, hide secondary text metadata to prevent squeezing label */
+  .drawer.expanded-inspector .compact-instance-row .compact-meta {
+    display: none;
   }
 }
 
 @media (min-width: 1600px) {
   .drawer.left-drawer.expanded-inspector:not(.collapsed) {
-    --drawer-width: 560px;
+    --drawer-width: 460px;
     width: var(--drawer-width);
     min-width: var(--drawer-width);
     max-width: var(--drawer-width);

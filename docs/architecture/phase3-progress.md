@@ -329,3 +329,23 @@ The workspace implements a **master-detail inspector pattern**:
   - Multi-button or complex controls (like waypoint management and upload zones) use full-width stacked rows where needed.
 - Applied across all four object editors: `#nodeEditor`, `#flowEditor`, `#glowEditor`, and `#rippleEditor`.
 - All 95 tracked controls, DOM IDs, and event handlers remain 100% intact.
+
+## 13. Stage 3.7: Compact 40/60 Inspector and Reduced Drawer Width
+
+### 13.1 40% / 60% Column Proportions
+- Rebalanced the wide desktop (`>= 1280px`) master-detail split to make Instances smaller than Properties:
+  `grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 0.5rem;`
+- Instances column is allocated ~40% of the inspector grid (~154–170px), prioritizing glyphs, object names, and quick action buttons.
+- Properties column is allocated ~60% of the inspector grid (~231–255px), providing ample breathing room for single-property horizontal rows without squashing controls.
+
+### 13.2 Reduced Overall Drawer Footprint
+- Further decreased expanded drawer width:
+  - 420px on viewports `>= 1280px` (was 520px in Stage 3.6, 640px in Stage 3.5)
+  - 460px on viewports `>= 1600px` (was 560px in Stage 3.6, 700px in Stage 3.5)
+- Returns an additional 100px of horizontal workspace to the canvas (760px on 1280p, 1360px on 1080p desktop).
+
+### 13.3 Compact Instance Row Enhancements
+- `.compact-instance-row` styled with compact padding (`0 0.35rem`) and 14px icons.
+- Single-line text truncation (`min-width: 0; text-overflow: ellipsis;`).
+- Secondary metadata (`.compact-meta`) hidden in `.expanded-inspector` to prevent forcing the column wider, while full metadata is exposed via `title` tooltips on hover.
+- Preserved quick action buttons (Preset snap `⚡`, Delete `×`) with tight padding and clean alignment.

@@ -724,6 +724,7 @@ window.DataFlows = {
       const labelText = f.label ? f.label : ('Flow ' + f.id);
       const safeLabel = this.escapeXML(labelText);
       const nodeCount = Array.isArray(f.nodes) ? f.nodes.length : 2;
+      div.title = safeLabel + ' (' + nodeCount + ' waypoints)';
 
       div.innerHTML =
         '<span class="instance-icon" style="color:' + (f.color || '#00ffcc') + ';" title="Connector">🔀</span>' +
