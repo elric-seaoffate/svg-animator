@@ -7,7 +7,7 @@
 - **Layer 3 (Operational Stack & Snapshot Engine):**
   - Owns `undoStack`, `redoStack`, `maxDepth`, `isRestoring`, `debounceTimer`, and `trackedControlIds` (95 DOM control IDs).
   - Captures complete studio state snapshots (`captureSnapshot()`) via `SceneState` / `ControlStateAdaptor` and operational `getState()` APIs on `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, and `Ripples`.
-  - Applies snapshots (`applySnapshot(snapStr)`) by restoring operational states (`setState()`) and synchronizing DOM inputs via `ControlStateAdaptor.syncToDOM()`. Contains zero direct presentation calls.
+  - Applies snapshots (`applySnapshot(snapStr)`) by restoring operational states (`setState()`) and synchronizing DOM inputs via `ControlStateAdaptor.syncToDOM()`. Contains zero direct presentation calls and zero direct `document.getElementById` DOM queries (all legacy fallback branches removed in Stage 2.6, resolving `ARCH-04` to PASS).
   - Emits history stack change notifications (`notifyStackChange()`) via `AppCoordinator.emit('history:changed', ...)`.
 - **Layer 1 (Undo/Redo Button & Shortcut UI):**
   - Binds `#btnUndo` and `#btnRedo` click events, `Ctrl/Cmd+Z` / `Ctrl/Cmd+Y` keyboard shortcuts.

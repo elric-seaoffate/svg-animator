@@ -10,6 +10,7 @@
   - Photo upload dropzone (`#uploadDrop`, `#fileInput`) and interactive photo crop mode (`#btnDragPhotoCrop`).
   - Camera reticle toggle buttons (`#btnModeStart`, `#btnModeEnd`) delegating cleanly through `AppCoordinator.selectObject('camera', mode, { skipStageClear: true })`.
   - Master SVG compilation and stage overlay synchronization delegating through `AppCoordinator.updateActiveOverlays()`.
+  - Export XML serialization adapter (`window.SVGExportAdapter.serialize(rawSvg)`) encapsulating browser `DOMParser`/`XMLSerializer` for SVG exports.
   - Still export modal (`window.StillExportStudio.readExportOptionsFromDOM`, `renderPreview`, `download`) and Animated export modal (`window.AnimatedExportStudio` / `window.openExportModal`, `generatePreview`, `downloadFinal`).
 - **Layer 2 (Application Coordination — `coordinator.js`):**
   - `window.AppCoordinator` manages cross-module selection (`selectObject`, `clearSelection`), waypoint selection (`selectWaypoint`), active overlay synchronization (`updateActiveOverlays`), post-restoration UI refresh (`coordinatePostRestore`), render requests (`requestRender`), history recording (`recordHistoryImmediate`, `recordHistoryDebounced`), and stage snap/dimension queries (`getSnapConfig`, `snapPosition`, `getCanvasDimensions`).
@@ -22,7 +23,8 @@
 ## 3. Public Interface (`window.*` Globals)
 - `window.triggerAppRender()` — Compiles the full SVG via `SceneState` and updates `#svgContainer` and stage overlays.
 - `window.buildFullSVG(state, overrides)` — Builds the complete SVG markup string from a render state object and optional layer overrides (`includeNodes`, `includeFlows`, `includeGlows`, `includeRipples`).
-- `window.serializeSVGForExport(rawSvg)` — Ensures explicit XML declaration, `xmlns:xlink`, and `xlink:href` attributes on an SVG string.
+- `window.serializeSVGForExport(rawSvg)` — Ensures explicit XML declaration, `xmlns:xlink`, and `xlink:href` attributes on an SVG string (delegates to `SVGExportAdapter.serialize`).
+- `window.SVGExportAdapter` — Layer 1 export adapter (`serialize(rawSvg)`) providing browser DOM-backed XML parsing, namespace injection, and XML serialization.
 - `window.populateShapeDropdowns()` — Populates `#nodeShapeSelect` and `#presetVal-shape` with all 12 shapes from `ShapeRegistry`.
 - `window.ensureShapeInDropdown(selectEl, shapeId)` — Ensures a shape ID (including legacy/unknown shapes) is represented in a dropdown element without mutating underlying data.
 - `window.getLoadedPhoto()` / `window.setLoadedPhoto(photoObj)` — Reads or updates `SceneState.loadedPhoto` and refreshes the photo dropzone UI.

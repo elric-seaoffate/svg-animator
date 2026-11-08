@@ -65,7 +65,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Dynamic UI Shape Dropdown Integration & Fallbacks | **Implemented (Stage 2.2)** | `internal/web/static/js/app.js` (commit `c1155bc`) |
 | Targeted Component Public APIs | **Implemented (Stage 2.3)** | Standardized Layer 3 operational interfaces across modules (commit `2b6b17e`) |
 | Restoration & UI Refresh Decoupling | **Implemented (Stage 2.4)** | Decoupled Layer 3 restoration in `HistoryManager` & `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed` (commit `92aa87d`) |
-| Peer UI Refresh Decoupling (ARCH-07) | **Implemented (Stage 2.5)** | Centralized selection, waypoint selection (`DataFlows.selectWaypoint`), and active overlay coordination via `AppCoordinator.updateActiveOverlays()` |
+| Peer UI Refresh Decoupling (ARCH-07) | **Implemented (Stage 2.5)** | Centralized selection, waypoint selection (`DataFlows.selectWaypoint`), and active overlay coordination via `AppCoordinator.updateActiveOverlays()` (commit `7337a08`) |
+| Architecture Boundary Cleanup (ARCH-04 & ARCH-02) | **Implemented (Stage 2.6)** | Removed Layer 3 DOM fallbacks in `HistoryManager` & `ProjectManager` (ARCH-04 PASS); relocated browser-dependent SVG serialization to Layer 1 `window.SVGExportAdapter` in `app.js` (ARCH-02 PASS); retained offscreen geometry sandbox in `StillExportStudio` (ARCH-05 deferred) |
 | Blender-style workspace (icon rails, sliding drawers, maximized stage) | **Planned (Phase 3)** | Currently 3-column studio layout (`leftPanel`, `stageArea`, `rightPanel`) |
 | Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftPanel` / `rightPanel` |
 

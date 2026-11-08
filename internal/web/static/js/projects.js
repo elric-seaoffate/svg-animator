@@ -41,13 +41,6 @@ window.ProjectManager = {
     if (window.ControlStateAdaptor && window.SceneState) {
       window.ControlStateAdaptor.syncFromDOM(trackedIds);
       controls = window.SceneState.getControlsSnapshot(trackedIds);
-    } else {
-      trackedIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) {
-          controls[id] = el.type === 'checkbox' ? el.checked : el.value;
-        }
-      });
     }
 
     const loadedPhoto = (window.SceneState && typeof window.SceneState.getLoadedPhoto === 'function')
@@ -58,7 +51,7 @@ window.ProjectManager = {
       ? window.NodePresets.getState()
       : {
           preset: window.NodePresets ? JSON.parse(JSON.stringify(window.NodePresets.preset)) : null,
-          autoApplyToNewNodes: document.getElementById('chkAutoApplyPreset')?.checked ?? true
+          autoApplyToNewNodes: window.NodePresets ? !!window.NodePresets.autoApplyToNewNodes : true
         };
 
     const nodeState = (window.DiagramNodes && typeof window.DiagramNodes.getState === 'function')
@@ -116,23 +109,8 @@ window.ProjectManager = {
       window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
     }
 
-    if (data.controls) {
-      if (window.ControlStateAdaptor) {
-        window.ControlStateAdaptor.syncToDOM(data.controls);
-      } else {
-        Object.keys(data.controls).forEach((id) => {
-          const el = document.getElementById(id);
-          if (el) {
-            if (el.type === 'checkbox') el.checked = !!data.controls[id];
-            else el.value = data.controls[id];
-          }
-        });
-      }
-    }
-
-    const autoChk = document.getElementById('chkAutoApplyPreset');
-    if (autoChk && data.autoApplyPreset !== undefined) {
-      autoChk.checked = !!data.autoApplyPreset;
+    if (data.controls && window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.syncToDOM(data.controls);
     }
 
     if (data.presets && window.NodePresets) {

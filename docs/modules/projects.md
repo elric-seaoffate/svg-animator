@@ -5,8 +5,8 @@
 
 ## 2. Responsibilities by Layer
 - **Layer 3 (Operational Serialization & REST Client):**
-  - `serializeStudioState()` — Produces a schema `1.2.0` JSON string from `SceneState` / `ControlStateAdaptor`, `NodePresets.getState()`, `DiagramNodes.getState()`, `DataFlows.getState()`, `Glows.getState()`, and `Ripples.getState()`.
-  - `applyStudioState(schemaJsonStr, options = { coordinate: true })` — Restores `SceneState`, DOM controls, and all component operational states with backward-compatible defaults, and resets `HistoryManager`. Contains zero direct presentation calls. Direct callers coordinate via default `options.coordinate !== false`.
+  - `serializeStudioState()` — Produces a schema `1.2.0` JSON string from `SceneState` / `ControlStateAdaptor`, `NodePresets.getState()`, `DiagramNodes.getState()`, `DataFlows.getState()`, `Glows.getState()`, and `Ripples.getState()`. Contains zero direct `document.getElementById` calls (all legacy fallbacks removed in Stage 2.6, resolving `ARCH-04` to PASS).
+  - `applyStudioState(schemaJsonStr, options = { coordinate: true })` — Restores `SceneState`, DOM controls (via `ControlStateAdaptor.syncToDOM()`), and all component operational states with backward-compatible defaults, and resets `HistoryManager`. Contains zero direct presentation calls and zero direct DOM queries. Direct callers coordinate via default `options.coordinate !== false`.
   - Pure REST client methods: `fetchProjectsList()`, `fetchProjectById(id)`, `postSaveProject(payload)`, `postDeleteProject(id)`.
 - **Layer 1 (Project Library Modal UI & Workflow Coordination):**
   - Binds `#btnOpenProjectsModal`, `#btnQuickSaveProject`, `#btnCloseProjectsTop`, `#btnCloseProjectsBottom`, `#btnSaveProjectOverwrite`, `#btnSaveProjectAsNew`, `#btnNewBlankProject`, `#projectSearchInput`, `Ctrl/Cmd+S` shortcut, and renders `#projectsListContainer`.

@@ -11,7 +11,9 @@ This document records the progress, verification checkpoints, test results, and 
 | **Stage 2.1** | Immutable SVG Shape Registry | **Complete** | [`f229c89`](https://127.0.0.1:3000/nigel/svg-animator/commit/f229c89) | Created `internal/web/static/js/shape-registry.js` with 12 frozen shape builders; decoupled shape SVG generation from `nodes.js`. |
 | **Stage 2.2** | UI Shape Selection Integration | **Complete** | [`c1155bc`](https://127.0.0.1:3000/nigel/svg-animator/commit/c1155bc) | Implemented `populateShapeDropdowns` and `ensureShapeInDropdown` in `app.js`; dynamic dropdown population for `#nodeShapeSelect` and `#presetVal-shape`; unknown shape fallback preservation. |
 | **Stage 2.3** | Targeted Component APIs | **Complete** | [`2b6b17e`](https://127.0.0.1:3000/nigel/svg-animator/commit/2b6b17e) | Standardized `DataFlows.setActiveWaypointIndex`, `NodePresets.resetToDefaults`, component deselect sync with `AppCoordinator`, and removed temporary runtime monkey-patching in `app.js`. |
-| **Stage 2.4** | Restoration/UI Refresh Decoupling | **Complete** | *In Review* | Decoupled Layer 3 restoration in `HistoryManager` and `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed`, resolving `ARCH-06` to PASS and reducing remaining warnings to 4. |
+| **Stage 2.4** | Restoration/UI Refresh Decoupling | **Complete** | [`92aa87d`](https://127.0.0.1:3000/nigel/svg-animator/commit/92aa87d) | Decoupled Layer 3 restoration in `HistoryManager` and `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed`, resolving `ARCH-06` to PASS. |
+| **Stage 2.5** | Peer UI Refresh Decoupling | **Complete** | [`7337a08`](https://127.0.0.1:3000/nigel/svg-animator/commit/7337a08) | Centralized selection, waypoint selection (`DataFlows.selectWaypoint`), and active overlay coordination via `AppCoordinator.updateActiveOverlays()`, resolving `ARCH-07` to PASS. |
+| **Stage 2.6** | Architecture Boundary Cleanup | **Complete** | *In Review* | Removed Layer 3 DOM fallbacks in `HistoryManager` and `ProjectManager` (resolving `ARCH-04` to PASS); relocated browser-dependent SVG serialization to Layer 1 `window.SVGExportAdapter` (resolving `ARCH-02` to PASS); deferred `ARCH-05` offscreen geometry sandbox. Warnings reduced to 1. |
 
 ---
 
@@ -22,20 +24,17 @@ All automated test suites were executed and verified passing:
 1. **JavaScript Regression Harness (`node scripts/regression-harness.js`):**
    - **Status: PASS**
    - `REG-02 PASS`: Stage 1 & 2 operational state, pure geometry math, shape presets, CRUD operations, and immutable Shape Registry API verified.
-   - `REG-03 PASS`: Stage 3 & 4 object selection coordination, undo/redo history depth (50 snapshots), schema `1.2.0` serialization/deserialization, full SVG compilation, UI shape dropdown integration, and Stage 2.4 restoration/refresh decoupling (`history:changed`, `state:restored`, sequenced project metadata) verified.
+   - `REG-03 PASS`: Stage 3 & 4 object selection coordination, undo/redo history depth (50 snapshots), schema `1.2.0` serialization/deserialization, full SVG compilation, UI shape dropdown integration, Stage 2.4 restoration/refresh decoupling, Stage 2.5 peer decoupling, and Stage 2.6 `SVGExportAdapter` XML serialization and error handling verified.
 2. **Go Backend Validation (`go vet ./...` & `go test ./...`):**
    - **Status: PASS**
    - `go vet ./...`: Zero issues reported across all packages (`cmd/`, `internal/db`, `internal/effects`, `internal/generator`, `internal/rasterizer`, `internal/web`).
    - `go test ./...`: All unit tests passed cleanly using isolated temporary SQLite databases (`t.TempDir()`).
 3. **Architecture Verification Suite (`bash scripts/verify-architecture.sh`):**
-   - **Status: PASS with 4 known legacy warnings** (zero fatal violations; `ARCH-06` resolved to PASS).
+   - **Status: PASS with 1 known architectural exception** (zero fatal violations; 9 rules PASS, `ARCH-05` WARNING).
 
-### Outstanding Architecture Technical Debt (4 Legacy Warnings)
-The static architecture verification suite evaluates 10 rules. Four known architectural warnings remain as documented technical debt:
-- `ARCH-02 (WARNING)`: [`SceneState.serializeSVGForExport`](../../internal/web/static/js/scene-state.js) depends on browser Web APIs (`DOMParser`/`XMLSerializer`).
-- `ARCH-04 (WARNING)`: Legacy `document.getElementById` fallback branches remain in Layer 3 snapshot/serialization methods in [`history.js`](../../internal/web/static/js/history.js) and [`projects.js`](../../internal/web/static/js/projects.js).
-- `ARCH-05 (WARNING)`: [`StillExportStudio.bakeStaticSVGAtTime`](../../internal/web/static/js/still-export-modal.js) uses an offscreen DOM sandbox for SVG path geometry measurements.
-- `ARCH-07 (WARNING)`: [`stage.js`](../../internal/web/static/js/stage.js) and [`app.js`](../../internal/web/static/js/app.js) contain direct cross-module state mutations or direct peer Layer 1 UI refresh calls alongside `AppCoordinator` delegation.
+### Outstanding Architecture Technical Debt (1 Known Architectural Exception)
+The static architecture verification suite evaluates 10 rules. Exactly one documented architectural exception remains:
+- `ARCH-05 (WARNING)`: [`StillExportStudio.bakeStaticSVGAtTime`](../../internal/web/static/js/still-export-modal.js) uses an offscreen DOM sandbox for SVG path geometry measurements. This exception is intentionally deferred to preserve 100% SVG still and print export fidelity.
 
 ---
 
@@ -151,11 +150,34 @@ Stage 2.5 decoupled peer UI refresh routines and cross-module presentation coupl
 
 ---
 
-## 8. Next Steps
+## 8. Stage 2.6 Implementation Details
+
+Stage 2.6 executed the architecture boundary cleanup, eliminating two architecture warnings (`ARCH-04` and `ARCH-02`) and reducing total remaining warnings to a single documented exception (`ARCH-05`):
+
+1. **ARCH-04 Remediation (Removal of Layer 3 DOM Fallbacks):**
+   - In `internal/web/static/js/history.js`: removed fallback `else` branches in `captureSnapshot()` and `applySnapshot()`, and removed direct DOM queries for `#chkAutoApplyPreset`. All control reads/writes are bridged purely through `ControlStateAdaptor.syncFromDOM()`, `syncToDOM()`, and `NodePresets.getState()` / `setState()`.
+   - In `internal/web/static/js/projects.js`: removed fallback `else` branches in `serializeStudioState()` and `applyStudioState()`, and removed direct DOM queries for `#chkAutoApplyPreset`.
+   - Layer 3 snapshot and serialization methods now contain zero `document.getElementById` calls, resulting in `ARCH-04 PASS` (0 violations).
+2. **ARCH-02 Remediation (Relocation of XML Serialization):**
+   - Defined `window.SVGExportAdapter` in `internal/web/static/js/app.js` (Layer 1 Export Adapter).
+   - `SVGExportAdapter.serialize(rawSvg)` encapsulates browser `DOMParser`, `parsererror` verification, `xmlns:xlink` namespace declaration injection, `href` -> `xlink:href` attribute normalization, and `XMLSerializer` output with standard XML prolog.
+   - Refactored Layer 3 `SceneState.serializeSVGForExport(rawSvg)` to delegate to `window.SVGExportAdapter.serialize(rawSvg)` when available, throwing a clear explanatory error if invoked outside a browser/adapter environment.
+   - Preserved backward-compatible `window.serializeSVGForExport(rawSvg)` global delegating to `SVGExportAdapter`.
+   - Result: `ARCH-02 PASS` (0 browser Web API violations in Layer 3 `SceneState`).
+3. **ARCH-05 Intentional Deferral (Preserving Export Geometry Fidelity):**
+   - Evaluated `StillExportStudio.bakeStaticSVGAtTime()` offscreen DOM sandbox.
+   - Retained the sandbox to preserve 100% SVG path measurement (`getTotalLength()`, `getPointAtLength()`) and font metrics fidelity required for still/print export rendering.
+   - Formally documented as the sole remaining architectural exception (`ARCH-05 WARNING`).
+4. **Architectural Verification:**
+   - Architecture suite reports **9 PASS**, **1 WARNING** (`ARCH-05`), 0 FAIL.
+
+---
+
+## 9. Next Steps
 
 1. **Phase 2 Completion Review:**
-   - Consolidated independent review of Stage 2.5 implementation.
-   - Controlled commit and push of Stage 2.5 to `main`.
+   - Consolidated independent review of Stage 2.6 implementation.
+   - Controlled commit and push of Stage 2.6 to `main`.
 2. **Phase 3 — Workspace Redesign (Planned):**
    - Introduce Blender-style workspace layout (icon rails, sliding drawers, maximized stage).
    - Modernize property inspectors and retire legacy DOM form adaptors (`ControlStateAdaptor`).

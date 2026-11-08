@@ -893,6 +893,32 @@ async function runHarness() {
   assert.strictEqual(window.NodePresets.getState().preset.fillColor.value, '#161b22', 'applyStudioState without presets must reset NodePresets to defaults');
   assert.strictEqual(window.NodePresets.getState().autoApplyToNewNodes, true);
 
+  // 3.5 Stage 2.6: History & Project Clean Snapshots (ARCH-04 Verification)
+  // Ensure captureSnapshot and applySnapshot function strictly through ControlStateAdaptor & NodePresets
+  const snap1 = JSON.parse(window.HistoryManager.captureSnapshot());
+  assert.strictEqual(typeof snap1.controls, 'object');
+  assert.strictEqual(typeof snap1.autoApplyPreset, 'boolean');
+  assert.strictEqual(snap1.autoApplyPreset, true);
+  assert.strictEqual(Object.keys(snap1.controls).length, 95);
+
+  // Partial legacy controls restoration does not throw
+  const partialSnap = {
+    controls: { canvasWidthInput: '1440' },
+    presets: window.NodePresets.preset,
+    autoApplyPreset: false,
+    nodes: [],
+    flows: [],
+    glows: [],
+    ripples: []
+  };
+  window.HistoryManager.applySnapshot(JSON.stringify(partialSnap));
+  assert.strictEqual(document.getElementById('canvasWidthInput').value, '1440');
+  assert.strictEqual(window.NodePresets.getState().autoApplyToNewNodes, false);
+
+  // Reset back to standard canvas width for subsequent tests
+  document.getElementById('canvasWidthInput').value = '1600';
+  window.NodePresets.getState().autoApplyToNewNodes = true;
+
   // ===========================================================================
   // STAGE 2.2: Shape Selection UI Integration & Unknown Shape Handling
   // ===========================================================================
@@ -1127,6 +1153,7 @@ async function runHarness() {
   // Wire pass-through window.serializeSVGForExport stub for constructExportJobPayload.
   // NOTE: Production SceneState.serializeSVGForExport uses browser DOMParser/XMLSerializer
   // and cannot run in Node.js without a browser DOM; it is reported under REG-04.
+  const realSerializeSVGForExport = window.serializeSVGForExport;
   window.serializeSVGForExport = function(rawSvg) {
     return '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + rawSvg;
   };
@@ -1178,6 +1205,138 @@ async function runHarness() {
   assert.strictEqual(exportPayload.height, 1080);
   assert.strictEqual(exportPayload.duration, 7);
   assert.ok(exportPayload.svgMarkup && exportPayload.svgMarkup.includes('<svg'), 'constructExportJobPayload must populate svgMarkup');
+
+  // ===========================================================================
+  // STAGE 2.6: SVGExportAdapter XML Serialization & Fidelity (ARCH-02)
+  // ===========================================================================
+  window.serializeSVGForExport = realSerializeSVGForExport;
+  assert.strictEqual(typeof window.SVGExportAdapter, 'object', 'window.SVGExportAdapter must be defined');
+  assert.strictEqual(typeof window.SVGExportAdapter.serialize, 'function', 'SVGExportAdapter.serialize must be a function');
+
+  // 1. Throws in non-browser environment when DOMParser is missing
+  assert.throws(
+    () => window.SVGExportAdapter.serialize('<svg></svg>'),
+    /SVGExportAdapter requires a browser DOM environment with DOMParser and XMLSerializer/,
+    'SVGExportAdapter must throw descriptive error when browser XML APIs are missing'
+  );
+
+  // 2. Throws on empty SVG input
+  assert.throws(
+    () => window.SVGExportAdapter.serialize(''),
+    /SVG generation returned empty/,
+    'SVGExportAdapter must throw when rawSvg is empty'
+  );
+
+  // 3. Test double simulating browser DOMParser and XMLSerializer for XML serialization verification
+  class MockDOMParser {
+    parseFromString(str, type) {
+      if (!str || !str.includes('<svg')) {
+        return {
+          getElementsByTagName(tag) {
+            return tag === 'parsererror' ? [{ textContent: 'Malformed XML markup: missing root svg' }] : [];
+          }
+        };
+      }
+      if (str.includes('<malformed>')) {
+        return {
+          getElementsByTagName(tag) {
+            return tag === 'parsererror' ? [{ textContent: 'Unclosed tag <malformed>' }] : [];
+          }
+        };
+      }
+
+      const attributes = {};
+      const hrefElements = [];
+      const attrMatches = str.match(/<svg\b([^>]*)>/i);
+      if (attrMatches) {
+        const rawAttrs = attrMatches[1];
+        const attrRe = /([a-zA-Z0-9_:-]+)="([^"]*)"/g;
+        let m;
+        while ((m = attrRe.exec(rawAttrs)) !== null) {
+          attributes[m[1]] = m[2];
+        }
+      }
+
+      const useMatches = str.match(/<(use|image)\b([^>]*)>/gi) || [];
+      useMatches.forEach((tagStr) => {
+        const hrefMatch = /\bhref="([^"]*)"/i.exec(tagStr);
+        if (hrefMatch) {
+          const elAttrs = { href: hrefMatch[1] };
+          hrefElements.push({
+            tagName: tagStr.startsWith('<use') ? 'use' : 'image',
+            getAttribute(k) { return elAttrs[k] || null; },
+            setAttributeNS(ns, k, v) { elAttrs[k] = v; },
+            attrs: elAttrs
+          });
+        }
+      });
+
+      const root = {
+        hasAttribute(k) { return attributes[k] !== undefined; },
+        setAttribute(k, v) { attributes[k] = v; },
+        attributes,
+        hrefElements
+      };
+
+      return {
+        getElementsByTagName(tag) { return []; },
+        documentElement: root,
+        querySelectorAll(sel) {
+          if (sel === '[href]') return hrefElements;
+          return [];
+        }
+      };
+    }
+  }
+
+  class MockXMLSerializer {
+    serializeToString(root) {
+      let serialized = '<svg';
+      Object.keys(root.attributes).forEach((k) => {
+        serialized += ` ${k}="${root.attributes[k]}"`;
+      });
+      serialized += '>';
+      root.hrefElements.forEach((el) => {
+        serialized += `<${el.tagName}`;
+        Object.keys(el.attrs).forEach((k) => {
+          serialized += ` ${k}="${el.attrs[k]}"`;
+        });
+        serialized += '/>';
+      });
+      serialized += '<text>OAuth2 &amp; TLS &lt;3</text></svg>';
+      return serialized;
+    }
+  }
+
+  // Set test doubles
+  global.DOMParser = MockDOMParser;
+  global.XMLSerializer = MockXMLSerializer;
+
+  try {
+    // 4. Test invalid XML handling throws
+    assert.throws(
+      () => window.SVGExportAdapter.serialize('<svg width="100"><malformed></svg>'),
+      /XML Parsing Failed/,
+      'SVGExportAdapter must throw on XML parser error'
+    );
+
+    // 5. Test valid SVG serialization: adds xmlns:xlink and xlink:href
+    const sampleSvg = '<svg width="1280" height="720"><use href="#icon1"/><image href="test.png"/></svg>';
+    const outputXml = window.SVGExportAdapter.serialize(sampleSvg);
+
+    assert.ok(outputXml.startsWith('<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'), 'Output must have XML declaration');
+    assert.ok(outputXml.includes('xmlns:xlink="http://www.w3.org/1999/xlink"'), 'Root svg must receive xmlns:xlink attribute');
+    assert.ok(outputXml.includes('xlink:href="#icon1"'), 'use element must receive xlink:href attribute');
+    assert.ok(outputXml.includes('xlink:href="test.png"'), 'image element must receive xlink:href attribute');
+    assert.ok(outputXml.includes('OAuth2 &amp; TLS &lt;3'), 'XML special characters must be preserved');
+
+    // 6. Test window.serializeSVGForExport entrypoint delegates to SVGExportAdapter
+    const delegatedXml = window.serializeSVGForExport(sampleSvg);
+    assert.strictEqual(delegatedXml, outputXml, 'window.serializeSVGForExport must delegate to SVGExportAdapter');
+  } finally {
+    delete global.DOMParser;
+    delete global.XMLSerializer;
+  }
 
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, and export payload builders verified (with DOM control test doubles and serializeSVGForExport pass-through stub).');
 }
