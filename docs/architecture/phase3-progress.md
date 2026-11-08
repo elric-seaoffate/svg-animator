@@ -307,3 +307,25 @@ The workspace implements a **master-detail inspector pattern**:
   - **Glows:** Shape / Mode, Color / Opacity, Edge Softness / Size, Radar Pings / Radius, Duration / Start Delay, End Delay / Hide in Pause.
   - **Ripples:** Color / Opacity, Refraction / Duration, Inner / Outer Radius, Rings / Thickness, Delay / End Delay.
 - All 95 tracked control IDs, event listeners, and history integrations remain 100% intact.
+
+## 12. Stage 3.6: Narrow Properties Column and Compact Vertical Inspector
+
+### 12.1 60% / 40% Column Proportions
+- Replaced the 50/50 split on wide viewports (`>= 1280px`) with:
+  `grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0.65rem;`
+- Instances column is allocated ~60% of the inspector grid (~290–315px), while Properties column is visibly narrower at ~40% (~190–210px).
+- Confirmed zero conflicting 50/50 rules in stylesheet cascade.
+
+### 12.2 Reduced Drawer Footprint
+- Reassessed and reduced expanded drawer width from 640px/700px down to:
+  - 520px on viewports `>= 1280px`
+  - 560px on viewports `>= 1600px`
+- This preserves significantly more canvas working area (660px on 1280p, 1280px 1:1 unconstrained stage on 1080p desktop) while maintaining comfortable spacing for all controls.
+
+### 12.3 Compact Horizontal Property Rows (`.inspector-prop-row`)
+- Replaced `.control-grid-2col` paired blocks with clean, single-property horizontal rows:
+  - Consistent label width: 72px (left-aligned, text-dim, 0.71rem).
+  - Compact control on right: selects (24px), text fields (24px), color pickers (22px), sliders with 44px numeric inputs (22px).
+  - Multi-button or complex controls (like waypoint management and upload zones) use full-width stacked rows where needed.
+- Applied across all four object editors: `#nodeEditor`, `#flowEditor`, `#glowEditor`, and `#rippleEditor`.
+- All 95 tracked controls, DOM IDs, and event handlers remain 100% intact.

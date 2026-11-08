@@ -1924,12 +1924,15 @@ async function runHarness() {
   assert.ok(htmlSource.includes('id="btnAddGlow"'), 'index.html must contain btnAddGlow');
   assert.ok(htmlSource.includes('id="btnAddRipple"'), 'index.html must contain btnAddRipple');
 
-  // 2. CSS Verification: Stylesheet defines compact rows, scrollable lists, equal-width 50/50 split, and expanded drawer
+  // 2. CSS Verification: Stylesheet defines compact rows, scrollable lists, 60/40 split, and compact horizontal property rows
   assert.ok(cssSource.includes('.flow-list-item.compact-instance-row'), 'style.css must contain .flow-list-item.compact-instance-row');
   assert.ok(cssSource.includes('.compact-instance-list'), 'style.css must contain .compact-instance-list');
   assert.ok(cssSource.includes('.drawer.left-drawer.expanded-inspector'), 'style.css must contain .expanded-inspector');
-  assert.ok(cssSource.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);'), 'style.css must contain 50/50 equal-width split grid');
-  assert.ok(cssSource.includes('.control-grid-2col'), 'style.css must contain .control-grid-2col');
+  assert.ok(cssSource.includes('grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);'), 'style.css must contain 60/40 split grid');
+  assert.ok(!cssSource.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);'), 'style.css must NOT contain conflicting 50/50 split grid');
+  assert.ok(cssSource.includes('--drawer-width: 520px;'), 'style.css must define 520px drawer width for wide desktop');
+  assert.ok(cssSource.includes('.inspector-prop-row'), 'style.css must contain .inspector-prop-row');
+  assert.ok(htmlSource.includes('class="inspector-prop-row"'), 'index.html must contain .inspector-prop-row');
   assert.ok(cssSource.includes('#nodeEditor select'), 'style.css must contain scoped compact input rules');
 
   // 3. DiagramNodes Compact List & Properties Inspector Lifecycle

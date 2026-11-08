@@ -972,7 +972,7 @@ header h1 {
 /* Expanded Inspector Drawer for Object-Based Tools */
 @media (min-width: 1280px) {
   .drawer.left-drawer.expanded-inspector:not(.collapsed) {
-    --drawer-width: 640px;
+    --drawer-width: 520px;
     width: var(--drawer-width);
     min-width: var(--drawer-width);
     max-width: var(--drawer-width);
@@ -980,8 +980,8 @@ header h1 {
 
   .drawer.expanded-inspector .inspector-split-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 0.65rem;
     align-items: start;
   }
 
@@ -991,30 +991,30 @@ header h1 {
 
   .drawer.expanded-inspector .inspector-master-column {
     border-right: 1px solid var(--border);
-    padding-right: 0.75rem;
+    padding-right: 0.65rem;
   }
 
   .drawer.expanded-inspector .inspector-detail-column {
-    padding-left: 0.15rem;
+    padding-left: 0.1rem;
     max-height: calc(100vh - 180px);
     overflow-y: auto;
-    padding-right: 0.25rem;
+    padding-right: 0.2rem;
   }
 }
 
 @media (min-width: 1600px) {
   .drawer.left-drawer.expanded-inspector:not(.collapsed) {
-    --drawer-width: 700px;
+    --drawer-width: 560px;
     width: var(--drawer-width);
     min-width: var(--drawer-width);
     max-width: var(--drawer-width);
   }
 }
 
-/* Compact Paired Control Grid (2-column) */
+/* Compact Paired Control Grid (legacy / fallback) */
 .control-grid-2col {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 0.45rem;
   align-items: start;
 }
@@ -1025,27 +1025,99 @@ header h1 {
   }
 }
 
+/* Compact Horizontal Property Rows (Label on Left, Control on Right) */
+.inspector-prop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-height: 24px;
+  margin-top: 0.22rem;
+}
+
+.inspector-prop-row > label,
+.inspector-prop-row > .prop-label {
+  width: 72px;
+  min-width: 66px;
+  max-width: 76px;
+  flex-shrink: 0;
+  font-size: 0.71rem;
+  color: var(--text-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.inspector-prop-row > select,
+.inspector-prop-row > .text-field-input,
+.inspector-prop-row > input[type="text"],
+.inspector-prop-row > input[type="color"],
+.inspector-prop-row > .slider-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.inspector-prop-row select,
+.inspector-prop-row .text-field-input,
+.inspector-prop-row input[type="text"] {
+  height: 24px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.73rem;
+}
+
+.inspector-prop-row input[type="color"] {
+  height: 22px;
+  padding: 1px 2px;
+}
+
+.inspector-prop-row .slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.inspector-prop-row .slider-row input[type="range"] {
+  flex: 1;
+  min-width: 45px;
+  height: 12px;
+  margin: 0;
+}
+
+.inspector-prop-row .slider-row .num-input {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 22px;
+  padding: 0.05rem 0.15rem;
+  font-size: 0.71rem;
+  margin: 0;
+  flex-shrink: 0;
+}
+
 /* Scoped Compact Property Inspector Density */
 #nodeEditor,
 #flowEditor,
 #glowEditor,
 #rippleEditor {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
 }
 
 #nodeEditor .control-row,
 #flowEditor .control-row,
 #glowEditor .control-row,
 #rippleEditor .control-row {
-  margin-top: 0.35rem;
-  gap: 0.2rem;
+  margin-top: 0.25rem;
+  gap: 0.15rem;
 }
 
 #nodeEditor .control-row label,
 #flowEditor .control-row label,
 #glowEditor .control-row label,
 #rippleEditor .control-row label {
-  font-size: 0.72rem;
+  font-size: 0.71rem;
   font-weight: 500;
   color: var(--text-dim);
 }
@@ -1058,16 +1130,16 @@ header h1 {
 #glowEditor .text-field-input,
 #rippleEditor select,
 #rippleEditor .text-field-input {
-  height: 28px;
-  padding: 0.2rem 0.45rem;
-  font-size: 0.76rem;
+  height: 24px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.73rem;
 }
 
 #nodeEditor input[type="color"],
 #flowEditor input[type="color"],
 #glowEditor input[type="color"],
 #rippleEditor input[type="color"] {
-  height: 26px;
+  height: 22px;
   padding: 1px 2px;
 }
 
@@ -1075,50 +1147,50 @@ header h1 {
 #flowEditor .slider-row,
 #glowEditor .slider-row,
 #rippleEditor .slider-row {
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 #nodeEditor .num-input,
 #flowEditor .num-input,
 #glowEditor .num-input,
 #rippleEditor .num-input {
-  width: 50px;
-  height: 24px;
-  padding: 0.1rem 0.2rem;
-  font-size: 0.74rem;
+  width: 44px;
+  height: 22px;
+  padding: 0.05rem 0.15rem;
+  font-size: 0.71rem;
 }
 
 #nodeEditor input[type="range"],
 #flowEditor input[type="range"],
 #glowEditor input[type="range"],
 #rippleEditor input[type="range"] {
-  height: 14px;
+  height: 12px;
 }
 
 #nodeEditor button.secondary,
 #flowEditor button.secondary,
 #glowEditor button.secondary,
 #rippleEditor button.secondary {
-  height: 28px;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.74rem;
+  height: 26px;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.72rem;
 }
 
 #nodeEditor button.primary,
 #flowEditor button.primary,
 #glowEditor button.primary,
 #rippleEditor button.primary {
-  height: 30px;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.76rem;
+  height: 26px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
 }
 
 #nodeEditor .stage-hint,
 #flowEditor .stage-hint,
 #glowEditor .stage-hint,
 #rippleEditor .stage-hint {
-  font-size: 0.7rem;
-  margin-bottom: 0.35rem;
+  font-size: 0.68rem;
+  margin-bottom: 0.25rem;
 }
 
 /* ==========================================================================
