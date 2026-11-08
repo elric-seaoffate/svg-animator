@@ -607,7 +607,7 @@ required_contracts = {
     "ripples.js": ["window.Ripples", "getState", "setState", "createRipple", "updateRipple", "deleteRipple", "getRipple", "getAllRipples", "injectIntoSVG"],
     "history.js": ["window.HistoryManager", "captureSnapshot", "applySnapshot", "recordImmediate", "recordDebounced", "undo", "redo"],
     "projects.js": ["window.ProjectManager", "serializeStudioState", "applyStudioState", "fetchProjectsList", "fetchProjectById", "postSaveProject", "postDeleteProject"],
-    "app.js": ["window.triggerAppRender", "window.buildFullSVG", "window.serializeSVGForExport", "window.getLoadedPhoto", "window.setLoadedPhoto"],
+    "app.js": ["window.triggerAppRender", "window.buildFullSVG", "window.serializeSVGForExport", "window.getLoadedPhoto", "window.setLoadedPhoto", "window.populateShapeDropdowns"],
     "still-export-modal.js": ["window.StillExportStudio", "buildStillRenderConfig", "bakeStaticSVGAtTime", "evaluateSMILAnimate"],
     "export-modal.js": ["window.AnimatedExportStudio", "constructExportJobPayload", "requestBitmapRender", "inspectAudioStream"],
 }

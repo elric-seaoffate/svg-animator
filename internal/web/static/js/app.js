@@ -6,10 +6,126 @@
  *   - Canvas preset, orientation, background pattern, and photo crop UI bindings
  *   - Paired slider/number input synchronization and settings panel listeners
  *   - Standalone SVG/HTML download handlers
+ *   - Shape Registry UI dropdown population (`window.populateShapeDropdowns`)
  *
  * Delegates Layer 2 coordination to `window.AppCoordinator` (`coordinator.js`)
  * and Layer 3 scene state / SVG compilation to `window.SceneState` (`scene-state.js`).
  */
+
+// =========================================================================
+// Layer 1 (UI Presentation): Shape Registry Dropdown Population & Unknown Shape Handling
+// =========================================================================
+
+function ensureShapeInDropdown(selectEl, shapeId) {
+  if (!selectEl) return;
+  if (!window.ShapeRegistry || typeof window.ShapeRegistry.has !== 'function') return;
+
+  // Remove any previous temporary unknown shape option
+  const existingTemp = selectEl.querySelector ? selectEl.querySelector('option[data-unknown-shape="true"]') : null;
+  if (existingTemp) {
+    if (typeof existingTemp.remove === 'function') {
+      existingTemp.remove();
+    } else if (existingTemp.parentElement) {
+      existingTemp.parentElement.removeChild(existingTemp);
+    }
+  }
+
+  if (window.ShapeRegistry.has(shapeId)) {
+    selectEl.value = shapeId;
+  } else if (shapeId) {
+    // Add temporary disabled option to represent the unknown/legacy shape
+    // without mutating the underlying data
+    const tempOpt = document.createElement('option');
+    tempOpt.value = shapeId;
+    tempOpt.textContent = 'Unknown Shape: ' + shapeId;
+    tempOpt.disabled = true;
+    tempOpt.selected = true;
+    tempOpt.setAttribute('data-unknown-shape', 'true');
+    if (tempOpt.dataset) {
+      tempOpt.dataset.unknownShape = 'true';
+    }
+    if (selectEl.firstChild) {
+      selectEl.insertBefore(tempOpt, selectEl.firstChild);
+    } else {
+      selectEl.appendChild(tempOpt);
+    }
+    selectEl.value = shapeId;
+  }
+}
+
+function hookShapeDropdownSync() {
+  if (window._shapeDropdownSyncHooked) return;
+  window._shapeDropdownSyncHooked = true;
+
+  if (window.DiagramNodes && typeof window.DiagramNodes.syncEditorUI === 'function') {
+    const origSyncEditorUI = window.DiagramNodes.syncEditorUI;
+    window.DiagramNodes.syncEditorUI = function(node) {
+      origSyncEditorUI.call(this, node);
+      if (node && node.shape) {
+        ensureShapeInDropdown(document.getElementById('nodeShapeSelect'), node.shape);
+      }
+    };
+  }
+
+  if (window.NodePresets && typeof window.NodePresets.syncRowUI === 'function') {
+    const origSyncRowUI = window.NodePresets.syncRowUI;
+    window.NodePresets.syncRowUI = function(key) {
+      origSyncRowUI.call(this, key);
+      if (key === 'shape' && this.preset && this.preset.shape) {
+        ensureShapeInDropdown(document.getElementById('presetVal-shape'), this.preset.shape.value);
+      }
+    };
+  }
+}
+
+function populateShapeDropdowns() {
+  if (!window.ShapeRegistry || typeof window.ShapeRegistry.getAll !== 'function') {
+    return; // Preserve existing HTML fallback options
+  }
+
+  const shapes = window.ShapeRegistry.getAll();
+  const dropdownIds = ['nodeShapeSelect', 'presetVal-shape'];
+
+  dropdownIds.forEach((id) => {
+    const selectEl = document.getElementById(id);
+    if (!selectEl) return;
+
+    const currentVal = selectEl.value;
+    selectEl.innerHTML = '';
+    if (Array.isArray(selectEl.children)) {
+      selectEl.children.length = 0;
+    }
+
+    shapes.forEach((shape) => {
+      const opt = document.createElement('option');
+      opt.value = shape.id;
+      opt.textContent = shape.displayName;
+      selectEl.appendChild(opt);
+    });
+
+    // Clean up temporary unknown option on user change to a supported shape
+    if (!selectEl._shapeChangeCleanupAttached && typeof selectEl.addEventListener === 'function') {
+      selectEl._shapeChangeCleanupAttached = true;
+      selectEl.addEventListener('change', (e) => {
+        if (window.ShapeRegistry && window.ShapeRegistry.has(e.target.value)) {
+          const temp = selectEl.querySelector ? selectEl.querySelector('option[data-unknown-shape="true"]') : null;
+          if (temp) {
+            if (typeof temp.remove === 'function') temp.remove();
+            else if (temp.parentElement) temp.parentElement.removeChild(temp);
+          }
+        }
+      });
+    }
+
+    ensureShapeInDropdown(selectEl, currentVal);
+  });
+
+  hookShapeDropdownSync();
+}
+
+window.ensureShapeInDropdown = ensureShapeInDropdown;
+window.populateShapeDropdowns = populateShapeDropdowns;
+
 document.addEventListener('DOMContentLoaded', () => {
   let currentImage = null;
   window.currentRenderState = null;
@@ -766,6 +882,10 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('HTML Download Error: ' + err.message);
     }
   });
+
+  if (typeof populateShapeDropdowns === 'function') {
+    populateShapeDropdowns();
+  }
 
   if (window.DiagramNodes) window.DiagramNodes.init();
   if (window.DataFlows) window.DataFlows.init();

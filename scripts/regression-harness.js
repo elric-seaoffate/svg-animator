@@ -459,6 +459,87 @@ function runHarness() {
   // STAGE 3: Selection Exclusivity, ControlStateAdaptor, HistoryManager (50),
   //          and ProjectManager (Schema 1.2.0)
   // ===========================================================================
+  function makeStubElement(idOrTag) {
+    const el = {
+      id: idOrTag,
+      tagName: String(idOrTag).toUpperCase(),
+      type: 'text',
+      value: '',
+      checked: false,
+      disabled: false,
+      innerHTML: '',
+      textContent: '',
+      style: {},
+      dataset: {},
+      children: [],
+      parentElement: null,
+      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+      addEventListener(evt, fn) {
+        if (!this._listeners) this._listeners = {};
+        if (!this._listeners[evt]) this._listeners[evt] = [];
+        this._listeners[evt].push(fn);
+      },
+      removeEventListener(evt, fn) {
+        if (!this._listeners || !this._listeners[evt]) return;
+        this._listeners[evt] = this._listeners[evt].filter((f) => f !== fn);
+      },
+      dispatchEvent(evt) {
+        const type = typeof evt === 'string' ? evt : (evt ? evt.type : '');
+        if (this._listeners && this._listeners[type]) {
+          const e = typeof evt === 'object' ? evt : { type, target: this };
+          if (!e.target) e.target = this;
+          this._listeners[type].forEach((fn) => fn(e));
+        }
+      },
+      appendChild(child) {
+        child.parentElement = this;
+        this.children.push(child);
+        return child;
+      },
+      removeChild(child) {
+        const idx = this.children.indexOf(child);
+        if (idx !== -1) this.children.splice(idx, 1);
+        child.parentElement = null;
+        return child;
+      },
+      remove() {
+        if (this.parentElement && typeof this.parentElement.removeChild === 'function') {
+          this.parentElement.removeChild(this);
+        }
+      },
+      insertBefore(child, ref) {
+        child.parentElement = this;
+        const idx = ref ? this.children.indexOf(ref) : -1;
+        if (idx !== -1) {
+          this.children.splice(idx, 0, child);
+        } else {
+          this.children.push(child);
+        }
+        return child;
+      },
+      setAttribute(k, v) {
+        this[k] = v;
+        if (k === 'data-unknown-shape') this.dataset.unknownShape = v;
+      },
+      getAttribute(k) { return this[k] || null; },
+      querySelector(sel) {
+        if (sel === 'option[data-unknown-shape="true"]') {
+          return this.children.find((c) => c.dataset && c.dataset.unknownShape === 'true') || null;
+        }
+        return null;
+      },
+      querySelectorAll() { return []; },
+      getBoundingClientRect() { return { left: 0, top: 0, width: 1600, height: 900 }; }
+    };
+    Object.defineProperty(el, 'firstChild', {
+      get() { return this.children[0] || null; }
+    });
+    Object.defineProperty(el, 'options', {
+      get() { return this.children.filter((c) => c.tagName === 'OPTION'); }
+    });
+    return el;
+  }
+
   const htmlSource = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
   const controlElements = new Map();
   const tagRegex = /<(input|select|textarea)\b([^>]*)>/gi;
@@ -472,52 +553,12 @@ function runHarness() {
     const typeMatch = /\btype="([^"]+)"/.exec(attrs);
     const valMatch = /\bvalue="([^"]*)"/.exec(attrs);
     const checked = /\bchecked\b/.test(attrs);
-    controlElements.set(id, {
-      id,
-      tagName: tag.toUpperCase(),
-      type: typeMatch ? typeMatch[1] : (tag === 'select' ? 'select-one' : 'text'),
-      value: valMatch ? valMatch[1] : '',
-      checked,
-      disabled: false,
-      style: {},
-      dataset: {},
-      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-      addEventListener() {},
-      removeEventListener() {},
-      querySelector() { return null; },
-      querySelectorAll() { return []; },
-      appendChild() {},
-      removeChild() {},
-      setAttribute() {},
-      getAttribute() { return null; }
-    });
-  }
-
-  function makeStubElement(idOrTag) {
-    return {
-      id: idOrTag,
-      tagName: String(idOrTag).toUpperCase(),
-      type: 'text',
-      value: '',
-      checked: false,
-      disabled: false,
-      innerHTML: '',
-      textContent: '',
-      style: {},
-      dataset: {},
-      children: [],
-      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-      addEventListener() {},
-      removeEventListener() {},
-      appendChild(child) { this.children.push(child); return child; },
-      removeChild() {},
-      insertBefore(child) { this.children.push(child); return child; },
-      setAttribute(k, v) { this[k] = v; },
-      getAttribute(k) { return this[k] || null; },
-      querySelector() { return null; },
-      querySelectorAll() { return []; },
-      getBoundingClientRect() { return { left: 0, top: 0, width: 1600, height: 900 }; }
-    };
+    const el = makeStubElement(id);
+    el.tagName = tag.toUpperCase();
+    el.type = typeMatch ? typeMatch[1] : (tag === 'select' ? 'select-one' : 'text');
+    el.value = valMatch ? valMatch[1] : '';
+    el.checked = checked;
+    controlElements.set(id, el);
   }
 
   global.document = {
@@ -542,6 +583,7 @@ function runHarness() {
 
   loadProductionScript('history.js');
   loadProductionScript('projects.js');
+  loadProductionScript('app.js');
 
   // 3.1 ControlStateAdaptor synchronization across 95 tracked controls + chkAutoApplyPreset
   assert.strictEqual(window.HistoryManager.trackedControlIds.length, 95);
@@ -662,6 +704,133 @@ function runHarness() {
   assert.strictEqual(window.DiagramNodes.getAllNodes().length, 2, 'applyStudioState must restore both nodes');
   assert.strictEqual(window.DataFlows.getAllFlows().length, 1, 'applyStudioState must restore flow');
   assert.strictEqual(window.DataFlows.getFlow(flow1.id).label, 'TLS 1.3', 'applyStudioState must preserve flow label');
+
+  // ===========================================================================
+  // STAGE 2.2: Shape Selection UI Integration & Unknown Shape Handling
+  // ===========================================================================
+  assert.strictEqual(typeof window.populateShapeDropdowns, 'function', 'window.populateShapeDropdowns must be exported by app.js');
+  assert.strictEqual(typeof window.ensureShapeInDropdown, 'function', 'window.ensureShapeInDropdown must be exported by app.js');
+
+  // Initialize UI event listeners for DiagramNodes and NodePresets if not already done
+  if (window.NodePresets && !window.NodePresets._initialized) window.NodePresets.init();
+  if (window.DiagramNodes && !window.DiagramNodes._initialized) window.DiagramNodes.init();
+
+  const nodeSelect = document.getElementById('nodeShapeSelect');
+  const presetSelect = document.getElementById('presetVal-shape');
+  const registryShapes = window.ShapeRegistry.getAll();
+  assert.strictEqual(registryShapes.length, 12, 'ShapeRegistry must provide exactly 12 built-in shapes');
+
+  // 1 & 8: Population populates 12 shapes without triggering unintended change/input events
+  let nodeChangeEventCount = 0;
+  let nodeInputEventCount = 0;
+  let presetChangeEventCount = 0;
+  let presetInputEventCount = 0;
+
+  nodeSelect.addEventListener('change', () => { nodeChangeEventCount++; });
+  nodeSelect.addEventListener('input', () => { nodeInputEventCount++; });
+  presetSelect.addEventListener('change', () => { presetChangeEventCount++; });
+  presetSelect.addEventListener('input', () => { presetInputEventCount++; });
+
+  window.populateShapeDropdowns();
+
+  // Test 8: Population does not trigger unintended change/input events
+  assert.strictEqual(nodeChangeEventCount, 0, 'populateShapeDropdowns must not trigger change event on nodeShapeSelect');
+  assert.strictEqual(nodeInputEventCount, 0, 'populateShapeDropdowns must not trigger input event on nodeShapeSelect');
+  assert.strictEqual(presetChangeEventCount, 0, 'populateShapeDropdowns must not trigger change event on presetVal-shape');
+  assert.strictEqual(presetInputEventCount, 0, 'populateShapeDropdowns must not trigger input event on presetVal-shape');
+
+  // Test 1 & 2: Both dropdowns receive exactly the 12 registry shapes in exact order with correct IDs and displayNames
+  assert.strictEqual(nodeSelect.children.length, 12, 'nodeShapeSelect must receive exactly 12 options');
+  assert.strictEqual(presetSelect.children.length, 12, 'presetVal-shape must receive exactly 12 options');
+
+  for (let i = 0; i < 12; i++) {
+    assert.strictEqual(nodeSelect.children[i].value, registryShapes[i].id, `Option ${i} value must match registry ID`);
+    assert.strictEqual(nodeSelect.children[i].textContent, registryShapes[i].displayName, `Option ${i} text must match registry displayName`);
+    assert.strictEqual(presetSelect.children[i].value, registryShapes[i].id, `Preset option ${i} value must match registry ID`);
+    assert.strictEqual(presetSelect.children[i].textContent, registryShapes[i].displayName, `Preset option ${i} text must match registry displayName`);
+  }
+
+  // Test 3: Existing valid selections are preserved
+  nodeSelect.value = 'diamond';
+  presetSelect.value = 'cloud';
+  window.populateShapeDropdowns();
+  assert.strictEqual(nodeSelect.value, 'diamond', 'populateShapeDropdowns must preserve existing valid node shape selection');
+  assert.strictEqual(presetSelect.value, 'cloud', 'populateShapeDropdowns must preserve existing valid preset shape selection');
+
+  // Test 4: Missing registry leaves the static HTML fallback intact
+  const savedRegistry = window.ShapeRegistry;
+  delete window.ShapeRegistry;
+  const mockFallbackSelect = makeStubElement('select');
+  mockFallbackSelect.appendChild({ tagName: 'OPTION', value: 'static_fallback_1', textContent: 'Static 1', children: [] });
+  mockFallbackSelect.appendChild({ tagName: 'OPTION', value: 'static_fallback_2', textContent: 'Static 2', children: [] });
+  controlElements.set('nodeShapeSelect', mockFallbackSelect);
+
+  window.populateShapeDropdowns();
+  assert.strictEqual(mockFallbackSelect.children.length, 2, 'Missing registry must leave static HTML fallback options intact');
+  assert.strictEqual(mockFallbackSelect.children[0].value, 'static_fallback_1');
+  assert.strictEqual(mockFallbackSelect.children[1].value, 'static_fallback_2');
+
+  // Restore registry and real elements
+  window.ShapeRegistry = savedRegistry;
+  controlElements.set('nodeShapeSelect', nodeSelect);
+  window.populateShapeDropdowns();
+
+  // Test 5: Unknown node shape IDs are represented without changing underlying node data
+  const legacyNode = window.DiagramNodes.createNode({
+    shape: 'legacy_trapezoid',
+    text: 'Legacy Service',
+    applyPreset: false
+  });
+  assert.strictEqual(legacyNode.shape, 'legacy_trapezoid', 'createNode must store unknown shape ID as-is');
+
+  // Select the legacy node to make it active and trigger syncEditorUI
+  window.DiagramNodes.selectNode(legacyNode.id);
+
+  // Assert dropdown value and presence of temporary disabled option
+  assert.strictEqual(nodeSelect.value, 'legacy_trapezoid', 'nodeShapeSelect must represent unknown shape ID');
+  const tempNodeOpt = nodeSelect.querySelector('option[data-unknown-shape="true"]');
+  assert.ok(tempNodeOpt, 'Temporary option for unknown node shape must be present in nodeShapeSelect');
+  assert.strictEqual(tempNodeOpt.disabled, true, 'Temporary unknown shape option must be disabled');
+  assert.strictEqual(tempNodeOpt.value, 'legacy_trapezoid', 'Temporary option value must match unknown shape ID');
+  assert.strictEqual(tempNodeOpt.textContent, 'Unknown Shape: legacy_trapezoid', 'Temporary option text must label unknown shape');
+
+  // Verify underlying node data was NOT modified or converted
+  assert.strictEqual(window.DiagramNodes.getNode(legacyNode.id).shape, 'legacy_trapezoid', 'Underlying node data must retain original unknown shape ID');
+
+  // Test 6: Unknown preset shape IDs are represented without changing underlying preset data
+  window.NodePresets.setState({
+    preset: {
+      shape: { enabled: true, value: 'obsolete_shape' }
+    }
+  });
+  assert.strictEqual(window.NodePresets.getState().preset.shape.value, 'obsolete_shape');
+
+  window.NodePresets.syncRowUI('shape');
+  assert.strictEqual(presetSelect.value, 'obsolete_shape', 'presetVal-shape must represent unknown preset shape ID');
+  const tempPresetOpt = presetSelect.querySelector('option[data-unknown-shape="true"]');
+  assert.ok(tempPresetOpt, 'Temporary option for unknown preset shape must be present in presetVal-shape');
+  assert.strictEqual(tempPresetOpt.disabled, true, 'Temporary unknown preset shape option must be disabled');
+  assert.strictEqual(tempPresetOpt.value, 'obsolete_shape', 'Temporary preset option value must match unknown shape ID');
+  assert.strictEqual(tempPresetOpt.textContent, 'Unknown Shape: obsolete_shape', 'Temporary preset option text must label unknown shape');
+
+  // Verify underlying preset data was NOT modified
+  assert.strictEqual(window.NodePresets.getState().preset.shape.value, 'obsolete_shape', 'Underlying preset data must retain original unknown shape ID');
+
+  // Test 7: Selecting a valid replacement works normally
+  // User selects 'hexagon' for the legacy node
+  nodeSelect.value = 'hexagon';
+  nodeSelect.dispatchEvent({ type: 'change', target: nodeSelect });
+
+  // Assert underlying node shape updated to 'hexagon'
+  assert.strictEqual(window.DiagramNodes.getNode(legacyNode.id).shape, 'hexagon', 'Selecting valid replacement must update underlying node shape');
+  // Assert temporary option was removed
+  assert.strictEqual(nodeSelect.querySelector('option[data-unknown-shape="true"]'), null, 'Temporary option must be removed after valid selection on nodeShapeSelect');
+
+  // User selects 'pill' for the legacy preset
+  presetSelect.value = 'pill';
+  presetSelect.dispatchEvent({ type: 'change', target: presetSelect });
+  assert.strictEqual(window.NodePresets.getState().preset.shape.value, 'pill', 'Selecting valid replacement must update underlying preset shape');
+  assert.strictEqual(presetSelect.querySelector('option[data-unknown-shape="true"]'), null, 'Temporary option must be removed after valid selection on presetVal-shape');
 
   // ===========================================================================
   // STAGE 4: SVG Layer Injection & Export Payload Construction
