@@ -375,7 +375,13 @@ window.DiagramNodes = {
     this.updateActiveDimBadge(node);
 
     const shSel = document.getElementById('nodeShapeSelect');
-    if (shSel) shSel.value = node.shape || 'rounded';
+    if (shSel) {
+      if (typeof window.ensureShapeInDropdown === 'function') {
+        window.ensureShapeInDropdown(shSel, node.shape || 'rounded');
+      } else {
+        shSel.value = node.shape || 'rounded';
+      }
+    }
     const txtIn = document.getElementById('nodeTextInput');
     if (txtIn) txtIn.value = node.text || '';
     const subIn = document.getElementById('nodeSubtextInput');
@@ -436,6 +442,9 @@ window.DiagramNodes = {
     if (ed) ed.style.display = 'none';
     const selBox = document.getElementById('nodeSelectionBox');
     if (selBox) selBox.style.display = 'none';
+    if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'node' && !window.AppCoordinator._isCoordinatingSelection) {
+      window.AppCoordinator.clearSelection();
+    }
   },
 
   updateActive(key, value) {

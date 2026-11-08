@@ -22,6 +22,8 @@
 - `window.triggerAppRender()` — Compiles the full SVG via `SceneState` and updates `#svgContainer` and stage overlays.
 - `window.buildFullSVG(state, overrides)` — Builds the complete SVG markup string from a render state object and optional layer overrides (`includeNodes`, `includeFlows`, `includeGlows`, `includeRipples`).
 - `window.serializeSVGForExport(rawSvg)` — Ensures explicit XML declaration, `xmlns:xlink`, and `xlink:href` attributes on an SVG string.
+- `window.populateShapeDropdowns()` — Populates `#nodeShapeSelect` and `#presetVal-shape` with all 12 shapes from `ShapeRegistry`.
+- `window.ensureShapeInDropdown(selectEl, shapeId)` — Ensures a shape ID (including legacy/unknown shapes) is represented in a dropdown element without mutating underlying data.
 - `window.getLoadedPhoto()` / `window.setLoadedPhoto(photoObj)` — Reads or updates `SceneState.loadedPhoto` and refreshes the photo dropzone UI.
 - `window.syncUIAfterHistoryRestore()` — Refreshes UI visibility (custom canvas dimensions, camera/optical/frame sections, and preview render) after undo/redo or project load.
 - `window.openAccordionById(accId)` / `window.toggleAllAccordions(panelId, expand)` — Expands a specific accordion or toggles all sidebar accordions.

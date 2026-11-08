@@ -145,6 +145,13 @@ window.ProjectManager = {
         window.NodePresets.preset = data.presets;
       }
       window.NodePresets.syncAllRowsUI();
+    } else if (window.NodePresets) {
+      if (typeof window.NodePresets.resetToDefaults === 'function') {
+        window.NodePresets.resetToDefaults();
+      }
+      if (typeof window.NodePresets.syncAllRowsUI === 'function') {
+        window.NodePresets.syncAllRowsUI();
+      }
     }
 
     if (window.DiagramNodes) {
@@ -532,6 +539,14 @@ window.ProjectManager = {
     if (window.Ripples) {
       if (typeof window.Ripples.setState === 'function') window.Ripples.setState({ ripples: [], ripplesCounter: 0 });
       window.Ripples.deselectRipple();
+    }
+    if (window.NodePresets) {
+      if (typeof window.NodePresets.resetToDefaults === 'function') {
+        window.NodePresets.resetToDefaults();
+      }
+      if (typeof window.NodePresets.syncAllRowsUI === 'function') {
+        window.NodePresets.syncAllRowsUI();
+      }
     }
 
     if (typeof window.syncUIAfterHistoryRestore === 'function') {

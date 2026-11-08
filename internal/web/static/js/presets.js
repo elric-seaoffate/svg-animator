@@ -2,7 +2,7 @@
  * Shape Presets Module (`window.NodePresets`)
  *
  * Layer 3 (Operational API):
- *   - `getState()`, `setState(data)`, `setPresetParam(key, value, enabled)`,
+ *   - `getState()`, `setState(data)`, `resetToDefaults()`, `setPresetParam(key, value, enabled)`,
  *     `setAllEnabled(enabled)`, `applyToNodeObject(node)`, `extractFromNodeObject(node)`
  *   - Zero direct DOM dependencies.
  *
@@ -51,6 +51,24 @@ window.NodePresets = {
       preset: JSON.parse(JSON.stringify(this.preset)),
       autoApplyToNewNodes: !!this.autoApplyToNewNodes
     };
+  },
+
+  resetToDefaults() {
+    this.preset = {
+      width:       { enabled: true,  value: 170 },
+      height:      { enabled: false, value: 80 },
+      fillColor:   { enabled: true,  value: '#161b22' },
+      strokeColor: { enabled: true,  value: '#58a6ff' },
+      textColor:   { enabled: true,  value: '#e6edf3' },
+      fontSize:    { enabled: true,  value: 15 },
+      fillOpacity: { enabled: false, value: 0.92 },
+      strokeWidth: { enabled: false, value: 2 },
+      strokeStyle: { enabled: false, value: 'solid' },
+      shape:       { enabled: false, value: 'rounded' },
+      anim:        { enabled: false, value: 'none' }
+    };
+    this.autoApplyToNewNodes = true;
+    return this.getState();
   },
 
   setState(data) {
@@ -125,7 +143,7 @@ window.NodePresets = {
 
     const autoChk = document.getElementById('chkAutoApplyPreset');
     if (autoChk) {
-      this.autoApplyToNewNodes = !!autoChk.checked;
+      autoChk.checked = !!this.autoApplyToNewNodes;
       autoChk.addEventListener('change', (e) => {
         this.autoApplyToNewNodes = !!e.target.checked;
         if (window.SceneState) {
@@ -220,7 +238,13 @@ window.NodePresets = {
 
     if (slider) slider.value = entry.value;
     if (num) num.value = entry.value;
-    if (single) single.value = entry.value;
+    if (single) {
+      if (key === 'shape' && typeof window.ensureShapeInDropdown === 'function') {
+        window.ensureShapeInDropdown(single, entry.value);
+      } else {
+        single.value = entry.value;
+      }
+    }
   },
 
   syncAllRowsUI() {

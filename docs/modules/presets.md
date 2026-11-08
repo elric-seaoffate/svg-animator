@@ -7,7 +7,7 @@
 - **Layer 3 (Operational Functionality — Zero DOM Dependencies):**
   - Owns `presetKeys` (11 keys: `width`, `height`, `fillColor`, `strokeColor`, `textColor`, `fontSize`, `fillOpacity`, `strokeWidth`, `strokeStyle`, `shape`, `anim`).
   - Owns `preset` (`{ [key]: { enabled, value } }`) and `autoApplyToNewNodes`.
-  - Pure operational methods: `getState()`, `setState(data)`, `setPresetParam(key, value, enabled)`, `setAllEnabled(enabled)`, `applyToNodeObject(node)`, and `extractFromNodeObject(node)`.
+  - Pure operational methods: `getState()`, `setState(data)`, `resetToDefaults()`, `setPresetParam(key, value, enabled)`, `setAllEnabled(enabled)`, `applyToNodeObject(node)`, and `extractFromNodeObject(node)`.
 - **Layer 1 (UI Presentation):**
   - Binds `#presetChk-*`, `#presetVal-*Slider`/`Num`, `#presetVal-*`, and `#chkAutoApplyPreset`.
   - Binds batch action buttons (`#btnSnapNodeToPreset`, `#btnCopyNodeToPreset`, `#btnPresetApplySelected`, `#btnPresetApplyAll`, `#btnPresetSetAll`, `#btnPresetUnsetAll`).
@@ -17,6 +17,7 @@
 - **Operational API:**
   - `getState()` — Returns deep-cloned `{ preset, autoApplyToNewNodes }`.
   - `setState(data)` — Restores operational preset state (accepting either `{ preset, autoApplyToNewNodes }` or a direct `preset` map).
+  - `resetToDefaults()` — Resets all preset parameters back to standard defaults and resets `autoApplyToNewNodes` to `true`.
   - `setPresetParam(key, value, enabled)` — Updates a preset value and/or enabled flag without touching the DOM.
   - `setAllEnabled(enabled)` — Enables or disables all 11 preset parameters.
   - `applyToNodeObject(node)` — Applies enabled preset parameters to a node object and returns whether any field changed.

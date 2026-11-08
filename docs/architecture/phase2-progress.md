@@ -10,7 +10,7 @@ This document records the progress, verification checkpoints, test results, and 
 | :--- | :--- | :---: | :---: | :--- |
 | **Stage 2.1** | Immutable SVG Shape Registry | **Complete** | [`f229c89`](https://127.0.0.1:3000/nigel/svg-animator/commit/f229c89) | Created `internal/web/static/js/shape-registry.js` with 12 frozen shape builders; decoupled shape SVG generation from `nodes.js`. |
 | **Stage 2.2** | UI Shape Selection Integration | **Complete** | [`c1155bc`](https://127.0.0.1:3000/nigel/svg-animator/commit/c1155bc) | Implemented `populateShapeDropdowns` and `ensureShapeInDropdown` in `app.js`; dynamic dropdown population for `#nodeShapeSelect` and `#presetVal-shape`; unknown shape fallback preservation. |
-| **Stage 2.3** | Targeted Component APIs | **Planned** | *Pending* | Standardize public Layer 3 interfaces across `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, and `NodePresets`. |
+| **Stage 2.3** | Targeted Component APIs | **Complete** | *In Review* | Standardized `DataFlows.setActiveWaypointIndex`, `NodePresets.resetToDefaults`, component deselect sync with `AppCoordinator`, and removed temporary runtime monkey-patching in `app.js`. |
 | **Stage 2.4** | Restoration/UI Refresh Decoupling | **Planned** | *Pending* | Decouple direct presentation calls from `HistoryManager` and `ProjectManager` (remediating architectural warning `ARCH-06`). |
 
 ---
@@ -79,11 +79,29 @@ During smoke testing in the browser-based `code-server` reverse proxy testbed, t
 
 ---
 
-## 5. Next Steps
+## 5. Stage 2.3 Implementation Details
 
-1. **Stage 2.3 — Targeted Component APIs:**
-   - Define and standardize the public Layer 3 operational methods on `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, and `NodePresets`.
-   - Ensure all public methods operate with complete presentation independence.
-2. **Stage 2.4 — Restoration/UI Refresh Decoupling:**
-   - Decouple `HistoryManager` and `ProjectManager` from direct Layer 1 presentation method calls.
-   - Route restoration notifications cleanly through `AppCoordinator` and dedicated UI event listeners, eliminating architectural warning `ARCH-06`.
+Stage 2.3 standardized component APIs, resolved transitional state mutations, and cleaned up temporary integration hooks:
+
+1. **`DataFlows.setActiveWaypointIndex(index)` & `getActiveWaypointIndex()`:**
+   - Added explicit, validated setter in `flows.js` (`Layer 3`). Validates integer parsing and bounds checking against active flow nodes.
+   - Migrated `stage.js:199` pointer grab from direct internal state mutation (`window.DataFlows.activeNodeIdx = idx`) to `window.DataFlows.setActiveWaypointIndex(idx)`, eliminating transitional state mutation (`OBS-01`).
+2. **`NodePresets.resetToDefaults()`:**
+   - Added pure Layer 3 method resetting all 11 preset parameters to baseline defaults and resetting `autoApplyToNewNodes = true`.
+   - Wired into `projects.js:resetToNewProject()` so new blank projects reset presets.
+   - Wired into `projects.js:applyStudioState()` and `history.js:applySnapshot()` so legacy or partial payloads omitting presets reset presets to defaults (`FINDING-P1-03`).
+3. **`NodePresets.init()` Programmatic Precedence:**
+   - Inverted DOM sync so programmatic `this.autoApplyToNewNodes` drives `#chkAutoApplyPreset.checked`, preventing default DOM attribute values from overwriting programmatic configuration (`FINDING-P1-02`).
+4. **`AppCoordinator` Selection Deselect Synchronization:**
+   - Updated `deselectNode()`, `deselectFlow()`, `deselectGlow()`, and `deselectRipple()` to clear `AppCoordinator.activeSelection` when their respective object type was active, preventing selection staleness (`OBS-02`).
+5. **Removal of Stage 2.2 Monkey-Patching in `app.js`:**
+   - Removed `hookShapeDropdownSync()` from `app.js`.
+   - Integrated `window.ensureShapeInDropdown` directly into `DiagramNodes.syncEditorUI()` and `NodePresets.syncRowUI('shape')`.
+
+---
+
+## 6. Next Steps
+
+1. **Stage 2.4 — Restoration/UI Refresh Decoupling:**
+   - Decouple `HistoryManager` and `ProjectManager` from direct Layer 1 presentation method calls (`syncAllRowsUI`, `deselect*`, `syncUIAfterHistoryRestore`, `updateButtonsUI`).
+   - Route restoration notifications cleanly through `AppCoordinator` event subscriptions (`history:restored`, `project:loaded`), eliminating architectural warning `ARCH-06`.

@@ -252,6 +252,9 @@ window.Ripples = {
     if (editor) editor.style.display = 'none';
     const ret = document.getElementById('rippleReticleTarget');
     if (ret) ret.style.display = 'none';
+    if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'ripple' && !window.AppCoordinator._isCoordinatingSelection) {
+      window.AppCoordinator.clearSelection();
+    }
   },
 
   updateActive(key, value) {

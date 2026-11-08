@@ -31,3 +31,4 @@
 
 ## 4. Dependencies
 - Uses `window.AppCoordinator` for snap settings, selection coordination, render requests, and history recording.
+- Interacts with `window.DataFlows` via `setActiveWaypointIndex(idx)` during waypoint drag interaction.

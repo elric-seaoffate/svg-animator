@@ -196,7 +196,7 @@ window.Stage = {
         if (flowReticle && window.DataFlows) {
           const idx = parseInt(flowReticle.getAttribute('data-flow-node-idx'), 10);
           if (!isNaN(idx)) {
-            window.DataFlows.activeNodeIdx = idx;
+            window.DataFlows.setActiveWaypointIndex(idx);
             const activeFlow = window.DataFlows.getFlow
               ? window.DataFlows.getFlow(window.DataFlows.activeId)
               : window.DataFlows.list.find((fl) => fl.id === window.DataFlows.activeId);

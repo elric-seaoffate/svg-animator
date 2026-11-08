@@ -372,6 +372,9 @@ window.Glows = {
     if (editor) editor.style.display = 'none';
     const ret = document.getElementById('glowReticleTarget');
     if (ret) ret.style.display = 'none';
+    if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'glow' && !window.AppCoordinator._isCoordinatingSelection) {
+      window.AppCoordinator.clearSelection();
+    }
   },
 
   updateActive(key, value) {

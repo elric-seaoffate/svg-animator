@@ -434,6 +434,32 @@ function runHarness() {
   window.DataFlows.removeWaypoint(flow1.id, 2);
   assert.strictEqual(window.DataFlows.getFlow(flow1.id).nodes.length, 2, 'removeWaypoint must reduce nodes length back to 2');
 
+  // 2.4b Stage 2.3: DataFlows.setActiveWaypointIndex & getActiveWaypointIndex (OBS-01)
+  window.DataFlows.activeId = flow1.id;
+  assert.strictEqual(window.DataFlows.setActiveWaypointIndex(1), true, 'setActiveWaypointIndex(1) must return true for valid index');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 1, 'getActiveWaypointIndex must return 1');
+  assert.strictEqual(window.DataFlows.setActiveWaypointIndex(0), true, 'setActiveWaypointIndex(0) must return true for index 0');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 0);
+  assert.strictEqual(window.DataFlows.setActiveWaypointIndex(-1), false, 'setActiveWaypointIndex must reject negative index');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 0, 'Active index must remain unchanged on negative input');
+  assert.strictEqual(window.DataFlows.setActiveWaypointIndex('invalid'), false, 'setActiveWaypointIndex must reject NaN string');
+  assert.strictEqual(window.DataFlows.setActiveWaypointIndex(99), false, 'setActiveWaypointIndex must reject out-of-bounds index');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 0);
+
+  // 2.4c Stage 2.3: NodePresets.resetToDefaults (P1-03)
+  window.NodePresets.setPresetParam('fillColor', '#ff0000', true);
+  window.NodePresets.setPresetParam('width', 999, false);
+  window.NodePresets.autoApplyToNewNodes = false;
+  assert.strictEqual(window.NodePresets.getState().preset.fillColor.value, '#ff0000');
+  assert.strictEqual(window.NodePresets.getState().autoApplyToNewNodes, false);
+
+  const resetPresetState = window.NodePresets.resetToDefaults();
+  assert.strictEqual(resetPresetState.preset.fillColor.value, '#161b22', 'resetToDefaults must restore default fillColor');
+  assert.strictEqual(resetPresetState.preset.fillColor.enabled, true);
+  assert.strictEqual(resetPresetState.preset.width.value, 170, 'resetToDefaults must restore default width');
+  assert.strictEqual(resetPresetState.preset.width.enabled, true);
+  assert.strictEqual(resetPresetState.autoApplyToNewNodes, true, 'resetToDefaults must reset autoApplyToNewNodes to true');
+
   // 2.5 Glows & Ripples CRUD (actual operational properties)
   const glow1 = window.Glows.createGlow({ x: 25, y: 30, color: '#00ffcc', size: 14, blur: 40, opacity: 0.8 });
   assert.strictEqual(glow1.size, 14, 'createGlow must initialize size');
@@ -662,6 +688,28 @@ function runHarness() {
   assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null);
   assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null);
 
+  // Test OBS-02: Component-level deselect must synchronize with AppCoordinator without leaving stale selection
+  window.DiagramNodes.selectNode(node1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, node1.id);
+  window.DiagramNodes.deselectNode();
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'DiagramNodes.deselectNode must clear AppCoordinator activeSelection');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null);
+
+  window.DataFlows.selectFlow(flow1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, flow1.id);
+  window.DataFlows.deselectFlow();
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'DataFlows.deselectFlow must clear AppCoordinator activeSelection');
+
+  window.Glows.selectGlow(glow1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, glow1.id);
+  window.Glows.deselectGlow();
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'Glows.deselectGlow must clear AppCoordinator activeSelection');
+
+  window.Ripples.selectRipple(ripple1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, ripple1.id);
+  window.Ripples.deselectRipple();
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'Ripples.deselectRipple must clear AppCoordinator activeSelection');
+
   // 3.3 HistoryManager maxDepth: 50, Undo, Redo
   assert.strictEqual(window.HistoryManager.maxDepth, 50);
   window.HistoryManager.undoStack = [];
@@ -704,6 +752,14 @@ function runHarness() {
   assert.strictEqual(window.DiagramNodes.getAllNodes().length, 2, 'applyStudioState must restore both nodes');
   assert.strictEqual(window.DataFlows.getAllFlows().length, 1, 'applyStudioState must restore flow');
   assert.strictEqual(window.DataFlows.getFlow(flow1.id).label, 'TLS 1.3', 'applyStudioState must preserve flow label');
+
+  // Test P1-03: Restoring a project payload omitting presets resets NodePresets to defaults
+  window.NodePresets.setPresetParam('fillColor', '#990099', true);
+  const legacyProjectNoPresets = JSON.parse(savedProjectJson);
+  delete legacyProjectNoPresets.presets;
+  window.ProjectManager.applyStudioState(JSON.stringify(legacyProjectNoPresets));
+  assert.strictEqual(window.NodePresets.getState().preset.fillColor.value, '#161b22', 'applyStudioState without presets must reset NodePresets to defaults');
+  assert.strictEqual(window.NodePresets.getState().autoApplyToNewNodes, true);
 
   // ===========================================================================
   // STAGE 2.2: Shape Selection UI Integration & Unknown Shape Handling

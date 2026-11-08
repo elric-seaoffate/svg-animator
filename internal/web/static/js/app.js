@@ -53,31 +53,6 @@ function ensureShapeInDropdown(selectEl, shapeId) {
   }
 }
 
-function hookShapeDropdownSync() {
-  if (window._shapeDropdownSyncHooked) return;
-  window._shapeDropdownSyncHooked = true;
-
-  if (window.DiagramNodes && typeof window.DiagramNodes.syncEditorUI === 'function') {
-    const origSyncEditorUI = window.DiagramNodes.syncEditorUI;
-    window.DiagramNodes.syncEditorUI = function(node) {
-      origSyncEditorUI.call(this, node);
-      if (node && node.shape) {
-        ensureShapeInDropdown(document.getElementById('nodeShapeSelect'), node.shape);
-      }
-    };
-  }
-
-  if (window.NodePresets && typeof window.NodePresets.syncRowUI === 'function') {
-    const origSyncRowUI = window.NodePresets.syncRowUI;
-    window.NodePresets.syncRowUI = function(key) {
-      origSyncRowUI.call(this, key);
-      if (key === 'shape' && this.preset && this.preset.shape) {
-        ensureShapeInDropdown(document.getElementById('presetVal-shape'), this.preset.shape.value);
-      }
-    };
-  }
-}
-
 function populateShapeDropdowns() {
   if (!window.ShapeRegistry || typeof window.ShapeRegistry.getAll !== 'function') {
     return; // Preserve existing HTML fallback options
@@ -119,8 +94,6 @@ function populateShapeDropdowns() {
 
     ensureShapeInDropdown(selectEl, currentVal);
   });
-
-  hookShapeDropdownSync();
 }
 
 window.ensureShapeInDropdown = ensureShapeInDropdown;

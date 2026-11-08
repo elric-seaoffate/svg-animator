@@ -5,6 +5,7 @@
  *   - `createFlow(initialProps)`, `updateFlow(id, patch)`, `deleteFlow(id)`,
  *     `getFlow(id)`, `getAllFlows()`, `addWaypoint(flowId, x, y)`,
  *     `removeWaypoint(flowId, waypointIdx)`, `updateWaypoint(flowId, waypointIdx, x, y)`,
+ *     `setActiveWaypointIndex(index)`, `getActiveWaypointIndex()`,
  *     `generatePathString(nodes, curvature, width, height, routeMode)`,
  *     `getMidpoint(nodes, curvature, width, height)`,
  *     `getState()`, `setState(data)`, `injectIntoSVG(svgString, stateOrWidth, heightArg)`
@@ -43,6 +44,21 @@ window.DataFlows = {
 
   getAllFlows() {
     return this.list;
+  },
+
+  setActiveWaypointIndex(index) {
+    const idx = parseInt(index, 10);
+    if (isNaN(idx) || idx < 0) return false;
+    const flow = this.getFlow(this.activeId);
+    if (flow && Array.isArray(flow.nodes)) {
+      if (idx >= flow.nodes.length) return false;
+    }
+    this.activeNodeIdx = idx;
+    return true;
+  },
+
+  getActiveWaypointIndex() {
+    return this.activeNodeIdx;
   },
 
   getState() {
@@ -571,6 +587,7 @@ window.DataFlows = {
 
   deselectFlow() {
     this.activeId = null;
+    this.activeNodeIdx = 0;
     this.renderList();
     document.body.classList.remove('editing-flow');
     const editor = document.getElementById('flowEditor');
@@ -579,6 +596,9 @@ window.DataFlows = {
     if (ret) ret.innerHTML = '';
     const path = document.getElementById('flowCurvePath');
     if (path) path.style.display = 'none';
+    if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'flow' && !window.AppCoordinator._isCoordinatingSelection) {
+      window.AppCoordinator.clearSelection();
+    }
   },
 
   updateActive(key, value) {
