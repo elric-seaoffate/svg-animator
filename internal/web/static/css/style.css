@@ -1527,13 +1527,15 @@ body.editing-flow #flightLine {
 .canvas-context-btn {
   position: absolute;
   z-index: 100;
+  width: 35px;
+  height: 35px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 12px;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+  border-radius: 8px;
   background: rgba(22, 27, 34, 0.92);
   color: #58a6ff;
   border: 1px solid rgba(88, 166, 255, 0.6);
@@ -1542,8 +1544,8 @@ body.editing-flow #flightLine {
   cursor: pointer;
   pointer-events: auto;
   user-select: none;
-  white-space: nowrap;
-  transition: all 0.15s ease;
+  box-sizing: border-box;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .canvas-context-btn:hover {
@@ -1551,7 +1553,7 @@ body.editing-flow #flightLine {
   color: #ffffff;
   border-color: #58a6ff;
   box-shadow: 0 4px 16px rgba(31, 111, 235, 0.5);
-  transform: translateY(-1px);
+  transform: scale(1.05);
 }
 
 .floating-context-editor {

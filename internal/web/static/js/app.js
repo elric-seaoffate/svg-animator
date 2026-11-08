@@ -837,18 +837,43 @@ window.FloatingPropertiesEditor = {
       ? previewBox.getBoundingClientRect()
       : { left: 0, top: 0, width: 1280, height: 720 };
 
-    let relLeft = targetRect.right - pRect.left + 8;
-    let relTop = targetRect.top - pRect.top - 8;
+    const gearW = 35;
+    const gearH = 35;
+    const gap = 3;
 
-    const btnW = btn.offsetWidth || 110;
-    if (relLeft + btnW > (pRect.width || 1280)) {
-      relLeft = (targetRect.left - pRect.left) - btnW - 8;
+    // Object visible bounding box edges relative to previewBox
+    const objRight = targetRect.right - pRect.left;
+    const objLeft = targetRect.left - pRect.left;
+    const objTop = targetRect.top - pRect.top;
+
+    const stageW = pRect.width || 1280;
+    const stageH = pRect.height || 720;
+
+    // Anchor to top-right corner immediately outside right edge with 3px gap
+    let gearLeft = objRight + gap;
+    let gearTop = objTop;
+
+    // Edge handling: if insufficient room on right, place immediately to left with 3px gap
+    if (gearLeft + gearW > stageW - 4) {
+      gearLeft = objLeft - gearW - gap;
     }
-    if (relTop < 10) relTop = 10;
-    if (relLeft < 10) relLeft = 10;
 
-    btn.style.left = Math.round(relLeft) + 'px';
-    btn.style.top = Math.round(relTop) + 'px';
+    // Keep gear inside visible stage
+    if (gearLeft < 4) {
+      gearLeft = Math.max(4, Math.min(gearLeft, stageW - gearW - 4));
+    }
+
+    // Clamp vertical space if needed without making it inaccessible
+    if (gearTop < 4) {
+      gearTop = 4;
+    } else if (gearTop + gearH > stageH - 4) {
+      gearTop = Math.max(4, stageH - gearH - 4);
+    }
+
+    btn.style.width = gearW + 'px';
+    btn.style.height = gearH + 'px';
+    btn.style.left = Math.round(gearLeft) + 'px';
+    btn.style.top = Math.round(gearTop) + 'px';
     btn.style.display = 'flex';
   },
 

@@ -2379,6 +2379,72 @@ async function runHarness() {
   assert.ok(phase4CssSource.includes('.floating-context-editor'), 'CSS must define .floating-context-editor');
   assert.ok(phase4CssSource.includes('width: 380px;'), 'CSS must specify 380px width for floating editor');
   assert.ok(phase4CssSource.includes('.canvas-context-btn'), 'CSS must define .canvas-context-btn');
+  assert.ok(phase4CssSource.includes('width: 35px;'), 'CSS must specify 35px width for contextual gear');
+  assert.ok(phase4CssSource.includes('height: 35px;'), 'CSS must specify 35px height for contextual gear');
+
+  // Contextual Gear Geometry & Corner Anchor Verification
+  const indexHtmlSource = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  assert.ok(indexHtmlSource.includes('title="Edit object properties"'), 'Button must have tooltip title="Edit object properties"');
+  assert.ok(indexHtmlSource.includes('aria-label="Edit object properties"'), 'Button must have aria-label="Edit object properties"');
+  assert.ok(!indexHtmlSource.includes('⚙️ Properties'), 'Button must NOT have visible "Properties" text');
+  assert.ok(indexHtmlSource.includes('>⚙️</button>'), 'Button must contain only icon');
+
+  // Verify positionCanvasContextButton geometry calculation
+  const geomNode = window.DiagramNodes.createNode({ text: 'GeomTest', x: 25, y: 30, width: 100, height: 60 });
+  window.AppCoordinator.selectObject('node', geomNode.id);
+
+  previewBoxEl.getBoundingClientRect = () => ({ left: 100, top: 50, right: 1380, bottom: 770, width: 1280, height: 720 });
+  const origGetTarget = window.FloatingPropertiesEditor.getTargetScreenRect;
+
+  // Case A: Normal anchor — Object R = 400 (screen 500), T = 150 (screen 200), L = 300 (screen 400)
+  window.FloatingPropertiesEditor.getTargetScreenRect = () => ({
+    left: 400,
+    top: 200,
+    right: 500,
+    bottom: 260,
+    width: 100,
+    height: 60
+  });
+  window.FloatingPropertiesEditor.positionCanvasContextButton();
+  // Relative to previewBox (left: 100, top: 50):
+  // objRight = 500 - 100 = 400. objTop = 200 - 50 = 150.
+  // Gear left = objRight + 3px = 403px. Gear top = objTop = 150px.
+  assert.strictEqual(contextBtnEl.style.left, '403px', 'Gear left must equal objRight + 3px');
+  assert.strictEqual(contextBtnEl.style.top, '150px', 'Gear top must align with objTop');
+  assert.strictEqual(contextBtnEl.style.width, '35px', 'Gear width must be 35px');
+  assert.strictEqual(contextBtnEl.style.height, '35px', 'Gear height must be 35px');
+
+  // Case B: Insufficient room on right — Object near right edge
+  // previewBox width is 1280. Object right is 1260 (screen 1360). Object left is 1160 (screen 1260).
+  window.FloatingPropertiesEditor.getTargetScreenRect = () => ({
+    left: 1260,
+    top: 200,
+    right: 1360,
+    bottom: 260,
+    width: 100,
+    height: 60
+  });
+  window.FloatingPropertiesEditor.positionCanvasContextButton();
+  // objLeft = 1260 - 100 = 1160.
+  // Insufficient room on right (1260 + 3 + 35 > 1276).
+  // Placed immediately to left: objLeft - 35 - 3 = 1160 - 38 = 1122px.
+  assert.strictEqual(contextBtnEl.style.left, '1122px', 'Gear must flip to left edge with 3px gap when right edge overflows');
+  assert.strictEqual(contextBtnEl.style.top, '150px', 'Gear top must remain aligned with objTop');
+
+  // Case C: Top clamp if object is at top edge (e.g. screen top: 40, pRect.top: 50 -> objTop: -10)
+  window.FloatingPropertiesEditor.getTargetScreenRect = () => ({
+    left: 400,
+    top: 40,
+    right: 500,
+    bottom: 100,
+    width: 100,
+    height: 60
+  });
+  window.FloatingPropertiesEditor.positionCanvasContextButton();
+  assert.strictEqual(contextBtnEl.style.top, '4px', 'Gear top must be clamped to visible stage minimum');
+
+  window.FloatingPropertiesEditor.getTargetScreenRect = origGetTarget;
+  window.DiagramNodes.deleteNode(geomNode.id);
 
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
 }
