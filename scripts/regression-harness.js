@@ -1924,11 +1924,12 @@ async function runHarness() {
   assert.ok(htmlSource.includes('id="btnAddGlow"'), 'index.html must contain btnAddGlow');
   assert.ok(htmlSource.includes('id="btnAddRipple"'), 'index.html must contain btnAddRipple');
 
-  // 2. CSS Verification: Stylesheet defines compact rows, scrollable lists, 40/60 split, reduced drawer width, and compact property rows
+  // 2. CSS Verification: Stylesheet defines compact rows, scrollable lists, 35/65 split, preserved 420px drawer width, and compact property rows
   assert.ok(cssSource.includes('.flow-list-item.compact-instance-row'), 'style.css must contain .flow-list-item.compact-instance-row');
   assert.ok(cssSource.includes('.compact-instance-list'), 'style.css must contain .compact-instance-list');
   assert.ok(cssSource.includes('.drawer.left-drawer.expanded-inspector'), 'style.css must contain .expanded-inspector');
-  assert.ok(cssSource.includes('grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);'), 'style.css must contain 40/60 split grid');
+  assert.ok(cssSource.includes('grid-template-columns: minmax(0, 7fr) minmax(0, 13fr);'), 'style.css must contain 35/65 split grid');
+  assert.ok(!cssSource.includes('grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);'), 'style.css must NOT contain conflicting 40/60 split grid');
   assert.ok(!cssSource.includes('grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);'), 'style.css must NOT contain conflicting 60/40 split grid');
   assert.ok(!cssSource.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);'), 'style.css must NOT contain conflicting 50/50 split grid');
   assert.ok(cssSource.includes('--drawer-width: 420px;'), 'style.css must define 420px drawer width for wide desktop');

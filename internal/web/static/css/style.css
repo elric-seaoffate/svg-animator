@@ -983,8 +983,8 @@ header h1 {
 
   .drawer.expanded-inspector .inspector-split-layout {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 13fr);
+    gap: 0.45rem;
     align-items: start;
   }
 
@@ -994,7 +994,7 @@ header h1 {
 
   .drawer.expanded-inspector .inspector-master-column {
     border-right: 1px solid var(--border);
-    padding-right: 0.5rem;
+    padding-right: 0.45rem;
     min-width: 0;
   }
 
@@ -1006,7 +1006,32 @@ header h1 {
     min-width: 0;
   }
 
-  /* In compact 40% column, hide secondary text metadata to prevent squeezing label */
+  /* In compact 35% column, optimize spacing for narrow list */
+  .drawer.expanded-inspector .flow-list-item.compact-instance-row {
+    padding: 0 0.25rem;
+    gap: 0.25rem;
+  }
+
+  .drawer.expanded-inspector .compact-instance-row .instance-icon {
+    width: 13px;
+    font-size: 0.78rem;
+  }
+
+  .drawer.expanded-inspector .compact-instance-row .instance-label {
+    font-size: 0.72rem;
+  }
+
+  .drawer.expanded-inspector .compact-instance-row .btn-row-action {
+    padding: 0.05rem 0.16rem;
+    font-size: 0.68rem;
+  }
+
+  .drawer.expanded-inspector .compact-instance-row .btn-row-preset {
+    padding: 0.05rem 0.18rem;
+    font-size: 0.62rem;
+  }
+
+  /* Hide secondary text metadata to prevent squeezing label */
   .drawer.expanded-inspector .compact-instance-row .compact-meta {
     display: none;
   }

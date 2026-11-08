@@ -349,3 +349,17 @@ The workspace implements a **master-detail inspector pattern**:
 - Single-line text truncation (`min-width: 0; text-overflow: ellipsis;`).
 - Secondary metadata (`.compact-meta`) hidden in `.expanded-inspector` to prevent forcing the column wider, while full metadata is exposed via `title` tooltips on hover.
 - Preserved quick action buttons (Preset snap `⚡`, Delete `×`) with tight padding and clean alignment.
+
+## 14. Stage 3.8: Final 35/65 Inspector Proportion Adjustment
+
+### 14.1 35% / 65% Column Proportions
+- Fine-tuned the wide desktop (`>= 1280px`) master-detail split to allocate 35% to Instances and 65% to Properties:
+  `grid-template-columns: minmax(0, 7fr) minmax(0, 13fr); gap: 0.45rem;`
+- Instances column is allocated ~35% of the inspector grid (~135–150px), featuring compact row padding (`0 0.25rem`), 13px icons, 0.72rem labels, and 0.65rem quick actions.
+- Properties column is allocated ~65% of the inspector grid (~250–275px), providing maximum breathing room for single-property horizontal rows without squashing controls.
+
+### 14.2 Maintained Compact Drawer Footprint & Working Canvas
+- Preserved 420px expanded drawer at `>= 1280px` and 460px at `>= 1600px`.
+- Retained full canvas space (760px on 1280p, 1360px on 1080p desktop).
+- Verified zero conflicting CSS overrides across the stylesheet.
+- All 95 tracked controls, DOM IDs, and event handlers remain 100% intact.
