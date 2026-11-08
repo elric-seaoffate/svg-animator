@@ -7,7 +7,7 @@
 - **Layer 3 (Operational Functionality — Zero DOM Dependencies):**
   - Owns `list` array, `counter`, and `activeId`.
   - Pure operational CRUD and query methods: `createNode(initialProps)`, `updateNode(id, patch)`, `deleteNode(id)`, `getNode(id)`, `getAllNodes()`, `findNodeAtPct(xPct, yPct, canvasW, canvasH)`, `getNodeEffectiveProps(node)`, `getState()`, `setState(data)`, `escapeXML(str)`.
-  - Pure SVG compilation (`injectIntoSVG(svgString, state)`) supporting all 12 implemented shapes (`rounded`, `rect`, `pill`, `textbox`, `callout`, `diamond`, `hexagon`, `parallelogram`, `cylinder`, `cloud`, `circle`, `axes`), multiline pipe-separated (`|`) text, subtext, drop shadows, and SMIL animations (`pulse-border`, `float`, `fade-in`).
+  - Pure SVG compilation (`injectIntoSVG(svgString, state)`) delegating individual shape SVG generation to `window.ShapeRegistry.get(node.shape)` for all 12 registered shapes (`rounded`, `rect`, `pill`, `textbox`, `callout`, `diamond`, `hexagon`, `parallelogram`, `cylinder`, `cloud`, `circle`, `axes`), multiline pipe-separated (`|`) text, subtext, drop shadows, and SMIL animations (`pulse-border`, `float`, `fade-in`).
 - **Layer 1 (UI Presentation):**
   - Sidebar node list (`renderList`), node property editor (`syncEditorUI`, `updateActiveDimBadge`), and stage selection bounding box (`updateUIOverlay`).
 
@@ -20,7 +20,7 @@
   - `findNodeAtPct(xPct, yPct, canvasW, canvasH)` — Hit-tests node bounding boxes in percentage coordinates.
   - `getNodeEffectiveProps(node)` — Resolves effective node properties with safe defaults.
   - `getState()` / `setState(data)` — Serializes and restores operational node state (`{ nodes, nodesCounter, activeId }`).
-  - `injectIntoSVG(svgString, state)` — Injects `<defs>` and `#nodes-layer` SVG markup.
+  - `injectIntoSVG(svgString, state)` — Injects `<defs>` and `#nodes-layer` SVG markup (delegates shape rendering to `window.ShapeRegistry`).
 - **UI & Compatibility API:**
   - `init()`
   - `addNode(initialProps)` / `removeNode(id)`
@@ -29,4 +29,4 @@
   - `renderList()` / `syncEditorUI(node)` / `updateUIOverlay(node)` / `updateActiveDimBadge(node)` / `refreshAfterChange()` / `triggerAppRender()`
 
 ## 4. Dependencies
-- Uses `window.NodePresets` (`applyToNodeObject`) and `window.AppCoordinator` (selection coordination, grid snapping, canvas dimensions, render requests, history recording).
+- Uses `window.ShapeRegistry` (`get`, `has`), `window.NodePresets` (`applyToNodeObject`), and `window.AppCoordinator` (selection coordination, grid snapping, canvas dimensions, render requests, history recording).

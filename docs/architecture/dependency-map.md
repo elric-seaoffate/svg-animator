@@ -10,16 +10,17 @@ The frontend uses browser globals loaded in a deterministic order at the bottom 
 | 2 | `js/scene-state.js` | `window.SceneState`, `window.ControlStateAdaptor` | Layer 3 (Operational + DOM Adaptor) |
 | 3 | `js/coordinator.js` | `window.AppCoordinator` | Layer 2 (Application Coordination) |
 | 4 | `js/stage.js` | `window.Stage` | Layer 3 (Math) + Layer 1 (Stage UI) |
-| 5 | `js/presets.js` | `window.NodePresets` | Layer 3 (Preset Ops) + Layer 1 (Preset UI) |
-| 6 | `js/nodes.js` | `window.DiagramNodes` | Layer 3 (Node Ops) + Layer 1 (Node UI) |
-| 7 | `js/flows.js` | `window.DataFlows` | Layer 3 (Flow Ops) + Layer 1 (Flow UI) |
-| 8 | `js/glows.js` | `window.Glows` | Layer 3 (Glow Ops) + Layer 1 (Glow UI) |
-| 9 | `js/ripples.js` | `window.Ripples` | Layer 3 (Ripple Ops) + Layer 1 (Ripple UI) |
-| 10 | `js/history.js` | `window.HistoryManager` | Layer 3 (History Stack) + Layer 1 (Undo/Redo Buttons) |
-| 11 | `js/projects.js` | `window.ProjectManager` | Layer 3 (Serializer/REST) + Layer 1 (Library Modal UI) |
-| 12 | `js/app.js` | `window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`, etc. | Layer 1 (App UI Bindings & Compatibility Entrypoints) |
-| 13 | `js/still-export-modal.js` | `window.StillExportStudio` | Layer 3 (SMIL Evaluator & Still Config Builder) + Layer 1 (Still Modal UI) |
-| 14 | `js/export-modal.js` | `window.AnimatedExportStudio`, `window.openExportModal` | Layer 3 (Payload Builder & REST Helpers) + Layer 1 (Animated Modal UI) |
+| 5 | `js/shape-registry.js` | `window.ShapeRegistry` | Layer 3 (Operational) |
+| 6 | `js/presets.js` | `window.NodePresets` | Layer 3 (Preset Ops) + Layer 1 (Preset UI) |
+| 7 | `js/nodes.js` | `window.DiagramNodes` | Layer 3 (Node Ops) + Layer 1 (Node UI) |
+| 8 | `js/flows.js` | `window.DataFlows` | Layer 3 (Flow Ops) + Layer 1 (Flow UI) |
+| 9 | `js/glows.js` | `window.Glows` | Layer 3 (Glow Ops) + Layer 1 (Glow UI) |
+| 10 | `js/ripples.js` | `window.Ripples` | Layer 3 (Ripple Ops) + Layer 1 (Ripple UI) |
+| 11 | `js/history.js` | `window.HistoryManager` | Layer 3 (History Stack) + Layer 1 (Undo/Redo Buttons) |
+| 12 | `js/projects.js` | `window.ProjectManager` | Layer 3 (Serializer/REST) + Layer 1 (Library Modal UI) |
+| 13 | `js/app.js` | `window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`, etc. | Layer 1 (App UI Bindings & Compatibility Entrypoints) |
+| 14 | `js/still-export-modal.js` | `window.StillExportStudio` | Layer 3 (SMIL Evaluator & Still Config Builder) + Layer 1 (Still Modal UI) |
+| 15 | `js/export-modal.js` | `window.AnimatedExportStudio`, `window.openExportModal` | Layer 3 (Payload Builder & REST Helpers) + Layer 1 (Animated Modal UI) |
 
 ---
 
@@ -31,6 +32,7 @@ flowchart TD
     Coord["Layer 2: AppCoordinator\n(coordinator.js)"]
     Scene["SceneState & ControlStateAdaptor\n(scene-state.js)"]
     Effects["Effects\n(effects.js)"]
+    ShapeReg["ShapeRegistry\n(shape-registry.js)"]
     Presets["NodePresets Ops\n(presets.js)"]
     Nodes["DiagramNodes Ops\n(nodes.js)"]
     Flows["DataFlows Ops\n(flows.js)"]
@@ -41,6 +43,7 @@ flowchart TD
     Projects["ProjectManager Ops\n(projects.js)"]
 
     UI --> Coord
+    UI -.->|populateShapeDropdowns| ShapeReg
     Coord --> Scene
     Coord --> Presets
     Coord --> Nodes
@@ -58,6 +61,7 @@ flowchart TD
     Scene --> Nodes
 
     Nodes --> Presets
+    Nodes --> ShapeReg
 ```
 
 ---
@@ -70,5 +74,6 @@ flowchart TD
    - Coordinate snapping routes through `AppCoordinator.snapPosition(xPct, yPct)` (which delegates to `SceneState.getSnapConfig()` and `Stage.snapPctToGrid()`).
 3. **Allowed operational relationships:**
    - `DiagramNodes.createNode(initialProps)` applies enabled preset properties via `NodePresets.applyToNodeObject(newNode)` when `applyPreset` (or `NodePresets.autoApplyToNewNodes`) is active, and snaps initial coordinates via `AppCoordinator.snapPosition`.
+   - `DiagramNodes.injectIntoSVG(svgString, state)` delegates individual node shape path and geometry rendering to `ShapeRegistry.get(node.shape)`. If a node references an unknown or unregistered shape, it falls back gracefully without corrupting underlying data.
    - `DataFlows` waypoints use free percentage coordinates (`nodes: [{ x, y }, ...]`); `DataFlows.generatePathString(pts, curviness, w, h, routingMode)` and `DataFlows.injectIntoSVG(svgString, state)` are completely independent of `DiagramNodes`.
    - `SceneState.buildFullSVG(state, overrides)` invokes `Effects.build(state)`, `Ripples.injectIntoSVG(svgString, state)`, `Glows.injectIntoSVG(svgString, width, height)`, `DataFlows.injectIntoSVG(svgString, state)`, and `DiagramNodes.injectIntoSVG(svgString, state)` in sequence.

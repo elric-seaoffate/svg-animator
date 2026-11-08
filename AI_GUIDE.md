@@ -28,7 +28,7 @@ Layer 1: UI Presentation  ──►  Layer 2: Application Coordination  ──�
 | :--- | :--- | :--- |
 | **Layer 1: UI Presentation** | HTML/CSS, accordion panels, form input listeners, DOM list rendering, stage pointer/keyboard listeners, and modal dialogs. | `index.html`, `css/*.css`, UI controllers inside `app.js`, `stage.js`, `presets.js`, `nodes.js`, `flows.js`, `glows.js`, `ripples.js`, `projects.js`, `still-export-modal.js`, `export-modal.js` |
 | **Layer 2: Application Coordination** | Receives UI commands, coordinates single-active-object selection across all object types, coordinates `HistoryManager` recording, synchronizes `ControlStateAdaptor` <-> `SceneState`, triggers rendering, and emits UI notifications. | `js/coordinator.js` (`window.AppCoordinator`) |
-| **Layer 3: Operational Functionality** | Pure state ownership, CRUD operations, geometry/coordinate math, SVG filter/node/flow/glow/ripple/frame generation, history stack management (`undoStack`/`redoStack`), project JSON serialization (`v1.2.0`), and SMIL frame evaluation. Operational CRUD, math, and SVG builders do not query DOM inputs directly (`ControlStateAdaptor` bridges the 95 tracked DOM controls). | `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`), `js/effects.js` (`window.Effects`), and operational APIs on `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, `Stage`, `HistoryManager`, `ProjectManager`, `StillExportStudio`, `AnimatedExportStudio` |
+| **Layer 3: Operational Functionality** | Pure state ownership, CRUD operations, geometry/coordinate math, SVG filter/node/flow/glow/ripple/frame generation, history stack management (`undoStack`/`redoStack`), project JSON serialization (`v1.2.0`), and SMIL frame evaluation. Operational CRUD, math, and SVG builders do not query DOM inputs directly (`ControlStateAdaptor` bridges the 95 tracked DOM controls). | `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`), `js/effects.js` (`window.Effects`), `js/shape-registry.js` (`window.ShapeRegistry`), and operational APIs on `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, `Stage`, `HistoryManager`, `ProjectManager`, `StillExportStudio`, `AnimatedExportStudio` |
 
 ---
 
@@ -40,16 +40,17 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 2. `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`) — Operational canvas/control/photo state and DOM control synchronization adaptor.
 3. `js/coordinator.js` (`window.AppCoordinator`) — Central coordination layer for selection, history recording, rendering, and cross-module commands.
 4. `js/stage.js` (`window.Stage`) — Stage viewport geometry, grid snapping math, and pointer/wheel/drag interaction.
-5. `js/presets.js` (`window.NodePresets`) — Shape preset parameters (`preset`, `presetKeys`, `autoApplyToNewNodes`) and node preset application.
-6. `js/nodes.js` (`window.DiagramNodes`) — Diagram node state, CRUD API, SVG generation (`injectIntoSVG`), and node list/overlay UI.
-7. `js/flows.js` (`window.DataFlows`) — Data flow connector state, CRUD/waypoint API, path math, SVG generation, and flow UI.
-8. `js/glows.js` (`window.Glows`) — Hotspot/radar ping state, CRUD API, SVG generation, and glow UI.
-9. `js/ripples.js` (`window.Ripples`) — Refractive water ripple state, CRUD API, displacement filter/ring SVG generation, and ripple UI.
-10. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stacks (`undoStack`, `redoStack`, `maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
-11. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` (and `/api/projects*`) REST client, and library modal UI.
-12. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, and master preview compilation (`window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`).
-13. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
-14. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
+5. `js/shape-registry.js` (`window.ShapeRegistry`) — Immutable central registry of built-in SVG node shape definitions, default dimensions, and operational SVG markup builders.
+6. `js/presets.js` (`window.NodePresets`) — Shape preset parameters (`preset`, `presetKeys`, `autoApplyToNewNodes`) and node preset application.
+7. `js/nodes.js` (`window.DiagramNodes`) — Diagram node state, CRUD API, SVG generation (`injectIntoSVG`), and node list/overlay UI.
+8. `js/flows.js` (`window.DataFlows`) — Data flow connector state, CRUD/waypoint API, path math, SVG generation, and flow UI.
+9. `js/glows.js` (`window.Glows`) — Hotspot/radar ping state, CRUD API, SVG generation, and glow UI.
+10. `js/ripples.js` (`window.Ripples`) — Refractive water ripple state, CRUD API, displacement filter/ring SVG generation, and ripple UI.
+11. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stacks (`undoStack`, `redoStack`, `maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
+12. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` (and `/api/projects*`) REST client, and library modal UI.
+13. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, dynamic shape dropdown population, and master preview compilation (`window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`).
+14. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
+15. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
 
 ---
 
@@ -60,7 +61,10 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Go HTTP server, SQLite `projects` & `assets` DB, Chromium/FFmpeg rasterizer | **Implemented** | `cmd/svg-animator/`, `internal/` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
-| Central Shape Registry & standardized Phase 2 component event/data schemas | **Planned (Phase 2)** | Currently 12 hardcoded shapes in `DiagramNodes` (`nodes.js`) and `#nodeShapeSelect` (`index.html`) |
+| Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
+| Dynamic UI Shape Dropdown Integration & Fallbacks | **Implemented (Stage 2.2)** | `internal/web/static/js/app.js` (commit `c1155bc`) |
+| Targeted Component Public APIs | **Planned (Stage 2.3)** | Standardized Layer 3 operational interfaces across modules |
+| Restoration & UI Refresh Decoupling | **Planned (Stage 2.4)** | Decouple direct presentation calls from `HistoryManager` & `ProjectManager` |
 | Blender-style workspace (icon rails, sliding drawers, maximized stage) | **Planned (Phase 3)** | Currently 3-column studio layout (`leftPanel`, `stageArea`, `rightPanel`) |
 | Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftPanel` / `rightPanel` |
 
@@ -92,8 +96,9 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
   - [`dependency-map.md`](docs/architecture/dependency-map.md) — Module load order and allowed inter-module dependencies.
   - [`state-management.md`](docs/architecture/state-management.md) — Ownership of scene, control, selection, and object collection states.
   - [`history-and-persistence.md`](docs/architecture/history-and-persistence.md) — Undo/redo snapshot mechanics and SQLite `v1.2.0` project format.
+  - [`phase2-progress.md`](docs/architecture/phase2-progress.md) — Phase 2 milestone logs, test reports, and roadmap.
 - **Modules (`docs/modules/`):**
-  - [`app.md`](docs/modules/app.md) | [`stage.md`](docs/modules/stage.md) | [`presets.md`](docs/modules/presets.md) | [`nodes.md`](docs/modules/nodes.md) | [`flows.md`](docs/modules/flows.md) | [`glows.md`](docs/modules/glows.md) | [`ripples.md`](docs/modules/ripples.md) | [`effects.md`](docs/modules/effects.md) | [`history.md`](docs/modules/history.md) | [`projects.md`](docs/modules/projects.md)
+  - [`app.md`](docs/modules/app.md) | [`stage.md`](docs/modules/stage.md) | [`presets.md`](docs/modules/presets.md) | [`nodes.md`](docs/modules/nodes.md) | [`shape-registry.md`](docs/modules/shape-registry.md) | [`flows.md`](docs/modules/flows.md) | [`glows.md`](docs/modules/glows.md) | [`ripples.md`](docs/modules/ripples.md) | [`effects.md`](docs/modules/effects.md) | [`history.md`](docs/modules/history.md) | [`projects.md`](docs/modules/projects.md)
 - **Development Guides (`docs/development/`):**
   - [`coding-conventions.md`](docs/development/coding-conventions.md) | [`module-development-guide.md`](docs/development/module-development-guide.md) | [`testing-requirements.md`](docs/development/testing-requirements.md) | [`adding-new-features.md`](docs/development/adding-new-features.md)
 - **Architecture Decision Records (`docs/decisions/`):**
