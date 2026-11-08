@@ -915,6 +915,7 @@
           <div class="reticle active-reticle" id="glowReticleTarget" style="display:none; background:rgba(255, 0, 68, 0.3); border-color:#ff0044; z-index: 12;">GLOW</div>
           <div class="reticle active-reticle" id="rippleReticleTarget" style="display:none; background:rgba(88, 166, 255, 0.2); border-color:#58a6ff; z-index: 12; border-radius: 50%;">WAVE</div>
           <div id="dynamicFlowReticles" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+          <button type="button" class="canvas-context-btn" id="btnCanvasContextEdit" style="display:none;" title="Open Properties Editor">⚙️ Properties</button>
         </div>
       </div>
 
@@ -931,6 +932,423 @@
         <button class="replay" id="btnReplay"><span>&#x21bb;</span> Replay Motion</button>
       </div>
     </main>
+
+    <!-- FLOATING CONTEXTUAL OBJECT PROPERTIES EDITOR -->
+    <div id="floatingContextEditor" class="floating-context-editor" style="display: none;" role="dialog" aria-labelledby="floatingEditorTitle" aria-modal="false">
+      <div class="floating-editor-header" id="floatingEditorHeader">
+        <div class="floating-editor-title-wrap">
+          <span class="floating-editor-icon" id="floatingEditorIcon">🔷</span>
+          <span class="floating-editor-title" id="floatingEditorTitle">Node Properties</span>
+          <span class="floating-editor-badge" id="floatingEditorBadge">NODE</span>
+        </div>
+        <button type="button" class="floating-editor-close-btn" id="btnFloatingEditorClose" title="Close Editor (Esc)">&times;</button>
+      </div>
+      <div class="floating-editor-body" id="floatingEditorBody">
+        <!-- NODE SECTION -->
+        <div id="fctx-nodeSection" class="floating-editor-section" style="display: none;">
+          <div class="floating-actions-bar">
+            <button type="button" class="btn-floating-action btn-snap" id="fctx-btnSnapNodeToPreset" title="Apply active preset attributes to this shape">⚡ Snap Preset</button>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteNode" title="Delete shape">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeShapeSelect">Shape</label>
+            <select id="fctx-nodeShapeSelect">
+              <option value="rounded" selected>Rounded Card</option>
+              <option value="rect">Rectangle / Box</option>
+              <option value="pill">Pill / Stadium</option>
+              <option value="textbox">Floating Text</option>
+              <option value="callout">Callout Note</option>
+              <option value="diamond">Decision Diamond</option>
+              <option value="hexagon">Hexagon</option>
+              <option value="parallelogram">Parallelogram</option>
+              <option value="cylinder">Database Cylinder</option>
+              <option value="cloud">Cloud Node</option>
+              <option value="circle">Circle / Hub</option>
+              <option value="axes">Coordinate Axes</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeTextInput">Text</label>
+            <input type="text" id="fctx-nodeTextInput" value="Node" class="text-field-input" placeholder="Primary text">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeSubtextInput">Subtitle</label>
+            <input type="text" id="fctx-nodeSubtextInput" placeholder="Optional details" class="text-field-input">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeWidthSlider">Width</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-nodeWidthSlider" min="40" max="900" step="1" value="170">
+              <input type="number" class="num-input" id="fctx-nodeWidthNum" value="170">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeHeightSlider">Height</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-nodeHeightSlider" min="30" max="700" step="1" value="80">
+              <input type="number" class="num-input" id="fctx-nodeHeightNum" value="80">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label>Colours</label>
+            <div class="color-picker-group">
+              <input type="color" id="fctx-nodeFillColorPicker" value="#161b22" title="Fill Colour">
+              <input type="color" id="fctx-nodeStrokeColorPicker" value="#58a6ff" title="Border Colour">
+              <input type="color" id="fctx-nodeTextColorPicker" value="#e6edf3" title="Text Colour">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeFillOpacitySlider">Opacity</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-nodeFillOpacitySlider" min="0" max="1.0" step="0.05" value="0.92">
+              <input type="number" class="num-input" id="fctx-nodeFillOpacityNum" value="0.92">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeStrokeWidthSlider">Border W</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-nodeStrokeWidthSlider" min="0" max="12" step="0.5" value="2">
+              <input type="number" class="num-input" id="fctx-nodeStrokeWidthNum" value="2">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeStrokeStyleSelect">Border</label>
+            <select id="fctx-nodeStrokeStyleSelect">
+              <option value="solid" selected>Solid Border</option>
+              <option value="dashed">Dashed Border</option>
+              <option value="dotted">Dotted Border</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeFontSizeSlider">Font (px)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-nodeFontSizeSlider" min="10" max="64" step="1" value="15">
+              <input type="number" class="num-input" id="fctx-nodeFontSizeNum" value="15">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeAnimSelect">Animation</label>
+            <select id="fctx-nodeAnimSelect">
+              <option value="none" selected>Static (Locked)</option>
+              <option value="pulse-border">Pulse Border</option>
+              <option value="float">Gentle Float</option>
+              <option value="fade-in">Fade In</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- FLOW SECTION -->
+        <div id="fctx-flowSection" class="floating-editor-section" style="display: none;">
+          <div class="floating-actions-bar">
+            <div style="display: flex; gap: 0.25rem;">
+              <button type="button" class="btn-floating-action" id="fctx-btnFlowAddNode" style="background: #1f6feb; color: #fff;">+ Waypoint</button>
+              <button type="button" class="btn-floating-action" id="fctx-btnFlowDelNode" style="border-color: #ff4444; color: #ff4444;">- Drop</button>
+            </div>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteFlow" title="Delete connector">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowNodeSlider">Waypoint</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowNodeSlider" min="0" max="1" step="1" value="0">
+              <input type="number" class="num-input" id="fctx-flowNodeNum" readonly>
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowRouteSelect">Routing</label>
+            <select id="fctx-flowRouteSelect">
+              <option value="curve" selected>Direct / Bezier Curve</option>
+              <option value="ortho-mid">Orthogonal Elbow (90°)</option>
+              <option value="ortho-hv">Orthogonal L (H &rarr; V)</option>
+              <option value="ortho-vh">Orthogonal L (V &rarr; H)</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowLineStyleSelect">Line Style</label>
+            <select id="fctx-flowLineStyleSelect">
+              <option value="dashed" selected>Dashed Line</option>
+              <option value="solid">Solid Continuous</option>
+              <option value="dotted">Dotted Line</option>
+              <option value="marching">Marching Ants</option>
+              <option value="double">Double Pipe</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowArrowSelect">Arrows</label>
+            <select id="fctx-flowArrowSelect">
+              <option value="none" selected>None</option>
+              <option value="end">Destination (&rarr;)</option>
+              <option value="start">Source (&larr;)</option>
+              <option value="both">Bidirectional (&harr;)</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowLineWidthSlider">Thickness</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowLineWidthSlider" min="1" max="16" step="0.5" value="2.5">
+              <input type="number" class="num-input" id="fctx-flowLineWidthNum" value="2.5">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowCurvatureSlider">Curvature</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowCurvatureSlider" min="-100" max="100" step="1" value="0">
+              <input type="number" class="num-input" id="fctx-flowCurvatureNum" value="0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowLabelInput">Label</label>
+            <input type="text" id="fctx-flowLabelInput" placeholder="Optional label" class="text-field-input">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowTypeSelect">Payload</label>
+            <select id="fctx-flowTypeSelect">
+              <option value="line-only">Line Only</option>
+              <option value="orb" selected>Glowing Orb</option>
+              <option value="packet">Data Packet</option>
+              <option value="envelope">Envelope</option>
+              <option value="database">Database</option>
+              <option value="server">Server</option>
+              <option value="cloud">Cloud</option>
+              <option value="lock">Lock</option>
+              <option value="warning">Warning</option>
+              <option value="custom">Custom Graphic</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label>Track Line</label>
+            <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;">
+              <input type="checkbox" id="fctx-flowShowLine" checked> Show Line
+            </label>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowColorPicker">Colour</label>
+            <input type="color" id="fctx-flowColorPicker" value="#00ffcc" style="width: 100%;">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowOpacitySlider">Opacity</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0">
+              <input type="number" class="num-input" id="fctx-flowOpacityNum" value="1.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowGlowSlider">Glow</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowGlowSlider" min="0" max="100" step="1" value="0">
+              <input type="number" class="num-input" id="fctx-flowGlowNum" value="0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowScaleSlider">Scale</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0">
+              <input type="number" class="num-input" id="fctx-flowScaleNum" value="1.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowSpeedSlider">Speed (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0">
+              <input type="number" class="num-input" id="fctx-flowSpeedNum" value="2.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowDelaySlider">Delay (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowDelaySlider" min="0" max="60" step="0.5" value="0.0">
+              <input type="number" class="num-input" id="fctx-flowDelayNum" value="0.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowEndDelaySlider">End Delay</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0">
+              <input type="number" class="num-input" id="fctx-flowEndDelayNum" value="0.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label>Pause Mode</label>
+            <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;">
+              <input type="checkbox" id="fctx-flowHideOnDelay" checked> 👻 Hide in pause
+            </label>
+          </div>
+        </div>
+
+        <!-- GLOW SECTION -->
+        <div id="fctx-glowSection" class="floating-editor-section" style="display: none;">
+          <div class="floating-actions-bar">
+            <span style="font-size: 0.72rem; color: #8b949e;">Hotspot Parameters</span>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteGlow" title="Delete glow">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowShapeSelect">Shape</label>
+            <select id="fctx-glowShapeSelect">
+              <option value="circle" selected>Circle (Radial Glow)</option>
+              <option value="square">Square / Block</option>
+              <option value="radar">Radar Ping</option>
+              <option value="custom">Custom Graphic</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowPlaybackSelect">Playback</label>
+            <select id="fctx-glowPlaybackSelect">
+              <option value="pingpong" selected>Pulse (In &amp; Out)</option>
+              <option value="linear">Linear (Fade In)</option>
+              <option value="once">Play Once &amp; Hold</option>
+              <option value="static">Static Overlay</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowColorPicker">Colour</label>
+            <input type="color" id="fctx-glowColorPicker" value="#ff0044" style="width: 100%;">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowOpacitySlider">Opacity</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0">
+              <input type="number" class="num-input" id="fctx-glowOpacityNum" value="1.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowBlurSlider">Softness</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowBlurSlider" min="0" max="100" step="1" value="50">
+              <input type="number" class="num-input" id="fctx-glowBlurNum" value="50">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowSizeSlider">Size (px)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowSizeSlider" min="5" max="1000" step="1" value="25">
+              <input type="number" class="num-input" id="fctx-glowSizeNum" value="25">
+            </div>
+          </div>
+          <div class="floating-prop-row" id="fctx-glowRadarRow1">
+            <label for="fctx-glowRingsSlider">Pings</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowRingsSlider" min="1" max="10" step="1" value="1">
+              <input type="number" class="num-input" id="fctx-glowRingsNum" value="1">
+            </div>
+          </div>
+          <div class="floating-prop-row" id="fctx-glowRadarRow2">
+            <label for="fctx-glowCoreRSlider">Core R</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowCoreRSlider" min="0" max="200" step="1" value="5">
+              <input type="number" class="num-input" id="fctx-glowCoreRNum" value="5">
+            </div>
+          </div>
+          <div class="floating-prop-row" id="fctx-glowRadarRow3">
+            <label for="fctx-glowThickSlider">Thickness</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowThickSlider" min="1" max="50" step="1" value="2">
+              <input type="number" class="num-input" id="fctx-glowThickNum" value="2">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowDurSlider">Duration (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowDurSlider" min="0.1" max="60" step="0.1" value="2.0">
+              <input type="number" class="num-input" id="fctx-glowDurNum" value="2.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowDelaySlider">Delay (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowDelaySlider" min="0" max="60" step="0.5" value="0.0">
+              <input type="number" class="num-input" id="fctx-glowDelayNum" value="0.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowEndDelaySlider">End Delay</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0">
+              <input type="number" class="num-input" id="fctx-glowEndDelayNum" value="0.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label>Pause Mode</label>
+            <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;">
+              <input type="checkbox" id="fctx-glowHideOnDelay" checked> 👻 Hide in pause
+            </label>
+          </div>
+        </div>
+
+        <!-- RIPPLE SECTION -->
+        <div id="fctx-rippleSection" class="floating-editor-section" style="display: none;">
+          <div class="floating-actions-bar">
+            <span style="font-size: 0.72rem; color: #8b949e;">Ripple Parameters</span>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteRipple" title="Delete ripple">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleColorPicker">Highlight</label>
+            <input type="color" id="fctx-rippleColorPicker" value="#ffffff" style="width: 100%;">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleOpacitySlider">Opacity</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleOpacitySlider" min="0" max="1.0" step="0.05" value="0.4">
+              <input type="number" class="num-input" id="fctx-rippleOpacityNum" value="0.4">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleRefractionSlider">Refraction</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleRefractionSlider" min="0" max="150" step="1" value="35">
+              <input type="number" class="num-input" id="fctx-rippleRefractionNum" value="35">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleDurSlider">Duration (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0">
+              <input type="number" class="num-input" id="fctx-rippleDurNum" value="3.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleInnerRSlider">Inner R</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleInnerRSlider" min="0" max="300" step="1" value="0">
+              <input type="number" class="num-input" id="fctx-rippleInnerRNum" value="0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleOuterRSlider">Outer R</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleOuterRSlider" min="10" max="1500" step="1" value="150">
+              <input type="number" class="num-input" id="fctx-rippleOuterRNum" value="150">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleRingsSlider">Rings</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleRingsSlider" min="1" max="15" step="1" value="3">
+              <input type="number" class="num-input" id="fctx-rippleRingsNum" value="3">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleThickSlider">Thickness</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleThickSlider" min="1" max="100" step="1" value="8">
+              <input type="number" class="num-input" id="fctx-rippleThickNum" value="8">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleDelaySlider">Delay (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleDelaySlider" min="0" max="60" step="0.5" value="0.0">
+              <input type="number" class="num-input" id="fctx-rippleDelayNum" value="0.0">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleEndDelaySlider">End Delay</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0">
+              <input type="number" class="num-input" id="fctx-rippleEndDelayNum" value="1.0">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- RIGHT DRAWER -->
     <aside class="drawer right-drawer" id="rightDrawer" aria-label="Camera, Optics &amp; Export Drawer">

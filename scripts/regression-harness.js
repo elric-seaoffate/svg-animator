@@ -40,6 +40,7 @@ const assert = require('assert');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const JS_DIR = path.join(REPO_ROOT, 'internal', 'web', 'static', 'js');
 const INDEX_HTML_PATH = path.join(REPO_ROOT, 'internal', 'web', 'static', 'index.html');
+const STYLE_CSS_PATH = path.join(REPO_ROOT, 'internal', 'web', 'static', 'css', 'style.css');
 
 function loadProductionScript(filename) {
   const fullPath = path.join(JS_DIR, filename);
@@ -2087,6 +2088,126 @@ async function runHarness() {
     'js/export-modal.js'
   ];
   assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '15 script tags must be in exact dependency order');
+
+  // 14. Phase 4: Floating Contextual Object Properties Editor Verification
+  assert.ok(window.FloatingPropertiesEditor, 'window.FloatingPropertiesEditor must be defined');
+  window.FloatingPropertiesEditor.init();
+  assert.strictEqual(window.FloatingPropertiesEditor._initialized, true);
+  window.FloatingPropertiesEditor.init(); // Idempotency check
+  assert.strictEqual(window.FloatingPropertiesEditor._initialized, true);
+
+  const floatingEditorEl = document.getElementById('floatingContextEditor');
+  const contextBtnEl = document.getElementById('btnCanvasContextEdit');
+  assert.ok(floatingEditorEl, '#floatingContextEditor must exist in DOM');
+  assert.ok(contextBtnEl, '#btnCanvasContextEdit must exist in DOM');
+
+  // Verify FloatingPropertiesEditor lifecycle
+  const fNode = window.DiagramNodes.createNode({ text: 'FloatingNodeTest', width: 220, height: 110, shape: 'rect' });
+  const fFlow = window.DataFlows.createFlow({ label: 'FloatingFlowTest', color: '#123456' });
+  const fGlow = window.Glows.createGlow({ color: '#ff1122', size: 45 });
+  const fRipple = window.Ripples.createRipple({ color: '#99aabb', refraction: 40 });
+
+  // Open for node
+  window.DiagramNodes.selectNode(fNode.id);
+  window.FloatingPropertiesEditor.openFor('node', fNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must be open');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'node');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, fNode.id);
+  assert.strictEqual(floatingEditorEl.style.display, 'flex');
+  assert.strictEqual(document.getElementById('fctx-nodeSection').style.display, 'block');
+  assert.strictEqual(document.getElementById('fctx-flowSection').style.display, 'none');
+
+  // Form population test
+  const fctxWidthNum = document.getElementById('fctx-nodeWidthNum');
+  assert.strictEqual(fctxWidthNum.value, 220, 'Node width in popup must match node.width');
+
+  // Two-way property sync: popup edit -> operational update & sidebar update
+  fctxWidthNum.value = 260;
+  fctxWidthNum.dispatchEvent({ type: 'input', target: fctxWidthNum });
+  assert.strictEqual(window.DiagramNodes.getNode(fNode.id).width, 260, 'Operational node width must update');
+  assert.strictEqual(document.getElementById('nodeWidthNum').value, 260, 'Sidebar node width must sync');
+
+  // Switch selection to flow while popup is open -> updates popup
+  window.DataFlows.selectFlow(fFlow.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'flow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, fFlow.id);
+  assert.strictEqual(document.getElementById('fctx-flowSection').style.display, 'block');
+  assert.strictEqual(document.getElementById('fctx-nodeSection').style.display, 'none');
+
+  // Switch selection to glow
+  window.Glows.selectGlow(fGlow.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, fGlow.id);
+  assert.strictEqual(document.getElementById('fctx-glowSection').style.display, 'block');
+
+  // Switch selection to ripple
+  window.Ripples.selectRipple(fRipple.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, fRipple.id);
+  assert.strictEqual(document.getElementById('fctx-rippleSection').style.display, 'block');
+
+  // Close popup
+  window.FloatingPropertiesEditor.close();
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
+  assert.strictEqual(floatingEditorEl.style.display, 'none');
+
+  // Opening & closing must not pollute undo stack
+  const afterCloseUndoLen = window.HistoryManager.undoStack.length;
+  window.FloatingPropertiesEditor.openFor('node', fNode.id);
+  window.FloatingPropertiesEditor.close();
+  assert.strictEqual(window.HistoryManager.undoStack.length, afterCloseUndoLen, 'Opening/closing popup must not create undo entries');
+
+  // Deletion closes popup
+  window.DiagramNodes.selectNode(fNode.id);
+  window.FloatingPropertiesEditor.openFor('node', fNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
+  window.DiagramNodes.removeNode(fNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Deleting node must close editor');
+
+  // Clean up remaining test objects
+  window.DataFlows.deleteFlow(fFlow.id);
+  window.Glows.deleteGlow(fGlow.id);
+  window.Ripples.deleteRipple(fRipple.id);
+
+  // Incompatible tool activation closes popup
+  const toolTestNode = window.DiagramNodes.createNode({ text: 'ToolCloseTest' });
+  window.DiagramNodes.selectNode(toolTestNode.id);
+  window.FloatingPropertiesEditor.openFor('node', toolTestNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
+  window.WorkspaceController.showToolPanel('acc-background');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Switching to acc-background must close editor');
+  window.DiagramNodes.deleteNode(toolTestNode.id);
+
+  // Toggle and close behavior
+  const escNode = window.DiagramNodes.createNode({ text: 'EscTest' });
+  window.DiagramNodes.selectNode(escNode.id);
+  window.FloatingPropertiesEditor.openFor('node', escNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
+  window.FloatingPropertiesEditor.toggle('node', escNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Toggling open editor must close it');
+  window.FloatingPropertiesEditor.toggle('node', escNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Toggling closed editor must open it');
+  window.FloatingPropertiesEditor.close();
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'close() must close editor');
+  window.DiagramNodes.deleteNode(escNode.id);
+
+  // Context button click triggers openFor
+  const btnTestNode = window.DiagramNodes.createNode({ text: 'BtnTest' });
+  window.DiagramNodes.selectNode(btnTestNode.id);
+  contextBtnEl.click();
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Clicking btnCanvasContextEdit must open editor');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, btnTestNode.id);
+  window.FloatingPropertiesEditor.close();
+  window.DiagramNodes.deleteNode(btnTestNode.id);
+
+  // CSS structure and frozen layout verification
+  const phase4CssSource = fs.readFileSync(STYLE_CSS_PATH, 'utf8');
+  assert.ok(phase4CssSource.includes('minmax(0, 7fr) minmax(0, 13fr)'), 'CSS must preserve 35/65 split: minmax(0, 7fr) minmax(0, 13fr)');
+  assert.ok(phase4CssSource.includes('--drawer-width: 420px;'), 'CSS must preserve 420px expanded drawer at 1280px');
+  assert.ok(phase4CssSource.includes('--drawer-width: 460px;'), 'CSS must preserve 460px expanded drawer at 1600px');
+  assert.ok(phase4CssSource.includes('.floating-context-editor'), 'CSS must define .floating-context-editor');
+  assert.ok(phase4CssSource.includes('width: 380px;'), 'CSS must specify 380px width for floating editor');
+  assert.ok(phase4CssSource.includes('.canvas-context-btn'), 'CSS must define .canvas-context-btn');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
 }

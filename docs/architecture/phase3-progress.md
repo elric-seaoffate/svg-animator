@@ -363,3 +363,33 @@ The workspace implements a **master-detail inspector pattern**:
 - Retained full canvas space (760px on 1280p, 1360px on 1080p desktop).
 - Verified zero conflicting CSS overrides across the stylesheet.
 - All 95 tracked controls, DOM IDs, and event handlers remain 100% intact.
+
+## 15. Phase 4: Floating Contextual Object Properties Editor
+
+### 15.1 Architectural Scope & Usability Mission
+- Introduced a floating, draggable canvas-centric properties editor (`#floatingContextEditor`) providing immediate, in-situ property editing directly at the canvas, eliminating repetitive glancing back and forth to the side panel.
+- Frozen sidebar inspector baseline: The compact 35/65 side inspector (`420px` at `>= 1280px`, `460px` at `>= 1600px`, `minmax(0, 7fr) minmax(0, 13fr)`) remains completely preserved and operational.
+
+### 15.2 Interaction & Triggering
+- **Object Double-Click**: Double-clicking an object on the canvas (`node`, `flow`, `glow`, `ripple`) immediately selects it and opens the floating contextual editor.
+- **Context Properties Button (`#btnCanvasContextEdit`)**: A subtle glassmorphic action button (`⚙️ Properties`) floats near the active object selection overlay, providing an explicit single-click trigger.
+- **Smart Lifecycle Management**:
+  - Selecting another object while the popup is open dynamically switches the editor contents to that object without closing.
+  - Clicking inside the popup does not deselect the canvas object.
+  - Pressing `Escape` or clicking blank canvas closes the popup.
+  - Deleting an active object safely closes the popup.
+  - Activating an incompatible tool panel closes the popup.
+  - Opening, dragging, or closing the popup is history-neutral (`HistoryManager.undoStack.length` is unchanged).
+
+### 15.3 Shared Editing Architecture & Zero State Duplication
+- **Single Source of Truth**: Operational modules (`DiagramNodes`, `DataFlows`, `Glows`, `Ripples`) retain exclusive ownership of object state.
+- **Two-Way Synchronization**:
+  - Edits made in `#floatingContextEditor` call operational update APIs (`updateActive`), automatically refreshing SVG render, canvas overlays, and synchronizing corresponding sidebar inspector controls.
+  - Edits made via the sidebar or canvas drags/resizes dispatch through `AppCoordinator` to update popup inputs in real time without circular loops (`_isSyncing` guard).
+  - Undo/redo actions seamlessly update both sidebar and floating editor form controls.
+
+### 15.4 Visual Styling & Responsive Bottom Sheet
+- Preferred width: 380px (range 340–420px), max-height `min(70vh, 650px)` with independent scrolling.
+- Glassmorphic dark styling (`#161b22`, border `#30363d`, backdrop blur 12px) with draggable grab header, type badge (`NODE`, `FLOW`, `GLOW`, `RIPPLE`), and close button.
+- Smart screen clamping keeps the editor visible within the stage viewport while preserving user-dragged coordinates during the session.
+- Responsive mobile docking (`@media (max-width: 767px)`): Seamlessly docks to the bottom viewport as an accessible bottom-sheet modal.

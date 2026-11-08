@@ -197,6 +197,18 @@ window.WorkspaceController = {
         leftDrawer.classList.toggle('expanded-inspector', objectTools.includes(toolId));
       }
 
+      if (window.FloatingPropertiesEditor && window.FloatingPropertiesEditor.isOpen) {
+        const typeMap = {
+          'acc-nodes': 'node',
+          'acc-flows': 'flow',
+          'acc-glows': 'glow',
+          'acc-ripples': 'ripple'
+        };
+        if (typeMap[toolId] !== window.FloatingPropertiesEditor.activeType) {
+          window.FloatingPropertiesEditor.close();
+        }
+      }
+
       const leftSections = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples'];
       leftSections.forEach((secId) => {
         const sec = document.getElementById(secId);
@@ -210,6 +222,10 @@ window.WorkspaceController = {
     } else if (isRight) {
       this.lastRightAccId = toolId;
       if (!this.rightDrawerOpen) this.openRightDrawer();
+
+      if (window.FloatingPropertiesEditor && window.FloatingPropertiesEditor.isOpen) {
+        window.FloatingPropertiesEditor.close();
+      }
 
       const titleEl = document.getElementById('rightDrawerTitle');
       if (titleEl && this.toolTitles[toolId]) {
@@ -634,6 +650,1027 @@ window.toggleAllAccordions = function(panelId, expand) {
       if (firstOpen && firstOpen.id) {
         window.WorkspaceController.syncRailForAccordion(firstOpen.id);
       }
+    }
+  }
+};
+
+// =========================================================================
+// Layer 1: Floating Contextual Object Properties Editor
+// =========================================================================
+
+window.FloatingPropertiesEditor = {
+  isOpen: false,
+  activeType: null,
+  activeId: null,
+  _isSyncing: false,
+  _customPos: null,
+  _initialized: false,
+
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+    this._bindControls();
+    this._bindEvents();
+  },
+
+  openFor(type, id, options = {}) {
+    if (!['node', 'flow', 'glow', 'ripple'].includes(type) || id === null || id === undefined) {
+      this.close();
+      return;
+    }
+    const normalizedId = parseInt(id, 10);
+    if (isNaN(normalizedId)) {
+      this.close();
+      return;
+    }
+
+    const editor = document.getElementById('floatingContextEditor');
+    if (!editor) return;
+
+    this.isOpen = true;
+    this.activeType = type;
+    this.activeId = normalizedId;
+
+    if (options.resetPosition) {
+      this._customPos = null;
+    }
+
+    const iconEl = document.getElementById('floatingEditorIcon');
+    const badgeEl = document.getElementById('floatingEditorBadge');
+    if (badgeEl) {
+      badgeEl.className = 'floating-editor-badge badge-' + type;
+      badgeEl.textContent = type.toUpperCase();
+    }
+    if (iconEl) {
+      const icons = { node: '🔷', flow: '⚡', glow: '✨', ripple: '💧' };
+      iconEl.textContent = icons[type] || '⚙️';
+    }
+
+    const sections = {
+      node: document.getElementById('fctx-nodeSection'),
+      flow: document.getElementById('fctx-flowSection'),
+      glow: document.getElementById('fctx-glowSection'),
+      ripple: document.getElementById('fctx-rippleSection')
+    };
+    Object.keys(sections).forEach((k) => {
+      if (sections[k]) {
+        sections[k].style.display = (k === type ? 'block' : 'none');
+      }
+    });
+
+    editor.style.display = 'flex';
+
+    this.syncFromActiveObject();
+    this.updatePosition();
+    this.positionCanvasContextButton();
+  },
+
+  close() {
+    if (!this.isOpen && (!document.getElementById('floatingContextEditor') || document.getElementById('floatingContextEditor').style.display === 'none')) {
+      return;
+    }
+    this.isOpen = false;
+    this.activeType = null;
+    this.activeId = null;
+    this._customPos = null;
+
+    const editor = document.getElementById('floatingContextEditor');
+    if (editor) {
+      editor.style.display = 'none';
+    }
+  },
+
+  toggle(type, id) {
+    if (this.isOpen && this.activeType === type && this.activeId === parseInt(id, 10)) {
+      this.close();
+    } else {
+      this.openFor(type, id);
+    }
+  },
+
+  handleSelectionChanged(sel) {
+    if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
+      const btn = document.getElementById('btnCanvasContextEdit');
+      if (btn) btn.style.display = 'none';
+      if (this.isOpen) this.close();
+      return;
+    }
+
+    this.positionCanvasContextButton();
+
+    if (this.isOpen) {
+      this.openFor(sel.type, sel.id, { resetPosition: false });
+    }
+  },
+
+  handleRenderCompleted() {
+    if (this.isOpen) {
+      this.syncFromActiveObject();
+    }
+    this.positionCanvasContextButton();
+  },
+
+  getTargetScreenRect(type, id) {
+    if (!type || id === null) return null;
+    let el = null;
+    if (type === 'node') {
+      el = document.querySelector ? document.querySelector('#svgContainer [data-node-id="' + id + '"]') : null;
+      if (!el) {
+        const selBox = document.getElementById('nodeSelectionBox');
+        if (selBox && selBox.style && selBox.style.display !== 'none') el = selBox;
+      }
+    } else if (type === 'flow') {
+      el = (document.querySelector ? document.querySelector('#svgContainer #flowPath-' + id) : null) ||
+           document.getElementById('flowCurvePath') ||
+           (document.querySelector ? document.querySelector('#dynamicFlowReticles [data-flow-node-idx]') : null);
+    } else if (type === 'glow') {
+      el = document.getElementById('glowReticleTarget');
+    } else if (type === 'ripple') {
+      el = document.getElementById('rippleReticleTarget');
+    }
+
+    if (el && typeof el.getBoundingClientRect === 'function') {
+      const rect = el.getBoundingClientRect();
+      if (rect && (rect.width > 0 || rect.height > 0)) return rect;
+    }
+
+    const stageMain = document.getElementById('stageMain') || (document.querySelector ? document.querySelector('.stage') : null);
+    if (stageMain && typeof stageMain.getBoundingClientRect === 'function') {
+      const sRect = stageMain.getBoundingClientRect();
+      if (sRect) {
+        return {
+          left: sRect.left + (sRect.width || 800) * 0.4,
+          right: sRect.left + (sRect.width || 800) * 0.6,
+          top: sRect.top + (sRect.height || 600) * 0.35,
+          bottom: sRect.top + (sRect.height || 600) * 0.55,
+          width: (sRect.width || 800) * 0.2,
+          height: (sRect.height || 600) * 0.2
+        };
+      }
+    }
+    return null;
+  },
+
+  positionCanvasContextButton() {
+    const btn = document.getElementById('btnCanvasContextEdit');
+    if (!btn) return;
+
+    const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+    if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
+      btn.style.display = 'none';
+      return;
+    }
+
+    const previewBox = document.getElementById('previewBox');
+    if (!previewBox) {
+      btn.style.display = 'none';
+      return;
+    }
+
+    const targetRect = this.getTargetScreenRect(sel.type, sel.id);
+    if (!targetRect) {
+      btn.style.display = 'none';
+      return;
+    }
+
+    const pRect = (typeof previewBox.getBoundingClientRect === 'function')
+      ? previewBox.getBoundingClientRect()
+      : { left: 0, top: 0, width: 1280, height: 720 };
+
+    let relLeft = targetRect.right - pRect.left + 8;
+    let relTop = targetRect.top - pRect.top - 8;
+
+    if (relLeft + 95 > (pRect.width || 1280)) {
+      relLeft = (targetRect.left - pRect.left) - 95;
+    }
+    if (relTop < 10) relTop = 10;
+    if (relLeft < 10) relLeft = 10;
+
+    btn.style.left = Math.round(relLeft) + 'px';
+    btn.style.top = Math.round(relTop) + 'px';
+    btn.style.display = 'flex';
+  },
+
+  updatePosition(forceReset = false) {
+    const editor = document.getElementById('floatingContextEditor');
+    if (!editor || !this.isOpen) return;
+
+    const winW = (typeof window !== 'undefined' && window.innerWidth) || 1280;
+    const winH = (typeof window !== 'undefined' && window.innerHeight) || 720;
+
+    if (winW < 768) {
+      editor.style.left = '';
+      editor.style.top = '';
+      editor.style.right = '';
+      editor.style.bottom = '';
+      return;
+    }
+
+    const stageMain = document.getElementById('stageMain') || (document.querySelector ? document.querySelector('.stage') : null);
+    const stageRect = (stageMain && typeof stageMain.getBoundingClientRect === 'function')
+      ? stageMain.getBoundingClientRect()
+      : { left: 0, top: 0, right: winW, bottom: winH, width: winW, height: winH };
+
+    const editorW = editor.offsetWidth || 380;
+    const editorH = editor.offsetHeight || 360;
+
+    if (this._customPos && !forceReset) {
+      let left = Math.max(stageRect.left + 8, Math.min(stageRect.right - editorW - 8, this._customPos.left));
+      let top = Math.max(stageRect.top + 8, Math.min(stageRect.bottom - editorH - 8, this._customPos.top));
+      editor.style.left = `${Math.round(left)}px`;
+      editor.style.top = `${Math.round(top)}px`;
+      return;
+    }
+
+    const targetRect = this.getTargetScreenRect(this.activeType, this.activeId);
+    let left, top;
+
+    if (targetRect) {
+      left = targetRect.right + 14;
+      top = targetRect.top;
+
+      if (left + editorW > stageRect.right - 10) {
+        const leftCandidate = targetRect.left - editorW - 14;
+        if (leftCandidate >= stageRect.left + 10) {
+          left = leftCandidate;
+        } else {
+          left = stageRect.right - editorW - 16;
+        }
+      }
+
+      if (top + editorH > stageRect.bottom - 10) {
+        top = Math.max(stageRect.top + 10, stageRect.bottom - editorH - 10);
+      }
+      if (top < stageRect.top + 10) {
+        top = stageRect.top + 10;
+      }
+    } else {
+      left = Math.max(stageRect.left + 16, stageRect.right - editorW - 24);
+      top = stageRect.top + 24;
+    }
+
+    left = Math.max(stageRect.left + 8, Math.min(stageRect.right - editorW - 8, left));
+    top = Math.max(stageRect.top + 8, Math.min(stageRect.bottom - editorH - 8, top));
+
+    editor.style.left = `${Math.round(left)}px`;
+    editor.style.top = `${Math.round(top)}px`;
+  },
+
+  syncFromActiveObject() {
+    if (!this.isOpen || this._isSyncing) return;
+    this._isSyncing = true;
+    try {
+      const titleEl = document.getElementById('floatingEditorTitle');
+
+      if (this.activeType === 'node') {
+        const node = window.DiagramNodes ? window.DiagramNodes.getNode(this.activeId) : null;
+        if (!node) {
+          this.close();
+          return;
+        }
+        if (titleEl) {
+          titleEl.textContent = 'Node #' + node.id + (node.text ? ': ' + node.text : '');
+        }
+        this._setVal('fctx-nodeShapeSelect', node.shape || 'rounded');
+        this._setVal('fctx-nodeTextInput', node.text || '');
+        this._setVal('fctx-nodeSubtextInput', node.subtext || '');
+        this._setPair('fctx-nodeWidth', node.width);
+        this._setPair('fctx-nodeHeight', node.height);
+        this._setVal('fctx-nodeFillColorPicker', node.fillColor || '#161b22');
+        this._setVal('fctx-nodeStrokeColorPicker', node.strokeColor || '#58a6ff');
+        this._setVal('fctx-nodeTextColorPicker', node.textColor || '#e6edf3');
+        this._setPair('fctx-nodeFillOpacity', node.fillOpacity !== undefined ? node.fillOpacity : 0.92);
+        this._setPair('fctx-nodeStrokeWidth', node.strokeWidth !== undefined ? node.strokeWidth : 2);
+        this._setVal('fctx-nodeStrokeStyleSelect', node.strokeStyle || 'solid');
+        this._setPair('fctx-nodeFontSize', node.fontSize || 15);
+        this._setVal('fctx-nodeAnimSelect', node.animation || 'none');
+      } else if (this.activeType === 'flow') {
+        const flow = window.DataFlows ? window.DataFlows.getFlow(this.activeId) : null;
+        if (!flow) {
+          this.close();
+          return;
+        }
+        if (titleEl) {
+          titleEl.textContent = 'Flow #' + flow.id + (flow.label ? ': ' + flow.label : '');
+        }
+        const nodeSlider = document.getElementById('fctx-flowNodeSlider');
+        const nodeNum = document.getElementById('fctx-flowNodeNum');
+        if (nodeSlider && flow.nodes) {
+          nodeSlider.max = Math.max(1, flow.nodes.length - 1);
+          nodeSlider.value = window.DataFlows.activeNodeIdx || 0;
+          if (nodeNum) nodeNum.value = nodeSlider.value;
+        }
+        this._setVal('fctx-flowRouteSelect', flow.route || 'curve');
+        this._setVal('fctx-flowLineStyleSelect', flow.lineStyle || 'dashed');
+        this._setVal('fctx-flowArrowSelect', flow.arrow || 'none');
+        this._setPair('fctx-flowLineWidth', flow.lineWidth !== undefined ? flow.lineWidth : 2.5);
+        this._setPair('fctx-flowCurvature', flow.curvature !== undefined ? flow.curvature : 0);
+        this._setVal('fctx-flowLabelInput', flow.label || '');
+        this._setVal('fctx-flowTypeSelect', flow.type || 'orb');
+        this._setChk('fctx-flowShowLine', flow.showLine !== false);
+        this._setVal('fctx-flowColorPicker', flow.color || '#00ffcc');
+        this._setPair('fctx-flowOpacity', flow.opacity !== undefined ? flow.opacity : 1.0);
+        this._setPair('fctx-flowGlow', flow.glow !== undefined ? flow.glow : 0);
+        this._setPair('fctx-flowScale', flow.scale !== undefined ? flow.scale : 1.0);
+        this._setPair('fctx-flowSpeed', flow.speed !== undefined ? flow.speed : 2.0);
+        this._setPair('fctx-flowDelay', flow.delay !== undefined ? flow.delay : 0.0);
+        this._setPair('fctx-flowEndDelay', flow.endDelay !== undefined ? flow.endDelay : 0.0);
+        this._setChk('fctx-flowHideOnDelay', flow.hideOnDelay !== false);
+      } else if (this.activeType === 'glow') {
+        const glow = window.Glows ? window.Glows.getGlow(this.activeId) : null;
+        if (!glow) {
+          this.close();
+          return;
+        }
+        if (titleEl) {
+          titleEl.textContent = 'Glow #' + glow.id;
+        }
+        this._setVal('fctx-glowShapeSelect', glow.shape || 'circle');
+        this._setVal('fctx-glowPlaybackSelect', glow.playback || 'pingpong');
+        this._setVal('fctx-glowColorPicker', glow.color || '#ff0044');
+        this._setPair('fctx-glowOpacity', glow.opacity !== undefined ? glow.opacity : 1.0);
+        this._setPair('fctx-glowBlur', glow.blur !== undefined ? glow.blur : 50);
+        this._setPair('fctx-glowSize', glow.size !== undefined ? glow.size : 25);
+        this._setPair('fctx-glowRings', glow.rings !== undefined ? glow.rings : 1);
+        this._setPair('fctx-glowCoreR', glow.coreR !== undefined ? glow.coreR : 5);
+        this._setPair('fctx-glowThick', glow.thick !== undefined ? glow.thick : 2);
+        this._setPair('fctx-glowDur', glow.dur !== undefined ? glow.dur : 2.0);
+        this._setPair('fctx-glowDelay', glow.delay !== undefined ? glow.delay : 0.0);
+        this._setPair('fctx-glowEndDelay', glow.endDelay !== undefined ? glow.endDelay : 0.0);
+        this._setChk('fctx-glowHideOnDelay', glow.hideOnDelay !== false);
+
+        const isRadar = glow.shape === 'radar';
+        ['fctx-glowRadarRow1', 'fctx-glowRadarRow2', 'fctx-glowRadarRow3'].forEach((rId) => {
+          const rEl = document.getElementById(rId);
+          if (rEl) rEl.style.display = isRadar ? 'flex' : 'none';
+        });
+      } else if (this.activeType === 'ripple') {
+        const ripple = window.Ripples ? window.Ripples.getRipple(this.activeId) : null;
+        if (!ripple) {
+          this.close();
+          return;
+        }
+        if (titleEl) {
+          titleEl.textContent = 'Ripple #' + ripple.id;
+        }
+        this._setVal('fctx-rippleColorPicker', ripple.color || '#ffffff');
+        this._setPair('fctx-rippleOpacity', ripple.opacity !== undefined ? ripple.opacity : 0.4);
+        this._setPair('fctx-rippleRefraction', ripple.refraction !== undefined ? ripple.refraction : 35);
+        this._setPair('fctx-rippleDur', ripple.dur !== undefined ? ripple.dur : 3.0);
+        this._setPair('fctx-rippleInnerR', ripple.innerR !== undefined ? ripple.innerR : 0);
+        this._setPair('fctx-rippleOuterR', ripple.outerR !== undefined ? ripple.outerR : 150);
+        this._setPair('fctx-rippleRings', ripple.rings !== undefined ? ripple.rings : 3);
+        this._setPair('fctx-rippleThick', ripple.thick !== undefined ? ripple.thick : 8);
+        this._setPair('fctx-rippleDelay', ripple.delay !== undefined ? ripple.delay : 0.0);
+        this._setPair('fctx-rippleEndDelay', ripple.endDelay !== undefined ? ripple.endDelay : 1.0);
+      }
+    } finally {
+      this._isSyncing = false;
+    }
+  },
+
+  _setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) el.value = val;
+  },
+
+  _setChk(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!val;
+  },
+
+  _setPair(prefix, val) {
+    if (val === undefined || val === null) return;
+    const slider = document.getElementById(prefix + 'Slider');
+    const num = document.getElementById(prefix + 'Num');
+    if (slider) slider.value = val;
+    if (num) num.value = val;
+  },
+
+  _syncSidebar(type, key, val) {
+    if (val === undefined || val === null) return;
+    const map = {
+      node: {
+        text: ['nodeTextInput'],
+        subtext: ['nodeSubtextInput'],
+        shape: ['nodeShapeSelect'],
+        width: ['nodeWidthSlider', 'nodeWidthNum'],
+        height: ['nodeHeightSlider', 'nodeHeightNum'],
+        fillColor: ['nodeFillColorPicker'],
+        strokeColor: ['nodeStrokeColorPicker'],
+        textColor: ['nodeTextColorPicker'],
+        fillOpacity: ['nodeFillOpacitySlider', 'nodeFillOpacityNum'],
+        strokeWidth: ['nodeStrokeWidthSlider', 'nodeStrokeWidthNum'],
+        strokeStyle: ['nodeStrokeStyleSelect'],
+        fontSize: ['nodeFontSizeSlider', 'nodeFontSizeNum'],
+        animation: ['nodeAnimSelect']
+      },
+      flow: {
+        label: ['flowLabelInput'],
+        route: ['flowRouteSelect'],
+        lineStyle: ['flowLineStyleSelect'],
+        arrow: ['flowArrowSelect'],
+        lineWidth: ['flowLineWidthSlider', 'flowLineWidthNum'],
+        curvature: ['flowCurvatureSlider', 'flowCurvatureNum'],
+        type: ['flowTypeSelect'],
+        showLine: ['flowShowLine'],
+        color: ['flowColorPicker'],
+        opacity: ['flowOpacitySlider', 'flowOpacityNum'],
+        glow: ['flowGlowSlider', 'flowGlowNum'],
+        scale: ['flowScaleSlider', 'flowScaleNum'],
+        speed: ['flowSpeedSlider', 'flowSpeedNum'],
+        delay: ['flowDelaySlider', 'flowDelayNum'],
+        endDelay: ['flowEndDelaySlider', 'flowEndDelayNum'],
+        hideOnDelay: ['flowHideOnDelay']
+      },
+      glow: {
+        shape: ['glowShapeSelect'],
+        playback: ['glowPlaybackSelect'],
+        color: ['glowColorPicker'],
+        opacity: ['glowOpacitySlider', 'glowOpacityNum'],
+        blur: ['glowBlurSlider', 'glowBlurNum'],
+        size: ['glowSizeSlider', 'glowSizeNum'],
+        rings: ['glowRingsSlider', 'glowRingsNum'],
+        coreR: ['glowCoreRSlider', 'glowCoreRNum'],
+        thick: ['glowThickSlider', 'glowThickNum'],
+        dur: ['glowDurSlider', 'glowDurNum'],
+        delay: ['glowDelaySlider', 'glowDelayNum'],
+        endDelay: ['glowEndDelaySlider', 'glowEndDelayNum'],
+        hideOnDelay: ['glowHideOnDelay']
+      },
+      ripple: {
+        color: ['rippleColorPicker'],
+        opacity: ['rippleOpacitySlider', 'rippleOpacityNum'],
+        refraction: ['rippleRefractionSlider', 'rippleRefractionNum'],
+        dur: ['rippleDurSlider', 'rippleDurNum'],
+        innerR: ['rippleInnerRSlider', 'rippleInnerRNum'],
+        outerR: ['rippleOuterRSlider', 'rippleOuterRNum'],
+        rings: ['rippleRingsSlider', 'rippleRingsNum'],
+        thick: ['rippleThickSlider', 'rippleThickNum'],
+        delay: ['rippleDelaySlider', 'rippleDelayNum'],
+        endDelay: ['rippleEndDelaySlider', 'rippleEndDelayNum']
+      }
+    };
+    const ids = (map[type] && map[type][key]) || [];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        if (el.type === 'checkbox') el.checked = !!val;
+        else el.value = val;
+      }
+    });
+  },
+
+  _bindControls() {
+    const closeBtn = document.getElementById('btnFloatingEditorClose');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        this.close();
+      });
+    }
+
+    const contextBtn = document.getElementById('btnCanvasContextEdit');
+    if (contextBtn) {
+      contextBtn.addEventListener('click', (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+        if (sel && sel.type && sel.id !== null) {
+          this.openFor(sel.type, sel.id);
+        }
+      });
+    }
+
+    const header = document.getElementById('floatingEditorHeader');
+    const editor = document.getElementById('floatingContextEditor');
+    if (header && editor && typeof window !== 'undefined') {
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let initLeft = 0;
+      let initTop = 0;
+
+      const onPointerMove = (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        const maxLeft = Math.max(0, (window.innerWidth || 1280) - (editor.offsetWidth || 380));
+        const maxTop = Math.max(0, (window.innerHeight || 720) - (editor.offsetHeight || 360));
+
+        const newLeft = Math.max(0, Math.min(maxLeft, initLeft + dx));
+        const newTop = Math.max(0, Math.min(maxTop, initTop + dy));
+
+        editor.style.left = `${Math.round(newLeft)}px`;
+        editor.style.top = `${Math.round(newTop)}px`;
+        this._customPos = { left: newLeft, top: newTop };
+      };
+
+      const onPointerUp = () => {
+        isDragging = false;
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+      };
+
+      header.addEventListener('pointerdown', (e) => {
+        if (e.target && e.target.closest && e.target.closest('#btnFloatingEditorClose')) return;
+        if (window.innerWidth && window.innerWidth < 768) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = (typeof editor.getBoundingClientRect === 'function')
+          ? editor.getBoundingClientRect()
+          : { left: 0, top: 0 };
+        initLeft = rect.left;
+        initTop = rect.top;
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      });
+    }
+
+    // Node Property Bindings
+    const nodePairs = [
+      { key: 'width', prefix: 'fctx-nodeWidth' },
+      { key: 'height', prefix: 'fctx-nodeHeight' },
+      { key: 'fillOpacity', prefix: 'fctx-nodeFillOpacity' },
+      { key: 'strokeWidth', prefix: 'fctx-nodeStrokeWidth' },
+      { key: 'fontSize', prefix: 'fctx-nodeFontSize' }
+    ];
+    nodePairs.forEach(({ key, prefix }) => {
+      const slider = document.getElementById(prefix + 'Slider');
+      const num = document.getElementById(prefix + 'Num');
+      const handleInput = (val) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        const parsed = parseFloat(val);
+        if (slider) slider.value = val;
+        if (num) num.value = val;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive(key, parsed);
+          this._syncSidebar('node', key, parsed);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      };
+      if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
+      if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
+    });
+
+    const nodeTextIn = document.getElementById('fctx-nodeTextInput');
+    if (nodeTextIn) {
+      nodeTextIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive('text', e.target.value);
+          this._syncSidebar('node', 'text', e.target.value);
+        }
+        const titleEl = document.getElementById('floatingEditorTitle');
+        if (titleEl) titleEl.textContent = 'Node #' + this.activeId + (e.target.value ? ': ' + e.target.value : '');
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
+
+    const nodeSubIn = document.getElementById('fctx-nodeSubtextInput');
+    if (nodeSubIn) {
+      nodeSubIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive('subtext', e.target.value);
+          this._syncSidebar('node', 'subtext', e.target.value);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
+
+    ['fctx-nodeFillColorPicker', 'fctx-nodeStrokeColorPicker', 'fctx-nodeTextColorPicker'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = id.includes('Fill') ? 'fillColor' : (id.includes('Stroke') ? 'strokeColor' : 'textColor');
+      el.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive(key, e.target.value);
+          this._syncSidebar('node', key, e.target.value);
+        }
+      });
+      el.addEventListener('change', () => {
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    });
+
+    ['fctx-nodeShapeSelect', 'fctx-nodeStrokeStyleSelect', 'fctx-nodeAnimSelect'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = id.includes('Shape') ? 'shape' : (id.includes('StrokeStyle') ? 'strokeStyle' : 'animation');
+      el.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive(key, e.target.value);
+          this._syncSidebar('node', key, e.target.value);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    });
+
+    const btnSnapPreset = document.getElementById('fctx-btnSnapNodeToPreset');
+    if (btnSnapPreset) {
+      btnSnapPreset.addEventListener('click', () => {
+        if (window.DiagramNodes && typeof window.DiagramNodes.applyPresetToActive === 'function') {
+          window.DiagramNodes.applyPresetToActive();
+          this.syncFromActiveObject();
+        }
+      });
+    }
+
+    const btnDelNode = document.getElementById('fctx-btnDeleteNode');
+    if (btnDelNode) {
+      btnDelNode.addEventListener('click', () => {
+        if (this.activeType === 'node' && this.activeId !== null && window.DiagramNodes) {
+          const id = this.activeId;
+          this.close();
+          window.DiagramNodes.removeNode(id);
+        }
+      });
+    }
+
+    // Flow Property Bindings
+    const flowPairs = [
+      { key: 'lineWidth', prefix: 'fctx-flowLineWidth' },
+      { key: 'curvature', prefix: 'fctx-flowCurvature' },
+      { key: 'opacity', prefix: 'fctx-flowOpacity' },
+      { key: 'glow', prefix: 'fctx-flowGlow' },
+      { key: 'scale', prefix: 'fctx-flowScale' },
+      { key: 'speed', prefix: 'fctx-flowSpeed' },
+      { key: 'delay', prefix: 'fctx-flowDelay' },
+      { key: 'endDelay', prefix: 'fctx-flowEndDelay' }
+    ];
+    flowPairs.forEach(({ key, prefix }) => {
+      const slider = document.getElementById(prefix + 'Slider');
+      const num = document.getElementById(prefix + 'Num');
+      const handleInput = (val) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        const parsed = parseFloat(val);
+        if (slider) slider.value = val;
+        if (num) num.value = val;
+        if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
+          window.DataFlows.updateActive(key, parsed);
+          this._syncSidebar('flow', key, parsed);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      };
+      if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
+      if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
+    });
+
+    const flowLblIn = document.getElementById('fctx-flowLabelInput');
+    if (flowLblIn) {
+      flowLblIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
+          window.DataFlows.updateActive('label', e.target.value);
+          this._syncSidebar('flow', 'label', e.target.value);
+        }
+        const titleEl = document.getElementById('floatingEditorTitle');
+        if (titleEl) titleEl.textContent = 'Flow #' + this.activeId + (e.target.value ? ': ' + e.target.value : '');
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
+
+    const flowColPick = document.getElementById('fctx-flowColorPicker');
+    if (flowColPick) {
+      flowColPick.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
+          window.DataFlows.updateActive('color', e.target.value);
+          this._syncSidebar('flow', 'color', e.target.value);
+        }
+      });
+      flowColPick.addEventListener('change', () => {
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    ['fctx-flowRouteSelect', 'fctx-flowLineStyleSelect', 'fctx-flowArrowSelect', 'fctx-flowTypeSelect'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = id.includes('Route') ? 'route' : (id.includes('LineStyle') ? 'lineStyle' : (id.includes('Arrow') ? 'arrow' : 'type'));
+      el.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
+          window.DataFlows.updateActive(key, e.target.value);
+          this._syncSidebar('flow', key, e.target.value);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    });
+
+    ['fctx-flowShowLine', 'fctx-flowHideOnDelay'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = id.includes('ShowLine') ? 'showLine' : 'hideOnDelay';
+      el.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
+          window.DataFlows.updateActive(key, e.target.checked);
+          this._syncSidebar('flow', key, e.target.checked);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    });
+
+    const flowNodeSlider = document.getElementById('fctx-flowNodeSlider');
+    if (flowNodeSlider) {
+      flowNodeSlider.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        const idx = parseInt(e.target.value, 10);
+        if (window.DataFlows && typeof window.DataFlows.selectWaypoint === 'function') {
+          window.DataFlows.selectWaypoint(idx);
+        }
+        const num = document.getElementById('fctx-flowNodeNum');
+        if (num) num.value = idx;
+      });
+    }
+
+    const btnFlowAddNode = document.getElementById('fctx-btnFlowAddNode');
+    if (btnFlowAddNode) {
+      btnFlowAddNode.addEventListener('click', () => {
+        if (this.activeType === 'flow' && window.DataFlows && typeof window.DataFlows.addNodeToActive === 'function') {
+          window.DataFlows.addNodeToActive();
+          this.syncFromActiveObject();
+        }
+      });
+    }
+
+    const btnFlowDelNode = document.getElementById('fctx-btnFlowDelNode');
+    if (btnFlowDelNode) {
+      btnFlowDelNode.addEventListener('click', () => {
+        if (this.activeType === 'flow' && window.DataFlows && typeof window.DataFlows.dropNodeFromActive === 'function') {
+          window.DataFlows.dropNodeFromActive();
+          this.syncFromActiveObject();
+        }
+      });
+    }
+
+    const btnDelFlow = document.getElementById('fctx-btnDeleteFlow');
+    if (btnDelFlow) {
+      btnDelFlow.addEventListener('click', () => {
+        if (this.activeType === 'flow' && this.activeId !== null && window.DataFlows) {
+          const id = this.activeId;
+          this.close();
+          window.DataFlows.removeFlow(id);
+        }
+      });
+    }
+
+    // Glow Property Bindings
+    const glowPairs = [
+      { key: 'opacity', prefix: 'fctx-glowOpacity' },
+      { key: 'blur', prefix: 'fctx-glowBlur' },
+      { key: 'size', prefix: 'fctx-glowSize' },
+      { key: 'rings', prefix: 'fctx-glowRings' },
+      { key: 'coreR', prefix: 'fctx-glowCoreR' },
+      { key: 'thick', prefix: 'fctx-glowThick' },
+      { key: 'dur', prefix: 'fctx-glowDur' },
+      { key: 'delay', prefix: 'fctx-glowDelay' },
+      { key: 'endDelay', prefix: 'fctx-glowEndDelay' }
+    ];
+    glowPairs.forEach(({ key, prefix }) => {
+      const slider = document.getElementById(prefix + 'Slider');
+      const num = document.getElementById(prefix + 'Num');
+      const handleInput = (val) => {
+        if (this._isSyncing || this.activeType !== 'glow') return;
+        const parsed = parseFloat(val);
+        if (slider) slider.value = val;
+        if (num) num.value = val;
+        if (window.Glows && typeof window.Glows.updateActive === 'function') {
+          window.Glows.updateActive(key, parsed);
+          this._syncSidebar('glow', key, parsed);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      };
+      if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
+      if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
+    });
+
+    const glowColPick = document.getElementById('fctx-glowColorPicker');
+    if (glowColPick) {
+      glowColPick.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'glow') return;
+        if (window.Glows) {
+          window.Glows.updateActive('color', e.target.value);
+          this._syncSidebar('glow', 'color', e.target.value);
+        }
+      });
+      glowColPick.addEventListener('change', () => {
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    ['fctx-glowShapeSelect', 'fctx-glowPlaybackSelect'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const key = id.includes('Shape') ? 'shape' : 'playback';
+      el.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'glow') return;
+        if (window.Glows) {
+          window.Glows.updateActive(key, e.target.value);
+          this._syncSidebar('glow', key, e.target.value);
+        }
+        if (key === 'shape') {
+          const isRadar = e.target.value === 'radar';
+          ['fctx-glowRadarRow1', 'fctx-glowRadarRow2', 'fctx-glowRadarRow3'].forEach((rId) => {
+            const rEl = document.getElementById(rId);
+            if (rEl) rEl.style.display = isRadar ? 'flex' : 'none';
+          });
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    });
+
+    const glowHideDelay = document.getElementById('fctx-glowHideOnDelay');
+    if (glowHideDelay) {
+      glowHideDelay.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'glow') return;
+        if (window.Glows) {
+          window.Glows.updateActive('hideOnDelay', e.target.checked);
+          this._syncSidebar('glow', 'hideOnDelay', e.target.checked);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    const btnDelGlow = document.getElementById('fctx-btnDeleteGlow');
+    if (btnDelGlow) {
+      btnDelGlow.addEventListener('click', () => {
+        if (this.activeType === 'glow' && this.activeId !== null && window.Glows) {
+          const id = this.activeId;
+          this.close();
+          window.Glows.removeGlow(id);
+        }
+      });
+    }
+
+    // Ripple Property Bindings
+    const ripplePairs = [
+      { key: 'opacity', prefix: 'fctx-rippleOpacity' },
+      { key: 'refraction', prefix: 'fctx-rippleRefraction' },
+      { key: 'dur', prefix: 'fctx-rippleDur' },
+      { key: 'innerR', prefix: 'fctx-rippleInnerR' },
+      { key: 'outerR', prefix: 'fctx-rippleOuterR' },
+      { key: 'rings', prefix: 'fctx-rippleRings' },
+      { key: 'thick', prefix: 'fctx-rippleThick' },
+      { key: 'delay', prefix: 'fctx-rippleDelay' },
+      { key: 'endDelay', prefix: 'fctx-rippleEndDelay' }
+    ];
+    ripplePairs.forEach(({ key, prefix }) => {
+      const slider = document.getElementById(prefix + 'Slider');
+      const num = document.getElementById(prefix + 'Num');
+      const handleInput = (val) => {
+        if (this._isSyncing || this.activeType !== 'ripple') return;
+        const parsed = parseFloat(val);
+        if (slider) slider.value = val;
+        if (num) num.value = val;
+        if (window.Ripples && typeof window.Ripples.updateActive === 'function') {
+          window.Ripples.updateActive(key, parsed);
+          this._syncSidebar('ripple', key, parsed);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      };
+      if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
+      if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
+    });
+
+    const ripColPick = document.getElementById('fctx-rippleColorPicker');
+    if (ripColPick) {
+      ripColPick.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'ripple') return;
+        if (window.Ripples) {
+          window.Ripples.updateActive('color', e.target.value);
+          this._syncSidebar('ripple', 'color', e.target.value);
+        }
+      });
+      ripColPick.addEventListener('change', () => {
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    const btnDelRipple = document.getElementById('fctx-btnDeleteRipple');
+    if (btnDelRipple) {
+      btnDelRipple.addEventListener('click', () => {
+        if (this.activeType === 'ripple' && this.activeId !== null && window.Ripples) {
+          const id = this.activeId;
+          this.close();
+          window.Ripples.removeRipple(id);
+        }
+      });
+    }
+  },
+
+  _bindEvents() {
+    const editor = document.getElementById('floatingContextEditor');
+    if (editor) {
+      const stopFn = (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      };
+      editor.addEventListener('pointerdown', stopFn);
+      editor.addEventListener('click', stopFn);
+      editor.addEventListener('dblclick', stopFn);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && this.isOpen) {
+          this.close();
+          if (typeof e.stopPropagation === 'function') e.stopPropagation();
+        }
+      });
+    }
+
+    if (window.AppCoordinator) {
+      window.AppCoordinator.on('selection:changed', (sel) => this.handleSelectionChanged(sel));
+      window.AppCoordinator.on('render:completed', () => this.handleRenderCompleted());
+      window.AppCoordinator.on('state:restored', () => this.close());
+    }
+
+    const previewBox = document.getElementById('previewBox');
+    if (previewBox) {
+      previewBox.addEventListener('dblclick', (e) => {
+        if (e.target && e.target.closest && (e.target.closest('#floatingContextEditor') || e.target.closest('#btnCanvasContextEdit'))) return;
+
+        const nodeEl = (e.target && e.target.closest) ? e.target.closest('[data-node-id]') : null;
+        if (nodeEl && nodeEl.getAttribute) {
+          const id = parseInt(nodeEl.getAttribute('data-node-id'), 10);
+          if (!isNaN(id)) {
+            if (window.AppCoordinator) {
+              window.AppCoordinator.selectObject('node', id, { openAccordionId: 'acc-nodes' });
+            }
+            this.openFor('node', id);
+            return;
+          }
+        }
+
+        const flowReticle = (e.target && e.target.closest) ? e.target.closest('[data-flow-node-idx]') : null;
+        const flowPath = (e.target && e.target.closest) ? e.target.closest('.flow-track-path, [id^="flowPath-"]') : null;
+        if (flowReticle || flowPath) {
+          let flowId = (window.DataFlows && window.DataFlows.activeId !== null) ? window.DataFlows.activeId : null;
+          if (flowId === null && flowPath && flowPath.id) {
+            const m = flowPath.id.match(/flowPath-(\d+)/);
+            if (m) flowId = parseInt(m[1], 10);
+          }
+          if (flowId === null && window.DataFlows && window.DataFlows.list && window.DataFlows.list.length > 0) {
+            flowId = window.DataFlows.list[0].id;
+          }
+          if (flowId !== null) {
+            if (window.AppCoordinator) {
+              window.AppCoordinator.selectObject('flow', flowId, { openAccordionId: 'acc-flows' });
+            }
+            this.openFor('flow', flowId);
+            return;
+          }
+        }
+
+        const glowTarget = (e.target && e.target.closest) ? e.target.closest('#glowReticleTarget') : null;
+        if (glowTarget && window.Glows && window.Glows.activeId !== null) {
+          this.openFor('glow', window.Glows.activeId);
+          return;
+        }
+
+        const rippleTarget = (e.target && e.target.closest) ? e.target.closest('#rippleReticleTarget') : null;
+        if (rippleTarget && window.Ripples && window.Ripples.activeId !== null) {
+          this.openFor('ripple', window.Ripples.activeId);
+          return;
+        }
+
+        if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type && window.AppCoordinator.activeSelection.id !== null) {
+          const sel = window.AppCoordinator.activeSelection;
+          if (['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
+            this.openFor(sel.type, sel.id);
+          }
+        }
+      });
+
+      previewBox.addEventListener('pointerdown', (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        const isInteractive = e.target && e.target.closest && (
+          e.target.closest('[data-node-id]') ||
+          e.target.closest('[data-flow-node-idx]') ||
+          e.target.closest('.flow-track-path') ||
+          e.target.closest('#glowReticleTarget') ||
+          e.target.closest('#rippleReticleTarget') ||
+          e.target.closest('#floatingContextEditor') ||
+          e.target.closest('#btnCanvasContextEdit') ||
+          e.target.closest('.reticle')
+        );
+        if (!isInteractive && this.isOpen) {
+          this.close();
+        }
+      }, true);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', () => {
+        if (this.isOpen) this.updatePosition();
+        this.positionCanvasContextButton();
+      });
     }
   }
 };
@@ -1365,6 +2402,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (camMotionSel) camMotionSel.dispatchEvent(new Event('change'));
   if (effSel) effSel.dispatchEvent(new Event('change'));
   if (chkFrame) chkFrame.dispatchEvent(new Event('change'));
+  if (window.FloatingPropertiesEditor) window.FloatingPropertiesEditor.init();
   if (window.HistoryManager) window.HistoryManager.init();
   if (window.ProjectManager) window.ProjectManager.init();
 });
