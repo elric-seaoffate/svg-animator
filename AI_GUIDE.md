@@ -63,8 +63,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
 | Dynamic UI Shape Dropdown Integration & Fallbacks | **Implemented (Stage 2.2)** | `internal/web/static/js/app.js` (commit `c1155bc`) |
-| Targeted Component Public APIs | **Implemented (Stage 2.3)** | Standardized Layer 3 operational interfaces across modules |
-| Restoration & UI Refresh Decoupling | **Planned (Stage 2.4)** | Decouple direct presentation calls from `HistoryManager` & `ProjectManager` |
+| Targeted Component Public APIs | **Implemented (Stage 2.3)** | Standardized Layer 3 operational interfaces across modules (commit `2b6b17e`) |
+| Restoration & UI Refresh Decoupling | **Implemented (Stage 2.4)** | Decoupled Layer 3 restoration in `HistoryManager` & `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed` |
 | Blender-style workspace (icon rails, sliding drawers, maximized stage) | **Planned (Phase 3)** | Currently 3-column studio layout (`leftPanel`, `stageArea`, `rightPanel`) |
 | Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftPanel` / `rightPanel` |
 

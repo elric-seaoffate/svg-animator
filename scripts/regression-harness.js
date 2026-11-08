@@ -47,7 +47,7 @@ function loadProductionScript(filename) {
   vm.runInThisContext(code, { filename: fullPath });
 }
 
-function runHarness() {
+async function runHarness() {
   // ===========================================================================
   // STAGE 1: Pure Operational Core (Zero DOM Mock — only global.window = global)
   // ===========================================================================
@@ -889,6 +889,102 @@ function runHarness() {
   assert.strictEqual(presetSelect.querySelector('option[data-unknown-shape="true"]'), null, 'Temporary option must be removed after valid selection on presetVal-shape');
 
   // ===========================================================================
+  // 3.7 Stage 2.4: Restoration & UI Refresh Decoupling Verification
+  // ===========================================================================
+  // Test 1: history:changed event emission
+  let lastHistoryEvent = null;
+  window.AppCoordinator.on('history:changed', (e) => {
+    lastHistoryEvent = e;
+  });
+
+  window.DiagramNodes.updateNode(legacyNode.id, { x: 75 });
+  window.HistoryManager.recordImmediate();
+  assert.ok(lastHistoryEvent, 'recordImmediate must emit history:changed event');
+  assert.strictEqual(lastHistoryEvent.canUndo, true, 'history:changed canUndo must be true after recordImmediate');
+  assert.strictEqual(lastHistoryEvent.canRedo, false, 'history:changed canRedo must be false after recordImmediate');
+
+  // Test 2: state:restored event emission & coordination
+  let lastRestoreEvent = null;
+  window.AppCoordinator.on('state:restored', (e) => {
+    lastRestoreEvent = e;
+  });
+
+  // Test 3: Undo emits history:changed and state:restored
+  const preUndoLength = window.HistoryManager.undoStack.length;
+  window.HistoryManager.undo();
+  assert.ok(lastRestoreEvent, 'undo must coordinate post-restore and emit state:restored');
+  assert.strictEqual(lastRestoreEvent.source, 'undo', 'state:restored source must be undo');
+  assert.strictEqual(lastHistoryEvent.canRedo, true, 'undo must emit history:changed with canRedo=true');
+  assert.strictEqual(window.HistoryManager.undoStack.length, preUndoLength - 1);
+
+  // Test 4: Redo emits history:changed and state:restored
+  window.HistoryManager.redo();
+  assert.strictEqual(lastRestoreEvent.source, 'redo', 'state:restored source must be redo');
+  assert.strictEqual(lastHistoryEvent.canUndo, true, 'redo must emit history:changed with canUndo=true');
+
+  // Test 5: Deselection & overlay reset during coordinatePostRestore
+  const testCoordNode = window.DiagramNodes.createNode({ shape: 'rect', text: 'CoordTest' });
+  window.DiagramNodes.selectNode(testCoordNode.id);
+  assert.strictEqual(window.DiagramNodes.activeId, testCoordNode.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testCoordNode.id);
+
+  window.AppCoordinator.coordinatePostRestore({ source: 'test_clear' });
+  assert.strictEqual(window.DiagramNodes.activeId, null, 'coordinatePostRestore must clear DiagramNodes.activeId');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'coordinatePostRestore must clear AppCoordinator activeSelection');
+
+  // Test 6: Direct applyStudioState with default coordination
+  lastRestoreEvent = null;
+  const sampleSchema = window.ProjectManager.serializeStudioState();
+  window.ProjectManager.applyStudioState(sampleSchema);
+  assert.ok(lastRestoreEvent, 'direct applyStudioState must trigger coordinatePostRestore by default');
+  assert.strictEqual(lastRestoreEvent.source, 'direct_apply', 'state:restored source must be direct_apply');
+
+  // Test 7: loadProject metadata sequencing and history baseline
+  window.ProjectManager.fetchProjectById = async (id) => ({
+    id: id,
+    name: 'Sequenced Project',
+    description: 'Sequencing Description',
+    schemaJson: sampleSchema
+  });
+
+  let loadRestoreMetadata = null;
+  window.AppCoordinator.on('state:restored', (e) => {
+    if (e.source === 'project') {
+      loadRestoreMetadata = {
+        receivedProjectId: e.projectId,
+        actualCurrentId: window.ProjectManager.currentProjectId,
+        actualCurrentName: window.ProjectManager.currentProjectName
+      };
+    }
+  });
+
+  await window.ProjectManager.loadProject(101);
+  assert.ok(loadRestoreMetadata, 'loadProject must trigger state:restored with source project');
+  assert.strictEqual(loadRestoreMetadata.receivedProjectId, 101, 'state:restored must receive correct projectId');
+  assert.strictEqual(loadRestoreMetadata.actualCurrentId, 101, 'currentProjectId must be updated BEFORE coordinatePostRestore runs');
+  assert.strictEqual(loadRestoreMetadata.actualCurrentName, 'Sequenced Project', 'currentProjectName must be updated BEFORE coordinatePostRestore runs');
+  assert.strictEqual(window.HistoryManager.undoStack.length, 1, 'loadProject must record exactly 1 initial baseline history snapshot');
+  assert.strictEqual(window.HistoryManager.redoStack.length, 0, 'loadProject must clear redoStack');
+
+  // Test 8: resetToNewProject
+  lastRestoreEvent = null;
+  global.confirm = () => true;
+  window.ProjectManager.resetToNewProject();
+  assert.ok(lastRestoreEvent, 'resetToNewProject must trigger coordinatePostRestore');
+  assert.strictEqual(lastRestoreEvent.source, 'new_project', 'state:restored source must be new_project');
+  assert.strictEqual(window.ProjectManager.currentProjectId, 0, 'resetToNewProject must reset currentProjectId to 0');
+  assert.strictEqual(window.ProjectManager.currentProjectName, 'Untitled Project', 'resetToNewProject must reset name to Untitled Project');
+  assert.strictEqual(window.DiagramNodes.list.length, 0, 'resetToNewProject must clear DiagramNodes');
+  assert.strictEqual(window.DataFlows.list.length, 0, 'resetToNewProject must clear DataFlows');
+  assert.strictEqual(window.HistoryManager.undoStack.length, 1, 'resetToNewProject must record 1 baseline snapshot');
+
+  // Re-populate state for Stage 4 export assertions
+  window.DiagramNodes.createNode({ shape: 'rounded', text: 'OAuth2 Service' });
+  const fNode1 = window.DiagramNodes.createNode({ shape: 'rect', text: 'Auth Client' });
+  const fNode2 = window.DiagramNodes.createNode({ shape: 'cylinder', text: 'Token DB' });
+  window.DataFlows.createFlow({ fromNodeId: fNode1.id, toNodeId: fNode2.id, label: 'TLS 1.3' });
+
+  // ===========================================================================
   // STAGE 4: SVG Layer Injection & Export Payload Construction
   // ===========================================================================
   // Wire window.buildFullSVG bridge (in browser, app.js sets this inside DOMContentLoaded)
@@ -954,10 +1050,11 @@ function runHarness() {
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, and export payload builders verified (with DOM control test doubles and serializeSVGForExport pass-through stub).');
 }
 
-try {
-  runHarness();
-  process.exit(0);
-} catch (err) {
-  console.error('[HARNESS] FAIL:', err && err.stack ? err.stack : err);
-  process.exit(1);
-}
+runHarness()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error('[HARNESS] FAIL:', err && err.stack ? err.stack : err);
+    process.exit(1);
+  });

@@ -106,7 +106,7 @@ window.ProjectManager = {
     });
   },
 
-  applyStudioState(schemaJsonStr) {
+  applyStudioState(schemaJsonStr, options = { coordinate: true }) {
     const data = typeof schemaJsonStr === 'string' ? JSON.parse(schemaJsonStr) : schemaJsonStr;
     if (!data || typeof data !== 'object') return;
 
@@ -144,13 +144,9 @@ window.ProjectManager = {
       } else {
         window.NodePresets.preset = data.presets;
       }
-      window.NodePresets.syncAllRowsUI();
     } else if (window.NodePresets) {
       if (typeof window.NodePresets.resetToDefaults === 'function') {
         window.NodePresets.resetToDefaults();
-      }
-      if (typeof window.NodePresets.syncAllRowsUI === 'function') {
-        window.NodePresets.syncAllRowsUI();
       }
     }
 
@@ -164,7 +160,6 @@ window.ProjectManager = {
         window.DiagramNodes.list = data.nodes || [];
         window.DiagramNodes.counter = data.nodesCounter || 0;
       }
-      window.DiagramNodes.deselectNode();
     }
 
     if (window.DataFlows) {
@@ -177,7 +172,6 @@ window.ProjectManager = {
         window.DataFlows.list = data.flows || [];
         window.DataFlows.counter = data.flowsCounter || 0;
       }
-      window.DataFlows.deselectFlow();
     }
 
     if (window.Glows) {
@@ -190,7 +184,6 @@ window.ProjectManager = {
         window.Glows.list = data.glows || [];
         window.Glows.counter = data.glowsCounter || 0;
       }
-      window.Glows.deselectGlow();
     }
 
     if (window.Ripples) {
@@ -203,21 +196,16 @@ window.ProjectManager = {
         window.Ripples.list = data.ripples || [];
         window.Ripples.counter = data.ripplesCounter || 0;
       }
-      window.Ripples.deselectRipple();
-    }
-
-    if (typeof window.syncUIAfterHistoryRestore === 'function') {
-      window.syncUIAfterHistoryRestore();
-    } else if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-      window.AppCoordinator.requestRender();
-    } else if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
     }
 
     if (window.HistoryManager) {
       window.HistoryManager.undoStack = [];
       window.HistoryManager.redoStack = [];
       window.HistoryManager.recordImmediate();
+    }
+
+    if (options && options.coordinate !== false && window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+      window.AppCoordinator.coordinatePostRestore({ source: 'direct_apply' });
     }
   },
 
@@ -468,7 +456,7 @@ window.ProjectManager = {
       this.setStatusMessage('Loading project #' + id + '...');
       const proj = await this.fetchProjectById(id);
 
-      this.applyStudioState(proj.schemaJson);
+      this.applyStudioState(proj.schemaJson, { coordinate: false });
       this.currentProjectId = proj.id;
       this.currentProjectName = proj.name;
       this.currentProjectDesc = proj.description || '';
@@ -480,6 +468,11 @@ window.ProjectManager = {
 
       this.updateHeaderBadge();
       this.renderProjectsList();
+
+      if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+        window.AppCoordinator.coordinatePostRestore({ source: 'project', projectId: proj.id });
+      }
+
       this.setStatusMessage('✅ Loaded project #' + proj.id + ' ("' + proj.name + '").');
       setTimeout(() => this.closeModal(), 300);
     } catch (err) {
@@ -526,34 +519,35 @@ window.ProjectManager = {
 
     if (window.DiagramNodes) {
       if (typeof window.DiagramNodes.setState === 'function') window.DiagramNodes.setState({ nodes: [], nodesCounter: 0 });
-      window.DiagramNodes.deselectNode();
     }
     if (window.DataFlows) {
       if (typeof window.DataFlows.setState === 'function') window.DataFlows.setState({ flows: [], flowsCounter: 0 });
-      window.DataFlows.deselectFlow();
     }
     if (window.Glows) {
       if (typeof window.Glows.setState === 'function') window.Glows.setState({ glows: [], glowsCounter: 0 });
-      window.Glows.deselectGlow();
     }
     if (window.Ripples) {
       if (typeof window.Ripples.setState === 'function') window.Ripples.setState({ ripples: [], ripplesCounter: 0 });
-      window.Ripples.deselectRipple();
     }
     if (window.NodePresets) {
       if (typeof window.NodePresets.resetToDefaults === 'function') {
         window.NodePresets.resetToDefaults();
       }
-      if (typeof window.NodePresets.syncAllRowsUI === 'function') {
-        window.NodePresets.syncAllRowsUI();
-      }
     }
 
-    if (typeof window.syncUIAfterHistoryRestore === 'function') {
-      window.syncUIAfterHistoryRestore();
+    if (window.HistoryManager) {
+      window.HistoryManager.undoStack = [];
+      window.HistoryManager.redoStack = [];
+      window.HistoryManager.recordImmediate();
     }
+
     this.updateHeaderBadge();
     this.renderProjectsList();
+
+    if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+      window.AppCoordinator.coordinatePostRestore({ source: 'new_project' });
+    }
+
     this.setStatusMessage('Started a new blank project.');
   }
 };

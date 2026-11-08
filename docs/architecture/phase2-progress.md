@@ -10,34 +10,32 @@ This document records the progress, verification checkpoints, test results, and 
 | :--- | :--- | :---: | :---: | :--- |
 | **Stage 2.1** | Immutable SVG Shape Registry | **Complete** | [`f229c89`](https://127.0.0.1:3000/nigel/svg-animator/commit/f229c89) | Created `internal/web/static/js/shape-registry.js` with 12 frozen shape builders; decoupled shape SVG generation from `nodes.js`. |
 | **Stage 2.2** | UI Shape Selection Integration | **Complete** | [`c1155bc`](https://127.0.0.1:3000/nigel/svg-animator/commit/c1155bc) | Implemented `populateShapeDropdowns` and `ensureShapeInDropdown` in `app.js`; dynamic dropdown population for `#nodeShapeSelect` and `#presetVal-shape`; unknown shape fallback preservation. |
-| **Stage 2.3** | Targeted Component APIs | **Complete** | *In Review* | Standardized `DataFlows.setActiveWaypointIndex`, `NodePresets.resetToDefaults`, component deselect sync with `AppCoordinator`, and removed temporary runtime monkey-patching in `app.js`. |
-| **Stage 2.4** | Restoration/UI Refresh Decoupling | **Planned** | *Pending* | Decouple direct presentation calls from `HistoryManager` and `ProjectManager` (remediating architectural warning `ARCH-06`). |
+| **Stage 2.3** | Targeted Component APIs | **Complete** | [`2b6b17e`](https://127.0.0.1:3000/nigel/svg-animator/commit/2b6b17e) | Standardized `DataFlows.setActiveWaypointIndex`, `NodePresets.resetToDefaults`, component deselect sync with `AppCoordinator`, and removed temporary runtime monkey-patching in `app.js`. |
+| **Stage 2.4** | Restoration/UI Refresh Decoupling | **Complete** | *In Review* | Decoupled Layer 3 restoration in `HistoryManager` and `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed`, resolving `ARCH-06` to PASS and reducing remaining warnings to 4. |
 
 ---
 
 ## 2. Automated Verification Results
 
-All automated test suites were executed on commit `c1155bc` and verified passing:
+All automated test suites were executed and verified passing:
 
 1. **JavaScript Regression Harness (`node scripts/regression-harness.js`):**
    - **Status: PASS**
    - `REG-02 PASS`: Stage 1 & 2 operational state, pure geometry math, shape presets, CRUD operations, and immutable Shape Registry API verified.
-   - `REG-03 PASS`: Stage 3 & 4 object selection coordination, undo/redo history depth (50 snapshots), schema `1.2.0` serialization/deserialization, full SVG compilation, and UI shape dropdown integration verified.
+   - `REG-03 PASS`: Stage 3 & 4 object selection coordination, undo/redo history depth (50 snapshots), schema `1.2.0` serialization/deserialization, full SVG compilation, UI shape dropdown integration, and Stage 2.4 restoration/refresh decoupling (`history:changed`, `state:restored`, sequenced project metadata) verified.
 2. **Go Backend Validation (`go vet ./...` & `go test ./...`):**
    - **Status: PASS**
    - `go vet ./...`: Zero issues reported across all packages (`cmd/`, `internal/db`, `internal/effects`, `internal/generator`, `internal/rasterizer`, `internal/web`).
    - `go test ./...`: All unit tests passed cleanly using isolated temporary SQLite databases (`t.TempDir()`).
 3. **Architecture Verification Suite (`bash scripts/verify-architecture.sh`):**
-   - **Status: PASS with 6 known legacy warnings** (zero fatal violations).
+   - **Status: PASS with 4 known legacy warnings** (zero fatal violations; `ARCH-06` resolved to PASS).
 
-### Outstanding Architecture Technical Debt (6 Legacy Warnings)
-The static architecture verification suite evaluates 10 rules. Six known architectural warnings remain as documented technical debt; **none of these warnings have been resolved yet**:
+### Outstanding Architecture Technical Debt (4 Legacy Warnings)
+The static architecture verification suite evaluates 10 rules. Four known architectural warnings remain as documented technical debt:
 - `ARCH-02 (WARNING)`: [`SceneState.serializeSVGForExport`](../../internal/web/static/js/scene-state.js) depends on browser Web APIs (`DOMParser`/`XMLSerializer`).
 - `ARCH-04 (WARNING)`: Legacy `document.getElementById` fallback branches remain in Layer 3 snapshot/serialization methods in [`history.js`](../../internal/web/static/js/history.js) and [`projects.js`](../../internal/web/static/js/projects.js).
 - `ARCH-05 (WARNING)`: [`StillExportStudio.bakeStaticSVGAtTime`](../../internal/web/static/js/still-export-modal.js) uses an offscreen DOM sandbox for SVG path geometry measurements.
-- `ARCH-06 (WARNING)`: Layer 3 restore/recording methods in [`HistoryManager`](../../internal/web/static/js/history.js) and [`ProjectManager`](../../internal/web/static/js/projects.js) directly invoke Layer 1 UI presentation routines (`syncUIAfterHistoryRestore`, `syncAllRowsUI`, `deselectAllNodes`). *(Targeted for decoupling in Stage 2.4)*.
 - `ARCH-07 (WARNING)`: [`stage.js`](../../internal/web/static/js/stage.js) and [`app.js`](../../internal/web/static/js/app.js) contain direct cross-module state mutations or direct peer Layer 1 UI refresh calls alongside `AppCoordinator` delegation.
-- `HistoryManager`/`ProjectManager` Layer 3 methods directly calling presentation methods.
 
 ---
 
@@ -100,8 +98,38 @@ Stage 2.3 standardized component APIs, resolved transitional state mutations, an
 
 ---
 
-## 6. Next Steps
+## 6. Stage 2.4 Implementation Details
 
-1. **Stage 2.4 — Restoration/UI Refresh Decoupling:**
-   - Decouple `HistoryManager` and `ProjectManager` from direct Layer 1 presentation method calls (`syncAllRowsUI`, `deselect*`, `syncUIAfterHistoryRestore`, `updateButtonsUI`).
-   - Route restoration notifications cleanly through `AppCoordinator` event subscriptions (`history:restored`, `project:loaded`), eliminating architectural warning `ARCH-06`.
+Stage 2.4 decoupled Layer 3 operational restoration and recording routines from Layer 1 presentation methods, resolving architectural warning `ARCH-06` to PASS:
+
+1. **`AppCoordinator.coordinatePostRestore(options)`:**
+   - Centralized post-restoration UI synchronization in Layer 2.
+   - Unconditionally clears selections across all modules (`deselectNode`, `deselectFlow`, `deselectGlow`, `deselectRipple`, `Stage.clearActive`) and re-renders sidebar lists.
+   - Synchronizes preset rows (`NodePresets.syncAllRowsUI`).
+   - Requests UI panel synchronization and master SVG preview compilation (`window.syncUIAfterHistoryRestore` / `requestRender`).
+   - Emits `'state:restored'` event with `{ source, projectId }`.
+2. **`HistoryManager` Event-Driven History Stack Notifications:**
+   - Added pure Layer 3 method `notifyStackChange()` emitting `'history:changed'` with `{ canUndo, canRedo, undoCount, redoCount }`.
+   - `HistoryManager.init()` (Layer 1) subscribes to `'history:changed'` and `'state:restored'` to update `#btnUndo` and `#btnRedo` disabled states (`updateButtonsUI()`).
+   - Removed direct `updateButtonsUI()` calls from Layer 3 `recordImmediate()` and `applySnapshot()`.
+3. **Decoupled `HistoryManager.applySnapshot()`:**
+   - Stripped all direct Layer 1 presentation calls (`syncAllRowsUI`, `deselect*`, `syncUIAfterHistoryRestore`, `updateButtonsUI`) from `applySnapshot()`, confining it strictly to operational state restoration across `SceneState`, `ControlStateAdaptor`, `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, and `Ripples`.
+   - `undo()` and `redo()` invoke `applySnapshot()`, notify stack change, and then coordinate presentation via `AppCoordinator.coordinatePostRestore({ source: 'undo' | 'redo' })`.
+4. **Decoupled `ProjectManager.applyStudioState()`, `loadProject()`, and `resetToNewProject()`:**
+   - Stripped direct Layer 1 presentation calls from `applyStudioState()`, preserving pure operational deserialization and history baseline capture. Direct callers coordinate via default `options.coordinate !== false`.
+   - In `loadProject(id)`, sequenced operational restoration first, project metadata update second, and `coordinatePostRestore({ source: 'project', projectId: id })` third, eliminating premature UI refresh with stale metadata.
+   - In `resetToNewProject()`, operational state is reset, metadata updated, and `coordinatePostRestore({ source: 'new_project' })` invoked cleanly.
+5. **Technical Debt Disposition for `ControlStateAdaptor.syncToDOM()`:**
+   - Confirmed as an intentional transitional adaptor bridge for the 95 tracked controls recognized by `ARCH-08 (PASS)`.
+   - Explicitly documented as independent technical debt deferred to Phase 3 (Workspace Redesign) when inspector panels replace form controls.
+
+---
+
+## 7. Next Steps
+
+1. **Phase 2 Completion Checkpoint:**
+   - Consolidated code review of Stage 2.4.
+   - Commit and push Stage 2.4 to `main`.
+2. **Phase 3 — Workspace Redesign (Planned):**
+   - Introduce Blender-style layout (icon rails, sliding drawers, maximized stage).
+   - Modernize property inspectors and retire legacy DOM form adaptors.

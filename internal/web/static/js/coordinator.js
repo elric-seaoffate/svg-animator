@@ -133,6 +133,48 @@
       this.selectObject(exceptType, null);
     },
 
+    /**
+     * Coordinates the post-restoration presentation refresh across modules.
+     * Clears selections and overlays, updates preset rows, invokes UI sync / render,
+     * and emits 'state:restored'.
+     *
+     * @param {Object} [options] - Context info ({ source: 'undo'|'redo'|'project'|'new_project'|'direct_apply', projectId })
+     */
+    coordinatePostRestore(options = {}) {
+      if (window.DiagramNodes && typeof window.DiagramNodes.deselectNode === 'function') {
+        window.DiagramNodes.deselectNode();
+      }
+      if (window.DataFlows && typeof window.DataFlows.deselectFlow === 'function') {
+        window.DataFlows.deselectFlow();
+      }
+      if (window.Glows && typeof window.Glows.deselectGlow === 'function') {
+        window.Glows.deselectGlow();
+      }
+      if (window.Ripples && typeof window.Ripples.deselectRipple === 'function') {
+        window.Ripples.deselectRipple();
+      }
+      if (window.Stage && typeof window.Stage.clearActive === 'function') {
+        window.Stage.clearActive();
+      }
+      this.activeSelection = { type: null, id: null };
+      this.emit('selection:changed', this.getActiveSelection());
+
+      if (window.NodePresets && typeof window.NodePresets.syncAllRowsUI === 'function') {
+        window.NodePresets.syncAllRowsUI();
+      }
+
+      if (typeof window.syncUIAfterHistoryRestore === 'function') {
+        window.syncUIAfterHistoryRestore();
+      } else {
+        this.requestRender();
+      }
+
+      this.emit('state:restored', {
+        source: options.source || 'restore',
+        projectId: options.projectId !== undefined ? options.projectId : null
+      });
+    },
+
     getCanvasDimensions() {
       if (window.SceneState && window.SceneState.currentImage) {
         return {

@@ -188,6 +188,19 @@ window.HistoryManager = {
     });
   },
 
+  notifyStackChange() {
+    const payload = {
+      canUndo: this.undoStack.length > 1,
+      canRedo: this.redoStack.length > 0,
+      undoCount: this.undoStack.length,
+      redoCount: this.redoStack.length
+    };
+    if (window.AppCoordinator && typeof window.AppCoordinator.emit === 'function') {
+      window.AppCoordinator.emit('history:changed', payload);
+    }
+    return payload;
+  },
+
   recordImmediate() {
     if (this.isRestoring) return;
     if (this.debounceTimer) {
@@ -203,7 +216,7 @@ window.HistoryManager = {
       this.undoStack.shift();
     }
     this.redoStack = [];
-    this.updateButtonsUI();
+    this.notifyStackChange();
   },
 
   recordDebounced(delayMs = 280) {
@@ -254,13 +267,9 @@ window.HistoryManager = {
         } else {
           window.NodePresets.preset = data.presets;
         }
-        window.NodePresets.syncAllRowsUI();
       } else if (window.NodePresets) {
         if (typeof window.NodePresets.resetToDefaults === 'function') {
           window.NodePresets.resetToDefaults();
-        }
-        if (typeof window.NodePresets.syncAllRowsUI === 'function') {
-          window.NodePresets.syncAllRowsUI();
         }
       }
 
@@ -274,7 +283,6 @@ window.HistoryManager = {
           window.DiagramNodes.list = data.nodes || [];
           window.DiagramNodes.counter = data.nodesCounter || 0;
         }
-        window.DiagramNodes.deselectNode();
       }
 
       if (window.DataFlows) {
@@ -287,7 +295,6 @@ window.HistoryManager = {
           window.DataFlows.list = data.flows || [];
           window.DataFlows.counter = data.flowsCounter || 0;
         }
-        window.DataFlows.deselectFlow();
       }
 
       if (window.Glows) {
@@ -300,7 +307,6 @@ window.HistoryManager = {
           window.Glows.list = data.glows || [];
           window.Glows.counter = data.glowsCounter || 0;
         }
-        window.Glows.deselectGlow();
       }
 
       if (window.Ripples) {
@@ -313,21 +319,12 @@ window.HistoryManager = {
           window.Ripples.list = data.ripples || [];
           window.Ripples.counter = data.ripplesCounter || 0;
         }
-        window.Ripples.deselectRipple();
-      }
-
-      if (typeof window.syncUIAfterHistoryRestore === 'function') {
-        window.syncUIAfterHistoryRestore();
-      } else if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-        window.AppCoordinator.requestRender();
-      } else if (typeof window.triggerAppRender === 'function') {
-        window.triggerAppRender();
       }
     } catch (err) {
       console.error('History restore error:', err);
     } finally {
       this.isRestoring = false;
-      this.updateButtonsUI();
+      this.notifyStackChange();
     }
   },
 
@@ -337,6 +334,10 @@ window.HistoryManager = {
     this.redoStack.push(current);
     const prev = this.undoStack[this.undoStack.length - 1];
     this.applySnapshot(prev);
+    this.notifyStackChange();
+    if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+      window.AppCoordinator.coordinatePostRestore({ source: 'undo' });
+    }
   },
 
   redo() {
@@ -344,6 +345,10 @@ window.HistoryManager = {
     const next = this.redoStack.pop();
     this.undoStack.push(next);
     this.applySnapshot(next);
+    this.notifyStackChange();
+    if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+      window.AppCoordinator.coordinatePostRestore({ source: 'redo' });
+    }
   },
 
   // =========================================================================
@@ -358,6 +363,11 @@ window.HistoryManager = {
     const btnRedo = document.getElementById('btnRedo');
     if (btnUndo) btnUndo.addEventListener('click', () => this.undo());
     if (btnRedo) btnRedo.addEventListener('click', () => this.redo());
+
+    if (window.AppCoordinator && typeof window.AppCoordinator.on === 'function') {
+      window.AppCoordinator.on('history:changed', (e) => this.updateButtonsUI(e));
+      window.AppCoordinator.on('state:restored', () => this.updateButtonsUI());
+    }
 
     window.addEventListener('keydown', (e) => {
       const tag = document.activeElement ? document.activeElement.tagName : '';
@@ -379,10 +389,12 @@ window.HistoryManager = {
     }, 80);
   },
 
-  updateButtonsUI() {
+  updateButtonsUI(e) {
     const btnUndo = document.getElementById('btnUndo');
     const btnRedo = document.getElementById('btnRedo');
-    if (btnUndo) btnUndo.disabled = this.undoStack.length <= 1;
-    if (btnRedo) btnRedo.disabled = this.redoStack.length === 0;
+    const canUndo = (e && typeof e.canUndo === 'boolean') ? e.canUndo : (this.undoStack.length > 1);
+    const canRedo = (e && typeof e.canRedo === 'boolean') ? e.canRedo : (this.redoStack.length > 0);
+    if (btnUndo) btnUndo.disabled = !canUndo;
+    if (btnRedo) btnRedo.disabled = !canRedo;
   }
 };
