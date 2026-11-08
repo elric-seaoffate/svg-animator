@@ -14,6 +14,11 @@
   --reticle-start: #00ffcc;
   --reticle-end: #ff00cc;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --rail-width: 48px;
+  --drawer-width: 340px;
+  --header-height: 64px;
+  --transition-speed: 240ms;
+  --stage-min-width: 280px;
 }
 
 * {
@@ -122,16 +127,203 @@ header h1 {
 }
 
 /* ==========================================================================
-   3-COLUMN IDE LAYOUT & ADOBE-STYLE ACCORDION PANELS
+   WORKSPACE LAYOUT, DUAL ICON RAILS & SLIDING DRAWERS (STAGE 3.1)
    ========================================================================== */
 .studio-layout {
-  display: grid;
-  grid-template-columns: 350px 1fr 330px; 
-  gap: 1.2rem;
-  padding: 0.85rem 1.4rem;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  position: relative;
   width: 100%;
+  height: calc(100vh - var(--header-height));
+  overflow: hidden;
+  background-color: var(--bg-dark);
+  padding: 0;
+  gap: 0;
+}
+
+/* Icon Rails (48px fixed) */
+.icon-rail {
+  width: var(--rail-width);
+  min-width: var(--rail-width);
+  background-color: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0;
+  gap: 0.35rem;
+  z-index: 20;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.icon-rail-right {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.icon-rail-btn {
+  width: 40px;
+  height: 44px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: all 150ms ease;
+  position: relative;
+}
+
+.icon-rail-btn:hover {
+  background: var(--bg-input);
+  color: var(--text-main);
+  border-color: var(--border);
+}
+
+.icon-rail-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 1px;
+}
+
+.icon-rail-btn.active {
+  background: rgba(88, 166, 255, 0.14);
+  color: var(--accent-blue);
+  border-color: rgba(88, 166, 255, 0.4);
+}
+
+.icon-rail-btn.active::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  background: var(--accent-blue);
+  border-radius: 2px;
+}
+
+.icon-rail-left .icon-rail-btn.active::before {
+  left: -1px;
+}
+
+.icon-rail-right .icon-rail-btn.active::before {
+  right: -1px;
+}
+
+.icon-rail-btn .rail-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.icon-rail-btn .rail-label {
+  font-size: 0.56rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+
+.icon-rail-spacer {
   flex-grow: 1;
-  height: calc(100vh - 64px);
+}
+
+.icon-rail-toggle {
+  height: 36px;
+  color: var(--text-muted);
+}
+.icon-rail-toggle:hover {
+  color: var(--accent-blue);
+}
+
+/* Sliding Drawers (340px collapsible) */
+.drawer {
+  width: var(--drawer-width);
+  min-width: var(--drawer-width);
+  max-width: var(--drawer-width);
+  background-color: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  transition: width var(--transition-speed) ease,
+              min-width var(--transition-speed) ease,
+              max-width var(--transition-speed) ease,
+              opacity var(--transition-speed) ease;
+  z-index: 15;
+  flex-shrink: 0;
+}
+
+.drawer.left-drawer {
+  border-right: 1px solid var(--border);
+}
+
+.drawer.right-drawer {
+  border-left: 1px solid var(--border);
+}
+
+.drawer.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  border-right-color: transparent !important;
+  border-left-color: transparent !important;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  min-height: 38px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.drawer-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.drawer-close-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.drawer-close-btn:hover {
+  color: var(--text-main);
+  border-color: var(--accent-blue);
+}
+
+.drawer .panel {
+  border: none;
+  border-radius: 0;
+  padding: 0.75rem 0.85rem;
+  flex: 1 1 auto;
+  height: calc(100% - 38px);
+  overflow-y: auto;
 }
 
 .panel {
@@ -347,11 +539,11 @@ header h1 {
   display: flex;
   flex-direction: column;
   background: var(--bg-dark);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.85rem;
+  flex: 1 1 auto;
+  min-width: var(--stage-min-width);
   height: 100%;
   overflow: hidden;
+  padding: 0.75rem 1rem;
 }
 
 .preview-wrapper {
@@ -691,4 +883,78 @@ body.editing-flow #reticleEnd,
 body.editing-flow #reticleCenter,
 body.editing-flow #flightLine {
   display: none !important; 
+}
+
+/* Responsive Drawer Backdrop (hidden by default on desktop) */
+.drawer-backdrop {
+  display: none;
+}
+
+/* ==========================================================================
+   WORKSPACE RESPONSIVE BREAKPOINTS (STAGE 3.1)
+   ========================================================================== */
+
+/* Compact Desktop (1024px to 1439px) */
+@media (max-width: 1439px) {
+  :root {
+    --drawer-width: 310px;
+  }
+}
+
+/* Tablet & Mobile Slide-Over (< 1024px) */
+@media (max-width: 1023px) {
+  :root {
+    --drawer-width: 320px;
+  }
+  .studio-layout {
+    position: relative;
+  }
+  .icon-rail {
+    z-index: 35;
+  }
+  .drawer-backdrop {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 30;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--transition-speed) ease, visibility var(--transition-speed) ease;
+  }
+  .drawer-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+    z-index: 40;
+    box-shadow: 0 0 28px rgba(0, 0, 0, 0.85);
+  }
+  .drawer.left-drawer {
+    left: var(--rail-width);
+  }
+  .drawer.right-drawer {
+    right: var(--rail-width);
+  }
+  .stage {
+    width: calc(100% - var(--rail-width) * 2);
+    min-width: 0;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .drawer, .panel, .icon-rail-btn, .drawer-close-btn, #btnMaximizeCanvas, .drawer-backdrop {
+    transition: none !important;
+    animation: none !important;
+  }
 }

@@ -23,13 +23,55 @@
       <label class="solo-toggle-label" title="When enabled, opening a panel automatically collapses other panels in the same sidebar">
         <input type="checkbox" id="chkSoloPanels" checked> 🎯 Solo Focus Mode
       </label>
+      <button type="button" class="history-btn" id="btnMaximizeCanvas" title="Toggle Maximized Canvas Mode (Shift+Space)" aria-label="Toggle Maximized Canvas Mode">⛶ Maximize</button>
       <span id="imgDimensions" style="font-size: 0.85rem; color: #8b949e;">1280 &times; 720</span>
     </div>
   </header>
 
-  <div class="studio-layout">
-    <!-- LEFT PANEL -->
-    <div class="panel left-panel" id="inputPanel">
+  <div class="studio-layout" id="studioLayout">
+    <!-- RESPONSIVE DRAWER BACKDROP (< 1024px) -->
+    <div id="drawerBackdrop" class="drawer-backdrop" aria-hidden="true"></div>
+
+    <!-- LEFT ICON RAIL -->
+    <aside class="icon-rail icon-rail-left" id="leftRail" aria-label="Creation &amp; Elements Tools" role="toolbar">
+      <button type="button" class="icon-rail-btn active" id="railBtn-background" data-target-acc="acc-background" title="Canvas, Paper &amp; Background (1)" aria-label="Canvas, Paper &amp; Background" aria-controls="acc-background" aria-expanded="true">
+        <span class="rail-icon">🗋</span>
+        <span class="rail-label">Canvas</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-nodes" data-target-acc="acc-nodes" title="Diagram Shapes, Icons &amp; Text (2)" aria-label="Diagram Shapes, Icons &amp; Text" aria-controls="acc-nodes" aria-expanded="false">
+        <span class="rail-icon">⬡</span>
+        <span class="rail-label">Shapes</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-presets" data-target-acc="acc-presets" title="Shape Preset Defaults &amp; Batch Formats (3)" aria-label="Shape Preset Defaults" aria-controls="acc-presets" aria-expanded="false">
+        <span class="rail-icon">⚙</span>
+        <span class="rail-label">Presets</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-flows" data-target-acc="acc-flows" title="Connectors, Pipes &amp; Data Flows (4)" aria-label="Connectors, Pipes &amp; Data Flows" aria-controls="acc-flows" aria-expanded="false">
+        <span class="rail-icon">⤹</span>
+        <span class="rail-label">Flows</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-glows" data-target-acc="acc-glows" title="Hotspots &amp; Pulsating Glows (5)" aria-label="Hotspots &amp; Pulsating Glows" aria-controls="acc-glows" aria-expanded="false">
+        <span class="rail-icon">◉</span>
+        <span class="rail-label">Glows</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-ripples" data-target-acc="acc-ripples" title="Refractive Water Ripples (6)" aria-label="Refractive Water Ripples" aria-controls="acc-ripples" aria-expanded="false">
+        <span class="rail-icon">♒</span>
+        <span class="rail-label">Ripples</span>
+      </button>
+      <div class="icon-rail-spacer"></div>
+      <button type="button" class="icon-rail-btn icon-rail-toggle" id="railBtn-toggleLeft" title="Toggle Left Drawer (T)" aria-label="Toggle Left Drawer" aria-controls="leftDrawer" aria-expanded="true">
+        <span class="rail-icon">◀</span>
+      </button>
+    </aside>
+
+    <!-- LEFT DRAWER -->
+    <aside class="drawer left-drawer" id="leftDrawer" aria-label="Scene &amp; Diagram Elements Drawer">
+      <div class="drawer-header">
+        <span class="drawer-title" id="leftDrawerTitle">Scene &amp; Elements</span>
+        <button type="button" class="drawer-close-btn" id="btnCollapseLeftDrawer" title="Collapse Left Drawer (T)" aria-label="Collapse Left Drawer" aria-expanded="true">◀</button>
+      </div>
+      <!-- LEFT PANEL -->
+      <div class="panel left-panel" id="inputPanel">
       <div class="panel-toolbar">
         <span class="panel-toolbar-title">Scene &amp; Diagram Elements</span>
         <div class="panel-toolbar-actions">
@@ -666,9 +708,10 @@
         </div>
       </div>
     </div>
+    </aside> <!-- end #leftDrawer -->
 
     <!-- CENTRE STAGE -->
-    <div class="stage">
+    <main class="stage" id="stageMain" role="main">
       <div class="preview-wrapper" id="previewBox" title="Click or drag on canvas to position elements. Hold Space + Drag to pan zoomed stage.">
         <div id="svgContainer"></div>
         <div id="stageOverlayLayer" class="stage-overlay-layer">
@@ -699,10 +742,16 @@
         <div class="stage-hint" id="stageModeHint">Click/drag to move &bull; Ctrl+S Save &bull; Ctrl+Z Undo &bull; Space+Drag Pan</div>
         <button class="replay" id="btnReplay"><span>&#x21bb;</span> Replay Motion</button>
       </div>
-    </div>
+    </main>
 
-    <!-- RIGHT PANEL -->
-    <div class="panel right-panel" id="settingsPanel">
+    <!-- RIGHT DRAWER -->
+    <aside class="drawer right-drawer" id="rightDrawer" aria-label="Camera, Optics &amp; Export Drawer">
+      <div class="drawer-header">
+        <span class="drawer-title" id="rightDrawerTitle">Camera, Optics &amp; Export</span>
+        <button type="button" class="drawer-close-btn" id="btnCollapseRightDrawer" title="Collapse Right Drawer (N)" aria-label="Collapse Right Drawer" aria-expanded="true">▶</button>
+      </div>
+      <!-- RIGHT PANEL -->
+      <div class="panel right-panel" id="settingsPanel">
       <div class="panel-toolbar">
         <span class="panel-toolbar-title">Camera, Optics &amp; Export</span>
         <div class="panel-toolbar-actions">
@@ -940,6 +989,35 @@
         </div>
       </div>
     </div>
+    </aside> <!-- end #rightDrawer -->
+
+    <!-- RIGHT ICON RAIL -->
+    <aside class="icon-rail icon-rail-right" id="rightRail" aria-label="Camera, Optics &amp; Output Tools" role="toolbar">
+      <button type="button" class="icon-rail-btn active" id="railBtn-playback" data-target-acc="acc-playback" title="Scene &amp; Export Timeline" aria-label="Scene &amp; Export Timeline" aria-controls="acc-playback" aria-expanded="true">
+        <span class="rail-icon">⏱️</span>
+        <span class="rail-label">Timeline</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-camera" data-target-acc="acc-camera" title="3D Cinematic Camera Rig" aria-label="3D Cinematic Camera Rig" aria-controls="acc-camera" aria-expanded="false">
+        <span class="rail-icon">🎥</span>
+        <span class="rail-label">Camera</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-optics" data-target-acc="acc-optics" title="Optical Effects &amp; Frame" aria-label="Optical Effects &amp; Frame" aria-controls="acc-optics" aria-expanded="false">
+        <span class="rail-icon">🔬</span>
+        <span class="rail-label">Optics</span>
+      </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-frame" data-target-acc="acc-frame" data-acc-action="focus-frame" title="Presentation Picture Frame" aria-label="Presentation Picture Frame" aria-controls="acc-optics" aria-expanded="false">
+        <span class="rail-icon">🖼️</span>
+        <span class="rail-label">Frame</span>
+      </button>
+      <button type="button" class="icon-rail-btn active" id="railBtn-export" data-target-acc="acc-export" title="Production Render &amp; Downloads" aria-label="Production Render &amp; Downloads" aria-controls="acc-export" aria-expanded="true">
+        <span class="rail-icon">🚀</span>
+        <span class="rail-label">Export</span>
+      </button>
+      <div class="icon-rail-spacer"></div>
+      <button type="button" class="icon-rail-btn icon-rail-toggle" id="railBtn-toggleRight" title="Toggle Right Drawer (N)" aria-label="Toggle Right Drawer" aria-controls="rightDrawer" aria-expanded="true">
+        <span class="rail-icon">▶</span>
+      </button>
+    </aside>
   </div>
 
   <!-- =========================================================================

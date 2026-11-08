@@ -18,7 +18,7 @@ The frontend uses browser globals loaded in a deterministic order at the bottom 
 | 10 | `js/ripples.js` | `window.Ripples` | Layer 3 (Ripple Ops) + Layer 1 (Ripple UI) |
 | 11 | `js/history.js` | `window.HistoryManager` | Layer 3 (History Stack) + Layer 1 (Undo/Redo Buttons) |
 | 12 | `js/projects.js` | `window.ProjectManager` | Layer 3 (Serializer/REST) + Layer 1 (Library Modal UI) |
-| 13 | `js/app.js` | `window.triggerRender`, `window.buildFullSVG`, `window.serializeSVGForExport`, `window.SVGExportAdapter`, etc. | Layer 1 (App UI Bindings, Export Adapter & Compatibility Entrypoints) |
+| 13 | `js/app.js` | `window.WorkspaceController`, `window.openAccordionById`, `window.triggerRender`, `window.buildFullSVG`, `window.serializeSVGForExport`, `window.SVGExportAdapter`, etc. | Layer 1 (Workspace Controller, App UI Bindings, Export Adapter & Compatibility Entrypoints) |
 | 14 | `js/still-export-modal.js` | `window.StillExportStudio` | Layer 3 (SMIL Evaluator & Still Config Builder) + Layer 1 (Still Modal UI) |
 | 15 | `js/export-modal.js` | `window.AnimatedExportStudio`, `window.openExportModal` | Layer 3 (Payload Builder & REST Helpers) + Layer 1 (Animated Modal UI) |
 
@@ -81,3 +81,7 @@ flowchart TD
    - `SceneState.buildFullSVG(state, overrides)` invokes `Effects.build(state)`, `Ripples.injectIntoSVG(svgString, state)`, `Glows.injectIntoSVG(svgString, width, height)`, `DataFlows.injectIntoSVG(svgString, state)`, and `DiagramNodes.injectIntoSVG(svgString, state)` in sequence.
 4. **Export XML serialization delegation:**
    - Layer 3 `SceneState.serializeSVGForExport(rawSvg)` contains no browser Web API calls (`DOMParser`/`XMLSerializer`); it delegates XML normalization and prolog injection to Layer 1 `window.SVGExportAdapter.serialize(rawSvg)`.
+5. **Workspace Foundation & Drawer State Management (Stage 3.1):**
+   - Layer 1 `window.WorkspaceController` manages drawer collapse/expansion, dual vertical icon rails, and maximized canvas mode.
+   - Stage canvas resizing triggered by drawer transitions synchronizes active overlays via `AppCoordinator.updateActiveOverlays()` both synchronously and on `transitionend`.
+   - Operational modules remain completely independent of drawer presentation state.

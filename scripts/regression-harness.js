@@ -486,6 +486,7 @@ async function runHarness() {
   //          and ProjectManager (Schema 1.2.0)
   // ===========================================================================
   function makeStubElement(idOrTag) {
+    const classes = new Set();
     const el = {
       id: idOrTag,
       tagName: String(idOrTag).toUpperCase(),
@@ -499,7 +500,17 @@ async function runHarness() {
       dataset: {},
       children: [],
       parentElement: null,
-      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+      classList: {
+        add(...cls) { cls.forEach((c) => classes.add(c)); },
+        remove(...cls) { cls.forEach((c) => classes.delete(c)); },
+        toggle(c, force) {
+          if (force === true) { classes.add(c); return true; }
+          if (force === false) { classes.delete(c); return false; }
+          if (classes.has(c)) { classes.delete(c); return false; }
+          classes.add(c); return true;
+        },
+        contains(c) { return classes.has(c); }
+      },
       addEventListener(evt, fn) {
         if (!this._listeners) this._listeners = {};
         if (!this._listeners[evt]) this._listeners[evt] = [];
@@ -516,6 +527,14 @@ async function runHarness() {
           if (!e.target) e.target = this;
           this._listeners[type].forEach((fn) => fn(e));
         }
+      },
+      focus() {
+        if (typeof global.document !== 'undefined') {
+          global.document.activeElement = this;
+        }
+      },
+      click() {
+        this.dispatchEvent({ type: 'click', target: this });
       },
       appendChild(child) {
         child.parentElement = this;
@@ -546,11 +565,41 @@ async function runHarness() {
       setAttribute(k, v) {
         this[k] = v;
         if (k === 'data-unknown-shape') this.dataset.unknownShape = v;
+        if (k === 'data-target-acc') this.dataset.targetAcc = v;
+        if (k === 'class' && typeof v === 'string') {
+          v.split(/\s+/).forEach((c) => c && classes.add(c));
+        }
       },
       getAttribute(k) { return this[k] || null; },
+      hasAttribute(k) { return this[k] !== undefined && this[k] !== null; },
+      removeAttribute(k) { delete this[k]; },
+      contains(target) {
+        if (!target) return false;
+        if (target === this) return true;
+        let cur = target.parentElement;
+        while (cur) {
+          if (cur === this) return true;
+          cur = cur.parentElement;
+        }
+        return false;
+      },
+      closest(sel) {
+        let cur = this;
+        while (cur) {
+          if (sel.startsWith('.') && cur.classList.contains(sel.slice(1))) return cur;
+          if (sel.startsWith('#') && cur.id === sel.slice(1)) return cur;
+          if (cur.tagName && cur.tagName.toLowerCase() === sel.toLowerCase()) return cur;
+          cur = cur.parentElement;
+        }
+        return null;
+      },
+      scrollIntoView() {},
       querySelector(sel) {
         if (sel === 'option[data-unknown-shape="true"]') {
           return this.children.find((c) => c.dataset && c.dataset.unknownShape === 'true') || null;
+        }
+        if (sel === '.rail-icon') {
+          return this.children.find((c) => c.classList && c.classList.contains('rail-icon')) || null;
         }
         return null;
       },
@@ -589,6 +638,7 @@ async function runHarness() {
 
   global.document = {
     body: makeStubElement('body'),
+    activeElement: null,
     getElementById(id) {
       if (!controlElements.has(id)) {
         controlElements.set(id, makeStubElement(id));
@@ -596,7 +646,38 @@ async function runHarness() {
       return controlElements.get(id);
     },
     querySelector() { return makeStubElement('query'); },
-    querySelectorAll() { return []; },
+    querySelectorAll(sel) {
+      const results = [];
+      for (const el of controlElements.values()) {
+        if (!sel) continue;
+        if (sel.includes('.icon-rail-left') && el.classList && el.classList.contains('icon-rail-btn')) {
+          if (el.closest && el.closest('.icon-rail-left')) {
+            if (sel.includes('[data-target-acc]')) {
+              if (el.getAttribute('data-target-acc')) results.push(el);
+            } else if (sel.includes(':not(.icon-rail-toggle)')) {
+              if (!el.classList.contains('icon-rail-toggle')) results.push(el);
+            } else {
+              results.push(el);
+            }
+          }
+        } else if (sel.includes('.icon-rail-right') && el.classList && el.classList.contains('icon-rail-btn')) {
+          if (el.closest && el.closest('.icon-rail-right')) {
+            if (sel.includes('[data-target-acc]')) {
+              if (el.getAttribute('data-target-acc')) results.push(el);
+            } else if (sel.includes(':not(.icon-rail-toggle)')) {
+              if (!el.classList.contains('icon-rail-toggle')) results.push(el);
+            } else {
+              results.push(el);
+            }
+          }
+        } else if (sel.includes('.icon-rail-btn') && el.classList && el.classList.contains('icon-rail-btn')) {
+          results.push(el);
+        } else if (sel.includes('.accordion') && el.classList && el.classList.contains('accordion')) {
+          results.push(el);
+        }
+      }
+      return results;
+    },
     createElement(tag) { return makeStubElement(tag); },
     createElementNS(ns, tag) { return makeStubElement(tag); },
     addEventListener() {}
@@ -712,8 +793,12 @@ async function runHarness() {
 
   // 3.2b Stage 2.5: Peer UI Refresh Decoupling & Overlay Coordination (ARCH-07)
   let lastOpenedAccordion = null;
+  const originalOpenAccordionById = window.openAccordionById;
   window.openAccordionById = function(accId) {
     lastOpenedAccordion = accId;
+    if (typeof originalOpenAccordionById === 'function') {
+      originalOpenAccordionById(accId);
+    }
   };
 
   let selectionEventsCount = 0;
@@ -1338,7 +1423,361 @@ async function runHarness() {
     delete global.XMLSerializer;
   }
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, and export payload builders verified (with DOM control test doubles and serializeSVGForExport pass-through stub).');
+  // ===========================================================================
+  // STAGE 3.1: Workspace Foundation, Icon Rails & Sliding Drawers
+  // ===========================================================================
+  assert.strictEqual(typeof window.WorkspaceController, 'object', 'window.WorkspaceController must be defined');
+  assert.strictEqual(typeof window.WorkspaceController.openLeftDrawer, 'function');
+  assert.strictEqual(typeof window.WorkspaceController.closeLeftDrawer, 'function');
+  assert.strictEqual(typeof window.WorkspaceController.openRightDrawer, 'function');
+  assert.strictEqual(typeof window.WorkspaceController.closeRightDrawer, 'function');
+  assert.strictEqual(typeof window.WorkspaceController.toggleMaximizedCanvas, 'function');
+  assert.strictEqual(typeof window.WorkspaceController.handleKeydown, 'function');
+
+  // Set up mock DOM elements for drawers and rails
+  const leftDrawerEl = document.getElementById('leftDrawer');
+  const rightDrawerEl = document.getElementById('rightDrawer');
+  const btnToggleLeft = document.getElementById('railBtn-toggleLeft');
+  const btnToggleRight = document.getElementById('railBtn-toggleRight');
+  const btnCollapseLeft = document.getElementById('btnCollapseLeftDrawer');
+  const btnCollapseRight = document.getElementById('btnCollapseRightDrawer');
+  const btnMaxCanvas = document.getElementById('btnMaximizeCanvas');
+  const inputPanelEl = document.getElementById('inputPanel');
+  const settingsPanelEl = document.getElementById('settingsPanel');
+  const accNodesEl = document.getElementById('acc-nodes');
+  const accCameraEl = document.getElementById('acc-camera');
+  const accOpticsEl = document.getElementById('acc-optics');
+  const groupFrameEl = document.getElementById('groupFrame');
+  const chkModuleFrame = document.getElementById('chkModuleFrame');
+  const drawerBackdropEl = document.getElementById('drawerBackdrop');
+  const railBtnNodes = document.getElementById('railBtn-nodes');
+  const railBtnCamera = document.getElementById('railBtn-camera');
+  const railBtnOptics = document.getElementById('railBtn-optics');
+  const railBtnFrame = document.getElementById('railBtn-frame');
+
+  // Hierarchy setup
+  leftDrawerEl.appendChild(inputPanelEl);
+  inputPanelEl.appendChild(accNodesEl);
+  rightDrawerEl.appendChild(settingsPanelEl);
+  settingsPanelEl.appendChild(accCameraEl);
+  settingsPanelEl.appendChild(accOpticsEl);
+  accOpticsEl.appendChild(groupFrameEl);
+
+  railBtnNodes.setAttribute('data-target-acc', 'acc-nodes');
+  railBtnNodes.classList.add('icon-rail-btn');
+  railBtnCamera.setAttribute('data-target-acc', 'acc-camera');
+  railBtnCamera.classList.add('icon-rail-btn');
+  railBtnOptics.setAttribute('data-target-acc', 'acc-optics');
+  railBtnOptics.classList.add('icon-rail-btn');
+  railBtnFrame.setAttribute('data-target-acc', 'acc-frame');
+  railBtnFrame.classList.add('icon-rail-btn');
+  accNodesEl.classList.add('accordion');
+  accCameraEl.classList.add('accordion');
+  accOpticsEl.classList.add('accordion');
+
+  const leftRailEl = makeStubElement('leftRail');
+  leftRailEl.classList.add('icon-rail-left');
+  leftRailEl.appendChild(railBtnNodes);
+  controlElements.set('leftRail', leftRailEl);
+
+  const rightRailEl = makeStubElement('rightRail');
+  rightRailEl.classList.add('icon-rail-right');
+  rightRailEl.appendChild(railBtnCamera);
+  rightRailEl.appendChild(railBtnOptics);
+  rightRailEl.appendChild(railBtnFrame);
+  controlElements.set('rightRail', rightRailEl);
+
+  // Initialize WorkspaceController to bind backdrop and controls
+  window.WorkspaceController.init();
+
+  // 1 & 2. Left and Right Drawer Open & Close
+  window.WorkspaceController.openLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true);
+  assert.strictEqual(leftDrawerEl.classList.contains('collapsed'), false);
+
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false);
+  assert.strictEqual(leftDrawerEl.classList.contains('collapsed'), true);
+
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true);
+  assert.strictEqual(rightDrawerEl.classList.contains('collapsed'), false);
+
+  window.WorkspaceController.closeRightDrawer();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false);
+  assert.strictEqual(rightDrawerEl.classList.contains('collapsed'), true);
+
+  // 3. Independent Drawer State on Wide Desktop (innerWidth >= 1440)
+  global.window.innerWidth = 1920;
+  window.WorkspaceController.openLeftDrawer();
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true);
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true);
+
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false);
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true, 'Right drawer must remain open when left drawer closes on wide screen');
+
+  // 4. Rail selection & active-state synchronization
+  window.WorkspaceController.openLeftDrawer();
+  window.WorkspaceController.syncRailForAccordion('acc-nodes');
+  assert.strictEqual(railBtnNodes.classList.contains('active'), true);
+  assert.strictEqual(railBtnCamera.classList.contains('active'), false);
+
+  // 5. openAccordionById opening a collapsed drawer
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false);
+  window.openAccordionById('acc-nodes');
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true, 'openAccordionById must open parent leftDrawer if closed');
+  assert.strictEqual(accNodesEl.classList.contains('open'), true);
+
+  window.WorkspaceController.closeRightDrawer();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false);
+  window.openAccordionById('acc-camera');
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true, 'openAccordionById must open parent rightDrawer if closed');
+  assert.strictEqual(accCameraEl.classList.contains('open'), true);
+
+  // 6 & 7. Maximized Canvas Mode and Restoration
+  window.WorkspaceController.openLeftDrawer();
+  window.WorkspaceController.openRightDrawer();
+  window.WorkspaceController.setMaximized(true);
+  assert.strictEqual(window.WorkspaceController.isMaximized, true);
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false, 'Maximize must close left drawer');
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false, 'Maximize must close right drawer');
+  assert.strictEqual(btnMaxCanvas.classList.contains('active'), true);
+
+  window.WorkspaceController.setMaximized(false);
+  assert.strictEqual(window.WorkspaceController.isMaximized, false);
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true, 'Exiting maximize must restore left drawer');
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true, 'Exiting maximize must restore right drawer');
+  assert.strictEqual(btnMaxCanvas.classList.contains('active'), false);
+
+  // 8. Keyboard Shortcuts: T (Left), N (Right), Shift+Space (Maximize), Escape (Exit Maximize)
+  window.WorkspaceController.handleKeydown({ code: 'KeyT' });
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false, 'T key must toggle left drawer');
+  window.WorkspaceController.handleKeydown({ code: 'KeyT' });
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true);
+
+  window.WorkspaceController.handleKeydown({ code: 'KeyN' });
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false, 'N key must toggle right drawer');
+  window.WorkspaceController.handleKeydown({ code: 'KeyN' });
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true);
+
+  window.WorkspaceController.handleKeydown({ code: 'Space', shiftKey: true });
+  assert.strictEqual(window.WorkspaceController.isMaximized, true, 'Shift+Space must toggle maximize');
+  window.WorkspaceController.handleKeydown({ key: 'Escape' });
+  assert.strictEqual(window.WorkspaceController.isMaximized, false, 'Escape must exit maximize');
+
+  // 9. Shortcut suppression inside editable inputs
+  document.activeElement = makeStubElement('canvasWidthInput');
+  document.activeElement.tagName = 'INPUT';
+  const handledInInput = window.WorkspaceController.handleKeydown({ code: 'KeyT' });
+  assert.strictEqual(handledInInput, false, 'Shortcuts must be suppressed inside INPUT elements');
+  document.activeElement = null;
+
+  // 10. Shortcut suppression while modal is open
+  const modalEl = document.getElementById('projectsModal');
+  modalEl.style.display = 'flex';
+  const handledInModal = window.WorkspaceController.handleKeydown({ code: 'KeyT' });
+  assert.strictEqual(handledInModal, false, 'Shortcuts must be suppressed while modals are displayed');
+  modalEl.style.display = 'none';
+
+  // ===========================================================================
+  // STAGE 3.1 REVIEW REMEDIATION: Backdrop, Focus Management & Rail Disambiguation
+  // ===========================================================================
+
+  // Remediation Check 1: Exactly one #drawerBackdrop in index.html
+  const backdropMatches = htmlSource.match(/\bid="drawerBackdrop"/g) || [];
+  assert.strictEqual(backdropMatches.length, 1, 'index.html must contain exactly one #drawerBackdrop element');
+
+  // Remediation Check 2: Backdrop initially hidden on desktop
+  global.window.innerWidth = 1920;
+  window.WorkspaceController._syncBackdrop();
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), false, 'Backdrop must be initially inactive on desktop');
+
+  // Remediation Check 3: Backdrop visible when a responsive drawer opens (< 1024px)
+  global.window.innerWidth = 800;
+  window.WorkspaceController.openLeftDrawer();
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), true, 'Backdrop must be active when responsive drawer is open (< 1024px)');
+  assert.strictEqual(drawerBackdropEl.hasAttribute('aria-hidden'), false, 'Active backdrop must remove aria-hidden');
+
+  // Remediation Check 4: Backdrop hidden when responsive drawers close
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), false, 'Backdrop must be inactive when drawers are closed');
+  assert.strictEqual(drawerBackdropEl.getAttribute('aria-hidden'), 'true', 'Inactive backdrop must have aria-hidden=true');
+
+  // Remediation Check 5: Clicking the backdrop closes responsive drawer(s)
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true);
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), true);
+  drawerBackdropEl.click();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false, 'Clicking backdrop must close open drawer');
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), false, 'Clicking backdrop must hide backdrop');
+
+  // Remediation Check 6: Desktop layouts (>= 1024px) do not show interactive backdrop
+  global.window.innerWidth = 1440;
+  window.WorkspaceController.openLeftDrawer();
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), false, 'Desktop layouts must never show active backdrop');
+
+  // Remediation Check 7: Viewport transitions do not leave a stale backdrop
+  global.window.innerWidth = 800;
+  window.WorkspaceController._syncBackdrop();
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), true);
+  global.window.innerWidth = 1440;
+  window.WorkspaceController._syncBackdrop();
+  assert.strictEqual(drawerBackdropEl.classList.contains('active'), false, 'Viewport transition to desktop must deactivate backdrop');
+
+  // Remediation Check 8: Focus inside a closing left drawer moves to railBtn-toggleLeft
+  window.WorkspaceController.openLeftDrawer();
+  const inputInLeft = makeStubElement('inputInLeft');
+  leftDrawerEl.appendChild(inputInLeft);
+  inputInLeft.focus();
+  assert.strictEqual(global.document.activeElement, inputInLeft);
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(global.document.activeElement, btnToggleLeft, 'Closing left drawer with activeElement inside must restore focus to railBtn-toggleLeft');
+
+  // Remediation Check 9: Focus inside a closing right drawer moves to railBtn-toggleRight
+  window.WorkspaceController.openRightDrawer();
+  const inputInRight = makeStubElement('inputInRight');
+  rightDrawerEl.appendChild(inputInRight);
+  inputInRight.focus();
+  assert.strictEqual(global.document.activeElement, inputInRight);
+  window.WorkspaceController.closeRightDrawer();
+  assert.strictEqual(global.document.activeElement, btnToggleRight, 'Closing right drawer with activeElement inside must restore focus to railBtn-toggleRight');
+
+  // Remediation Check 10: Closing a drawer does not steal unrelated focus
+  window.WorkspaceController.openLeftDrawer();
+  const outsideEl = makeStubElement('outsideEl');
+  outsideEl.focus();
+  assert.strictEqual(global.document.activeElement, outsideEl);
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(global.document.activeElement, outsideEl, 'Closing drawer when focus is elsewhere must not steal focus');
+
+  // Remediation Check 11: Optics rail activation does not activate Frame
+  window.WorkspaceController.openRightDrawer();
+  window.WorkspaceController.syncRailForAccordion('acc-optics');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true, 'Optics sync must activate Optics rail button');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), false, 'Optics sync must not activate Frame rail button');
+
+  // Remediation Check 12: Frame rail activation does not activate Optics
+  window.WorkspaceController.syncRailForAccordion('acc-frame');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true, 'Frame sync must activate Frame rail button');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), false, 'Frame sync must not activate Optics rail button');
+
+  // Remediation Check 13: Programmatic accordion opening uses deterministic active rail
+  window.openAccordionById('acc-optics');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true, 'openAccordionById(acc-optics) must activate Optics rail button');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), false, 'openAccordionById(acc-optics) must deactivate Frame rail button');
+
+  window.openAccordionById('acc-frame');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true, 'openAccordionById(acc-frame) must activate Frame rail button');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), false, 'openAccordionById(acc-frame) must deactivate Optics rail button');
+
+  window.openAccordionById('acc-optical');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true, 'openAccordionById(acc-optical) must activate Optics rail button');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), false, 'openAccordionById(acc-optical) must deactivate Frame rail button');
+
+  // Remediation Check 14: Frame navigation with Frame initially disabled
+  chkModuleFrame.checked = false;
+  window.WorkspaceController.closeRightDrawer();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false);
+
+  window.openAccordionById('acc-frame');
+  assert.strictEqual(chkModuleFrame.checked, false, 'chkModuleFrame.checked must remain false after navigating to acc-frame');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true, 'Frame rail button must be active');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), false, 'Optics rail button must be inactive');
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true, 'Right drawer must open for acc-frame');
+  assert.strictEqual(accOpticsEl.classList.contains('open'), true, 'acc-optics accordion must be open');
+  assert.ok(chkModuleFrame, 'chkModuleFrame must remain accessible');
+
+  // Remediation Check 15: Frame navigation with Frame initially enabled
+  chkModuleFrame.checked = true;
+  window.openAccordionById('acc-frame');
+  assert.strictEqual(chkModuleFrame.checked, true, 'chkModuleFrame.checked must remain true after navigating to acc-frame');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true, 'Frame rail button must remain active');
+
+  // Remediation Check 16: Repeated navigation across Optics and Frame preserves state and serialization
+  chkModuleFrame.checked = false;
+  const historyDepthBefore = window.HistoryManager.undoStack ? window.HistoryManager.undoStack.length : 0;
+  const stateBefore = window.ControlStateAdaptor.syncFromDOM(window.HistoryManager.trackedControlIds);
+
+  window.openAccordionById('acc-optics');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true);
+  assert.strictEqual(railBtnFrame.classList.contains('active'), false);
+  assert.strictEqual(chkModuleFrame.checked, false);
+
+  window.openAccordionById('acc-frame');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true);
+  assert.strictEqual(railBtnOptics.classList.contains('active'), false);
+  assert.strictEqual(chkModuleFrame.checked, false);
+
+  window.openAccordionById('acc-optics');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true);
+  assert.strictEqual(railBtnFrame.classList.contains('active'), false);
+  assert.strictEqual(chkModuleFrame.checked, false);
+
+  window.openAccordionById('acc-frame');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true);
+  assert.strictEqual(railBtnOptics.classList.contains('active'), false);
+  assert.strictEqual(chkModuleFrame.checked, false);
+
+  const historyDepthAfter = window.HistoryManager.undoStack ? window.HistoryManager.undoStack.length : 0;
+  assert.strictEqual(historyDepthAfter, historyDepthBefore, 'Navigation must not create history entries');
+
+  const stateAfter = window.ControlStateAdaptor.syncFromDOM(window.HistoryManager.trackedControlIds);
+  assert.strictEqual(stateAfter.chkModuleFrame, stateBefore.chkModuleFrame, 'chkModuleFrame serialized state must not change during navigation');
+  assert.deepStrictEqual(stateAfter, stateBefore, 'Tracked controls must not be altered merely by rail/accordion navigation');
+
+  // 11. Preservation of all 95 tracked control IDs
+  assert.strictEqual(window.HistoryManager.trackedControlIds.length, 95);
+  window.HistoryManager.trackedControlIds.forEach((id) => {
+    assert.ok(htmlSource.includes(`id="${id}"`), `Tracked control ID '${id}' must exist in index.html`);
+  });
+
+  // 12. No duplicate IDs introduced in index.html
+  const allIds = [];
+  const idRegex = /\bid="([^"]+)"/g;
+  let idMatch;
+  while ((idMatch = idRegex.exec(htmlSource)) !== null) {
+    allIds.push(idMatch[1]);
+  }
+  const idSet = new Set();
+  const duplicates = [];
+  allIds.forEach((id) => {
+    if (idSet.has(id)) duplicates.push(id);
+    else idSet.add(id);
+  });
+  assert.strictEqual(duplicates.length, 0, `index.html must have zero duplicate IDs, but found duplicates: ${duplicates.join(', ')}`);
+
+  // 13. Preservation of all 15 script tags in exact order
+  const scriptTagsInHtml = [];
+  const scriptRegex = /<script\s+src="([^"?]+)(?:\?[^"]*)?"\s*><\/script>/g;
+  let scriptMatch;
+  while ((scriptMatch = scriptRegex.exec(htmlSource)) !== null) {
+    scriptTagsInHtml.push(scriptMatch[1]);
+  }
+  assert.strictEqual(scriptTagsInHtml.length, 15, 'index.html must contain exactly 15 script tags');
+  const expectedScriptOrder = [
+    'js/effects.js',
+    'js/scene-state.js',
+    'js/coordinator.js',
+    'js/stage.js',
+    'js/shape-registry.js',
+    'js/presets.js',
+    'js/nodes.js',
+    'js/flows.js',
+    'js/glows.js',
+    'js/ripples.js',
+    'js/history.js',
+    'js/projects.js',
+    'js/app.js',
+    'js/still-export-modal.js',
+    'js/export-modal.js'
+  ];
+  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '15 script tags must be in exact dependency order');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 workspace foundation verified.');
 }
 
 runHarness()

@@ -148,6 +148,400 @@ window.serializeSVGForExport = function(rawSvg) {
   throw new Error('SVG export serialization requires SVGExportAdapter in browser environments.');
 };
 
+// =========================================================================
+// Layer 1: Workspace Controller (Sliding Drawers, Icon Rails & Viewport HUD)
+// =========================================================================
+
+window.WorkspaceController = {
+  leftDrawerOpen: true,
+  rightDrawerOpen: true,
+  isMaximized: false,
+  savedLeftState: true,
+  savedRightState: true,
+
+  toggleLeftDrawer() {
+    if (this.leftDrawerOpen) this.closeLeftDrawer();
+    else this.openLeftDrawer();
+  },
+
+  openLeftDrawer() {
+    this.leftDrawerOpen = true;
+    const drawer = document.getElementById('leftDrawer');
+    const toggleBtn = document.getElementById('railBtn-toggleLeft');
+    const closeBtn = document.getElementById('btnCollapseLeftDrawer');
+    if (drawer) {
+      drawer.classList.remove('collapsed');
+      drawer.removeAttribute('aria-hidden');
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-expanded', 'true');
+      const icon = toggleBtn.querySelector('.rail-icon');
+      if (icon) icon.textContent = '◀';
+    }
+    if (closeBtn) closeBtn.setAttribute('aria-expanded', 'true');
+
+    // On compact screens (< 1440px), auto-collapse opposite drawer to preserve canvas space
+    if (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 1440 && this.rightDrawerOpen) {
+      this.closeRightDrawer();
+    }
+    this._syncOverlays();
+    this._syncBackdrop();
+  },
+
+  closeLeftDrawer() {
+    this.leftDrawerOpen = false;
+    const drawer = document.getElementById('leftDrawer');
+    const toggleBtn = document.getElementById('railBtn-toggleLeft');
+    const closeBtn = document.getElementById('btnCollapseLeftDrawer');
+    const activeEl = typeof document !== 'undefined' ? document.activeElement : null;
+    const shouldRestoreFocus = !!(activeEl && drawer && typeof drawer.contains === 'function' && drawer.contains(activeEl));
+
+    if (drawer) {
+      drawer.classList.add('collapsed');
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      const icon = toggleBtn.querySelector('.rail-icon');
+      if (icon) icon.textContent = '▶';
+    }
+    if (closeBtn) closeBtn.setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('.icon-rail-left .icon-rail-btn:not(.icon-rail-toggle)').forEach((b) => {
+      b.classList.remove('active');
+      b.setAttribute('aria-expanded', 'false');
+    });
+
+    if (shouldRestoreFocus && toggleBtn && typeof toggleBtn.focus === 'function') {
+      toggleBtn.focus();
+    }
+
+    this._syncOverlays();
+    this._syncBackdrop();
+  },
+
+  toggleRightDrawer() {
+    if (this.rightDrawerOpen) this.closeRightDrawer();
+    else this.openRightDrawer();
+  },
+
+  openRightDrawer() {
+    this.rightDrawerOpen = true;
+    const drawer = document.getElementById('rightDrawer');
+    const toggleBtn = document.getElementById('railBtn-toggleRight');
+    const closeBtn = document.getElementById('btnCollapseRightDrawer');
+    if (drawer) {
+      drawer.classList.remove('collapsed');
+      drawer.removeAttribute('aria-hidden');
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-expanded', 'true');
+      const icon = toggleBtn.querySelector('.rail-icon');
+      if (icon) icon.textContent = '▶';
+    }
+    if (closeBtn) closeBtn.setAttribute('aria-expanded', 'true');
+
+    if (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 1440 && this.leftDrawerOpen) {
+      this.closeLeftDrawer();
+    }
+    this._syncOverlays();
+    this._syncBackdrop();
+  },
+
+  closeRightDrawer() {
+    this.rightDrawerOpen = false;
+    const drawer = document.getElementById('rightDrawer');
+    const toggleBtn = document.getElementById('railBtn-toggleRight');
+    const closeBtn = document.getElementById('btnCollapseRightDrawer');
+    const activeEl = typeof document !== 'undefined' ? document.activeElement : null;
+    const shouldRestoreFocus = !!(activeEl && drawer && typeof drawer.contains === 'function' && drawer.contains(activeEl));
+
+    if (drawer) {
+      drawer.classList.add('collapsed');
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      const icon = toggleBtn.querySelector('.rail-icon');
+      if (icon) icon.textContent = '◀';
+    }
+    if (closeBtn) closeBtn.setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('.icon-rail-right .icon-rail-btn:not(.icon-rail-toggle)').forEach((b) => {
+      b.classList.remove('active');
+      b.setAttribute('aria-expanded', 'false');
+    });
+
+    if (shouldRestoreFocus && toggleBtn && typeof toggleBtn.focus === 'function') {
+      toggleBtn.focus();
+    }
+
+    this._syncOverlays();
+    this._syncBackdrop();
+  },
+
+  toggleMaximizedCanvas() {
+    this.setMaximized(!this.isMaximized);
+  },
+
+  setMaximized(maximized) {
+    this.isMaximized = !!maximized;
+    const maxBtn = document.getElementById('btnMaximizeCanvas');
+    if (this.isMaximized) {
+      const activeEl = typeof document !== 'undefined' ? document.activeElement : null;
+      const leftEl = document.getElementById('leftDrawer');
+      const rightEl = document.getElementById('rightDrawer');
+      const focusInDrawer = !!(activeEl && ((leftEl && typeof leftEl.contains === 'function' && leftEl.contains(activeEl)) || (rightEl && typeof rightEl.contains === 'function' && rightEl.contains(activeEl))));
+
+      this.savedLeftState = this.leftDrawerOpen;
+      this.savedRightState = this.rightDrawerOpen;
+      if (this.leftDrawerOpen) this.closeLeftDrawer();
+      if (this.rightDrawerOpen) this.closeRightDrawer();
+      if (maxBtn) {
+        maxBtn.classList.add('active');
+        maxBtn.textContent = '⛶ Restore';
+        maxBtn.title = 'Restore Workspace Panels (Shift+Space / Esc)';
+        if (focusInDrawer && typeof maxBtn.focus === 'function') {
+          maxBtn.focus();
+        }
+      }
+    } else {
+      if (maxBtn) {
+        maxBtn.classList.remove('active');
+        maxBtn.textContent = '⛶ Maximize';
+        maxBtn.title = 'Toggle Maximized Canvas Mode (Shift+Space)';
+      }
+      if (this.savedLeftState) this.openLeftDrawer();
+      if (this.savedRightState) this.openRightDrawer();
+    }
+    this._syncOverlays();
+    this._syncBackdrop();
+  },
+
+  syncRailForAccordion(accId) {
+    document.querySelectorAll('.icon-rail-left .icon-rail-btn[data-target-acc]').forEach((btn) => {
+      const match = btn.getAttribute('data-target-acc') === accId;
+      btn.classList.toggle('active', match);
+      btn.setAttribute('aria-expanded', match && this.leftDrawerOpen ? 'true' : 'false');
+    });
+    document.querySelectorAll('.icon-rail-right .icon-rail-btn[data-target-acc]').forEach((btn) => {
+      const match = btn.getAttribute('data-target-acc') === accId;
+      btn.classList.toggle('active', match);
+      btn.setAttribute('aria-expanded', match && this.rightDrawerOpen ? 'true' : 'false');
+    });
+  },
+
+  _syncOverlays() {
+    if (typeof window !== 'undefined') {
+      if (window.AppCoordinator && typeof window.AppCoordinator.updateActiveOverlays === 'function') {
+        window.AppCoordinator.updateActiveOverlays();
+      }
+      if (window.Stage && typeof window.Stage.syncOverlayBounds === 'function') {
+        window.Stage.syncOverlayBounds(window.Stage.canvasWidth, window.Stage.canvasHeight);
+      }
+    }
+  },
+
+  _syncBackdrop() {
+    if (typeof document === 'undefined') return;
+    const backdrop = document.getElementById('drawerBackdrop');
+    if (!backdrop) return;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 1024;
+    const shouldShow = isMobile && (this.leftDrawerOpen || this.rightDrawerOpen) && !this.isMaximized;
+    if (shouldShow) {
+      backdrop.classList.add('active');
+      backdrop.removeAttribute('aria-hidden');
+    } else {
+      backdrop.classList.remove('active');
+      backdrop.setAttribute('aria-hidden', 'true');
+    }
+  },
+
+  init() {
+    const btnCollapseL = document.getElementById('btnCollapseLeftDrawer');
+    if (btnCollapseL) btnCollapseL.addEventListener('click', () => this.toggleLeftDrawer());
+
+    const btnToggleL = document.getElementById('railBtn-toggleLeft');
+    if (btnToggleL) btnToggleL.addEventListener('click', () => this.toggleLeftDrawer());
+
+    const btnCollapseR = document.getElementById('btnCollapseRightDrawer');
+    if (btnCollapseR) btnCollapseR.addEventListener('click', () => this.toggleRightDrawer());
+
+    const btnToggleR = document.getElementById('railBtn-toggleRight');
+    if (btnToggleR) btnToggleR.addEventListener('click', () => this.toggleRightDrawer());
+
+    const btnMax = document.getElementById('btnMaximizeCanvas');
+    if (btnMax) btnMax.addEventListener('click', () => this.toggleMaximizedCanvas());
+
+    const backdrop = document.getElementById('drawerBackdrop');
+    if (backdrop) {
+      backdrop.addEventListener('click', () => {
+        if (this.leftDrawerOpen) this.closeLeftDrawer();
+        if (this.rightDrawerOpen) this.closeRightDrawer();
+      });
+    }
+
+    document.querySelectorAll('.icon-rail-btn[data-target-acc]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetAcc = btn.getAttribute('data-target-acc');
+        const isLeft = !!btn.closest('.icon-rail-left');
+        const isCurrentlyOpen = isLeft ? this.leftDrawerOpen : this.rightDrawerOpen;
+        const isCurrentlyActive = btn.classList.contains('active');
+
+        if (isCurrentlyOpen && isCurrentlyActive) {
+          if (isLeft) this.closeLeftDrawer();
+          else this.closeRightDrawer();
+          return;
+        }
+
+        if (!isCurrentlyOpen) {
+          if (isLeft) this.openLeftDrawer();
+          else this.openRightDrawer();
+        }
+
+        if (typeof window.openAccordionById === 'function') {
+          window.openAccordionById(targetAcc);
+        }
+      });
+    });
+
+    ['leftDrawer', 'rightDrawer'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('transitionend', () => this._syncOverlays());
+      }
+    });
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', () => {
+        this._syncBackdrop();
+      });
+    }
+
+    if (typeof window !== 'undefined' && window.innerWidth) {
+      if (window.innerWidth < 1024) {
+        this.closeLeftDrawer();
+        this.closeRightDrawer();
+      } else if (window.innerWidth < 1440) {
+        this.openLeftDrawer();
+        this.closeRightDrawer();
+      } else {
+        this.openLeftDrawer();
+        this.openRightDrawer();
+      }
+    }
+    this._syncBackdrop();
+  },
+
+  handleKeydown(e) {
+    if (!e) return false;
+    const activeEl = typeof document !== 'undefined' ? document.activeElement : null;
+    const tag = activeEl ? (activeEl.tagName || '') : '';
+    const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || (activeEl && activeEl.isContentEditable);
+    if (isInput) return false;
+
+    if (typeof document !== 'undefined') {
+      const modalOpen = ['projectsModal', 'stillExportModal', 'exportModal'].some((id) => {
+        const el = document.getElementById(id);
+        return el && el.style && (el.style.display === 'flex' || el.style.display === 'block');
+      });
+      if (modalOpen) return false;
+    }
+
+    if (e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      this.toggleLeftDrawer();
+      return true;
+    } else if (e.code === 'KeyN' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      this.toggleRightDrawer();
+      return true;
+    } else if (e.code === 'Space' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      this.toggleMaximizedCanvas();
+      return true;
+    } else if (e.key === 'Escape') {
+      if (this.isMaximized) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        this.setMaximized(false);
+        return true;
+      } else if (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 1024) {
+        if (this.leftDrawerOpen) this.closeLeftDrawer();
+        if (this.rightDrawerOpen) this.closeRightDrawer();
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+window.openAccordionById = function(accId) {
+  let targetId = accId;
+  if (accId === 'acc-duration') targetId = 'acc-playback';
+  if (accId === 'acc-optical') targetId = 'acc-optics';
+  if (accId === 'acc-frame') targetId = 'acc-optics';
+
+  if (typeof document === 'undefined') return;
+  const section = document.getElementById(targetId);
+  if (!section) return;
+
+  // Open parent drawer if collapsed
+  const leftDrawer = document.getElementById('leftDrawer');
+  const rightDrawer = document.getElementById('rightDrawer');
+  if (leftDrawer && leftDrawer.contains && leftDrawer.contains(section)) {
+    if (window.WorkspaceController && !window.WorkspaceController.leftDrawerOpen) {
+      window.WorkspaceController.openLeftDrawer();
+    }
+  } else if (rightDrawer && rightDrawer.contains && rightDrawer.contains(section)) {
+    if (window.WorkspaceController && !window.WorkspaceController.rightDrawerOpen) {
+      window.WorkspaceController.openRightDrawer();
+    }
+  }
+
+  const railSyncTarget = (accId === 'acc-frame') ? 'acc-frame' : targetId;
+  if (window.WorkspaceController && typeof window.WorkspaceController.syncRailForAccordion === 'function') {
+    window.WorkspaceController.syncRailForAccordion(railSyncTarget);
+  }
+
+  const panel = section.closest ? section.closest('.panel') : null;
+  const soloChk = document.getElementById('chkSoloPanels');
+  const soloMode = soloChk ? soloChk.checked : false;
+  if (soloMode && panel && panel.querySelectorAll) {
+    panel.querySelectorAll('.accordion-section.open').forEach((other) => {
+      if (other !== section && other.classList) other.classList.remove('open');
+    });
+  }
+  if (section.classList) section.classList.add('open');
+
+  if (accId === 'acc-frame') {
+    const chkFrame = document.getElementById('chkModuleFrame');
+    const targetScroll = (chkFrame && chkFrame.closest) ? (chkFrame.closest('.toggle-switch') || chkFrame) : document.getElementById('groupFrame');
+    if (targetScroll && typeof targetScroll.scrollIntoView === 'function') {
+      try {
+        targetScroll.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (_) {}
+      return;
+    }
+  }
+
+  try {
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (_) {}
+};
+
+window.toggleAllAccordions = function(panelId, expand) {
+  if (typeof document === 'undefined') return;
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  if (expand) {
+    const soloChk = document.getElementById('chkSoloPanels');
+    if (soloChk) soloChk.checked = false;
+  }
+  if (panel.querySelectorAll) {
+    panel.querySelectorAll('.accordion-section').forEach((sec) => {
+      if (sec.classList) sec.classList.toggle('open', expand);
+    });
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   let currentImage = null;
   window.currentRenderState = null;
@@ -215,33 +609,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  window.openAccordionById = function(accId) {
-    const section = document.getElementById(accId);
-    if (!section) return;
-    const panel = section.closest('.panel');
-    const soloChk = document.getElementById('chkSoloPanels');
-    const soloMode = soloChk ? soloChk.checked : false;
-    if (soloMode && panel) {
-      panel.querySelectorAll('.accordion-section.open').forEach((other) => {
-        if (other !== section) other.classList.remove('open');
-      });
-    }
-    section.classList.add('open');
-  };
-
-  window.toggleAllAccordions = function(panelId, expand) {
-    const panel = document.getElementById(panelId);
-    if (!panel) return;
-    if (expand) {
-      const soloChk = document.getElementById('chkSoloPanels');
-      if (soloChk) soloChk.checked = false;
-    }
-    panel.querySelectorAll('.accordion-section').forEach((sec) => {
-      sec.classList.toggle('open', expand);
-    });
-  };
-
   initAccordions();
+
+  if (window.WorkspaceController && typeof window.WorkspaceController.init === 'function') {
+    window.WorkspaceController.init();
+  }
+
+  // Workspace keyboard shortcuts: T (Left Drawer), N (Right Drawer), Shift+Space (Maximize Stage), Esc
+  window.addEventListener('keydown', (e) => {
+    if (window.WorkspaceController && typeof window.WorkspaceController.handleKeydown === 'function') {
+      window.WorkspaceController.handleKeydown(e);
+    }
+  });
 
   function setDragPhotoCropMode(enabled) {
     if (!window.Stage) return;

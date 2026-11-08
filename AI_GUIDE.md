@@ -67,8 +67,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Restoration & UI Refresh Decoupling | **Implemented (Stage 2.4)** | Decoupled Layer 3 restoration in `HistoryManager` & `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed` (commit `92aa87d`) |
 | Peer UI Refresh Decoupling (ARCH-07) | **Implemented (Stage 2.5)** | Centralized selection, waypoint selection (`DataFlows.selectWaypoint`), and active overlay coordination via `AppCoordinator.updateActiveOverlays()` (commit `7337a08`) |
 | Architecture Boundary Cleanup (ARCH-04 & ARCH-02) | **Implemented (Stage 2.6)** | Removed Layer 3 DOM fallbacks in `HistoryManager` & `ProjectManager` (ARCH-04 PASS); relocated browser-dependent SVG serialization to Layer 1 `window.SVGExportAdapter` in `app.js` (ARCH-02 PASS); retained offscreen geometry sandbox in `StillExportStudio` (ARCH-05 deferred) |
-| Blender-style workspace (icon rails, sliding drawers, maximized stage) | **Planned (Phase 3)** | Currently 3-column studio layout (`leftPanel`, `stageArea`, `rightPanel`) |
-| Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftPanel` / `rightPanel` |
+| Workspace Foundation, Icon Rails & Sliding Drawers | **Implemented (Stage 3.1)** | Dual vertical icon rails (`.icon-rail-left`, `.icon-rail-right`), collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`), maximized canvas mode, rail sync, and keyboard navigation in `internal/web/static/` |
+| Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftDrawer` / `rightDrawer` |
 
 ---
 
@@ -99,6 +99,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
   - [`state-management.md`](docs/architecture/state-management.md) — Ownership of scene, control, selection, and object collection states.
   - [`history-and-persistence.md`](docs/architecture/history-and-persistence.md) — Undo/redo snapshot mechanics and SQLite `v1.2.0` project format.
   - [`phase2-progress.md`](docs/architecture/phase2-progress.md) — Phase 2 milestone logs, test reports, and roadmap.
+  - [`phase3-progress.md`](docs/architecture/phase3-progress.md) — Phase 3 workspace redesign progress, drawer architecture, and verification.
 - **Modules (`docs/modules/`):**
   - [`app.md`](docs/modules/app.md) | [`stage.md`](docs/modules/stage.md) | [`presets.md`](docs/modules/presets.md) | [`nodes.md`](docs/modules/nodes.md) | [`shape-registry.md`](docs/modules/shape-registry.md) | [`flows.md`](docs/modules/flows.md) | [`glows.md`](docs/modules/glows.md) | [`ripples.md`](docs/modules/ripples.md) | [`effects.md`](docs/modules/effects.md) | [`history.md`](docs/modules/history.md) | [`projects.md`](docs/modules/projects.md)
 - **Development Guides (`docs/development/`):**
