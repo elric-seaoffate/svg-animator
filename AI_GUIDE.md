@@ -67,7 +67,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Restoration & UI Refresh Decoupling | **Implemented (Stage 2.4)** | Decoupled Layer 3 restoration in `HistoryManager` & `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed` (commit `92aa87d`) |
 | Peer UI Refresh Decoupling (ARCH-07) | **Implemented (Stage 2.5)** | Centralized selection, waypoint selection (`DataFlows.selectWaypoint`), and active overlay coordination via `AppCoordinator.updateActiveOverlays()` (commit `7337a08`) |
 | Architecture Boundary Cleanup (ARCH-04 & ARCH-02) | **Implemented (Stage 2.6)** | Removed Layer 3 DOM fallbacks in `HistoryManager` & `ProjectManager` (ARCH-04 PASS); relocated browser-dependent SVG serialization to Layer 1 `window.SVGExportAdapter` in `app.js` (ARCH-02 PASS); retained offscreen geometry sandbox in `StillExportStudio` (ARCH-05 deferred) |
-| Workspace Foundation, Icon Rails & Sliding Drawers | **Implemented (Stage 3.1)** | Dual vertical icon rails (`.icon-rail-left`, `.icon-rail-right`), collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`), maximized canvas mode, rail sync, and keyboard navigation in `internal/web/static/` |
+| Workspace Foundation, Icon Rails & Sliding Drawers | **Implemented (Stage 3.1)** | Dual vertical icon rails (`.icon-rail-left`, `.icon-rail-right`), collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`), maximized canvas mode, rail sync, and keyboard navigation in `internal/web/static/` (commit `01415e8`) |
+| Workspace Interaction & Responsive Layout Refinement | **Implemented (Stage 3.2)** | Responsive viewport profiles (desktop, compact, tablet slide-over, mobile narrow), drawer section memory, idempotent controller init, centralized overlay sync, and focus-visible polish in `internal/web/static/` |
 | Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftDrawer` / `rightDrawer` |
 
 ---

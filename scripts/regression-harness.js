@@ -645,13 +645,17 @@ async function runHarness() {
       }
       return controlElements.get(id);
     },
-    querySelector() { return makeStubElement('query'); },
+    querySelector(sel) {
+      const all = this.querySelectorAll(sel);
+      return all.length > 0 ? all[0] : null;
+    },
     querySelectorAll(sel) {
       const results = [];
       for (const el of controlElements.values()) {
         if (!sel) continue;
         if (sel.includes('.icon-rail-left') && el.classList && el.classList.contains('icon-rail-btn')) {
           if (el.closest && el.closest('.icon-rail-left')) {
+            if (sel.includes('.active') && !el.classList.contains('active')) continue;
             if (sel.includes('[data-target-acc]')) {
               if (el.getAttribute('data-target-acc')) results.push(el);
             } else if (sel.includes(':not(.icon-rail-toggle)')) {
@@ -662,6 +666,7 @@ async function runHarness() {
           }
         } else if (sel.includes('.icon-rail-right') && el.classList && el.classList.contains('icon-rail-btn')) {
           if (el.closest && el.closest('.icon-rail-right')) {
+            if (sel.includes('.active') && !el.classList.contains('active')) continue;
             if (sel.includes('[data-target-acc]')) {
               if (el.getAttribute('data-target-acc')) results.push(el);
             } else if (sel.includes(':not(.icon-rail-toggle)')) {
@@ -671,6 +676,7 @@ async function runHarness() {
             }
           }
         } else if (sel.includes('.icon-rail-btn') && el.classList && el.classList.contains('icon-rail-btn')) {
+          if (sel.includes('.active') && !el.classList.contains('active')) continue;
           results.push(el);
         } else if (sel.includes('.accordion') && el.classList && el.classList.contains('accordion')) {
           results.push(el);
@@ -1729,6 +1735,78 @@ async function runHarness() {
   assert.strictEqual(stateAfter.chkModuleFrame, stateBefore.chkModuleFrame, 'chkModuleFrame serialized state must not change during navigation');
   assert.deepStrictEqual(stateAfter, stateBefore, 'Tracked controls must not be altered merely by rail/accordion navigation');
 
+  // Stage 3.2 Check 1: Idempotency of WorkspaceController.init
+  assert.strictEqual(window.WorkspaceController._initialized, true, 'WorkspaceController._initialized must be true');
+  window.WorkspaceController.init();
+  assert.strictEqual(window.WorkspaceController._initialized, true, 'WorkspaceController.init() must be idempotent');
+
+  // Stage 3.2 Check 2: Drawer section memory on reopen (lastLeftAccId and lastRightAccId)
+  assert.strictEqual(typeof window.WorkspaceController.lastLeftAccId, 'string');
+  assert.strictEqual(typeof window.WorkspaceController.lastRightAccId, 'string');
+
+  // Test Left Drawer reopen restores last active left rail button
+  window.openAccordionById('acc-nodes');
+  assert.strictEqual(window.WorkspaceController.lastLeftAccId, 'acc-nodes');
+  assert.strictEqual(railBtnNodes.classList.contains('active'), true);
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(railBtnNodes.classList.contains('active'), false);
+  window.WorkspaceController.openLeftDrawer();
+  assert.strictEqual(railBtnNodes.classList.contains('active'), true, 'Reopening left drawer must restore active highlight for acc-nodes');
+
+  // Test Right Drawer reopen restores last active right rail button
+  window.openAccordionById('acc-camera');
+  assert.strictEqual(window.WorkspaceController.lastRightAccId, 'acc-camera');
+  assert.strictEqual(railBtnCamera.classList.contains('active'), true);
+  window.WorkspaceController.closeRightDrawer();
+  assert.strictEqual(railBtnCamera.classList.contains('active'), false);
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(railBtnCamera.classList.contains('active'), true, 'Reopening right drawer must restore active highlight for acc-camera');
+
+  // Stage 3.2 Check 3: Compact viewports (< 1440px) enforce mutual drawer exclusivity
+  global.window.innerWidth = 1280;
+  window.WorkspaceController.openLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true);
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, false, 'Right drawer must close when left drawer opens on compact viewports');
+
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true);
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false, 'Left drawer must close when right drawer opens on compact viewports');
+
+  // On desktop (>= 1440px), both drawers can open simultaneously
+  global.window.innerWidth = 1600;
+  window.WorkspaceController.openLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true);
+  assert.strictEqual(window.WorkspaceController.rightDrawerOpen, true, 'Both drawers can remain open simultaneously on desktop');
+
+  // Stage 3.2 Check 4: CSS responsive rules and focus styles verification
+  const cssSource = fs.readFileSync(path.join(__dirname, '../internal/web/static/css/style.css'), 'utf8');
+  assert.ok(cssSource.includes('@media (max-width: 480px)'), 'style.css must contain @media (max-width: 480px)');
+  assert.ok(cssSource.includes('--drawer-width: calc(100vw - var(--rail-width) * 2)'), 'style.css must contain mobile narrow drawer width');
+  assert.ok(cssSource.includes('.drawer-close-btn:focus-visible'), 'style.css must contain .drawer-close-btn:focus-visible rule');
+  assert.ok(cssSource.includes('.history-btn:focus-visible'), 'style.css must contain .history-btn:focus-visible rule');
+
+  // Stage 3.2 Check 5: Overlay sync integration
+  let stageOverlayUpdated = false;
+  let coordinatorOverlayUpdated = false;
+  const originalSyncOverlayBounds = window.Stage.syncOverlayBounds;
+  const originalUpdateActiveOverlays = window.AppCoordinator ? window.AppCoordinator.updateActiveOverlays : null;
+
+  window.Stage.syncOverlayBounds = () => { stageOverlayUpdated = true; };
+  if (window.AppCoordinator) {
+    window.AppCoordinator.updateActiveOverlays = () => { coordinatorOverlayUpdated = true; };
+  }
+
+  window.WorkspaceController._syncOverlays();
+  assert.strictEqual(stageOverlayUpdated, true, '_syncOverlays must invoke Stage.syncOverlayBounds');
+  if (originalUpdateActiveOverlays) {
+    assert.strictEqual(coordinatorOverlayUpdated, true, '_syncOverlays must invoke AppCoordinator.updateActiveOverlays');
+  }
+
+  window.Stage.syncOverlayBounds = originalSyncOverlayBounds;
+  if (window.AppCoordinator && originalUpdateActiveOverlays) {
+    window.AppCoordinator.updateActiveOverlays = originalUpdateActiveOverlays;
+  }
+
   // 11. Preservation of all 95 tracked control IDs
   assert.strictEqual(window.HistoryManager.trackedControlIds.length, 95);
   window.HistoryManager.trackedControlIds.forEach((id) => {
@@ -1777,7 +1855,7 @@ async function runHarness() {
   ];
   assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '15 script tags must be in exact dependency order');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 workspace foundation verified.');
+  console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
 }
 
 runHarness()

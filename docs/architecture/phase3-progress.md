@@ -9,7 +9,7 @@ Phase 3 transitions SVG Animator Studio from a rigid 3-column desktop layout int
 | Stage | Focus Area | Status | Architectural Health |
 | :--- | :--- | :--- | :--- |
 | **Stage 3.1** | **Workspace Foundation, Icon Rails & Sliding Drawers** | **Implemented** | 9 PASS, 1 WARNING (`ARCH-05` deferred), 0 FAIL |
-| **Stage 3.2** | Floating Contextual Property Inspectors | Planned | Preserves operational APIs |
+| **Stage 3.2** | **Workspace Interaction & Responsive Layout Refinement** | **Implemented** | 9 PASS, 1 WARNING (`ARCH-05` deferred), 0 FAIL |
 | **Stage 3.3** | Canvas HUD & Viewport Controls | Planned | Minimal non-intrusive stage controls |
 
 ---
@@ -161,3 +161,30 @@ Stage 3.1 changes were verified across multiple automated test layers:
 - **Process Protection:** The running process was not stopped, killed, restarted, or replaced.
 - **Executable & Datadir Protection:** `./svg-animator` executable was not overwritten or rebuilt; `/tmp/svg-animator-smoke` was not touched. No secondary server was launched.
 - **Verification Note:** Live in-process assets on port 8088 reflect the baseline at startup; browser-based verification requiring binary rebuild or server restart remains deferred until explicitly authorised.
+
+---
+
+## 7. Stage 3.2: Workspace Interaction & Responsive Layout Refinement
+
+### 7.1 Scope & Refinements
+Stage 3.2 refines workspace interactions and responsiveness across representative viewport widths without modifying operational state:
+1. **Responsive Viewport Profiles:**
+   - **Wide Desktop (≥ 1440px):** Both left and right drawers can remain open simultaneously.
+   - **Compact Desktop (1024px – 1439px):** Opening one drawer auto-collapses the opposite drawer to guarantee at least 550px working stage area.
+   - **Tablet & Mobile Slide-Over (< 1024px):** Drawers slide over the canvas with semi-transparent backdrop (`#drawerBackdrop`), closing upon backdrop click or `Escape`.
+   - **Mobile Narrow Viewports (< 480px):** Added `--drawer-width: calc(100vw - var(--rail-width) * 2)` to eliminate horizontal overflow on 360px–390px mobile screens while keeping rails accessible.
+2. **Drawer Section Memory & Reopen Synchronization:**
+   - `window.WorkspaceController` tracks `lastLeftAccId` (defaulting to `'acc-background'`) and `lastRightAccId` (defaulting to `'acc-playback'`).
+   - When a drawer collapses, rail active highlights are cleared.
+   - When a drawer reopens without an explicit target section, `openLeftDrawer()` and `openRightDrawer()` automatically restore the active highlight for the last active section on that side (`syncRailForAccordion(this.lastLeftAccId)` / `this.lastRightAccId`).
+3. **Controller Idempotency:**
+   - `WorkspaceController.init()` uses an internal `_initialized` guard, making repeated initialization safe and idempotent without duplicate event listeners.
+4. **Centralized Resize & Overlay Synchronization:**
+   - Window resize events call `_syncBackdrop()` and `_syncOverlays()`.
+   - `_syncOverlays()` delegates to `AppCoordinator.updateActiveOverlays()` and `Stage.syncOverlayBounds()` ensuring reticles, flight paths, and selection outlines align accurately on all viewport and drawer transitions.
+5. **Accessibility & Focus Polish:**
+   - Added explicit visible focus indicators (`:focus-visible`) for `.drawer-close-btn` and `.history-btn` (including `#btnMaximizeCanvas`).
+   - ARIA state synchronization (`aria-expanded`, `aria-hidden`) maintained across all drawer and rail transitions.
+6. **Strict Operational State Preservation:**
+   - All navigation operations remain strictly presentation-only. No effect checkboxes, timeline controls, canvas coordinates, zoom scale, selection, or tracked control states are altered.
+   - Zero history entries are generated during navigation or resize.

@@ -81,7 +81,7 @@ flowchart TD
    - `SceneState.buildFullSVG(state, overrides)` invokes `Effects.build(state)`, `Ripples.injectIntoSVG(svgString, state)`, `Glows.injectIntoSVG(svgString, width, height)`, `DataFlows.injectIntoSVG(svgString, state)`, and `DiagramNodes.injectIntoSVG(svgString, state)` in sequence.
 4. **Export XML serialization delegation:**
    - Layer 3 `SceneState.serializeSVGForExport(rawSvg)` contains no browser Web API calls (`DOMParser`/`XMLSerializer`); it delegates XML normalization and prolog injection to Layer 1 `window.SVGExportAdapter.serialize(rawSvg)`.
-5. **Workspace Foundation & Drawer State Management (Stage 3.1):**
-   - Layer 1 `window.WorkspaceController` manages drawer collapse/expansion, dual vertical icon rails, and maximized canvas mode.
-   - Stage canvas resizing triggered by drawer transitions synchronizes active overlays via `AppCoordinator.updateActiveOverlays()` both synchronously and on `transitionend`.
+5. **Workspace Foundation & Interaction Refinement (Stage 3.1 & 3.2):**
+   - Layer 1 `window.WorkspaceController` manages drawer collapse/expansion, dual vertical icon rails, section memory (`lastLeftAccId`/`lastRightAccId`), mobile responsive bounds, and maximized canvas mode.
+   - Stage canvas resizing triggered by drawer transitions and window resize events synchronizes active overlays via `AppCoordinator.updateActiveOverlays()` and `Stage.syncOverlayBounds()` both synchronously and on `transitionend`.
    - Operational modules remain completely independent of drawer presentation state.

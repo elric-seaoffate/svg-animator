@@ -22,7 +22,7 @@
   - `window.AnimatedExportStudio` provides zero-DOM export payload construction (`constructExportJobPayload`) and REST client calls (`requestBitmapRender`, `inspectAudioStream`).
 
 ## 3. Public Interface (`window.*` Globals)
-- `window.WorkspaceController` — Layer 1 workspace layout manager providing `openLeftDrawer()`, `closeLeftDrawer()`, `toggleLeftDrawer()`, `openRightDrawer()`, `closeRightDrawer()`, `toggleRightDrawer()`, `toggleMaximizedCanvas()`, `setMaximized(bool)`, `syncRailForAccordion(accId)`, `_syncBackdrop()`, `handleKeydown(e)`, and `init()`.
+- `window.WorkspaceController` — Layer 1 workspace layout manager providing `openLeftDrawer()`, `closeLeftDrawer()`, `toggleLeftDrawer()`, `openRightDrawer()`, `closeRightDrawer()`, `toggleRightDrawer()`, `toggleMaximizedCanvas()`, `setMaximized(bool)`, `syncRailForAccordion(accId)`, `_syncBackdrop()`, `_syncOverlays()`, `lastLeftAccId`, `lastRightAccId`, `_initialized`, `handleKeydown(e)`, and `init()`.
 - `window.triggerAppRender()` — Compiles the full SVG via `SceneState` and updates `#svgContainer` and stage overlays.
 - `window.buildFullSVG(state, overrides)` — Builds the complete SVG markup string from a render state object and optional layer overrides (`includeNodes`, `includeFlows`, `includeGlows`, `includeRipples`).
 - `window.serializeSVGForExport(rawSvg)` — Ensures explicit XML declaration, `xmlns:xlink`, and `xlink:href` attributes on an SVG string (delegates to `SVGExportAdapter.serialize`).

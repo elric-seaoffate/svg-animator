@@ -93,6 +93,11 @@ header h1 {
   color: #ffffff;
 }
 
+.history-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 1px;
+}
+
 .history-btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
@@ -315,6 +320,11 @@ header h1 {
 .drawer-close-btn:hover {
   color: var(--text-main);
   border-color: var(--accent-blue);
+}
+
+.drawer-close-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 1px;
 }
 
 .drawer .panel {
@@ -948,6 +958,13 @@ body.editing-flow #flightLine {
   .stage {
     width: calc(100% - var(--rail-width) * 2);
     min-width: 0;
+  }
+}
+
+/* Mobile Narrow Viewports (< 480px) */
+@media (max-width: 480px) {
+  :root {
+    --drawer-width: calc(100vw - var(--rail-width) * 2);
   }
 }
 

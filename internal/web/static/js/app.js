@@ -158,6 +158,9 @@ window.WorkspaceController = {
   isMaximized: false,
   savedLeftState: true,
   savedRightState: true,
+  lastLeftAccId: 'acc-background',
+  lastRightAccId: 'acc-playback',
+  _initialized: false,
 
   toggleLeftDrawer() {
     if (this.leftDrawerOpen) this.closeLeftDrawer();
@@ -184,6 +187,13 @@ window.WorkspaceController = {
     if (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 1440 && this.rightDrawerOpen) {
       this.closeRightDrawer();
     }
+
+    // If no left rail button is currently highlighted, restore highlight for last active section
+    const activeLeftBtn = document.querySelector ? document.querySelector('.icon-rail-left .icon-rail-btn.active') : null;
+    if (!activeLeftBtn && this.lastLeftAccId) {
+      this.syncRailForAccordion(this.lastLeftAccId);
+    }
+
     this._syncOverlays();
     this._syncBackdrop();
   },
@@ -243,6 +253,12 @@ window.WorkspaceController = {
     if (typeof window !== 'undefined' && window.innerWidth && window.innerWidth < 1440 && this.leftDrawerOpen) {
       this.closeLeftDrawer();
     }
+
+    const activeRightBtn = document.querySelector ? document.querySelector('.icon-rail-right .icon-rail-btn.active') : null;
+    if (!activeRightBtn && this.lastRightAccId) {
+      this.syncRailForAccordion(this.lastRightAccId);
+    }
+
     this._syncOverlays();
     this._syncBackdrop();
   },
@@ -317,6 +333,12 @@ window.WorkspaceController = {
   },
 
   syncRailForAccordion(accId) {
+    if (!accId) return;
+    const isLeftSection = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples'].includes(accId);
+    const isRightSection = ['acc-playback', 'acc-camera', 'acc-optics', 'acc-frame', 'acc-export'].includes(accId);
+    if (isLeftSection) this.lastLeftAccId = accId;
+    if (isRightSection) this.lastRightAccId = accId;
+
     document.querySelectorAll('.icon-rail-left .icon-rail-btn[data-target-acc]').forEach((btn) => {
       const match = btn.getAttribute('data-target-acc') === accId;
       btn.classList.toggle('active', match);
@@ -356,6 +378,9 @@ window.WorkspaceController = {
   },
 
   init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
     const btnCollapseL = document.getElementById('btnCollapseLeftDrawer');
     if (btnCollapseL) btnCollapseL.addEventListener('click', () => this.toggleLeftDrawer());
 
@@ -413,6 +438,7 @@ window.WorkspaceController = {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', () => {
         this._syncBackdrop();
+        this._syncOverlays();
       });
     }
 
