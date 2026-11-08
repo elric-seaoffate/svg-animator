@@ -368,6 +368,8 @@ window.DiagramNodes = {
     if (!node) return;
     const editor = document.getElementById('nodeEditor');
     if (editor) editor.style.display = 'block';
+    const empty = document.getElementById('emptyNodeSelection');
+    if (empty) empty.style.display = 'none';
 
     const lbl = document.getElementById('editingNodeLabel');
     if (lbl) lbl.innerText = 'Editing Shape ' + node.id;
@@ -440,6 +442,8 @@ window.DiagramNodes = {
     document.body.classList.remove('editing-flow');
     const ed = document.getElementById('nodeEditor');
     if (ed) ed.style.display = 'none';
+    const empty = document.getElementById('emptyNodeSelection');
+    if (empty) empty.style.display = 'block';
     const selBox = document.getElementById('nodeSelectionBox');
     if (selBox) selBox.style.display = 'none';
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'node' && !window.AppCoordinator._isCoordinatingSelection) {
@@ -512,24 +516,47 @@ window.DiagramNodes = {
   renderList() {
     const container = document.getElementById('nodeListContainer');
     if (!container) return;
+    const emptyEl = document.getElementById('emptyNodeSelection');
     if (this.list.length === 0) {
       container.innerHTML = '<div class="stage-hint">No shapes or text boxes active.</div>';
+      if (emptyEl) emptyEl.innerHTML = 'No shapes created. Click <strong>+ Add</strong> above to add one.';
       return;
     }
+    if (emptyEl && !this.activeId) {
+      emptyEl.innerHTML = 'Select a shape to view and edit its properties, or click <strong>+ Add</strong> above.';
+    }
     container.innerHTML = '';
+    const shapeIcons = {
+      rounded: '▢',
+      rect: '▭',
+      pill: '⬭',
+      textbox: 'T',
+      callout: '💬',
+      diamond: '◇',
+      hexagon: '⬡',
+      parallelogram: '▱',
+      cylinder: '🗄',
+      cloud: '☁',
+      circle: '○',
+      axes: '┼'
+    };
     this.list.forEach((node) => {
       const eff = this.getNodeEffectiveProps(node);
+      const isSel = (this.activeId === node.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === node.id ? ' selected' : '');
-      div.style.borderLeftColor = eff.strokeColor;
-      const labelPreview = (node.text || ('Node ' + node.id)).split('|')[0].substring(0, 15);
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.style.borderLeftColor = eff.strokeColor || '#58a6ff';
+      const icon = shapeIcons[node.shape] || '▢';
+      const labelText = (node.text || ('Node ' + node.id)).split('|')[0];
+      const safeLabel = this.escapeXML(labelText);
+
       div.innerHTML =
-        '<span>' + this.escapeXML(labelPreview) +
-        ' <small style="color:#8b949e; font-family:monospace;">(' + node.shape + ' &bull; ' + eff.width + '&times;' + eff.height + ')</small></span>' +
-        '<div style="display:flex; gap:0.35rem; align-items:center;">' +
-        '<button type="button" title="Snap this shape to active Preset settings" style="background:rgba(137,87,229,0.22); border:1px solid rgba(163,113,247,0.5); color:#d2a8ff; padding:0.12rem 0.38rem; font-size:0.68rem; border-radius:4px; cursor:pointer;" onclick="window.DiagramNodes.selectNode(' + node.id + '); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡ Preset</button>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer; padding:0.1rem 0.25rem;" onclick="window.DiagramNodes.removeNode(' + node.id + '); event.stopPropagation();">X</button>' +
-        '</div>';
+        '<span class="instance-icon" style="color:' + (eff.strokeColor || '#58a6ff') + ';" title="' + this.escapeXML(node.shape) + '">' + icon + '</span>' +
+        '<span class="instance-label" title="' + safeLabel + '">' + safeLabel + '</span>' +
+        '<span class="compact-meta">' + eff.width + '&times;' + eff.height + '</span>' +
+        '<button type="button" class="btn-row-action btn-row-preset" title="Snap this shape to active Preset settings" onclick="window.DiagramNodes.selectNode(' + node.id + '); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡</button>' +
+        '<button type="button" class="btn-row-action btn-row-delete" title="Delete shape" onclick="window.DiagramNodes.removeNode(' + node.id + '); event.stopPropagation();">&times;</button>';
+
       div.onclick = () => this.selectNode(node.id);
       container.appendChild(div);
     });

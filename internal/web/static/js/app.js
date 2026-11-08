@@ -162,6 +162,79 @@ window.WorkspaceController = {
   lastRightAccId: 'acc-playback',
   _initialized: false,
 
+  toolTitles: {
+    'acc-background': 'Canvas & Background',
+    'acc-nodes': 'Diagram Shapes & Text',
+    'acc-presets': 'Shape Presets',
+    'acc-flows': 'Data Flows & Connectors',
+    'acc-glows': 'Hotspots & Glows',
+    'acc-ripples': 'Water Ripples',
+    'acc-playback': 'Scene & Timeline',
+    'acc-camera': 'Camera Rig & Motion',
+    'acc-optics': 'Optical Effects',
+    'acc-frame': 'Presentation Frame',
+    'acc-export': 'Export & Render Studio'
+  },
+
+  showToolPanel(toolId) {
+    if (!toolId) return;
+    const isLeft = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples'].includes(toolId);
+    const isRight = ['acc-playback', 'acc-camera', 'acc-optics', 'acc-frame', 'acc-export'].includes(toolId);
+    if (!isLeft && !isRight) return;
+
+    if (isLeft) {
+      this.lastLeftAccId = toolId;
+      if (!this.leftDrawerOpen) this.openLeftDrawer();
+
+      const titleEl = document.getElementById('leftDrawerTitle');
+      if (titleEl && this.toolTitles[toolId]) {
+        titleEl.textContent = this.toolTitles[toolId];
+      }
+
+      const objectTools = ['acc-nodes', 'acc-flows', 'acc-glows', 'acc-ripples'];
+      const leftDrawer = document.getElementById('leftDrawer');
+      if (leftDrawer && leftDrawer.classList) {
+        leftDrawer.classList.toggle('expanded-inspector', objectTools.includes(toolId));
+      }
+
+      const leftSections = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples'];
+      leftSections.forEach((secId) => {
+        const sec = document.getElementById(secId);
+        if (sec && sec.classList) {
+          const match = (secId === toolId);
+          sec.classList.toggle('active-tool', match);
+          sec.classList.toggle('open', match);
+        }
+      });
+      this.syncRailForAccordion(toolId);
+    } else if (isRight) {
+      this.lastRightAccId = toolId;
+      if (!this.rightDrawerOpen) this.openRightDrawer();
+
+      const titleEl = document.getElementById('rightDrawerTitle');
+      if (titleEl && this.toolTitles[toolId]) {
+        titleEl.textContent = this.toolTitles[toolId];
+      }
+
+      const domSectionId = (toolId === 'acc-frame') ? 'acc-optics' : toolId;
+      const rightSections = ['acc-playback', 'acc-camera', 'acc-optics', 'acc-export'];
+      rightSections.forEach((secId) => {
+        const sec = document.getElementById(secId);
+        if (sec && sec.classList) {
+          const match = (secId === domSectionId);
+          sec.classList.toggle('active-tool', match);
+          sec.classList.toggle('open', match);
+          if (secId === 'acc-optics') {
+            sec.classList.toggle('show-optics', toolId === 'acc-optics');
+            sec.classList.toggle('show-frame', toolId === 'acc-frame');
+          }
+        }
+      });
+      this.syncRailForAccordion(toolId);
+    }
+    this._syncOverlays();
+  },
+
   toggleLeftDrawer() {
     if (this.leftDrawerOpen) this.closeLeftDrawer();
     else this.openLeftDrawer();
@@ -188,10 +261,8 @@ window.WorkspaceController = {
       this.closeRightDrawer();
     }
 
-    // If no left rail button is currently highlighted, restore highlight for last active section
-    const activeLeftBtn = document.querySelector ? document.querySelector('.icon-rail-left .icon-rail-btn.active') : null;
-    if (!activeLeftBtn && this.lastLeftAccId) {
-      this.syncRailForAccordion(this.lastLeftAccId);
+    if (this.lastLeftAccId) {
+      this.showToolPanel(this.lastLeftAccId);
     }
 
     this._syncOverlays();
@@ -208,6 +279,7 @@ window.WorkspaceController = {
 
     if (drawer) {
       drawer.classList.add('collapsed');
+      drawer.classList.remove('expanded-inspector');
       drawer.setAttribute('aria-hidden', 'true');
     }
     if (toggleBtn) {
@@ -254,9 +326,8 @@ window.WorkspaceController = {
       this.closeLeftDrawer();
     }
 
-    const activeRightBtn = document.querySelector ? document.querySelector('.icon-rail-right .icon-rail-btn.active') : null;
-    if (!activeRightBtn && this.lastRightAccId) {
-      this.syncRailForAccordion(this.lastRightAccId);
+    if (this.lastRightAccId) {
+      this.showToolPanel(this.lastRightAccId);
     }
 
     this._syncOverlays();
@@ -273,6 +344,7 @@ window.WorkspaceController = {
 
     if (drawer) {
       drawer.classList.add('collapsed');
+      drawer.classList.remove('expanded-inspector');
       drawer.setAttribute('aria-hidden', 'true');
     }
     if (toggleBtn) {
@@ -396,6 +468,15 @@ window.WorkspaceController = {
     const btnMax = document.getElementById('btnMaximizeCanvas');
     if (btnMax) btnMax.addEventListener('click', () => this.toggleMaximizedCanvas());
 
+    const btnHdrExport = document.getElementById('btnHeaderExport');
+    if (btnHdrExport) {
+      btnHdrExport.addEventListener('click', () => {
+        if (typeof window.openAccordionById === 'function') {
+          window.openAccordionById('acc-export');
+        }
+      });
+    }
+
     const backdrop = document.getElementById('drawerBackdrop');
     if (backdrop) {
       backdrop.addEventListener('click', () => {
@@ -417,16 +498,13 @@ window.WorkspaceController = {
           return;
         }
 
-        if (!isCurrentlyOpen) {
-          if (isLeft) this.openLeftDrawer();
-          else this.openRightDrawer();
-        }
-
-        if (typeof window.openAccordionById === 'function') {
-          window.openAccordionById(targetAcc);
-        }
+        this.showToolPanel(targetAcc);
       });
     });
+
+    // Initialize default active tool panels
+    this.showToolPanel(this.lastLeftAccId);
+    this.showToolPanel(this.lastRightAccId);
 
     ['leftDrawer', 'rightDrawer'].forEach((id) => {
       const el = document.getElementById(id);
@@ -503,39 +581,13 @@ window.openAccordionById = function(accId) {
   let targetId = accId;
   if (accId === 'acc-duration') targetId = 'acc-playback';
   if (accId === 'acc-optical') targetId = 'acc-optics';
-  if (accId === 'acc-frame') targetId = 'acc-optics';
 
-  if (typeof document === 'undefined') return;
-  const section = document.getElementById(targetId);
-  if (!section) return;
-
-  // Open parent drawer if collapsed
-  const leftDrawer = document.getElementById('leftDrawer');
-  const rightDrawer = document.getElementById('rightDrawer');
-  if (leftDrawer && leftDrawer.contains && leftDrawer.contains(section)) {
-    if (window.WorkspaceController && !window.WorkspaceController.leftDrawerOpen) {
-      window.WorkspaceController.openLeftDrawer();
-    }
-  } else if (rightDrawer && rightDrawer.contains && rightDrawer.contains(section)) {
-    if (window.WorkspaceController && !window.WorkspaceController.rightDrawerOpen) {
-      window.WorkspaceController.openRightDrawer();
-    }
+  if (window.WorkspaceController && typeof window.WorkspaceController.showToolPanel === 'function') {
+    window.WorkspaceController.showToolPanel(targetId);
+  } else {
+    const section = document.getElementById((targetId === 'acc-frame') ? 'acc-optics' : targetId);
+    if (section && section.classList) section.classList.add('open');
   }
-
-  const railSyncTarget = (accId === 'acc-frame') ? 'acc-frame' : targetId;
-  if (window.WorkspaceController && typeof window.WorkspaceController.syncRailForAccordion === 'function') {
-    window.WorkspaceController.syncRailForAccordion(railSyncTarget);
-  }
-
-  const panel = section.closest ? section.closest('.panel') : null;
-  const soloChk = document.getElementById('chkSoloPanels');
-  const soloMode = soloChk ? soloChk.checked : false;
-  if (soloMode && panel && panel.querySelectorAll) {
-    panel.querySelectorAll('.accordion-section.open').forEach((other) => {
-      if (other !== section && other.classList) other.classList.remove('open');
-    });
-  }
-  if (section.classList) section.classList.add('open');
 
   if (accId === 'acc-frame') {
     const chkFrame = document.getElementById('chkModuleFrame');
@@ -548,9 +600,12 @@ window.openAccordionById = function(accId) {
     }
   }
 
-  try {
-    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (_) {}
+  const section = document.getElementById((targetId === 'acc-frame') ? 'acc-optics' : targetId);
+  if (section && typeof section.scrollIntoView === 'function') {
+    try {
+      section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (_) {}
+  }
 };
 
 window.toggleAllAccordions = function(panelId, expand) {
@@ -565,6 +620,21 @@ window.toggleAllAccordions = function(panelId, expand) {
     panel.querySelectorAll('.accordion-section').forEach((sec) => {
       if (sec.classList) sec.classList.toggle('open', expand);
     });
+  }
+  if (window.WorkspaceController && typeof window.WorkspaceController.syncRailForAccordion === 'function') {
+    const isLeft = (panelId === 'inputPanel');
+    const railSel = isLeft ? '.icon-rail-left' : '.icon-rail-right';
+    if (!expand) {
+      document.querySelectorAll(`${railSel} .icon-rail-btn:not(.icon-rail-toggle)`).forEach((btn) => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    } else {
+      const firstOpen = panel.querySelector ? panel.querySelector('.accordion-section.open') : null;
+      if (firstOpen && firstOpen.id) {
+        window.WorkspaceController.syncRailForAccordion(firstOpen.id);
+      }
+    }
   }
 };
 
@@ -620,17 +690,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.accordion-header').forEach((header) => {
       header.addEventListener('click', () => {
         const section = header.parentElement;
-        const panel = section.closest('.panel');
-        const isOpen = section.classList.contains('open');
-        const soloChk = document.getElementById('chkSoloPanels');
-        const soloMode = soloChk ? soloChk.checked : false;
-
-        if (!isOpen && soloMode && panel) {
-          panel.querySelectorAll('.accordion-section.open').forEach((other) => {
-            if (other !== section) other.classList.remove('open');
-          });
+        if (!section) return;
+        if (window.WorkspaceController && typeof window.WorkspaceController.showToolPanel === 'function') {
+          window.WorkspaceController.showToolPanel(section.id);
+        } else {
+          section.classList.toggle('open');
         }
-        section.classList.toggle('open', !isOpen);
       });
     });
   }

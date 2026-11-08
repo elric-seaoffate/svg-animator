@@ -6,6 +6,7 @@
 ## 2. Responsibilities by Layer
 - **Layer 1 (UI Presentation — `app.js`, `still-export-modal.js`, `export-modal.js`):**
   - Workspace layout management (`window.WorkspaceController`): dual vertical icon rails, independently collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`), responsive drawer backdrop (`#drawerBackdrop`), safe focus restoration on drawer collapse, maximized canvas mode (`#btnMaximizeCanvas` / `Shift+Space`), and keyboard shortcuts (`T`, `N`, `Shift+Space`, `Escape`).
+  - True contextual tool panels and expanded inspector layout: `showToolPanel(toolId)` displays only the active tool panel and toggles `.expanded-inspector` on `#leftDrawer` for repeatable object tools (`acc-nodes`, `acc-flows`, `acc-glows`, `acc-ripples`) on wide desktop viewports (>= 1280px) to house the master-detail inspector without crowding the central stage.
   - Accordion expand/collapse (`window.openAccordionById`, `window.toggleAllAccordions`), automatically un-collapsing parent drawers when needed, disambiguating Optics vs. Frame rail buttons, and strictly preserving operational project state without side-effect mutations.
   - Paired `*Slider` and `*Num` synchronization and `#canvasBgColorPicker`/`#canvasGridColorPicker` bindings.
   - Photo upload dropzone (`#uploadDrop`, `#fileInput`) and interactive photo crop mode (`#btnDragPhotoCrop`).
@@ -22,7 +23,7 @@
   - `window.AnimatedExportStudio` provides zero-DOM export payload construction (`constructExportJobPayload`) and REST client calls (`requestBitmapRender`, `inspectAudioStream`).
 
 ## 3. Public Interface (`window.*` Globals)
-- `window.WorkspaceController` — Layer 1 workspace layout manager providing `openLeftDrawer()`, `closeLeftDrawer()`, `toggleLeftDrawer()`, `openRightDrawer()`, `closeRightDrawer()`, `toggleRightDrawer()`, `toggleMaximizedCanvas()`, `setMaximized(bool)`, `syncRailForAccordion(accId)`, `_syncBackdrop()`, `_syncOverlays()`, `lastLeftAccId`, `lastRightAccId`, `_initialized`, `handleKeydown(e)`, and `init()`.
+- `window.WorkspaceController` — Layer 1 workspace layout manager providing `showToolPanel(toolId)`, `toolTitles`, `openLeftDrawer()`, `closeLeftDrawer()`, `toggleLeftDrawer()`, `openRightDrawer()`, `closeRightDrawer()`, `toggleRightDrawer()`, `toggleMaximizedCanvas()`, `setMaximized(bool)`, `syncRailForAccordion(accId)`, `_syncBackdrop()`, `_syncOverlays()`, `lastLeftAccId`, `lastRightAccId`, `_initialized`, `handleKeydown(e)`, and `init()`.
 - `window.triggerAppRender()` — Compiles the full SVG via `SceneState` and updates `#svgContainer` and stage overlays.
 - `window.buildFullSVG(state, overrides)` — Builds the complete SVG markup string from a render state object and optional layer overrides (`includeNodes`, `includeFlows`, `includeGlows`, `includeRipples`).
 - `window.serializeSVGForExport(rawSvg)` — Ensures explicit XML declaration, `xmlns:xlink`, and `xlink:href` attributes on an SVG string (delegates to `SVGExportAdapter.serialize`).

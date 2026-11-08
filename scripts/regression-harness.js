@@ -1450,25 +1450,38 @@ async function runHarness() {
   const btnMaxCanvas = document.getElementById('btnMaximizeCanvas');
   const inputPanelEl = document.getElementById('inputPanel');
   const settingsPanelEl = document.getElementById('settingsPanel');
+  const accBackgroundEl = document.getElementById('acc-background');
   const accNodesEl = document.getElementById('acc-nodes');
   const accCameraEl = document.getElementById('acc-camera');
   const accOpticsEl = document.getElementById('acc-optics');
+  const accExportEl = document.getElementById('acc-export');
   const groupFrameEl = document.getElementById('groupFrame');
   const chkModuleFrame = document.getElementById('chkModuleFrame');
+  const subpanelOpticsEl = document.getElementById('subpanelOptics');
+  const subpanelFrameEl = document.getElementById('subpanelFrame');
   const drawerBackdropEl = document.getElementById('drawerBackdrop');
+  const railBtnBackground = document.getElementById('railBtn-background');
   const railBtnNodes = document.getElementById('railBtn-nodes');
   const railBtnCamera = document.getElementById('railBtn-camera');
   const railBtnOptics = document.getElementById('railBtn-optics');
   const railBtnFrame = document.getElementById('railBtn-frame');
+  const railBtnExport = document.getElementById('railBtn-export');
 
   // Hierarchy setup
   leftDrawerEl.appendChild(inputPanelEl);
+  inputPanelEl.appendChild(accBackgroundEl);
   inputPanelEl.appendChild(accNodesEl);
   rightDrawerEl.appendChild(settingsPanelEl);
   settingsPanelEl.appendChild(accCameraEl);
   settingsPanelEl.appendChild(accOpticsEl);
-  accOpticsEl.appendChild(groupFrameEl);
+  settingsPanelEl.appendChild(accExportEl);
+  accOpticsEl.appendChild(subpanelOpticsEl);
+  accOpticsEl.appendChild(subpanelFrameEl);
+  subpanelFrameEl.appendChild(chkModuleFrame);
+  subpanelFrameEl.appendChild(groupFrameEl);
 
+  railBtnBackground.setAttribute('data-target-acc', 'acc-background');
+  railBtnBackground.classList.add('icon-rail-btn');
   railBtnNodes.setAttribute('data-target-acc', 'acc-nodes');
   railBtnNodes.classList.add('icon-rail-btn');
   railBtnCamera.setAttribute('data-target-acc', 'acc-camera');
@@ -1477,12 +1490,22 @@ async function runHarness() {
   railBtnOptics.classList.add('icon-rail-btn');
   railBtnFrame.setAttribute('data-target-acc', 'acc-frame');
   railBtnFrame.classList.add('icon-rail-btn');
+  railBtnExport.setAttribute('data-target-acc', 'acc-export');
+  railBtnExport.classList.add('icon-rail-btn');
+  accBackgroundEl.classList.add('accordion');
+  accBackgroundEl.classList.add('accordion-section');
   accNodesEl.classList.add('accordion');
+  accNodesEl.classList.add('accordion-section');
   accCameraEl.classList.add('accordion');
+  accCameraEl.classList.add('accordion-section');
   accOpticsEl.classList.add('accordion');
+  accOpticsEl.classList.add('accordion-section');
+  accExportEl.classList.add('accordion');
+  accExportEl.classList.add('accordion-section');
 
   const leftRailEl = makeStubElement('leftRail');
   leftRailEl.classList.add('icon-rail-left');
+  leftRailEl.appendChild(railBtnBackground);
   leftRailEl.appendChild(railBtnNodes);
   controlElements.set('leftRail', leftRailEl);
 
@@ -1491,6 +1514,7 @@ async function runHarness() {
   rightRailEl.appendChild(railBtnCamera);
   rightRailEl.appendChild(railBtnOptics);
   rightRailEl.appendChild(railBtnFrame);
+  rightRailEl.appendChild(railBtnExport);
   controlElements.set('rightRail', rightRailEl);
 
   // Initialize WorkspaceController to bind backdrop and controls
@@ -1744,23 +1768,36 @@ async function runHarness() {
   assert.strictEqual(typeof window.WorkspaceController.lastLeftAccId, 'string');
   assert.strictEqual(typeof window.WorkspaceController.lastRightAccId, 'string');
 
-  // Test Left Drawer reopen restores last active left rail button
+  // Test Left Drawer reopen restores last active left rail button and expands section
   window.openAccordionById('acc-nodes');
   assert.strictEqual(window.WorkspaceController.lastLeftAccId, 'acc-nodes');
   assert.strictEqual(railBtnNodes.classList.contains('active'), true);
   window.WorkspaceController.closeLeftDrawer();
   assert.strictEqual(railBtnNodes.classList.contains('active'), false);
+  accNodesEl.classList.remove('open');
   window.WorkspaceController.openLeftDrawer();
   assert.strictEqual(railBtnNodes.classList.contains('active'), true, 'Reopening left drawer must restore active highlight for acc-nodes');
+  assert.strictEqual(accNodesEl.classList.contains('open'), true, 'Reopening left drawer must expand remembered accordion section');
 
-  // Test Right Drawer reopen restores last active right rail button
+  // Test Right Drawer reopen restores last active right rail button and expands section
   window.openAccordionById('acc-camera');
   assert.strictEqual(window.WorkspaceController.lastRightAccId, 'acc-camera');
   assert.strictEqual(railBtnCamera.classList.contains('active'), true);
   window.WorkspaceController.closeRightDrawer();
   assert.strictEqual(railBtnCamera.classList.contains('active'), false);
+  accCameraEl.classList.remove('open');
   window.WorkspaceController.openRightDrawer();
   assert.strictEqual(railBtnCamera.classList.contains('active'), true, 'Reopening right drawer must restore active highlight for acc-camera');
+  assert.strictEqual(accCameraEl.classList.contains('open'), true, 'Reopening right drawer must expand remembered accordion section');
+
+  // Test acc-frame reopening ensures acc-optics is open in DOM
+  window.openAccordionById('acc-frame');
+  assert.strictEqual(window.WorkspaceController.lastRightAccId, 'acc-frame');
+  window.WorkspaceController.closeRightDrawer();
+  accOpticsEl.classList.remove('open');
+  window.WorkspaceController.openRightDrawer();
+  assert.strictEqual(accOpticsEl.classList.contains('open'), true, 'Reopening right drawer with acc-frame must expand acc-optics in DOM');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true);
 
   // Stage 3.2 Check 3: Compact viewports (< 1440px) enforce mutual drawer exclusivity
   global.window.innerWidth = 1280;
@@ -1780,10 +1817,13 @@ async function runHarness() {
 
   // Stage 3.2 Check 4: CSS responsive rules and focus styles verification
   const cssSource = fs.readFileSync(path.join(__dirname, '../internal/web/static/css/style.css'), 'utf8');
+  assert.ok(cssSource.includes('@media (max-width: 1023px)'), 'style.css must contain @media (max-width: 1023px)');
+  assert.ok(cssSource.includes('@media (max-width: 767px)'), 'style.css must contain @media (max-width: 767px)');
   assert.ok(cssSource.includes('@media (max-width: 480px)'), 'style.css must contain @media (max-width: 480px)');
   assert.ok(cssSource.includes('--drawer-width: calc(100vw - var(--rail-width) * 2)'), 'style.css must contain mobile narrow drawer width');
   assert.ok(cssSource.includes('.drawer-close-btn:focus-visible'), 'style.css must contain .drawer-close-btn:focus-visible rule');
   assert.ok(cssSource.includes('.history-btn:focus-visible'), 'style.css must contain .history-btn:focus-visible rule');
+  assert.ok(htmlSource.includes('id="btnHeaderExport"'), 'index.html must contain btnHeaderExport in header');
 
   // Stage 3.2 Check 5: Overlay sync integration
   let stageOverlayUpdated = false;
@@ -1806,6 +1846,193 @@ async function runHarness() {
   if (window.AppCoordinator && originalUpdateActiveOverlays) {
     window.AppCoordinator.updateActiveOverlays = originalUpdateActiveOverlays;
   }
+
+  // ===========================================================================
+  // Stage 3.3 Contextual Tool Panels Verification
+  // ===========================================================================
+  assert.strictEqual(typeof window.WorkspaceController.showToolPanel, 'function', 'showToolPanel must be a public method');
+  assert.strictEqual(typeof window.WorkspaceController.toolTitles, 'object', 'toolTitles dictionary must be defined');
+
+  // 1. Selecting tool displays only its panel with active-tool class and hides others
+  window.WorkspaceController.showToolPanel('acc-nodes');
+  assert.strictEqual(accNodesEl.classList.contains('active-tool'), true, 'acc-nodes must be active tool');
+  assert.strictEqual(accBackgroundEl.classList.contains('active-tool'), false, 'acc-background must be inactive');
+  assert.strictEqual(railBtnNodes.classList.contains('active'), true, 'railBtnNodes must be active');
+  assert.strictEqual(railBtnBackground.classList.contains('active'), false, 'railBtnBackground must be inactive');
+  assert.strictEqual(document.getElementById('leftDrawerTitle').textContent, 'Diagram Shapes & Text');
+
+  // 2. Switching tool in same drawer replaces the visible panel
+  window.WorkspaceController.showToolPanel('acc-background');
+  assert.strictEqual(accBackgroundEl.classList.contains('active-tool'), true, 'acc-background must become active tool');
+  assert.strictEqual(accNodesEl.classList.contains('active-tool'), false, 'acc-nodes must be deactivated');
+  assert.strictEqual(railBtnBackground.classList.contains('active'), true);
+  assert.strictEqual(railBtnNodes.classList.contains('active'), false);
+  assert.strictEqual(document.getElementById('leftDrawerTitle').textContent, 'Canvas & Background');
+
+  // 3. Optics and Frame separation inside acc-optics
+  window.WorkspaceController.showToolPanel('acc-optics');
+  assert.strictEqual(accOpticsEl.classList.contains('active-tool'), true, 'acc-optics must be active-tool');
+  assert.strictEqual(accOpticsEl.classList.contains('show-optics'), true, 'acc-optics must have show-optics');
+  assert.strictEqual(accOpticsEl.classList.contains('show-frame'), false, 'acc-optics must not have show-frame when optics active');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true, 'railBtnOptics must be active');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), false, 'railBtnFrame must be inactive');
+  assert.strictEqual(document.getElementById('rightDrawerTitle').textContent, 'Optical Effects');
+  assert.strictEqual(chkModuleFrame.checked, false, 'chkModuleFrame must remain untouched');
+
+  window.WorkspaceController.showToolPanel('acc-frame');
+  assert.strictEqual(accOpticsEl.classList.contains('active-tool'), true, 'acc-optics must remain active-tool for frame');
+  assert.strictEqual(accOpticsEl.classList.contains('show-frame'), true, 'acc-optics must have show-frame');
+  assert.strictEqual(accOpticsEl.classList.contains('show-optics'), false, 'acc-optics must not have show-optics when frame active');
+  assert.strictEqual(railBtnFrame.classList.contains('active'), true, 'railBtnFrame must be active');
+  assert.strictEqual(railBtnOptics.classList.contains('active'), false, 'railBtnOptics must be inactive');
+  assert.strictEqual(document.getElementById('rightDrawerTitle').textContent, 'Presentation Frame');
+  assert.strictEqual(chkModuleFrame.checked, false, 'chkModuleFrame must remain untouched');
+
+  // 4. Programmatic navigation compatibility via openAccordionById
+  window.openAccordionById('acc-export');
+  assert.strictEqual(accExportEl.classList.contains('active-tool'), true, 'openAccordionById(acc-export) must activate acc-export tool');
+  assert.strictEqual(railBtnExport.classList.contains('active'), true);
+  assert.strictEqual(document.getElementById('rightDrawerTitle').textContent, 'Export & Render Studio');
+
+  window.openAccordionById('acc-optical');
+  assert.strictEqual(accOpticsEl.classList.contains('active-tool'), true);
+  assert.strictEqual(accOpticsEl.classList.contains('show-optics'), true);
+  assert.strictEqual(railBtnOptics.classList.contains('active'), true);
+
+  // 5. CSS Contextual Panel Rules verified in stylesheet
+  assert.ok(cssSource.includes('.drawer .panel > .accordion-section.active-tool'), 'style.css must contain .drawer .panel > .accordion-section.active-tool');
+  assert.ok(cssSource.includes('.drawer .panel-toolbar'), 'style.css must hide .panel-toolbar in contextual mode');
+  assert.ok(cssSource.includes('#acc-optics.active-tool.show-optics #subpanelOptics'), 'style.css must contain Optics subpanel rule');
+  assert.ok(cssSource.includes('#acc-optics.active-tool.show-frame #subpanelFrame'), 'style.css must contain Frame subpanel rule');
+  assert.ok(htmlSource.includes('id="subpanelOptics"'), 'index.html must contain subpanelOptics');
+  assert.ok(htmlSource.includes('id="subpanelFrame"'), 'index.html must contain subpanelFrame');
+
+  // ===========================================================================
+  // Stage 3.4 Compact Instance Lists & Split Properties Inspector Verification
+  // ===========================================================================
+
+  // 1. Structure Verification: HTML markup contains split layout and empty state placeholders
+  assert.ok(htmlSource.includes('class="inspector-split-layout"'), 'index.html must contain .inspector-split-layout');
+  assert.ok(htmlSource.includes('class="inspector-master-column"'), 'index.html must contain .inspector-master-column');
+  assert.ok(htmlSource.includes('class="inspector-detail-column"'), 'index.html must contain .inspector-detail-column');
+  assert.ok(htmlSource.includes('id="emptyNodeSelection"'), 'index.html must contain emptyNodeSelection');
+  assert.ok(htmlSource.includes('id="emptyFlowSelection"'), 'index.html must contain emptyFlowSelection');
+  assert.ok(htmlSource.includes('id="emptyGlowSelection"'), 'index.html must contain emptyGlowSelection');
+  assert.ok(htmlSource.includes('id="emptyRippleSelection"'), 'index.html must contain emptyRippleSelection');
+  assert.ok(htmlSource.includes('id="btnAddNode"'), 'index.html must contain btnAddNode');
+  assert.ok(htmlSource.includes('id="btnAddFlow"'), 'index.html must contain btnAddFlow');
+  assert.ok(htmlSource.includes('id="btnAddGlow"'), 'index.html must contain btnAddGlow');
+  assert.ok(htmlSource.includes('id="btnAddRipple"'), 'index.html must contain btnAddRipple');
+
+  // 2. CSS Verification: Stylesheet defines compact rows, scrollable lists, equal-width 50/50 split, and expanded drawer
+  assert.ok(cssSource.includes('.flow-list-item.compact-instance-row'), 'style.css must contain .flow-list-item.compact-instance-row');
+  assert.ok(cssSource.includes('.compact-instance-list'), 'style.css must contain .compact-instance-list');
+  assert.ok(cssSource.includes('.drawer.left-drawer.expanded-inspector'), 'style.css must contain .expanded-inspector');
+  assert.ok(cssSource.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);'), 'style.css must contain 50/50 equal-width split grid');
+  assert.ok(cssSource.includes('.control-grid-2col'), 'style.css must contain .control-grid-2col');
+  assert.ok(cssSource.includes('#nodeEditor select'), 'style.css must contain scoped compact input rules');
+
+  // 3. DiagramNodes Compact List & Properties Inspector Lifecycle
+  const nodeEd = document.getElementById('nodeEditor');
+  const nodeEmpty = document.getElementById('emptyNodeSelection');
+  const nListCont = document.getElementById('nodeListContainer');
+
+  const testNode1 = window.DiagramNodes.createNode({ text: 'Gateway Service', width: 200, shape: 'cylinder' });
+  const testNode2 = window.DiagramNodes.createNode({ text: 'Auth Cache', width: 180, shape: 'cloud' });
+  window.DiagramNodes.renderList();
+  assert.ok(nListCont.children.length >= 2, 'nodeListContainer must contain compact rows for created nodes');
+
+  // Selecting a node displays properties and hides empty state without recording history
+  const histBeforeSelect = window.HistoryManager.undoStack ? window.HistoryManager.undoStack.length : 0;
+  window.DiagramNodes.selectNode(testNode1.id);
+  assert.strictEqual(window.DiagramNodes.activeId, testNode1.id);
+  assert.strictEqual(nodeEd.style.display, 'block', 'nodeEditor must be visible when a node is selected');
+  assert.strictEqual(nodeEmpty.style.display, 'none', 'emptyNodeSelection must be hidden when a node is selected');
+  const histAfterSelect = window.HistoryManager.undoStack ? window.HistoryManager.undoStack.length : 0;
+  assert.strictEqual(histAfterSelect, histBeforeSelect, 'Selecting an instance must not alter undo history depth');
+
+  // Deselecting a node hides editor and displays empty state
+  window.DiagramNodes.deselectNode();
+  assert.strictEqual(window.DiagramNodes.activeId, null);
+  assert.strictEqual(nodeEd.style.display, 'none', 'nodeEditor must be hidden when deselected');
+  assert.strictEqual(nodeEmpty.style.display, 'block', 'emptyNodeSelection must be shown when deselected');
+
+  // 4. DataFlows Compact List & Properties Inspector Lifecycle
+  const flowEd = document.getElementById('flowEditor');
+  const flowEmpty = document.getElementById('emptyFlowSelection');
+  const testFlow1 = window.DataFlows.createFlow({ label: 'RPC Channel', color: '#00ffcc' });
+  window.DataFlows.selectFlow(testFlow1.id);
+  assert.strictEqual(window.DataFlows.activeId, testFlow1.id);
+  assert.strictEqual(flowEd.style.display, 'block', 'flowEditor must be visible when a flow is selected');
+  assert.strictEqual(flowEmpty.style.display, 'none', 'emptyFlowSelection must be hidden when a flow is selected');
+
+  window.DataFlows.deselectFlow();
+  assert.strictEqual(window.DataFlows.activeId, null);
+  assert.strictEqual(flowEd.style.display, 'none', 'flowEditor must be hidden when deselected');
+  assert.strictEqual(flowEmpty.style.display, 'block', 'emptyFlowSelection must be shown when deselected');
+
+  // 5. Glows Compact List & Properties Inspector Lifecycle
+  const glowEd = document.getElementById('glowEditor');
+  const glowEmpty = document.getElementById('emptyGlowSelection');
+  const testGlow1 = window.Glows.createGlow({ shape: 'radar', color: '#ff0044' });
+  window.Glows.selectGlow(testGlow1.id);
+  assert.strictEqual(window.Glows.activeId, testGlow1.id);
+  assert.strictEqual(glowEd.style.display, 'block', 'glowEditor must be visible when a glow is selected');
+  assert.strictEqual(glowEmpty.style.display, 'none', 'emptyGlowSelection must be hidden when a glow is selected');
+
+  window.Glows.deselectGlow();
+  assert.strictEqual(window.Glows.activeId, null);
+  assert.strictEqual(glowEd.style.display, 'none', 'glowEditor must be hidden when deselected');
+  assert.strictEqual(glowEmpty.style.display, 'block', 'emptyGlowSelection must be shown when deselected');
+
+  // 6. Ripples Compact List & Properties Inspector Lifecycle
+  const rippleEd = document.getElementById('rippleEditor');
+  const rippleEmpty = document.getElementById('emptyRippleSelection');
+  const testRipple1 = window.Ripples.createRipple({ rings: 4, outerR: 180 });
+  window.Ripples.selectRipple(testRipple1.id);
+  assert.strictEqual(window.Ripples.activeId, testRipple1.id);
+  assert.strictEqual(rippleEd.style.display, 'block', 'rippleEditor must be visible when a ripple is selected');
+  assert.strictEqual(rippleEmpty.style.display, 'none', 'emptyRippleSelection must be hidden when a ripple is selected');
+
+  window.Ripples.deselectRipple();
+  assert.strictEqual(window.Ripples.activeId, null);
+  assert.strictEqual(rippleEd.style.display, 'none', 'rippleEditor must be hidden when deselected');
+  assert.strictEqual(rippleEmpty.style.display, 'block', 'emptyRippleSelection must be shown when deselected');
+
+  // 7. Drawer Expanded Inspector Mode Synchronization
+  window.WorkspaceController.showToolPanel('acc-nodes');
+  assert.strictEqual(leftDrawerEl.classList.contains('expanded-inspector'), true, 'leftDrawer must receive expanded-inspector class for acc-nodes');
+
+  window.WorkspaceController.showToolPanel('acc-flows');
+  assert.strictEqual(leftDrawerEl.classList.contains('expanded-inspector'), true, 'leftDrawer must receive expanded-inspector class for acc-flows');
+
+  window.WorkspaceController.showToolPanel('acc-glows');
+  assert.strictEqual(leftDrawerEl.classList.contains('expanded-inspector'), true, 'leftDrawer must receive expanded-inspector class for acc-glows');
+
+  window.WorkspaceController.showToolPanel('acc-ripples');
+  assert.strictEqual(leftDrawerEl.classList.contains('expanded-inspector'), true, 'leftDrawer must receive expanded-inspector class for acc-ripples');
+
+  window.WorkspaceController.showToolPanel('acc-background');
+  assert.strictEqual(leftDrawerEl.classList.contains('expanded-inspector'), false, 'leftDrawer must remove expanded-inspector class for non-object acc-background');
+
+  window.WorkspaceController.showToolPanel('acc-presets');
+  assert.strictEqual(leftDrawerEl.classList.contains('expanded-inspector'), false, 'leftDrawer must remove expanded-inspector class for non-object acc-presets');
+
+  // 8. Cross-Module Selection Coordination via AppCoordinator
+  window.DiagramNodes.selectNode(testNode1.id);
+  assert.strictEqual(window.DiagramNodes.activeId, testNode1.id);
+  assert.strictEqual(window.DataFlows.activeId, null);
+
+  window.DataFlows.selectFlow(testFlow1.id);
+  assert.strictEqual(window.DataFlows.activeId, testFlow1.id);
+  assert.strictEqual(window.DiagramNodes.activeId, null, 'Selecting flow must deselect active node');
+
+  // 9. Clean up created test entities
+  window.DiagramNodes.deleteNode(testNode1.id);
+  window.DiagramNodes.deleteNode(testNode2.id);
+  window.DataFlows.deleteFlow(testFlow1.id);
+  window.Glows.deleteGlow(testGlow1.id);
+  window.Ripples.deleteRipple(testRipple1.id);
 
   // 11. Preservation of all 95 tracked control IDs
   assert.strictEqual(window.HistoryManager.trackedControlIds.length, 95);

@@ -527,6 +527,8 @@ window.DataFlows = {
     if (!f) return;
     const ed = document.getElementById('flowEditor');
     if (ed) ed.style.display = 'block';
+    const empty = document.getElementById('emptyFlowSelection');
+    if (empty) empty.style.display = 'none';
     const lbl = document.getElementById('editingFlowLabel');
     if (lbl) lbl.innerText = 'Editing Connector / Flow ' + f.id;
 
@@ -601,6 +603,8 @@ window.DataFlows = {
     document.body.classList.remove('editing-flow');
     const editor = document.getElementById('flowEditor');
     if (editor) editor.style.display = 'none';
+    const empty = document.getElementById('emptyFlowSelection');
+    if (empty) empty.style.display = 'block';
     const ret = document.getElementById('dynamicFlowReticles');
     if (ret) ret.innerHTML = '';
     const path = document.getElementById('flowCurvePath');
@@ -702,19 +706,31 @@ window.DataFlows = {
   renderList() {
     const container = document.getElementById('flowListContainer');
     if (!container) return;
+    const emptyEl = document.getElementById('emptyFlowSelection');
     if (this.list.length === 0) {
       container.innerHTML = '<div class="stage-hint" id="emptyFlowHint">No flows active.</div>';
+      if (emptyEl) emptyEl.innerHTML = 'No connectors created. Click <strong>+ Add</strong> above to add one.';
       return;
+    }
+    if (emptyEl && !this.activeId) {
+      emptyEl.innerHTML = 'Select a connector flow to edit waypoints and styles, or click <strong>+ Add</strong> above.';
     }
     container.innerHTML = '';
     this.list.forEach((f) => {
+      const isSel = (this.activeId === f.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === f.id ? ' selected' : '');
-      div.style.borderLeftColor = f.color;
-      const tag = f.label ? this.escapeXML(f.label) : ('Flow ' + f.id + ' [' + f.nodes.length + ' Nodes]');
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.style.borderLeftColor = f.color || '#00ffcc';
+      const labelText = f.label ? f.label : ('Flow ' + f.id);
+      const safeLabel = this.escapeXML(labelText);
+      const nodeCount = Array.isArray(f.nodes) ? f.nodes.length : 2;
+
       div.innerHTML =
-        '<span>' + tag + '</span>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">X</button>';
+        '<span class="instance-icon" style="color:' + (f.color || '#00ffcc') + ';" title="Connector">🔀</span>' +
+        '<span class="instance-label" title="' + safeLabel + '">' + safeLabel + '</span>' +
+        '<span class="compact-meta">' + nodeCount + ' pts</span>' +
+        '<button type="button" class="btn-row-action btn-row-delete" title="Delete connector" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">&times;</button>';
+
       div.onclick = () => this.selectFlow(f.id);
       container.appendChild(div);
     });

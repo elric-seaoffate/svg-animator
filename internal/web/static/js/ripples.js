@@ -207,6 +207,8 @@ window.Ripples = {
     if (!rp) return;
     const ed = document.getElementById('rippleEditor');
     if (ed) ed.style.display = 'block';
+    const empty = document.getElementById('emptyRippleSelection');
+    if (empty) empty.style.display = 'none';
     const lbl = document.getElementById('editingRippleLabel');
     if (lbl) lbl.innerText = 'Editing Ripple ' + rp.id;
     const colPick = document.getElementById('rippleColorPicker');
@@ -250,6 +252,8 @@ window.Ripples = {
     document.body.classList.remove('editing-flow');
     const editor = document.getElementById('rippleEditor');
     if (editor) editor.style.display = 'none';
+    const empty = document.getElementById('emptyRippleSelection');
+    if (empty) empty.style.display = 'block';
     const ret = document.getElementById('rippleReticleTarget');
     if (ret) ret.style.display = 'none';
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'ripple' && !window.AppCoordinator._isCoordinatingSelection) {
@@ -301,18 +305,29 @@ window.Ripples = {
   renderList() {
     const container = document.getElementById('rippleListContainer');
     if (!container) return;
+    const emptyEl = document.getElementById('emptyRippleSelection');
     if (this.list.length === 0) {
       container.innerHTML = '<div class="stage-hint" id="emptyRippleHint">No ripples active.</div>';
+      if (emptyEl) emptyEl.innerHTML = 'No liquid ripples created. Click <strong>+ Add</strong> above to add one.';
       return;
+    }
+    if (emptyEl && !this.activeId) {
+      emptyEl.innerHTML = 'Select a liquid ripple to edit refraction and wave parameters, or click <strong>+ Add</strong> above.';
     }
     container.innerHTML = '';
     this.list.forEach((rp) => {
+      const isSel = (this.activeId === rp.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === rp.id ? ' selected' : '');
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = '#58a6ff';
+      const safeLabel = 'Ripple ' + rp.id;
+
       div.innerHTML =
-        '<span>Ripple ' + rp.id + '</span>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">X</button>';
+        '<span class="instance-icon" style="color:#58a6ff;" title="Ripple">💧</span>' +
+        '<span class="instance-label">' + safeLabel + '</span>' +
+        '<span class="compact-meta">' + (rp.rings || 3) + ' rings</span>' +
+        '<button type="button" class="btn-row-action btn-row-delete" title="Delete ripple" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">&times;</button>';
+
       div.onclick = () => this.selectRipple(rp.id);
       container.appendChild(div);
     });

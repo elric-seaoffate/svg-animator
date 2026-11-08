@@ -318,6 +318,8 @@ window.Glows = {
     if (!glow) return;
     const ed = document.getElementById('glowEditor');
     if (ed) ed.style.display = 'block';
+    const empty = document.getElementById('emptyGlowSelection');
+    if (empty) empty.style.display = 'none';
     const lbl = document.getElementById('editingGlowLabel');
     if (lbl) lbl.innerText = 'Editing Glow ' + glow.id;
 
@@ -370,6 +372,8 @@ window.Glows = {
     document.body.classList.remove('editing-flow');
     const editor = document.getElementById('glowEditor');
     if (editor) editor.style.display = 'none';
+    const empty = document.getElementById('emptyGlowSelection');
+    if (empty) empty.style.display = 'block';
     const ret = document.getElementById('glowReticleTarget');
     if (ret) ret.style.display = 'none';
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'glow' && !window.AppCoordinator._isCoordinatingSelection) {
@@ -422,18 +426,36 @@ window.Glows = {
   renderList() {
     const container = document.getElementById('glowListContainer');
     if (!container) return;
+    const emptyEl = document.getElementById('emptyGlowSelection');
     if (this.list.length === 0) {
       container.innerHTML = '<div class="stage-hint" id="emptyGlowHint">No glows active.</div>';
+      if (emptyEl) emptyEl.innerHTML = 'No hotspots created. Click <strong>+ Add</strong> above to add one.';
       return;
     }
+    if (emptyEl && !this.activeId) {
+      emptyEl.innerHTML = 'Select a hotspot glow to edit pulse, color and radar attributes, or click <strong>+ Add</strong> above.';
+    }
     container.innerHTML = '';
+    const glowIcons = {
+      circle: '⚪',
+      square: '⏹',
+      radar: '🎯',
+      custom: '🖼'
+    };
     this.list.forEach((glow) => {
+      const isSel = (this.activeId === glow.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item' + (this.activeId === glow.id ? ' selected' : '');
-      div.style.borderLeftColor = glow.color;
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.style.borderLeftColor = glow.color || '#ff0044';
+      const icon = glowIcons[glow.shape] || '✨';
+      const safeLabel = 'Glow ' + glow.id;
+
       div.innerHTML =
-        '<span>Glow ' + glow.id + '</span>' +
-        '<button type="button" style="background:transparent; border:none; color:#ff4444; font-weight:bold; cursor:pointer;" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">X</button>';
+        '<span class="instance-icon" style="color:' + (glow.color || '#ff0044') + ';" title="' + (glow.shape || 'circle') + '">' + icon + '</span>' +
+        '<span class="instance-label">' + safeLabel + '</span>' +
+        '<span class="compact-meta">' + glow.shape + '</span>' +
+        '<button type="button" class="btn-row-action btn-row-delete" title="Delete glow" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">&times;</button>';
+
       div.onclick = () => this.selectGlow(glow.id);
       container.appendChild(div);
     });

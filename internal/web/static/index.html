@@ -19,6 +19,7 @@
       <div class="header-history-group">
         <button type="button" class="history-btn" id="btnUndo" disabled title="Undo last change (Ctrl+Z)">&#x21B6; Undo</button>
         <button type="button" class="history-btn" id="btnRedo" disabled title="Redo change (Ctrl+Y / Ctrl+Shift+Z)">&#x21B7; Redo</button>
+        <button type="button" class="history-btn" id="btnHeaderExport" style="border-color: rgba(163,113,247,0.5); color: #d2a8ff;" title="Open Export &amp; Render Studio">🚀 Export</button>
       </div>
       <label class="solo-toggle-label" title="When enabled, opening a panel automatically collapses other panels in the same sidebar">
         <input type="checkbox" id="chkSoloPanels" checked> 🎯 Solo Focus Mode
@@ -225,100 +226,129 @@
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <div class="stage-hint" style="margin-bottom: 0.5rem;">All shapes are individually adjustable and can snap to any active attributes in the Preset panel below.</div>
-          <button type="button" class="secondary" id="btnAddNode" style="width: 100%; margin-bottom: 0.5rem; border-color: #d2a8ff; color: #d2a8ff;">+ Add Shape / Text Box</button>
-          <div id="nodeListContainer"><div class="stage-hint">No shapes or text boxes active.</div></div>
-
-          <div id="nodeEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
-              <span style="font-weight: bold; color: #d2a8ff;" id="editingNodeLabel">Editing Shape</span>
-              <span id="activeNodeDimBadge" style="font-family: monospace; font-size: 0.74rem; background: rgba(210, 168, 255, 0.14); color: #d2a8ff; border: 1px solid rgba(210, 168, 255, 0.4); padding: 0.1rem 0.45rem; border-radius: 4px;">170 &times; 80 px</span>
-            </div>
-
-            <div style="display: flex; gap: 0.4rem; margin-bottom: 0.55rem;">
-              <button type="button" class="primary" id="btnSnapNodeToPreset" style="flex: 1.3; background: #8957e5; padding: 0.4rem 0.5rem; font-size: 0.78rem;" title="Applies only the 'SET' attributes from the Shape Preset panel to this selected shape">
-                ⚡ Snap to Preset
-              </button>
-              <button type="button" class="secondary" id="btnCopyNodeToPreset" style="flex: 1; padding: 0.4rem 0.5rem; font-size: 0.75rem;" title="Loads this shape's attributes into the Preset panel">
-                📥 Copy to Preset
-              </button>
-            </div>
-
-            <div class="control-row" style="margin-top: 0;">
-              <label>Shape / Diagram Element</label>
-              <select id="nodeShapeSelect">
-                <option value="rounded" selected>Rounded Card / Service Box</option>
-                <option value="rect">Rectangle / Process Box</option>
-                <option value="pill">Pill / Stadium Terminal</option>
-                <option value="textbox">Floating Text Label Only</option>
-                <option value="callout">Callout Note / Annotation</option>
-                <option value="diamond">Decision Diamond</option>
-                <option value="hexagon">Hexagon / Microservice</option>
-                <option value="parallelogram">Parallelogram (Data I/O)</option>
-                <option value="cylinder">Database / Storage Cylinder</option>
-                <option value="cloud">Cloud Infrastructure Node</option>
-                <option value="circle">Circle / Hub Node</option>
-                <option value="axes">Graph X/Y Coordinate Axes</option>
-              </select>
-            </div>
-
-            <div class="control-row">
-              <label>Primary Text <span style="color:#8b949e; font-size:0.72rem;">(| for new line)</span></label>
-              <input type="text" id="nodeTextInput" value="Node" class="text-field-input">
-            </div>
-
-            <div class="control-row">
-              <label>Subtitle / IP / Metric</label>
-              <input type="text" id="nodeSubtextInput" placeholder="Optional details" class="text-field-input">
-            </div>
-
-            <div class="control-row">
-              <label>Width (px)</label>
-              <div class="slider-row">
-                <input type="range" id="nodeWidthSlider" min="40" max="900" step="1" value="170">
-                <input type="number" class="num-input" id="nodeWidthNum" value="170">
+          <div class="inspector-split-layout">
+            <div class="inspector-master-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">INSTANCES</span>
+                <button type="button" class="btn-compact-add" id="btnAddNode" title="Add Shape / Text Box">+ Add</button>
               </div>
+              <div id="nodeListContainer" class="compact-instance-list"><div class="stage-hint">No shapes or text boxes active.</div></div>
             </div>
 
-            <div class="control-row">
-              <label>Height (px)</label>
-              <div class="slider-row">
-                <input type="range" id="nodeHeightSlider" min="30" max="700" step="1" value="80">
-                <input type="number" class="num-input" id="nodeHeightNum" value="80">
+            <div class="inspector-detail-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">SELECTED PROPERTIES</span>
+                <span id="activeNodeDimBadge" class="inspector-dim-badge">170 &times; 80 px</span>
               </div>
-            </div>
-
-            <div class="control-row">
-              <label>Colours</label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <div style="flex: 1;"><label style="display:block; font-size:0.72rem; margin-bottom:0.15rem;">Fill</label><input type="color" id="nodeFillColorPicker" value="#161b22" style="width: 100%;"></div>
-                <div style="flex: 1;"><label style="display:block; font-size:0.72rem; margin-bottom:0.15rem;">Border</label><input type="color" id="nodeStrokeColorPicker" value="#58a6ff" style="width: 100%;"></div>
-                <div style="flex: 1;"><label style="display:block; font-size:0.72rem; margin-bottom:0.15rem;">Text</label><input type="color" id="nodeTextColorPicker" value="#e6edf3" style="width: 100%;"></div>
+              <div id="emptyNodeSelection" class="inspector-empty-state">
+                Select a shape to view and edit its properties, or click <strong>+ Add</strong> above.
               </div>
-            </div>
 
-            <div class="control-row"><label>Fill Opacity</label><div class="slider-row"><input type="range" id="nodeFillOpacitySlider" min="0" max="1.0" step="0.05" value="0.92"><input type="number" class="num-input" id="nodeFillOpacityNum" value="0.92"></div></div>
-            <div class="control-row"><label>Border Thickness (px)</label><div class="slider-row"><input type="range" id="nodeStrokeWidthSlider" min="0" max="12" step="0.5" value="2"><input type="number" class="num-input" id="nodeStrokeWidthNum" value="2"></div></div>
+              <div id="nodeEditor" style="display: none; margin-top: 0.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span style="font-weight: bold; color: #d2a8ff;" id="editingNodeLabel">Editing Shape</span>
+                </div>
 
-            <div class="control-row">
-              <label>Border Line Style</label>
-              <select id="nodeStrokeStyleSelect">
-                <option value="solid" selected>Solid Border</option>
-                <option value="dashed">Dashed Border</option>
-                <option value="dotted">Dotted Border</option>
-              </select>
-            </div>
+                <div style="display: flex; gap: 0.35rem; margin-bottom: 0.45rem;">
+                  <button type="button" class="primary" id="btnSnapNodeToPreset" style="flex: 1.3; background: #8957e5; padding: 0.25rem 0.45rem; font-size: 0.74rem;" title="Applies only the 'SET' attributes from the Shape Preset panel to this selected shape">
+                    ⚡ Snap to Preset
+                  </button>
+                  <button type="button" class="secondary" id="btnCopyNodeToPreset" style="flex: 1; padding: 0.25rem 0.45rem; font-size: 0.72rem;" title="Loads this shape's attributes into the Preset panel">
+                    📥 Copy to Preset
+                  </button>
+                </div>
 
-            <div class="control-row"><label>Font Size (px)</label><div class="slider-row"><input type="range" id="nodeFontSizeSlider" min="10" max="64" step="1" value="15"><input type="number" class="num-input" id="nodeFontSizeNum" value="15"></div></div>
+                <div class="control-row" style="margin-top: 0;">
+                  <label>Shape / Diagram Element</label>
+                  <select id="nodeShapeSelect">
+                    <option value="rounded" selected>Rounded Card / Service Box</option>
+                    <option value="rect">Rectangle / Process Box</option>
+                    <option value="pill">Pill / Stadium Terminal</option>
+                    <option value="textbox">Floating Text Label Only</option>
+                    <option value="callout">Callout Note / Annotation</option>
+                    <option value="diamond">Decision Diamond</option>
+                    <option value="hexagon">Hexagon / Microservice</option>
+                    <option value="parallelogram">Parallelogram (Data I/O)</option>
+                    <option value="cylinder">Database / Storage Cylinder</option>
+                    <option value="cloud">Cloud Infrastructure Node</option>
+                    <option value="circle">Circle / Hub Node</option>
+                    <option value="axes">Graph X/Y Coordinate Axes</option>
+                  </select>
+                </div>
 
-            <div class="control-row">
-              <label>Idle Animation</label>
-              <select id="nodeAnimSelect">
-                <option value="none" selected>Static (Locked)</option>
-                <option value="pulse-border">Breathing Border Glow</option>
-                <option value="float">Gentle Vertical Float</option>
-                <option value="fade-in">Smooth Entrance Fade-In</option>
-              </select>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Primary Text <span style="color:#8b949e; font-size:0.68rem;">(| line)</span></label>
+                    <input type="text" id="nodeTextInput" value="Node" class="text-field-input">
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Subtitle / IP</label>
+                    <input type="text" id="nodeSubtextInput" placeholder="Optional details" class="text-field-input">
+                  </div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Width (px)</label>
+                    <div class="slider-row">
+                      <input type="range" id="nodeWidthSlider" min="40" max="900" step="1" value="170">
+                      <input type="number" class="num-input" id="nodeWidthNum" value="170">
+                    </div>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Height (px)</label>
+                    <div class="slider-row">
+                      <input type="range" id="nodeHeightSlider" min="30" max="700" step="1" value="80">
+                      <input type="number" class="num-input" id="nodeHeightNum" value="80">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="control-row">
+                  <label>Colours</label>
+                  <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <div style="flex: 1;"><label style="display:block; font-size:0.68rem; margin-bottom:0.1rem;">Fill</label><input type="color" id="nodeFillColorPicker" value="#161b22" style="width: 100%;"></div>
+                    <div style="flex: 1;"><label style="display:block; font-size:0.68rem; margin-bottom:0.1rem;">Border</label><input type="color" id="nodeStrokeColorPicker" value="#58a6ff" style="width: 100%;"></div>
+                    <div style="flex: 1;"><label style="display:block; font-size:0.68rem; margin-bottom:0.1rem;">Text</label><input type="color" id="nodeTextColorPicker" value="#e6edf3" style="width: 100%;"></div>
+                  </div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Fill Opacity</label>
+                    <div class="slider-row"><input type="range" id="nodeFillOpacitySlider" min="0" max="1.0" step="0.05" value="0.92"><input type="number" class="num-input" id="nodeFillOpacityNum" value="0.92"></div>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Border Thickness</label>
+                    <div class="slider-row"><input type="range" id="nodeStrokeWidthSlider" min="0" max="12" step="0.5" value="2"><input type="number" class="num-input" id="nodeStrokeWidthNum" value="2"></div>
+                  </div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Border Line Style</label>
+                    <select id="nodeStrokeStyleSelect">
+                      <option value="solid" selected>Solid Border</option>
+                      <option value="dashed">Dashed Border</option>
+                      <option value="dotted">Dotted Border</option>
+                    </select>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Font Size (px)</label>
+                    <div class="slider-row"><input type="range" id="nodeFontSizeSlider" min="10" max="64" step="1" value="15"><input type="number" class="num-input" id="nodeFontSizeNum" value="15"></div>
+                  </div>
+                </div>
+
+                <div class="control-row">
+                  <label>Idle Animation</label>
+                  <select id="nodeAnimSelect">
+                    <option value="none" selected>Static (Locked)</option>
+                    <option value="pulse-border">Breathing Border Glow</option>
+                    <option value="float">Gentle Vertical Float</option>
+                    <option value="fade-in">Smooth Entrance Fade-In</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -500,108 +530,160 @@
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <button class="secondary" id="btnAddFlow" style="width: 100%; margin-bottom: 0.5rem; border-color: #00ffcc; color: #00ffcc;">+ Add Connector / Data Flow</button>
-          <div id="flowListContainer"><div class="stage-hint" id="emptyFlowHint">No flows active.</div></div>
+          <div class="inspector-split-layout">
+            <div class="inspector-master-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">INSTANCES</span>
+                <button type="button" class="btn-compact-add" id="btnAddFlow" title="Add Connector / Data Flow">+ Add</button>
+              </div>
+              <div id="flowListContainer" class="compact-instance-list"><div class="stage-hint" id="emptyFlowHint">No flows active.</div></div>
+            </div>
 
-          <div id="flowEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
-            <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingFlowLabel">Editing Flow</div>
-            
-            <div class="control-row" style="background: rgba(88,166,255,0.1); padding: 0.6rem; border-radius: 6px; border: 1px solid #58a6ff;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <label style="color: #58a6ff; font-weight: bold; margin: 0;">Routing Waypoints</label>
-                <div>
-                  <button class="secondary" id="btnFlowDelNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; border-color: #ff4444; color: #ff4444;">- Drop</button>
-                  <button class="primary" id="btnFlowAddNode" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; background: #58a6ff;">+ Add Node</button>
+            <div class="inspector-detail-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">SELECTED PROPERTIES</span>
+              </div>
+              <div id="emptyFlowSelection" class="inspector-empty-state">
+                Select a connector flow to edit waypoints and styles, or click <strong>+ Add</strong> above.
+              </div>
+
+              <div id="flowEditor" style="display: none; margin-top: 0.25rem;">
+                <div style="font-weight: bold; margin-bottom: 0.35rem; color: #fff;" id="editingFlowLabel">Editing Flow</div>
+
+                <div class="control-row" style="background: rgba(88,166,255,0.1); padding: 0.45rem; border-radius: 6px; border: 1px solid #58a6ff; margin-top: 0;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label style="color: #58a6ff; font-weight: bold; margin: 0; font-size: 0.74rem;">Routing Waypoints</label>
+                    <div style="display: flex; gap: 0.3rem;">
+                      <button type="button" class="secondary" id="btnFlowDelNode" style="padding: 0.15rem 0.38rem; font-size: 0.72rem; border-color: #ff4444; color: #ff4444;">- Drop</button>
+                      <button type="button" class="primary" id="btnFlowAddNode" style="padding: 0.15rem 0.38rem; font-size: 0.72rem; background: #58a6ff;">+ Add Node</button>
+                    </div>
+                  </div>
+                  <div class="slider-row">
+                    <label style="font-size: 0.72rem; width: 75px;">Target Node:</label>
+                    <input type="range" id="flowNodeSlider" min="0" max="1" step="1" value="0">
+                    <input type="number" class="num-input" id="flowNodeNum" readonly>
+                  </div>
+                  <div class="stage-hint" style="margin-top: 0.25rem; text-align: center; font-size: 0.7rem;">Click or drag handles directly on the line.</div>
                 </div>
-              </div>
-              <div class="slider-row">
-                <label style="font-size: 0.75rem; width: 80px;">Target Node:</label>
-                <input type="range" id="flowNodeSlider" min="0" max="1" step="1" value="0">
-                <input type="number" class="num-input" id="flowNodeNum" readonly>
-              </div>
-              <div class="stage-hint" style="margin-top: 0.4rem; text-align: center;">Click or drag N0, N1 handles directly on the line.</div>
-            </div>
 
-            <div class="control-row">
-              <label>Connector Routing Mode</label>
-              <select id="flowRouteSelect">
-                <option value="curve" selected>Direct / Bezier Curve</option>
-                <option value="ortho-mid">Orthogonal Elbow (Z-Step 90°)</option>
-                <option value="ortho-hv">Orthogonal L-Step (Horiz &rarr; Vert)</option>
-                <option value="ortho-vh">Orthogonal L-Step (Vert &rarr; Horiz)</option>
-              </select>
-            </div>
+                <div class="control-row" style="margin-top: 0.35rem;">
+                  <label>Connector Routing Mode</label>
+                  <select id="flowRouteSelect">
+                    <option value="curve" selected>Direct / Bezier Curve</option>
+                    <option value="ortho-mid">Orthogonal Elbow (Z-Step 90°)</option>
+                    <option value="ortho-hv">Orthogonal L-Step (Horiz &rarr; Vert)</option>
+                    <option value="ortho-vh">Orthogonal L-Step (Vert &rarr; Horiz)</option>
+                  </select>
+                </div>
 
-            <div class="control-row">
-              <label>Track Line Style</label>
-              <select id="flowLineStyleSelect">
-                <option value="dashed" selected>Dashed Line</option>
-                <option value="solid">Solid Continuous Line</option>
-                <option value="dotted">Dotted Line</option>
-                <option value="marching">Animated Marching Ants</option>
-                <option value="double">Double Parallel Pipe</option>
-              </select>
-            </div>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Track Line Style</label>
+                    <select id="flowLineStyleSelect">
+                      <option value="dashed" selected>Dashed Line</option>
+                      <option value="solid">Solid Continuous Line</option>
+                      <option value="dotted">Dotted Line</option>
+                      <option value="marching">Animated Marching Ants</option>
+                      <option value="double">Double Parallel Pipe</option>
+                    </select>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Directional Arrowheads</label>
+                    <select id="flowArrowSelect">
+                      <option value="none" selected>None</option>
+                      <option value="end">Destination (&rarr;)</option>
+                      <option value="start">Source (&larr;)</option>
+                      <option value="both">Bidirectional (&harr;)</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div class="control-row">
-              <label>Directional Arrowheads</label>
-              <select id="flowArrowSelect">
-                <option value="none" selected>None</option>
-                <option value="end">Destination Arrow (&rarr;)</option>
-                <option value="start">Source Arrow (&larr;)</option>
-                <option value="both">Bidirectional (&harr;)</option>
-              </select>
-            </div>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Line Thickness</label>
+                    <div class="slider-row"><input type="range" id="flowLineWidthSlider" min="1" max="16" step="0.5" value="2.5"><input type="number" class="num-input" id="flowLineWidthNum" value="2.5"></div>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Line Curvature (Bend)</label>
+                    <div class="slider-row"><input type="range" id="flowCurvatureSlider" min="-100" max="100" step="1" value="0"><input type="number" class="num-input" id="flowCurvatureNum"></div>
+                  </div>
+                </div>
 
-            <div class="control-row"><label>Line Thickness (px)</label><div class="slider-row"><input type="range" id="flowLineWidthSlider" min="1" max="16" step="0.5" value="2.5"><input type="number" class="num-input" id="flowLineWidthNum" value="2.5"></div></div>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Connector Text Label <span style="color:#8b949e; font-size:0.68rem;">(Opt)</span></label>
+                    <input type="text" id="flowLabelInput" placeholder="e.g. HTTPS / 10GbE" class="text-field-input">
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Payload Type</label>
+                    <select id="flowTypeSelect">
+                      <option value="line-only">Line Only (No Payload)</option>
+                      <option value="orb" selected>Glowing Orb</option>
+                      <option value="packet">Data Packet</option>
+                      <option value="envelope">Mail Envelope</option>
+                      <option value="database">Database / Storage</option>
+                      <option value="server">Server / Compute</option>
+                      <option value="cloud">Cloud Instance</option>
+                      <option value="lock">Security Lock</option>
+                      <option value="warning">Warning Alert</option>
+                      <option value="custom">Custom Graphic (PNG/SVG)</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div class="control-row">
-              <label>Connector Text Label <span style="color:#8b949e; font-size:0.72rem;">(Optional)</span></label>
-              <input type="text" id="flowLabelInput" placeholder="e.g. HTTPS / 10GbE" class="text-field-input">
-            </div>
+                <div class="control-row" id="customPayloadRow" style="display: none; margin-top: 0.35rem;">
+                  <label class="upload-zone upload-zone-compact" for="customPayloadInput" style="padding: 0.6rem; border-color: #58a6ff;">
+                    <div style="font-size: 0.78rem; font-weight: 600;">📁 Upload Graphic</div>
+                  </label>
+                  <input type="file" id="customPayloadInput" accept="image/png,image/svg+xml" style="display: none;">
+                </div>
 
-            <div class="control-row">
-              <label>Traveling Payload Type</label>
-              <select id="flowTypeSelect">
-                <option value="line-only">Connector Line Only (No Payload)</option>
-                <option value="orb" selected>Glowing Orb</option>
-                <option value="packet">Data Packet</option>
-                <option value="envelope">Mail Envelope</option>
-                <option value="database">Database / Storage</option>
-                <option value="server">Server / Compute</option>
-                <option value="cloud">Cloud Instance</option>
-                <option value="lock">Security Lock</option>
-                <option value="warning">Warning Alert</option>
-                <option value="custom">Custom Graphic (PNG/SVG)</option>
-              </select>
-            </div>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0.25rem;">
+                    <label class="toggle-switch" style="font-size: 0.74rem;"><input type="checkbox" id="flowShowLine" checked> 📏 Track line</label>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Theme Colour</label>
+                    <input type="color" id="flowColorPicker" value="#00ffcc" style="width: 100%;">
+                  </div>
+                </div>
 
-            <div class="control-row" id="customPayloadRow" style="display: none; margin-top: 0.5rem;">
-              <label class="upload-zone upload-zone-compact" for="customPayloadInput" style="padding: 0.8rem; border-color: #58a6ff;">
-                <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
-              </label>
-              <input type="file" id="customPayloadInput" accept="image/png,image/svg+xml" style="display: none;">
-            </div>
-            
-            <div class="control-row" style="margin-top: 0.8rem;">
-              <label class="toggle-switch"><input type="checkbox" id="flowShowLine" checked> 📏 Show visible track line</label>
-            </div>
-            <div class="control-row"><label>Line Curvature (Bezier Bend)</label><div class="slider-row"><input type="range" id="flowCurvatureSlider" min="-100" max="100" step="1" value="0"><input type="number" class="num-input" id="flowCurvatureNum"></div></div>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Max Opacity</label>
+                    <div class="slider-row"><input type="range" id="flowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="flowOpacityNum"></div>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Payload Glow</label>
+                    <div class="slider-row"><input type="range" id="flowGlowSlider" min="0" max="100" step="1" value="0"><input type="number" class="num-input" id="flowGlowNum"></div>
+                  </div>
+                </div>
 
-            <div class="control-row"><label>Theme Colour</label><input type="color" id="flowColorPicker" value="#00ffcc" style="width: 100%;"></div>
-            
-            <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="flowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="flowOpacityNum"></div></div>
-            <div class="control-row"><label>Payload Glow (Radius)</label><div class="slider-row"><input type="range" id="flowGlowSlider" min="0" max="100" step="1" value="0"><input type="number" class="num-input" id="flowGlowNum"></div></div>
-            <div class="control-row"><label>Payload Size (Scale)</label><div class="slider-row"><input type="range" id="flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="flowScaleNum"></div></div>
-            
-            <div class="control-row"><label>Travel Speed (sec)</label><div class="slider-row"><input type="range" id="flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="flowSpeedNum"></div></div>
-            <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowDelayNum"></div></div>
-            
-            <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
-              <label>End Delay / Pause (sec)</label>
-              <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum"></div>
-              <div class="control-row" style="margin-top: 0.4rem;">
-                <label class="toggle-switch"><input type="checkbox" id="flowHideOnDelay" checked> 👻 Hide payload during pause</label>
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Payload Size</label>
+                    <div class="slider-row"><input type="range" id="flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="flowScaleNum"></div>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Travel Speed (sec)</label>
+                    <div class="slider-row"><input type="range" id="flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="flowSpeedNum"></div>
+                  </div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>Start Delay (sec)</label>
+                    <div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowDelayNum"></div>
+                  </div>
+                  <div class="control-row" style="margin-top: 0;">
+                    <label>End Delay (sec)</label>
+                    <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum"></div>
+                  </div>
+                </div>
+
+                <div class="control-row" style="margin-top: 0.35rem;">
+                  <label class="toggle-switch" style="font-size: 0.74rem;"><input type="checkbox" id="flowHideOnDelay" checked> 👻 Hide payload during pause</label>
+                </div>
               </div>
             </div>
           </div>
@@ -615,61 +697,88 @@
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <button class="secondary" id="btnAddGlow" style="width: 100%; margin-bottom: 0.5rem; border-color: #ff4466; color: #ff4466;">+ Add Glow</button>
-          <div id="glowListContainer"><div class="stage-hint" id="emptyGlowHint">No glows active.</div></div>
-
-          <div id="glowEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
-            <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingGlowLabel">Editing Glow</div>
-            <div class="stage-hint" style="margin-bottom:0.5rem;">Click or drag on the canvas to place the glow centre.</div>
-            
-            <div class="control-row">
-              <label>Shape / Object</label>
-              <select id="glowShapeSelect">
-                <option value="circle" selected>Circle (Radial Glow)</option>
-                <option value="square">Square / Block</option>
-                <option value="radar">Radar Ping</option>
-                <option value="custom">Custom Graphic (PNG/SVG)</option>
-              </select>
+          <div class="inspector-split-layout">
+            <div class="inspector-master-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">INSTANCES</span>
+                <button type="button" class="btn-compact-add" id="btnAddGlow" title="Add Glow">+ Add</button>
+              </div>
+              <div id="glowListContainer" class="compact-instance-list"><div class="stage-hint" id="emptyGlowHint">No glows active.</div></div>
             </div>
 
-            <div class="control-row" id="glowCustomRow" style="display: none; margin-top: 0.5rem;">
-              <label class="upload-zone upload-zone-compact" for="glowCustomInput" style="padding: 0.8rem; border-color: #ff0044;">
-                <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
-              </label>
-              <input type="file" id="glowCustomInput" accept="image/png,image/svg+xml" style="display: none;">
-            </div>
-            
-            <div class="control-row">
-              <label>Playback Mode</label>
-              <select id="glowPlaybackSelect">
-                <option value="pingpong" selected>Pulse (In &amp; Out)</option>
-                <option value="linear">Linear (Fade In &amp; Reset)</option>
-                <option value="once">Play Once &amp; Hold</option>
-                <option value="static">Static (Constant Overlay)</option>
-              </select>
-            </div>
-            
-            <div class="control-row" id="glowColorRow"><label>Overlay Colour</label><input type="color" id="glowColorPicker" value="#ff0044" style="width: 100%;"></div>
-            <div class="control-row"><label>Edge Softness (%)</label><div class="slider-row"><input type="range" id="glowBlurSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="glowBlurNum"></div></div>
-            <div class="control-row"><label>Max Opacity (Transparency)</label><div class="slider-row"><input type="range" id="glowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="glowOpacityNum"></div></div>
-            
-            <div id="glowSizeContainer"><div class="control-row"><label>Size / Radius (px)</label><div class="slider-row"><input type="range" id="glowSizeSlider" min="5" max="1000" step="1" value="25"><input type="number" class="num-input" id="glowSizeNum"></div></div></div>
-            <div id="glowScaleContainer" style="display: none;"><div class="control-row"><label>Graphic Scale</label><div class="slider-row"><input type="range" id="glowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="glowScaleNum"></div></div></div>
-            
-            <div id="glowRadarContainer" style="display: none;">
-              <div class="control-row"><label>Radar Pings (Count)</label><div class="slider-row"><input type="range" id="glowRingsSlider" min="1" max="10" step="1" value="1"><input type="number" class="num-input" id="glowRingsNum"></div></div>
-              <div class="control-row"><label>Radar Core Radius (px)</label><div class="slider-row"><input type="range" id="glowCoreRSlider" min="0" max="200" step="1" value="5"><input type="number" class="num-input" id="glowCoreRNum"></div></div>
-              <div class="control-row"><label>Radar Line Thickness (px)</label><div class="slider-row"><input type="range" id="glowThickSlider" min="1" max="50" step="1" value="2"><input type="number" class="num-input" id="glowThickNum"></div></div>
-            </div>
-            
-            <div class="control-row"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="glowDurSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="glowDurNum"></div></div>
-            <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowDelayNum"></div></div>
-            
-            <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
-              <label>End Delay / Pause (sec)</label>
-              <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum"></div>
-              <div class="control-row" style="margin-top: 0.4rem;">
-                <label class="toggle-switch"><input type="checkbox" id="glowHideOnDelay" checked> 👻 Hide glow during pause</label>
+            <div class="inspector-detail-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">SELECTED PROPERTIES</span>
+              </div>
+              <div id="emptyGlowSelection" class="inspector-empty-state">
+                Select a hotspot glow to edit pulse, color and radar attributes, or click <strong>+ Add</strong> above.
+              </div>
+
+              <div id="glowEditor" style="display: none; margin-top: 0.4rem;">
+                <div style="font-weight: bold; margin-bottom: 0.5rem; color: #fff;" id="editingGlowLabel">Editing Glow</div>
+                <div class="stage-hint" style="margin-bottom:0.5rem;">Click or drag on the canvas to place the glow centre.</div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row">
+                    <label>Shape / Object</label>
+                    <select id="glowShapeSelect">
+                      <option value="circle" selected>Circle (Radial Glow)</option>
+                      <option value="square">Square / Block</option>
+                      <option value="radar">Radar Ping</option>
+                      <option value="custom">Custom Graphic (PNG/SVG)</option>
+                    </select>
+                  </div>
+                  <div class="control-row">
+                    <label>Playback Mode</label>
+                    <select id="glowPlaybackSelect">
+                      <option value="pingpong" selected>Pulse (In &amp; Out)</option>
+                      <option value="linear">Linear (Fade In &amp; Reset)</option>
+                      <option value="once">Play Once &amp; Hold</option>
+                      <option value="static">Static (Constant Overlay)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="control-row" id="glowCustomRow" style="display: none; margin-top: 0.5rem;">
+                  <label class="upload-zone upload-zone-compact" for="glowCustomInput" style="padding: 0.8rem; border-color: #ff0044;">
+                    <div style="font-size: 0.8rem; font-weight: 600;">📁 Upload Graphic</div>
+                  </label>
+                  <input type="file" id="glowCustomInput" accept="image/png,image/svg+xml" style="display: none;">
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row" id="glowColorRow"><label>Overlay Colour</label><input type="color" id="glowColorPicker" value="#ff0044" style="width: 100%;"></div>
+                  <div class="control-row"><label>Max Opacity</label><div class="slider-row"><input type="range" id="glowOpacitySlider" min="0.1" max="1.0" step="0.05" value="1.0"><input type="number" class="num-input" id="glowOpacityNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row"><label>Edge Softness (%)</label><div class="slider-row"><input type="range" id="glowBlurSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="glowBlurNum"></div></div>
+                  <div id="glowSizeContainer"><div class="control-row"><label>Size / Radius (px)</label><div class="slider-row"><input type="range" id="glowSizeSlider" min="5" max="1000" step="1" value="25"><input type="number" class="num-input" id="glowSizeNum"></div></div></div>
+                  <div id="glowScaleContainer" style="display: none;"><div class="control-row"><label>Graphic Scale</label><div class="slider-row"><input type="range" id="glowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="glowScaleNum"></div></div></div>
+                </div>
+
+                <div id="glowRadarContainer" style="display: none;">
+                  <div class="control-grid-2col">
+                    <div class="control-row"><label>Radar Pings</label><div class="slider-row"><input type="range" id="glowRingsSlider" min="1" max="10" step="1" value="1"><input type="number" class="num-input" id="glowRingsNum"></div></div>
+                    <div class="control-row"><label>Core Radius (px)</label><div class="slider-row"><input type="range" id="glowCoreRSlider" min="0" max="200" step="1" value="5"><input type="number" class="num-input" id="glowCoreRNum"></div></div>
+                  </div>
+                  <div class="control-row"><label>Radar Line Thickness (px)</label><div class="slider-row"><input type="range" id="glowThickSlider" min="1" max="50" step="1" value="2"><input type="number" class="num-input" id="glowThickNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="glowDurSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="glowDurNum"></div></div>
+                  <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowDelayNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                  <div class="control-row">
+                    <label>End Delay (sec)</label>
+                    <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum"></div>
+                  </div>
+                  <div class="control-row" style="display: flex; align-items: flex-end; padding-bottom: 4px;">
+                    <label class="toggle-switch" style="font-size: 0.74rem;"><input type="checkbox" id="glowHideOnDelay" checked> 👻 Hide in pause</label>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -683,27 +792,53 @@
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <button class="secondary" id="btnAddRipple" style="width: 100%; margin-bottom: 0.5rem; border-color: #58a6ff; color: #58a6ff;">+ Add Water Ripple</button>
-          <div id="rippleListContainer"><div class="stage-hint" id="emptyRippleHint">No ripples active.</div></div>
+          <div class="inspector-split-layout">
+            <div class="inspector-master-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">INSTANCES</span>
+                <button type="button" class="btn-compact-add" id="btnAddRipple" title="Add Water Ripple">+ Add</button>
+              </div>
+              <div id="rippleListContainer" class="compact-instance-list"><div class="stage-hint" id="emptyRippleHint">No ripples active.</div></div>
+            </div>
 
-          <div id="rippleEditor" style="display: none; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #444;">
-            <div style="font-weight: bold; margin-bottom: 0.5rem; color: #58a6ff;" id="editingRippleLabel">Editing Ripple</div>
-            <div class="stage-hint" style="margin-bottom:0.5rem;">Click or drag on the canvas to place the ripple epicentre.</div>
-            
-            <div class="control-row"><label>Crest Highlight Colour</label><input type="color" id="rippleColorPicker" value="#ffffff" style="width: 100%;"></div>
-            <div class="control-row"><label>Highlight Opacity</label><div class="slider-row"><input type="range" id="rippleOpacitySlider" min="0" max="1.0" step="0.05" value="0.4"><input type="number" class="num-input" id="rippleOpacityNum"></div></div>
-            
-            <div class="control-row" style="margin-top: 0.5rem;"><label>Refraction Distortion</label><div class="slider-row"><input type="range" id="rippleRefractionSlider" min="0" max="150" step="1" value="35"><input type="number" class="num-input" id="rippleRefractionNum"></div></div>
-            
-            <div class="control-row"><label>Inner Start Radius (px)</label><div class="slider-row"><input type="range" id="rippleInnerRSlider" min="0" max="300" step="1" value="0"><input type="number" class="num-input" id="rippleInnerRNum"></div></div>
-            <div class="control-row"><label>Outer Fade Radius (px)</label><div class="slider-row"><input type="range" id="rippleOuterRSlider" min="10" max="1500" step="1" value="150"><input type="number" class="num-input" id="rippleOuterRNum"></div></div>
-            
-            <div class="control-row"><label>Total Rings Count</label><div class="slider-row"><input type="range" id="rippleRingsSlider" min="1" max="15" step="1" value="3"><input type="number" class="num-input" id="rippleRingsNum"></div></div>
-            <div class="control-row"><label>Wave Thickness (px)</label><div class="slider-row"><input type="range" id="rippleThickSlider" min="1" max="100" step="1" value="8"><input type="number" class="num-input" id="rippleThickNum"></div></div>
-            
-            <div class="control-row" style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0"><input type="number" class="num-input" id="rippleDurNum"></div></div>
-            <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="rippleDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="rippleDelayNum"></div></div>
-            <div class="control-row"><label>End Delay / Pause (sec)</label><div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum"></div></div>
+            <div class="inspector-detail-column">
+              <div class="inspector-column-header">
+                <span class="inspector-column-title">SELECTED PROPERTIES</span>
+              </div>
+              <div id="emptyRippleSelection" class="inspector-empty-state">
+                Select a liquid ripple to edit refraction and wave parameters, or click <strong>+ Add</strong> above.
+              </div>
+
+              <div id="rippleEditor" style="display: none; margin-top: 0.4rem;">
+                <div style="font-weight: bold; margin-bottom: 0.5rem; color: #58a6ff;" id="editingRippleLabel">Editing Ripple</div>
+                <div class="stage-hint" style="margin-bottom:0.5rem;">Click or drag on the canvas to place the ripple epicentre.</div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row"><label>Crest Highlight</label><input type="color" id="rippleColorPicker" value="#ffffff" style="width: 100%;"></div>
+                  <div class="control-row"><label>Highlight Opacity</label><div class="slider-row"><input type="range" id="rippleOpacitySlider" min="0" max="1.0" step="0.05" value="0.4"><input type="number" class="num-input" id="rippleOpacityNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row"><label>Refraction Distortion</label><div class="slider-row"><input type="range" id="rippleRefractionSlider" min="0" max="150" step="1" value="35"><input type="number" class="num-input" id="rippleRefractionNum"></div></div>
+                  <div class="control-row"><label>Cycle Duration (sec)</label><div class="slider-row"><input type="range" id="rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0"><input type="number" class="num-input" id="rippleDurNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row"><label>Inner Radius (px)</label><div class="slider-row"><input type="range" id="rippleInnerRSlider" min="0" max="300" step="1" value="0"><input type="number" class="num-input" id="rippleInnerRNum"></div></div>
+                  <div class="control-row"><label>Outer Radius (px)</label><div class="slider-row"><input type="range" id="rippleOuterRSlider" min="10" max="1500" step="1" value="150"><input type="number" class="num-input" id="rippleOuterRNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col">
+                  <div class="control-row"><label>Rings Count</label><div class="slider-row"><input type="range" id="rippleRingsSlider" min="1" max="15" step="1" value="3"><input type="number" class="num-input" id="rippleRingsNum"></div></div>
+                  <div class="control-row"><label>Thickness (px)</label><div class="slider-row"><input type="range" id="rippleThickSlider" min="1" max="100" step="1" value="8"><input type="number" class="num-input" id="rippleThickNum"></div></div>
+                </div>
+
+                <div class="control-grid-2col" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                  <div class="control-row"><label>Start Delay (sec)</label><div class="slider-row"><input type="range" id="rippleDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="rippleDelayNum"></div></div>
+                  <div class="control-row"><label>End Delay (sec)</label><div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum"></div></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -821,7 +956,7 @@
               </div>
             </div>
           </div>
-          
+
           <div id="panel-cam-static" style="margin-top: 0.5rem;">
             <div class="control-row"><label>Lens Zoom</label><div class="slider-row"><input type="range" id="staticZoomSlider" min="0.1" max="10.0" step="0.1" value="1.0"><input type="number" class="num-input" id="staticZoomNum"></div></div>
             <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="staticXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="staticXNum"></div></div>
@@ -861,7 +996,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 3. ACCORDION: OPTICAL EFFECTS & FRAME -->
       <div class="accordion-section" id="acc-optics">
         <div class="accordion-header">
@@ -869,36 +1004,38 @@
           <span class="accordion-chevron">▾</span>
         </div>
         <div class="accordion-body">
-          <div class="control-row" style="margin-top: 0;">
-            <label>Primary Optical Shader</label>
-            <select id="effectSelect">
-              <option value="none" selected>None (Clean Image)</option>
-              <option value="focus-pull">Focus Pull (Blur &harr; Sharp)</option>
-              <option value="tilt-shift">Tilt-Shift Miniature Focus</option>
-              <option value="motion-blur">Directional Motion Blur</option>
-            </select>
-          </div>
-          
-          <div id="panel-opt-focus" style="display: none; margin-top: 0.5rem;">
-            <div class="control-row"><label>Start Blur Radius (px)</label><div class="slider-row"><input type="range" id="startBlurSlider" min="0" max="50" step="0.5" value="18"><input type="number" class="num-input" id="startBlurNum"></div></div>
-            <div class="control-row"><label>End Blur Radius (px)</label><div class="slider-row"><input type="range" id="endBlurSlider" min="0" max="50" step="0.5" value="0"><input type="number" class="num-input" id="endBlurNum"></div></div>
-            <div class="control-row"><label>Focus Duration (sec)</label><div class="slider-row"><input type="range" id="focusDurSlider" min="0.5" max="30" step="0.5" value="4"><input type="number" class="num-input" id="focusDurNum"></div></div>
+          <div id="subpanelOptics" class="optics-subpanel">
+            <div class="control-row" style="margin-top: 0;">
+              <label>Primary Optical Shader</label>
+              <select id="effectSelect">
+                <option value="none" selected>None (Clean Image)</option>
+                <option value="focus-pull">Focus Pull (Blur &harr; Sharp)</option>
+                <option value="tilt-shift">Tilt-Shift Miniature Focus</option>
+                <option value="motion-blur">Directional Motion Blur</option>
+              </select>
+            </div>
+
+            <div id="panel-opt-focus" style="display: none; margin-top: 0.5rem;">
+              <div class="control-row"><label>Start Blur Radius (px)</label><div class="slider-row"><input type="range" id="startBlurSlider" min="0" max="50" step="0.5" value="18"><input type="number" class="num-input" id="startBlurNum"></div></div>
+              <div class="control-row"><label>End Blur Radius (px)</label><div class="slider-row"><input type="range" id="endBlurSlider" min="0" max="50" step="0.5" value="0"><input type="number" class="num-input" id="endBlurNum"></div></div>
+              <div class="control-row"><label>Focus Duration (sec)</label><div class="slider-row"><input type="range" id="focusDurSlider" min="0.5" max="30" step="0.5" value="4"><input type="number" class="num-input" id="focusDurNum"></div></div>
+            </div>
+
+            <div id="panel-opt-tiltshift" style="display: none; margin-top: 0.5rem;">
+              <div class="control-row"><label>Mask Shape</label><select id="tsShapeSelect"><option value="horizontal">Horizontal Band (Letterbox)</option><option value="vertical">Vertical Band (Pillarbox)</option><option value="radial">Radial Target (Inner Circle)</option></select></div>
+              <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="tsPosXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosXNum"></div></div>
+              <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="tsPosSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosNum"></div></div>
+              <div class="control-row"><label>Sharp Zone Width (%)</label><div class="slider-row"><input type="range" id="tsWidthSlider" min="5" max="80" step="1" value="20"><input type="number" class="num-input" id="tsWidthNum"></div></div>
+              <div class="control-row"><label>Background Blur (px)</label><div class="slider-row"><input type="range" id="tsBlurSlider" min="1" max="50" step="1" value="12"><input type="number" class="num-input" id="tsBlurNum"></div></div>
+            </div>
+
+            <div id="panel-opt-motionblur" style="display: none; margin-top: 0.5rem;">
+              <div class="control-row"><label>Blur Intensity (Velocity)</label><div class="slider-row"><input type="range" id="mbIntSlider" min="0" max="50" step="1" value="15"><input type="number" class="num-input" id="mbIntNum"></div></div>
+              <div class="control-row"><label>Motion Angle (Degrees)</label><div class="slider-row"><input type="range" id="mbAngSlider" min="0" max="360" step="1" value="0"><input type="number" class="num-input" id="mbAngNum"></div></div>
+            </div>
           </div>
 
-          <div id="panel-opt-tiltshift" style="display: none; margin-top: 0.5rem;">
-            <div class="control-row"><label>Mask Shape</label><select id="tsShapeSelect"><option value="horizontal">Horizontal Band (Letterbox)</option><option value="vertical">Vertical Band (Pillarbox)</option><option value="radial">Radial Target (Inner Circle)</option></select></div>
-            <div class="control-row"><label>Centre Pos X (%)</label><div class="slider-row"><input type="range" id="tsPosXSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosXNum"></div></div>
-            <div class="control-row"><label>Centre Pos Y (%)</label><div class="slider-row"><input type="range" id="tsPosSlider" min="0" max="100" step="1" value="50"><input type="number" class="num-input" id="tsPosNum"></div></div>
-            <div class="control-row"><label>Sharp Zone Width (%)</label><div class="slider-row"><input type="range" id="tsWidthSlider" min="5" max="80" step="1" value="20"><input type="number" class="num-input" id="tsWidthNum"></div></div>
-            <div class="control-row"><label>Background Blur (px)</label><div class="slider-row"><input type="range" id="tsBlurSlider" min="1" max="50" step="1" value="12"><input type="number" class="num-input" id="tsBlurNum"></div></div>
-          </div>
-
-          <div id="panel-opt-motionblur" style="display: none; margin-top: 0.5rem;">
-            <div class="control-row"><label>Blur Intensity (Velocity)</label><div class="slider-row"><input type="range" id="mbIntSlider" min="0" max="50" step="1" value="15"><input type="number" class="num-input" id="mbIntNum"></div></div>
-            <div class="control-row"><label>Motion Angle (Degrees)</label><div class="slider-row"><input type="range" id="mbAngSlider" min="0" max="360" step="1" value="0"><input type="number" class="num-input" id="mbAngNum"></div></div>
-          </div>
-
-          <div style="margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px dashed #30363d;">
+          <div id="subpanelFrame" class="frame-subpanel" style="margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px dashed #30363d;">
             <label class="toggle-switch"><input type="checkbox" id="chkModuleFrame"> 🖼️ Presentation Frame</label>
             <div id="groupFrame" style="display:none; flex-direction:column; gap:0.45rem; margin-top:0.45rem;">
               <div class="control-row" style="margin-top: 0;">
@@ -972,7 +1109,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 4. ACCORDION: EXPORT & RENDER -->
       <div class="accordion-section open" id="acc-export">
         <div class="accordion-header">
@@ -1221,7 +1358,7 @@
         </div>
         <button type="button" class="close-btn" onclick="window.closeExportModal()" title="Close">✕</button>
       </div>
-      
+
       <div class="modal-body">
         <div class="export-settings">
           <div class="setting-row">
@@ -1255,7 +1392,7 @@
               </div>
             </div>
           </div>
-          
+
           <div class="setting-group">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label>Target Video Resolution</label>
@@ -1374,7 +1511,7 @@
         <div class="export-preview">
           <div id="previewContainer" class="preview-box">
             <span id="previewPlaceholder">Configure layers and click "Generate Preview (24 FPS)" to test...</span>
-            
+
             <div id="renderProgressOverlay" class="progress-overlay" style="display: none;">
               <div class="progress-phase" id="progressPhaseText">Initializing render engine...</div>
               <div class="progress-bar-track">
