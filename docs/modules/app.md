@@ -8,10 +8,11 @@
   - Accordion expand/collapse (`window.openAccordionById`, `window.toggleAllAccordions`).
   - Paired `*Slider` and `*Num` synchronization and `#canvasBgColorPicker`/`#canvasGridColorPicker` bindings.
   - Photo upload dropzone (`#uploadDrop`, `#fileInput`) and interactive photo crop mode (`#btnDragPhotoCrop`).
-  - Camera reticle toggle buttons (`#btnModeStart`, `#btnModeEnd`).
+  - Camera reticle toggle buttons (`#btnModeStart`, `#btnModeEnd`) delegating cleanly through `AppCoordinator.selectObject('camera', mode, { skipStageClear: true })`.
+  - Master SVG compilation and stage overlay synchronization delegating through `AppCoordinator.updateActiveOverlays()`.
   - Still export modal (`window.StillExportStudio.readExportOptionsFromDOM`, `renderPreview`, `download`) and Animated export modal (`window.AnimatedExportStudio` / `window.openExportModal`, `generatePreview`, `downloadFinal`).
 - **Layer 2 (Application Coordination — `coordinator.js`):**
-  - `window.AppCoordinator` manages cross-module selection (`selectObject`, `clearSelection`), render requests (`requestRender`), history recording (`recordHistoryImmediate`, `recordHistoryDebounced`), and stage snap/dimension queries (`getSnapConfig`, `snapPosition`, `getCanvasDimensions`).
+  - `window.AppCoordinator` manages cross-module selection (`selectObject`, `clearSelection`), waypoint selection (`selectWaypoint`), active overlay synchronization (`updateActiveOverlays`), post-restoration UI refresh (`coordinatePostRestore`), render requests (`requestRender`), history recording (`recordHistoryImmediate`, `recordHistoryDebounced`), and stage snap/dimension queries (`getSnapConfig`, `snapPosition`, `getCanvasDimensions`).
 - **Layer 3 (Operational Functionality — `scene-state.js`, `still-export-modal.js`, `export-modal.js`):**
   - `window.SceneState` owns `loadedPhoto`, `controls`, `paperSpecs`, `buildCurrentCanvasState()`, `buildRenderState()`, `buildFullSVG(state, overrides)`, and `serializeSVGForExport(rawSvg)`.
   - `window.ControlStateAdaptor` synchronizes DOM input values with `SceneState.controls`.

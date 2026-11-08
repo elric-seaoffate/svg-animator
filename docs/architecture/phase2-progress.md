@@ -125,11 +125,37 @@ Stage 2.4 decoupled Layer 3 operational restoration and recording routines from 
 
 ---
 
-## 7. Next Steps
+## 7. Stage 2.5 Implementation Details
 
-1. **Phase 2 Completion Checkpoint:**
-   - Consolidated code review of Stage 2.4.
-   - Commit and push Stage 2.4 to `main`.
+Stage 2.5 decoupled peer UI refresh routines and cross-module presentation coupling across `stage.js` and `app.js`, eliminating all 13 violations of architectural rule `ARCH-07` and converting its status to **PASS** (reducing repository architecture warnings from four to three):
+
+1. **`AppCoordinator.selectObject(type, id, options)` Bidirectional Coordination:**
+   - Extended `selectObject()` in `coordinator.js` to support stage-initiated selection alongside module-initiated selection.
+   - When stage clicks initiate selection (e.g. clicking a node shape on the stage canvas), `AppCoordinator` validates and invokes `DiagramNodes.selectNode(id, false)`, deselects other active modules, sets `activeSelection`, opens the target accordion, and emits `'selection:changed'`.
+   - When module lists initiate selection, passing `{ skipStageClear: true, skipModuleSelect: true }` avoids redundant re-entrant calls while preserving unified single-active-object exclusivity.
+   - Re-entrancy guard `_isCoordinatingSelection: true` ensures deterministic execution and prevents recursion.
+2. **`DataFlows.selectWaypoint(index)` & `AppCoordinator.selectWaypoint(index)`:**
+   - Added public Layer 1 API `DataFlows.selectWaypoint(index)`: validates index against active flow via `setActiveWaypointIndex(index)`, synchronizes sidebar slider and number controls (`refreshNodeSlider(f)`), refreshes reticle overlays (`updateUIOverlay()`), and returns boolean success.
+   - Added `AppCoordinator.selectWaypoint(index)` as the coordinator entry point.
+   - Updated `stage.js` waypoint handle click listener (`[data-flow-node-idx]`) to delegate through `AppCoordinator.selectWaypoint(idx)`.
+   - Updated `flowNodeSlider` input event listener in `flows.js` to use `this.selectWaypoint(e.target.value)`.
+3. **Centralized Active Overlay Coordination (`AppCoordinator.updateActiveOverlays()`):**
+   - Added `AppCoordinator.updateActiveOverlays()` to coordinate active overlay synchronization across `DiagramNodes`, `DataFlows`, `Glows`, and `Ripples` using their public Layer 1 methods without cross-module querying.
+   - Updated Stage `ResizeObserver` callback in `stage.js` to delegate overlay repositioning exclusively through `AppCoordinator.updateActiveOverlays()`.
+   - Updated master `render()` in `app.js` to delegate active overlay refresh exclusively through `AppCoordinator.updateActiveOverlays()`.
+4. **Removal of Obsolete Peer Fallback Code in `app.js`:**
+   - Removed 8 dead fallback calls (`deselectNode`, `deselectFlow`, `deselectGlow`, `deselectRipple`) in `#btnModeStart` and `#btnModeEnd` click listeners in `app.js`. `AppCoordinator` is guaranteed initialized as script #3 and natively manages deselecting other objects.
+5. **Architectural Verification:**
+   - `ARCH-07` now reports **PASS** with zero flagged lines (`stage.js state_mutation=[]`, `stage.js ui_calls=[]`, `app.js ui_refresh_calls=[]`).
+   - Repository architecture warnings reduced from 4 to 3 (`ARCH-02`, `ARCH-04`, `ARCH-05`).
+
+---
+
+## 8. Next Steps
+
+1. **Phase 2 Completion Review:**
+   - Consolidated independent review of Stage 2.5 implementation.
+   - Controlled commit and push of Stage 2.5 to `main`.
 2. **Phase 3 — Workspace Redesign (Planned):**
-   - Introduce Blender-style layout (icon rails, sliding drawers, maximized stage).
-   - Modernize property inspectors and retire legacy DOM form adaptors.
+   - Introduce Blender-style workspace layout (icon rails, sliding drawers, maximized stage).
+   - Modernize property inspectors and retire legacy DOM form adaptors (`ControlStateAdaptor`).

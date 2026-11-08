@@ -23,9 +23,10 @@
 - **UI & Compatibility API:**
   - `init()`
   - `addFlow(initialProps)` / `removeFlow(id)` / `selectFlow(id)` / `deselectFlow()`
+  - `selectWaypoint(index)` — Validates index against active flow, synchronizes sidebar slider/number controls, and refreshes waypoint reticles.
   - `addNodeToActive()` / `dropNodeFromActive()`
   - `updateActive(key, value)` / `handleStageClick(x, y)`
   - `renderList()` / `syncEditorUI(f)` / `refreshNodeSlider(f)` / `updateUIOverlay()` / `triggerAppRender()`
 
 ## 4. Dependencies
-- Uses `window.AppCoordinator` (selection coordination, canvas dimensions, render requests, history recording).
+- Uses `window.AppCoordinator` (selection coordination, waypoint selection, active overlay synchronization, canvas dimensions, render requests, history recording).

@@ -193,15 +193,14 @@ window.Stage = {
         const coords = this.clientToCanvasPct(e.clientX, e.clientY);
 
         const flowReticle = e.target.closest ? e.target.closest('[data-flow-node-idx]') : null;
-        if (flowReticle && window.DataFlows) {
+        if (flowReticle) {
           const idx = parseInt(flowReticle.getAttribute('data-flow-node-idx'), 10);
           if (!isNaN(idx)) {
-            window.DataFlows.setActiveWaypointIndex(idx);
-            const activeFlow = window.DataFlows.getFlow
-              ? window.DataFlows.getFlow(window.DataFlows.activeId)
-              : window.DataFlows.list.find((fl) => fl.id === window.DataFlows.activeId);
-            if (activeFlow) window.DataFlows.refreshNodeSlider(activeFlow);
-            window.DataFlows.updateUIOverlay();
+            if (window.AppCoordinator && typeof window.AppCoordinator.selectWaypoint === 'function') {
+              window.AppCoordinator.selectWaypoint(idx);
+            } else if (window.DataFlows && typeof window.DataFlows.selectWaypoint === 'function') {
+              window.DataFlows.selectWaypoint(idx);
+            }
           }
           this.nodeGrabOffsetX = 0;
           this.nodeGrabOffsetY = 0;
@@ -231,8 +230,8 @@ window.Stage = {
           }
 
           if (clickedNode) {
-            if (window.DiagramNodes.activeId !== clickedNode.id) {
-              window.DiagramNodes.selectNode(clickedNode.id, true);
+            if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+              window.AppCoordinator.selectObject('node', clickedNode.id, { openAccordionId: 'acc-nodes' });
             }
             this.nodeGrabOffsetX = clickedNode.x - coords.x;
             this.nodeGrabOffsetY = clickedNode.y - coords.y;
@@ -313,14 +312,8 @@ window.Stage = {
       if (window.ResizeObserver) {
         const ro = new ResizeObserver(() => {
           this.syncOverlayBounds(this.canvasWidth, this.canvasHeight);
-          if (window.DataFlows && window.DataFlows.activeId !== null) {
-            window.DataFlows.updateUIOverlay();
-          }
-          if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
-            const activeNode = window.DiagramNodes.getNode
-              ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
-              : window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
-            if (activeNode) window.DiagramNodes.updateUIOverlay(activeNode);
+          if (window.AppCoordinator && typeof window.AppCoordinator.updateActiveOverlays === 'function') {
+            window.AppCoordinator.updateActiveOverlays();
           }
         });
         ro.observe(this.previewBox);

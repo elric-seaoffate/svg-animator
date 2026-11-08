@@ -710,6 +710,138 @@ async function runHarness() {
   window.Ripples.deselectRipple();
   assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'Ripples.deselectRipple must clear AppCoordinator activeSelection');
 
+  // 3.2b Stage 2.5: Peer UI Refresh Decoupling & Overlay Coordination (ARCH-07)
+  let lastOpenedAccordion = null;
+  window.openAccordionById = function(accId) {
+    lastOpenedAccordion = accId;
+  };
+
+  let selectionEventsCount = 0;
+  let lastSelectionEvent = null;
+  const selectionListener = (payload) => {
+    selectionEventsCount++;
+    lastSelectionEvent = payload;
+  };
+  window.AppCoordinator.on('selection:changed', selectionListener);
+
+  // 1. Stage-initiated node selection
+  selectionEventsCount = 0;
+  window.AppCoordinator.selectObject('node', node1.id, { openAccordionId: 'acc-nodes' });
+  assert.strictEqual(window.DiagramNodes.activeId, node1.id, 'Stage-initiated node selection must activate DiagramNodes');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'node');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, node1.id);
+  assert.strictEqual(lastOpenedAccordion, 'acc-nodes', 'Stage-initiated selection must open requested accordion');
+  assert.strictEqual(selectionEventsCount, 1, 'Selection must emit selection:changed exactly once');
+
+  // 2. Stage-initiated transition to flow
+  selectionEventsCount = 0;
+  window.AppCoordinator.selectObject('flow', flow1.id, { openAccordionId: 'acc-flows' });
+  assert.strictEqual(window.DiagramNodes.activeId, null, 'Transitioning to flow must deselect node');
+  assert.strictEqual(window.DataFlows.activeId, flow1.id, 'Flow must become active');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'flow');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, flow1.id);
+  assert.strictEqual(lastOpenedAccordion, 'acc-flows');
+  assert.strictEqual(selectionEventsCount, 1);
+
+  // 3. Waypoint selection via DataFlows.selectWaypoint and AppCoordinator.selectWaypoint
+  window.DataFlows.addWaypoint(flow1.id); // now 3 waypoints: 0, 1, 2
+  assert.strictEqual(window.DataFlows.getFlow(flow1.id).nodes.length, 3);
+
+  // Select waypoint 1 via AppCoordinator
+  const wp1Success = window.AppCoordinator.selectWaypoint(1);
+  assert.strictEqual(wp1Success, true, 'AppCoordinator.selectWaypoint(1) must succeed');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 1);
+  assert.strictEqual(Number(document.getElementById('flowNodeSlider').value), 1);
+  assert.strictEqual(Number(document.getElementById('flowNodeNum').value), 1);
+
+  // Select waypoint 2 directly via DataFlows.selectWaypoint
+  const wp2Success = window.DataFlows.selectWaypoint(2);
+  assert.strictEqual(wp2Success, true, 'DataFlows.selectWaypoint(2) must succeed');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 2);
+  assert.strictEqual(Number(document.getElementById('flowNodeSlider').value), 2);
+
+  // Invalid waypoint tests
+  assert.strictEqual(window.AppCoordinator.selectWaypoint(99), false, 'Out-of-range index must return false');
+  assert.strictEqual(window.DataFlows.getActiveWaypointIndex(), 2, 'Active index must remain unchanged on failure');
+  assert.strictEqual(window.AppCoordinator.selectWaypoint(-1), false, 'Negative index must return false');
+  assert.strictEqual(window.AppCoordinator.selectWaypoint('invalid'), false, 'NaN string must return false');
+
+  // Deselect flow and test selectWaypoint with no active flow
+  window.DataFlows.deselectFlow();
+  assert.strictEqual(window.AppCoordinator.selectWaypoint(0), false, 'selectWaypoint with no active flow must return false');
+
+  // 4. Camera mode selection via AppCoordinator
+  window.DiagramNodes.selectNode(node1.id);
+  assert.strictEqual(window.DiagramNodes.activeId, node1.id);
+  window.AppCoordinator.selectObject('camera', 'start', { skipStageClear: true });
+  assert.strictEqual(window.DiagramNodes.activeId, null, 'Camera selection must deselect active node');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'camera');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, 'start');
+  assert.strictEqual(window.Stage.activePlacement, 'start');
+
+  window.AppCoordinator.selectObject('camera', 'end', { skipStageClear: true });
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'camera');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, 'end');
+  assert.strictEqual(window.Stage.activePlacement, 'end');
+  window.Stage.clearActive();
+
+  // 5. Centralized overlay coordination (AppCoordinator.updateActiveOverlays)
+  let nodeOverlayUpdated = 0;
+  let flowOverlayUpdated = 0;
+  let glowOverlayUpdated = 0;
+  let rippleOverlayUpdated = 0;
+
+  const origNodeOverlay = window.DiagramNodes.updateUIOverlay;
+  const origFlowOverlay = window.DataFlows.updateUIOverlay;
+  const origGlowOverlay = window.Glows.updateUIOverlay;
+  const origRippleOverlay = window.Ripples.updateUIOverlay;
+
+  window.DiagramNodes.updateUIOverlay = function(n) { nodeOverlayUpdated++; return origNodeOverlay.call(this, n); };
+  window.DataFlows.updateUIOverlay = function() { flowOverlayUpdated++; return origFlowOverlay.call(this); };
+  window.Glows.updateUIOverlay = function(g) { glowOverlayUpdated++; return origGlowOverlay.call(this, g); };
+  window.Ripples.updateUIOverlay = function(r) { rippleOverlayUpdated++; return origRippleOverlay.call(this, r); };
+
+  // Nothing active: no overlay updates
+  window.AppCoordinator.clearSelection();
+  window.AppCoordinator.updateActiveOverlays();
+  assert.strictEqual(nodeOverlayUpdated, 0);
+  assert.strictEqual(flowOverlayUpdated, 0);
+  assert.strictEqual(glowOverlayUpdated, 0);
+  assert.strictEqual(rippleOverlayUpdated, 0);
+
+  // Node active: DiagramNodes overlay updated
+  window.AppCoordinator.selectObject('node', node1.id);
+  nodeOverlayUpdated = 0;
+  window.AppCoordinator.updateActiveOverlays();
+  assert.strictEqual(nodeOverlayUpdated, 1, 'updateActiveOverlays must update active node overlay');
+  assert.strictEqual(flowOverlayUpdated, 0);
+
+  // Flow active: DataFlows overlay updated
+  window.AppCoordinator.selectObject('flow', flow1.id);
+  flowOverlayUpdated = 0;
+  window.AppCoordinator.updateActiveOverlays();
+  assert.strictEqual(flowOverlayUpdated, 1, 'updateActiveOverlays must update active flow overlay');
+
+  // Glow active: Glows overlay updated
+  window.AppCoordinator.selectObject('glow', glow1.id);
+  glowOverlayUpdated = 0;
+  window.AppCoordinator.updateActiveOverlays();
+  assert.strictEqual(glowOverlayUpdated, 1, 'updateActiveOverlays must update active glow overlay');
+
+  // Ripple active: Ripples overlay updated
+  window.AppCoordinator.selectObject('ripple', ripple1.id);
+  rippleOverlayUpdated = 0;
+  window.AppCoordinator.updateActiveOverlays();
+  assert.strictEqual(rippleOverlayUpdated, 1, 'updateActiveOverlays must update active ripple overlay');
+
+  // Restore spies
+  window.DiagramNodes.updateUIOverlay = origNodeOverlay;
+  window.DataFlows.updateUIOverlay = origFlowOverlay;
+  window.Glows.updateUIOverlay = origGlowOverlay;
+  window.Ripples.updateUIOverlay = origRippleOverlay;
+  window.AppCoordinator.off('selection:changed', selectionListener);
+  window.AppCoordinator.clearSelection();
+
   // 3.3 HistoryManager maxDepth: 50, Undo, Redo
   assert.strictEqual(window.HistoryManager.maxDepth, 50);
   window.HistoryManager.undoStack = [];

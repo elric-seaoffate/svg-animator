@@ -408,7 +408,7 @@ window.DiagramNodes = {
 
   selectNode(id, openAccordion = false) {
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('node', id, { skipStageClear: true });
+      window.AppCoordinator.selectObject('node', id, { skipStageClear: true, skipModuleSelect: true });
     } else {
       if (window.DataFlows) window.DataFlows.deselectFlow();
       if (window.Glows) window.Glows.deselectGlow();

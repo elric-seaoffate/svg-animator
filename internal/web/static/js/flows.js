@@ -14,7 +14,7 @@
  * Layer 1 (UI Presentation & Compatibility):
  *   - `init()`, `addFlow()`, `addNodeToActive()`, `dropNodeFromActive()`,
  *     `refreshNodeSlider(f)`, `syncEditorUI(f)`, `selectFlow(id)`, `deselectFlow()`,
- *     `updateActive(key, value)`, `handleStageClick(x, y)`, `updateUIOverlay()`,
+ *     `selectWaypoint(index)`, `updateActive(key, value)`, `handleStageClick(x, y)`, `updateUIOverlay()`,
  *     `removeFlow(id)`, `renderList()`, `triggerAppRender()`
  */
 window.DataFlows = {
@@ -441,10 +441,7 @@ window.DataFlows = {
     const nodeSlider = document.getElementById('flowNodeSlider');
     if (nodeSlider) {
       nodeSlider.addEventListener('input', (e) => {
-        this.activeNodeIdx = parseInt(e.target.value, 10);
-        const nodeNum = document.getElementById('flowNodeNum');
-        if (nodeNum) nodeNum.value = this.activeNodeIdx;
-        this.updateUIOverlay();
+        this.selectWaypoint(e.target.value);
       });
     }
 
@@ -566,7 +563,7 @@ window.DataFlows = {
 
   selectFlow(id) {
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('flow', id, { skipStageClear: true });
+      window.AppCoordinator.selectObject('flow', id, { skipStageClear: true, skipModuleSelect: true });
     } else {
       if (window.DiagramNodes) window.DiagramNodes.deselectNode();
       if (window.Glows) window.Glows.deselectGlow();
@@ -583,6 +580,18 @@ window.DataFlows = {
       this.syncEditorUI(f);
       this.updateUIOverlay();
     }
+  },
+
+  selectWaypoint(index) {
+    if (this.activeId === null) return false;
+    const f = this.getFlow(this.activeId);
+    if (!f || !Array.isArray(f.nodes)) return false;
+    if (typeof this.setActiveWaypointIndex !== 'function') return false;
+    const ok = this.setActiveWaypointIndex(index);
+    if (!ok) return false;
+    this.refreshNodeSlider(f);
+    this.updateUIOverlay();
+    return true;
   },
 
   deselectFlow() {

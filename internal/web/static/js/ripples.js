@@ -224,7 +224,7 @@ window.Ripples = {
 
   selectRipple(id) {
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('ripple', id, { skipStageClear: true });
+      window.AppCoordinator.selectObject('ripple', id, { skipStageClear: true, skipModuleSelect: true });
     } else {
       if (window.DataFlows) window.DataFlows.deselectFlow();
       if (window.Glows) window.Glows.deselectGlow();

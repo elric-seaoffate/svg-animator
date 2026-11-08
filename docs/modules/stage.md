@@ -12,7 +12,9 @@
 - **Layer 1 (Stage UI & Interaction):**
   - Viewport zoom (`fit`, `100%`, zoom in/out, Ctrl+wheel zoom) and spacebar/middle-mouse panning (`panX`, `panY`).
   - Camera placement reticle mode (`setActive`, `clearActive`, `updateReticles`) and interactive drag handling for Nodes, Flows, Glows, Ripples, and Photo Crop.
-  - Stage click/drag selection and deselection routed through `window.AppCoordinator`.
+  - Stage click selection of nodes routed through `AppCoordinator.selectObject('node', id, { openAccordionId: 'acc-nodes' })`.
+  - Stage click selection of flow waypoints routed through `AppCoordinator.selectWaypoint(idx)`.
+  - Stage `ResizeObserver` delegates active overlay synchronization exclusively to `AppCoordinator.updateActiveOverlays()`.
 
 ## 3. Public Interface (`window.Stage`)
 - **State Properties:** `activePlacement`, `isDragging`, `isPanningStage`, `isDraggingPhotoCrop`, `dragPhotoCropEnabled`, `spacePressed`, `canvasWidth`, `canvasHeight`, `zoomMode`, `zoomScale`, `panX`, `panY`.
@@ -30,5 +32,4 @@
   - `loadFile(file, callback)`
 
 ## 4. Dependencies
-- Uses `window.AppCoordinator` for snap settings, selection coordination, render requests, and history recording.
-- Interacts with `window.DataFlows` via `setActiveWaypointIndex(idx)` during waypoint drag interaction.
+- Uses `window.AppCoordinator` for snap settings, selection coordination, waypoint activation, overlay synchronization, render requests, and history recording.

@@ -89,7 +89,7 @@
      *
      * @param {string|null} type - 'node' | 'flow' | 'glow' | 'ripple' | 'camera' | null
      * @param {number|string|null} id - Object ID or camera placement ('start' | 'end')
-     * @param {Object} [options] - Optional flags ({ openAccordionId, skipStageClear })
+     * @param {Object} [options] - Optional flags ({ openAccordionId, skipStageClear, skipModuleSelect })
      */
     selectObject(type, id, options = {}) {
       if (this._isCoordinatingSelection) return;
@@ -114,6 +114,21 @@
           window.Stage.clearActive();
         }
 
+        // Activate the target object on its owner module if not already active
+        if (!options.skipModuleSelect && normalizedId !== null) {
+          if (normalizedType === 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== normalizedId) {
+            window.DiagramNodes.selectNode(normalizedId, false);
+          } else if (normalizedType === 'flow' && window.DataFlows && window.DataFlows.activeId !== normalizedId) {
+            window.DataFlows.selectFlow(normalizedId);
+          } else if (normalizedType === 'glow' && window.Glows && window.Glows.activeId !== normalizedId) {
+            window.Glows.selectGlow(normalizedId);
+          } else if (normalizedType === 'ripple' && window.Ripples && window.Ripples.activeId !== normalizedId) {
+            window.Ripples.selectRipple(normalizedId);
+          } else if (normalizedType === 'camera' && window.Stage && window.Stage.activePlacement !== normalizedId) {
+            window.Stage.setActive(normalizedId);
+          }
+        }
+
         this.activeSelection = {
           type: normalizedType,
           id: normalizedId
@@ -126,6 +141,55 @@
         this.emit('selection:changed', this.getActiveSelection());
       } finally {
         this._isCoordinatingSelection = false;
+      }
+    },
+
+    /**
+     * Coordinates active waypoint selection on DataFlows.
+     *
+     * @param {number|string} index - Waypoint index to activate
+     * @returns {boolean} Whether the waypoint selection succeeded
+     */
+    selectWaypoint(index) {
+      if (window.DataFlows && typeof window.DataFlows.selectWaypoint === 'function') {
+        return window.DataFlows.selectWaypoint(index);
+      }
+      return false;
+    },
+
+    /**
+     * Refreshes active UI overlays (reticles, selection outlines) for whichever
+     * object is currently active across DiagramNodes, DataFlows, Glows, and Ripples.
+     */
+    updateActiveOverlays() {
+      if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+        const activeNode = typeof window.DiagramNodes.getNode === 'function'
+          ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
+          : (window.DiagramNodes.list && window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId));
+        if (activeNode && typeof window.DiagramNodes.updateUIOverlay === 'function') {
+          window.DiagramNodes.updateUIOverlay(activeNode);
+        }
+      }
+      if (window.DataFlows && window.DataFlows.activeId !== null) {
+        if (typeof window.DataFlows.updateUIOverlay === 'function') {
+          window.DataFlows.updateUIOverlay();
+        }
+      }
+      if (window.Glows && window.Glows.activeId !== null) {
+        const activeGlow = typeof window.Glows.getGlow === 'function'
+          ? window.Glows.getGlow(window.Glows.activeId)
+          : (window.Glows.list && window.Glows.list.find((g) => g.id === window.Glows.activeId));
+        if (activeGlow && typeof window.Glows.updateUIOverlay === 'function') {
+          window.Glows.updateUIOverlay(activeGlow);
+        }
+      }
+      if (window.Ripples && window.Ripples.activeId !== null) {
+        const activeRipple = typeof window.Ripples.getRipple === 'function'
+          ? window.Ripples.getRipple(window.Ripples.activeId)
+          : (window.Ripples.list && window.Ripples.list.find((r) => r.id === window.Ripples.activeId));
+        if (activeRipple && typeof window.Ripples.updateUIOverlay === 'function') {
+          window.Ripples.updateUIOverlay(activeRipple);
+        }
       }
     },
 

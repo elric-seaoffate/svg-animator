@@ -581,11 +581,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnModeStart')?.addEventListener('click', () => {
     if (window.AppCoordinator) {
       window.AppCoordinator.selectObject('camera', 'start', { skipStageClear: true });
-    } else {
-      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-      if (window.DataFlows) window.DataFlows.deselectFlow();
-      if (window.Glows) window.Glows.deselectGlow();
-      if (window.Ripples) window.Ripples.deselectRipple();
     }
     if (window.Stage) Stage.setActive('start');
   });
@@ -593,11 +588,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnModeEnd')?.addEventListener('click', () => {
     if (window.AppCoordinator) {
       window.AppCoordinator.selectObject('camera', 'end', { skipStageClear: true });
-    } else {
-      if (window.DiagramNodes) window.DiagramNodes.deselectNode();
-      if (window.DataFlows) window.DataFlows.deselectFlow();
-      if (window.Glows) window.Glows.deselectGlow();
-      if (window.Ripples) window.Ripples.deselectRipple();
     }
     if (window.Stage) Stage.setActive('end');
   });
@@ -762,14 +752,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!editingNode && !editingFlow && !editingGlow && !editingRipple && window.Stage) {
       window.Stage.updateReticles(sx, sy, ex, ey);
     }
-    if (editingFlow && window.DataFlows) {
-      window.DataFlows.updateUIOverlay();
-    }
-    if (editingNode && window.DiagramNodes) {
-      const activeNode = window.DiagramNodes.getNode
-        ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
-        : window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId);
-      if (activeNode) window.DiagramNodes.updateUIOverlay(activeNode);
+    if (window.AppCoordinator && typeof window.AppCoordinator.updateActiveOverlays === 'function') {
+      window.AppCoordinator.updateActiveOverlays();
     }
 
     try {

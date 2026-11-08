@@ -70,7 +70,9 @@ flowchart TD
 
 1. **No upward dependencies in operational methods:** Layer 3 CRUD, geometry/coordinate calculation, and SVG builder methods do not call `document.getElementById` or read/write DOM input values directly. DOM control synchronization is handled through `ControlStateAdaptor` (`js/scene-state.js`).
 2. **No lateral UI coupling between object collections:**
-   - Selecting an object in `DiagramNodes`, `DataFlows`, `Glows`, or `Ripples` routes through `AppCoordinator.selectObject(type, id)` rather than directly mutating sibling modules' `activeId` properties.
+   - Selecting an object in `DiagramNodes`, `DataFlows`, `Glows`, or `Ripples` routes through `AppCoordinator.selectObject(type, id)` rather than directly mutating sibling modules' `activeId` properties or calling peer presentation methods.
+   - Stage waypoint selection routes through `AppCoordinator.selectWaypoint(index)` and `DataFlows.selectWaypoint(index)`.
+   - Stage viewport resizing and master SVG render cycles synchronize active overlays exclusively through `AppCoordinator.updateActiveOverlays()` rather than querying peer module state.
    - Coordinate snapping routes through `AppCoordinator.snapPosition(xPct, yPct)` (which delegates to `SceneState.getSnapConfig()` and `Stage.snapPctToGrid()`).
 3. **Allowed operational relationships:**
    - `DiagramNodes.createNode(initialProps)` applies enabled preset properties via `NodePresets.applyToNodeObject(newNode)` when `applyPreset` (or `NodePresets.autoApplyToNewNodes`) is active, and snaps initial coordinates via `AppCoordinator.snapPosition`.

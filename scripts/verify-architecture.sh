@@ -676,8 +676,7 @@ print("      - Exception:   Offscreen DOM sandbox in still-export-modal.js bakeS
 print("   3. Operational Code Directly Invoking UI Presentation Methods:")
 print("      - Exception:   HistoryManager & ProjectManager Layer 3 methods calling syncAllRowsUI/deselect*/syncUIAfterHistoryRestore/updateButtonsUI (WARNING)")
 print("   4. Inspected Layer 1 UI Delegation vs Recognised Cross-Module Coupling:")
-print("      - Inspected Layer 1 regions use AppCoordinator for selection, history recording, and render requests")
-print("      - Exception:   stage.js Layer 1 mutates DataFlows.activeNodeIdx and calls selectNode/updateUIOverlay; app.js calls peer Layer 1 UI refresh methods (WARNING)")
+print("      - Inspected Layer 1 regions use AppCoordinator for selection, waypoint activation, overlay refresh, history recording, and render requests (PASS)")
 print("=============================================================================")
 
 fail_count = sum(1 for r in results if r[0] == "FAIL")

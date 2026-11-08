@@ -64,7 +64,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
 | Dynamic UI Shape Dropdown Integration & Fallbacks | **Implemented (Stage 2.2)** | `internal/web/static/js/app.js` (commit `c1155bc`) |
 | Targeted Component Public APIs | **Implemented (Stage 2.3)** | Standardized Layer 3 operational interfaces across modules (commit `2b6b17e`) |
-| Restoration & UI Refresh Decoupling | **Implemented (Stage 2.4)** | Decoupled Layer 3 restoration in `HistoryManager` & `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed` |
+| Restoration & UI Refresh Decoupling | **Implemented (Stage 2.4)** | Decoupled Layer 3 restoration in `HistoryManager` & `ProjectManager` via `AppCoordinator.coordinatePostRestore` and `history:changed` (commit `92aa87d`) |
+| Peer UI Refresh Decoupling (ARCH-07) | **Implemented (Stage 2.5)** | Centralized selection, waypoint selection (`DataFlows.selectWaypoint`), and active overlay coordination via `AppCoordinator.updateActiveOverlays()` |
 | Blender-style workspace (icon rails, sliding drawers, maximized stage) | **Planned (Phase 3)** | Currently 3-column studio layout (`leftPanel`, `stageArea`, `rightPanel`) |
 | Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftPanel` / `rightPanel` |
 

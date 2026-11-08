@@ -344,7 +344,7 @@ window.Glows = {
 
   selectGlow(id) {
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('glow', id, { skipStageClear: true });
+      window.AppCoordinator.selectObject('glow', id, { skipStageClear: true, skipModuleSelect: true });
     } else {
       if (window.DiagramNodes) window.DiagramNodes.deselectNode();
       if (window.DataFlows) window.DataFlows.deselectFlow();
