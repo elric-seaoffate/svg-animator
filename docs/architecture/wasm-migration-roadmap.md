@@ -100,8 +100,8 @@ pkg/engine/
 
 ```mermaid
 flowchart TD
-    S1["Stage 1: Geometry & Path Routing (Complete)"] --> S2["Stage 2: Animation Timing & Frame Evaluation"]
-    S2 --> S3["Stage 3: Diagram Nodes & Shape Registry"]
+    S1["Stage 1: Geometry & Path Routing (Complete)"] --> S2["Stage 2: Animation Timing & Frame Evaluation (Complete)"]
+    S2 --> S3["Stage 3: Diagram Nodes & Shape Registry (Complete)"]
     S3 --> S4["Stage 4: Connectors & Data Flows"]
     S4 --> S5["Stage 5: Hotspots & Glow Effects"]
     S5 --> S6["Stage 6: Refractive Liquid Ripples"]
@@ -122,21 +122,28 @@ flowchart TD
 - **Integration Tests**: `go test ./pkg/engine/geometry` + `node scripts/regression-harness.js` (Section 15).
 - **JS Retirement Plan**: Legacy JS methods in `flows.js` and `stage.js` remain as verified fallbacks; caller methods delegate directly to `window.EngineBridge`.
 
-### Stage 2: Animation Timing, Easing & Frame Evaluation
-- **Go Owner**: `pkg/engine/timeline/`
+### Stage 2: Animation Timing, Easing & Frame Evaluation (Implemented)
+- **Go Owner**: `pkg/engine/timeline/` (`timeline.go`, `evaluator.go`, `bezier.go`), `pkg/engine/scene/`
 - **Legacy JS Owner**: `still-export-modal.js` (`evaluateSMILAnimate`, `parseClockValue`), `app.js` (`playbackLoop`)
-- **Boundary Contract**: `Timeline.EvaluateAtTime(timestampMs)` -> `{ frameIndex, transforms, opacities, flowOffsets }`
-- **Parity Criteria**: Deterministic evaluation at timestamp $t$ produces frame attributes matching browser SMIL playback.
-- **Integration Tests**: Headless frame capture comparison between Go timeline evaluation and browser SMIL output.
-- **JS Retirement Plan**: Remove redundant SMIL parsing regexes from `still-export-modal.js`.
+- **Boundary Contract**:
+  - `Timeline.EvaluateSceneAtTime(time)` -> `{ frameIndex, time, progress, flows, glows, ripples }`
+  - `Timeline.EvaluateBatch(times)` -> `[]FrameResult`
+  - `Scene.SetState`, `Scene.GetState`
+- **Parity Criteria**: Deterministic evaluation at timestamp $t$ produces frame attributes matching browser SMIL playback within $\le 0.05$ pixels/degrees.
+- **Integration Tests**: `go test ./pkg/engine/timeline ./pkg/engine/scene` + `node scripts/regression-harness.js` (Section 16, 16.1).
+- **JS Retirement Plan**: Legacy SMIL animation calculations retain fallback status in `engine-bridge.js`.
 
-### Stage 3: Diagram Nodes & Shape Registry
-- **Go Owner**: `pkg/engine/model/node.go`, `pkg/engine/geometry/shapes.go`
-- **Legacy JS Owner**: `nodes.js` (Layer 3 operational CRUD), `shape-registry.js`
-- **Boundary Contract**: `Node.Create`, `Node.Update`, `Node.Delete`, `Node.GetBounds`
-- **Parity Criteria**: Shape dimensions, text label bounding boxes, and centered anchors match `ShapeRegistry` definitions.
-- **Integration Tests**: Verification of node bounds across 12 built-in shapes.
-- **JS Retirement Plan**: `shape-registry.js` becomes a thin presentation wrapper querying Go shape metadata.
+### Stage 3: Diagram Nodes & Shape Registry (Implemented)
+- **Go Owner**: `pkg/engine/geometry/shapes.go`, `pkg/engine/scene/preset.go`, `pkg/engine/scene/scene.go`
+- **Legacy JS Owner**: `internal/web/static/js/nodes.js`, `presets.js`, `shape-registry.js`
+- **Boundary Contract**:
+  - `Shape.GetCatalog` -> `[]ShapeDefinition`
+  - `Shape.Describe` -> `ShapeGeometryDescription`
+  - `Preset.GetDefaults`, `Preset.Apply`, `Preset.Extract`
+  - `Node.Create`, `Node.Update`, `Node.Delete`, `Node.GetBounds`, `Node.FindAt`
+- **Parity Criteria**: Shape dimensions, text label bounding boxes, centered anchors, drop shadow filter preservation, and preset expansion match across all 12 registered shapes.
+- **Integration Tests**: `go test ./pkg/engine/geometry ./pkg/engine/scene ./pkg/engine/protocol` + `node scripts/regression-harness.js` (Section 16.2).
+- **JS Retirement Plan**: `nodes.js`, `presets.js`, and `shape-registry.js` operational methods delegate directly to `window.EngineBridge`.
 
 ### Stage 4: Connectors & Data Flows
 - **Go Owner**: `pkg/engine/model/flow.go`

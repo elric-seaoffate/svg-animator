@@ -485,6 +485,35 @@ Before moving or replacing any control:
 
 Do not redesign the interface or introduce visual changes during a task that is only intended to separate UI from operational functionality.
 
+## Strict Go/WASM and JavaScript responsibility boundary
+
+SVG Animator Studio is a Go-first application.
+
+**All application state, object behavior, geometry, animation calculations, effect algorithms, validation, command handling and scene evaluation belong in portable Go packages.**
+
+JavaScript is restricted to browser integration:
+
+- DOM and SVG presentation.
+- Pointer and keyboard event forwarding.
+- Browser animation-frame scheduling.
+- Browser file and platform APIs.
+- WASM initialization and communication.
+- Applying Go-generated presentation updates.
+
+JavaScript must not implement new animation algorithms, maintain competing authoritative scene state, or duplicate Go business logic.
+
+Existing JavaScript operational code is temporary migration debt and must be progressively retired as each Go subsystem becomes authoritative.
+
+Temporary compatibility fallbacks require an explicit retirement plan. They must not become permanent parallel implementations by default.
+
+**Priority:** Establish correctness and complete the ordered Go/WASM transition before undertaking performance optimisation.
+
+Do not optimise large background images or refactor rendering performance during the current migration unless a measured issue prevents correct operation.
+
+Maintain the existing browser UI and standalone SVG export compatibility.
+
+Update the persistent Antigravity architecture instructions to enforce these rules in future feature development.
+
 ---
 
 ## 11. Code quality and conventions

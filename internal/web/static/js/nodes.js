@@ -76,6 +76,38 @@ window.DiagramNodes = {
   },
 
   createNode(initialProps = {}) {
+    const shouldApplyPreset = initialProps.applyPreset !== undefined
+      ? !!initialProps.applyPreset
+      : (window.NodePresets ? window.NodePresets.autoApplyToNewNodes !== false : true);
+    const presetState = (shouldApplyPreset && window.NodePresets) ? window.NodePresets.getState() : null;
+    const shouldSnap = initialProps.snap !== false;
+
+    // Authoritative Go / WASM path
+    if (window.EngineBridge && typeof window.EngineBridge.createNode === 'function' && window.EngineBridge.isReady()) {
+      const wasmNode = window.EngineBridge.createNode(initialProps, presetState, shouldSnap);
+      if (wasmNode) {
+        const numId = Number(wasmNode.id);
+        if (!isNaN(numId) && numId > this.counter) {
+          this.counter = numId;
+        }
+        const localNode = Object.assign({}, wasmNode, { id: isNaN(numId) ? wasmNode.id : numId });
+        const explicitProps = [
+          'shape', 'text', 'subtext', 'x', 'y',
+          'width', 'height', 'fillColor', 'fillOpacity',
+          'strokeColor', 'strokeWidth', 'strokeStyle',
+          'textColor', 'fontSize', 'anim'
+        ];
+        explicitProps.forEach((prop) => {
+          if (initialProps[prop] !== undefined) {
+            localNode[prop] = initialProps[prop];
+          }
+        });
+        this.list.push(localNode);
+        return localNode;
+      }
+    }
+
+    // Mathematical JavaScript fallback
     this.counter++;
     const offset = ((this.counter - 1) % 6) * 6;
     const newNode = {
@@ -97,14 +129,8 @@ window.DiagramNodes = {
       anim: initialProps.anim || 'none'
     };
 
-    const shouldApplyPreset = initialProps.applyPreset !== undefined
-      ? !!initialProps.applyPreset
-      : (window.NodePresets ? window.NodePresets.autoApplyToNewNodes !== false : true);
-
     if (shouldApplyPreset && window.NodePresets) {
       window.NodePresets.applyToNodeObject(newNode);
-      // Explicitly supplied node properties take precedence over preset defaults.
-      // Control options (applyPreset, snap) and internal properties (id) are excluded.
       const explicitProps = [
         'shape', 'text', 'subtext', 'x', 'y',
         'width', 'height', 'fillColor', 'fillOpacity',
@@ -118,7 +144,7 @@ window.DiagramNodes = {
       });
     }
 
-    if (initialProps.snap !== false) {
+    if (shouldSnap) {
       if (window.AppCoordinator && typeof window.AppCoordinator.snapPosition === 'function') {
         const snapped = window.AppCoordinator.snapPosition(newNode.x, newNode.y);
         newNode.x = snapped.x;
@@ -137,6 +163,9 @@ window.DiagramNodes = {
   updateNode(id, patch) {
     const node = this.getNode(id);
     if (!node || !patch || typeof patch !== 'object') return null;
+    if (window.EngineBridge && typeof window.EngineBridge.updateNode === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.updateNode(id, patch);
+    }
     Object.keys(patch).forEach((key) => {
       if (key !== 'id') {
         node[key] = patch[key];
@@ -146,6 +175,9 @@ window.DiagramNodes = {
   },
 
   deleteNode(id) {
+    if (window.EngineBridge && typeof window.EngineBridge.deleteNode === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.deleteNode(id);
+    }
     const before = this.list.length;
     this.list = this.list.filter((n) => n.id !== id);
     if (this.activeId === id) {
@@ -155,6 +187,14 @@ window.DiagramNodes = {
   },
 
   findNodeAtPct(xPct, yPct, canvasW, canvasH) {
+    if (window.EngineBridge && typeof window.EngineBridge.findNodeAt === 'function' && window.EngineBridge.isReady()) {
+      const wasmFound = window.EngineBridge.findNodeAt(xPct, yPct, canvasW, canvasH);
+      if (wasmFound && wasmFound.id !== undefined) {
+        const local = this.getNode(Number(wasmFound.id) || wasmFound.id);
+        if (local) return local;
+      }
+    }
+
     const dims = (canvasW && canvasH)
       ? { width: canvasW, height: canvasH }
       : (window.AppCoordinator ? window.AppCoordinator.getCanvasDimensions() : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 });
@@ -209,8 +249,12 @@ window.DiagramNodes = {
 
       if (window.ShapeRegistry && typeof window.ShapeRegistry.get === 'function') {
         const shapeDef = window.ShapeRegistry.get(n.shape);
-        if (shapeDef && typeof shapeDef.buildSVG === 'function') {
-          shapeSVG = shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
+        if (shapeDef) {
+          if (typeof window.ShapeRegistry.renderShapeSVG === 'function') {
+            shapeSVG = window.ShapeRegistry.renderShapeSVG(shapeDef, eff, w, h, hw, hh, commonStyle, n);
+          } else if (typeof shapeDef.buildSVG === 'function') {
+            shapeSVG = shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
+          }
         }
       }
 

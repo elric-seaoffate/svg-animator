@@ -154,6 +154,160 @@ func TestDispatchNumericSceneSetState(t *testing.T) {
 
 
 
+func TestDispatchShapePresetAndNodeCommands(t *testing.T) {
+	// 1. Shape.GetCatalog
+	catBytes, err := Dispatch("Shape.GetCatalog", nil)
+	if err != nil {
+		t.Fatalf("Shape.GetCatalog failed: %v", err)
+	}
+	var catalog []geometry.ShapeDefinition
+	if err := json.Unmarshal(catBytes, &catalog); err != nil || len(catalog) < 12 {
+		t.Fatalf("Failed to decode shape catalog: %v, count=%d", err, len(catalog))
+	}
+
+	// 2. Shape.Describe
+	descReq, _ := json.Marshal(ShapeDescribeRequest{
+		Shape:    "cylinder",
+		Width:    200,
+		Height:   90,
+		Text:     "PostgreSQL",
+		Subtext:  "Primary DB",
+		FontSize: 16,
+	})
+	descBytes, err := Dispatch("Shape.Describe", descReq)
+	if err != nil {
+		t.Fatalf("Shape.Describe failed: %v", err)
+	}
+	var desc geometry.ShapeGeometryDescription
+	if err := json.Unmarshal(descBytes, &desc); err != nil || desc.Shape != "cylinder" {
+		t.Fatalf("Failed to decode shape description: %v, desc=%+v", err, desc)
+	}
+	if len(desc.Elements) != 2 {
+		t.Errorf("Cylinder should produce 2 elements (body + cap), got %d", len(desc.Elements))
+	}
+
+	// 3. Preset.GetDefaults
+	defBytes, err := Dispatch("Preset.GetDefaults", nil)
+	if err != nil {
+		t.Fatalf("Preset.GetDefaults failed: %v", err)
+	}
+	var defPreset scene.PresetConfig
+	if err := json.Unmarshal(defBytes, &defPreset); err != nil || len(defPreset.Preset) != 11 {
+		t.Fatalf("Failed to decode default preset: %v", err)
+	}
+
+	// 4. Preset.Apply
+	applyReq, _ := json.Marshal(PresetApplyRequest{
+		Node:   scene.Node{Shape: "rect", Width: 100, Height: 60},
+		Preset: defPreset,
+	})
+	applyBytes, err := Dispatch("Preset.Apply", applyReq)
+	if err != nil {
+		t.Fatalf("Preset.Apply failed: %v", err)
+	}
+	var applyRes struct {
+		Node    scene.Node `json:"node"`
+		Changed bool       `json:"changed"`
+	}
+	if err := json.Unmarshal(applyBytes, &applyRes); err != nil || !applyRes.Changed || applyRes.Node.Width != 170 {
+		t.Fatalf("Preset.Apply result mismatch: %+v", applyRes)
+	}
+
+	// 5. Node.Create
+	createReq, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{
+			Shape: "callout",
+			Text:  "Note Callout",
+			X:     50,
+			Y:     50,
+		},
+		Preset: &defPreset,
+		Snap:   false,
+	})
+	createBytes, err := Dispatch("Node.Create", createReq)
+	if err != nil {
+		t.Fatalf("Node.Create failed: %v", err)
+	}
+	var createRes struct {
+		Node     scene.Node `json:"node"`
+		Revision int64      `json:"revision"`
+	}
+	if err := json.Unmarshal(createBytes, &createRes); err != nil || createRes.Node.Shape != "callout" {
+		t.Fatalf("Node.Create result mismatch: %+v", createRes)
+	}
+	nodeID := createRes.Node.ID
+
+	// 6. Node.GetBounds
+	boundsReq, _ := json.Marshal(NodeGetBoundsRequest{
+		ID:      nodeID,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	boundsBytes, err := Dispatch("Node.GetBounds", boundsReq)
+	if err != nil {
+		t.Fatalf("Node.GetBounds failed: %v", err)
+	}
+	var boundsRes struct {
+		Cx         float64              `json:"cx"`
+		Cy         float64              `json:"cy"`
+		Bounds     geometry.ShapeBounds `json:"bounds"`
+		ScreenRect map[string]float64   `json:"screenRect"`
+	}
+	if err := json.Unmarshal(boundsBytes, &boundsRes); err != nil || boundsRes.Cx != 500 || boundsRes.Cy != 500 {
+		t.Fatalf("Node.GetBounds mismatch: %+v", boundsRes)
+	}
+
+	// 7. Node.FindAt
+	findReq, _ := json.Marshal(NodeFindAtRequest{
+		XPct:    50,
+		YPct:    50,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	findBytes, err := Dispatch("Node.FindAt", findReq)
+	if err != nil {
+		t.Fatalf("Node.FindAt failed: %v", err)
+	}
+	var foundNode *scene.Node
+	if err := json.Unmarshal(findBytes, &foundNode); err != nil || foundNode == nil || foundNode.ID != nodeID {
+		t.Fatalf("Node.FindAt mismatch: %+v", foundNode)
+	}
+
+	// 8. Node.Update
+	updateReq, _ := json.Marshal(NodeUpdateRequest{
+		ID: nodeID,
+		Patch: scene.Node{
+			Width: 320,
+			Text:  "Updated Note",
+		},
+	})
+	updateBytes, err := Dispatch("Node.Update", updateReq)
+	if err != nil {
+		t.Fatalf("Node.Update failed: %v", err)
+	}
+	var updateRes struct {
+		Node     scene.Node `json:"node"`
+		Revision int64      `json:"revision"`
+	}
+	if err := json.Unmarshal(updateBytes, &updateRes); err != nil || updateRes.Node.Width != 320 || updateRes.Node.Text != "Updated Note" {
+		t.Fatalf("Node.Update mismatch: %+v", updateRes)
+	}
+
+	// 9. Node.Delete
+	delReq, _ := json.Marshal(NodeDeleteRequest{ID: nodeID})
+	delBytes, err := Dispatch("Node.Delete", delReq)
+	if err != nil {
+		t.Fatalf("Node.Delete failed: %v", err)
+	}
+	var delRes struct {
+		Deleted  bool  `json:"deleted"`
+		Revision int64 `json:"revision"`
+	}
+	if err := json.Unmarshal(delBytes, &delRes); err != nil || !delRes.Deleted {
+		t.Fatalf("Node.Delete mismatch: %+v", delRes)
+	}
+}
+
 func TestDispatchUnknownCommand(t *testing.T) {
 	_, err := Dispatch("Unknown.Action", nil)
 	if err == nil {

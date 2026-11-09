@@ -3122,6 +3122,114 @@ async function runHarness() {
 
   window.DiagramNodes.deleteNode(resizeNode.id);
 
+  // ===========================================================================
+  // 16.2 WASM Stage 3: Go-Owned Node Geometry, Shapes & Presets Verification
+  // ===========================================================================
+  // 1. Authoritative Go Shape Catalog
+  const wasmCatalog = window.EngineBridge.getShapeCatalog();
+  assert.ok(Array.isArray(wasmCatalog) && wasmCatalog.length >= 12, 'Go Shape Catalog must contain >= 12 shapes');
+  const expectedShapeTypes = [
+    'rounded', 'rect', 'pill', 'textbox', 'callout',
+    'diamond', 'hexagon', 'parallelogram', 'cylinder',
+    'cloud', 'circle', 'axes'
+  ];
+  for (const sType of expectedShapeTypes) {
+    const found = wasmCatalog.find((s) => s.id === sType);
+    assert.ok(found, `Shape ${sType} must be present in Go shape catalog`);
+    assert.ok(found.defaultWidth > 0 && found.defaultHeight > 0, `Shape ${sType} must define default dimensions`);
+  }
+
+  // 2. Authoritative Shape Geometry Descriptions across all shapes
+  for (const sType of expectedShapeTypes) {
+    const desc = window.EngineBridge.describeShape(sType, 180, 90, 'TestTitle', 'TestSub', 16);
+    assert.ok(desc && desc.bounds, `describeShape must return valid description for ${sType}`);
+    assert.strictEqual(desc.width, 180);
+    assert.strictEqual(desc.height, 90);
+    assert.strictEqual(desc.halfWidth, 90);
+    assert.strictEqual(desc.halfHeight, 45);
+    assert.strictEqual(desc.bounds.minX, -90);
+    assert.strictEqual(desc.bounds.maxX, 90);
+    assert.strictEqual(desc.bounds.minY, -45);
+    assert.strictEqual(desc.bounds.maxY, 45);
+    assert.ok(desc.elements.length > 0, `${sType} must contain geometric elements`);
+    assert.strictEqual(desc.anchors.center.x, 0);
+    assert.strictEqual(desc.anchors.center.y, 0);
+  }
+
+  // 3. Boundary & Dimension Handling: Large (> 203px), fractional, and minimum clamping
+  const largeDesc = window.EngineBridge.describeShape('rounded', 350.5, 220.5, 'Large', '', 15);
+  assert.strictEqual(largeDesc.width, 350.5);
+  assert.strictEqual(largeDesc.height, 220.5);
+  assert.strictEqual(largeDesc.halfWidth, 175.25);
+  assert.strictEqual(largeDesc.halfHeight, 110.25);
+  assert.strictEqual(largeDesc.bounds.minX, -175.25);
+  assert.strictEqual(largeDesc.bounds.maxX, 175.25);
+
+  const clampedDesc = window.EngineBridge.describeShape('rect', -5, 0, 'Clamp', '', 15);
+  assert.ok(clampedDesc.width >= 10 && clampedDesc.height >= 10, 'Invalid dimensions must be clamped to safe minimums');
+
+  // 4. Go Preset Defaults & Expansion
+  const defaultPreset = window.EngineBridge.getDefaultPreset();
+  assert.ok(defaultPreset && defaultPreset.preset, 'getDefaultPreset must return preset configuration');
+  assert.strictEqual(defaultPreset.preset.width.enabled, true);
+  assert.strictEqual(defaultPreset.preset.width.value, 170);
+
+  const customPreset = JSON.parse(JSON.stringify(defaultPreset));
+  customPreset.preset.height = { enabled: true, value: 95 };
+  customPreset.preset.strokeColor = { enabled: true, value: '#a855f7' };
+  customPreset.preset.shape = { enabled: true, value: 'hexagon' };
+
+  const testPNode = { shape: 'rect', width: 100, height: 50 };
+  const presetApplied = window.EngineBridge.applyPreset(testPNode, customPreset);
+  assert.strictEqual(presetApplied, true, 'applyPreset must return true when properties change');
+  assert.strictEqual(testPNode.width, 170, 'Preset width must be applied');
+  assert.strictEqual(testPNode.height, 95, 'Preset height must be applied');
+  assert.strictEqual(testPNode.shape, 'hexagon', 'Preset shape must be applied');
+  assert.strictEqual(testPNode.strokeColor, '#a855f7', 'Preset strokeColor must be applied');
+
+  // 5. Live Node Creation via Go WASM
+  const createdNode = window.DiagramNodes.createNode({
+    text: 'WASM Stage 3 Node',
+    shape: 'diamond',
+    x: 45,
+    y: 55,
+    width: 210,
+    height: 105
+  });
+  assert.ok(createdNode && createdNode.id, 'createNode must return valid node');
+  assert.strictEqual(createdNode.shape, 'diamond', 'Shape must match diamond');
+  assert.strictEqual(createdNode.width, 210, 'Explicit width must be preserved over preset default');
+  assert.strictEqual(createdNode.height, 105, 'Explicit height must be preserved over preset default');
+
+  // 6. Node Hit-Testing via Go WASM
+  const foundNode = window.DiagramNodes.findNodeAtPct(45, 55, 1280, 720);
+  assert.ok(foundNode, 'findNodeAtPct must locate created node at (45%, 55%)');
+  assert.strictEqual(foundNode.id, createdNode.id);
+
+  // 7. Node-to-Flow Connection preservation
+  const connFlow = window.DataFlows.createFlow({
+    fromNodeId: String(createdNode.id),
+    color: '#38bdf8'
+  });
+  assert.strictEqual(String(connFlow.fromNodeId), String(createdNode.id), 'Flow must attach to created node ID');
+
+  // 8. Resizing & Live SVG rendering
+  window.DiagramNodes.updateNode(createdNode.id, { width: 310, height: 160 });
+  const updatedNode = window.DiagramNodes.getNode(createdNode.id);
+  assert.strictEqual(updatedNode.width, 310);
+  assert.strictEqual(updatedNode.height, 160);
+
+  const stage3RenderState = window.SceneState.buildRenderState();
+  const stage3BaseSvg = window.Effects.build(stage3RenderState);
+  const stage3FullSvg = window.DiagramNodes.injectIntoSVG(stage3BaseSvg, stage3RenderState);
+  assert.ok(stage3FullSvg.includes('<polygon'), 'Diamond node must render SVG polygon');
+  assert.ok(stage3FullSvg.includes('filter="url(#nodeDropShadow)"'), 'Node must include drop shadow filter');
+
+  // 9. Node Deletion and Cleanup
+  window.DiagramNodes.removeNode(createdNode.id);
+  assert.strictEqual(window.DiagramNodes.getNode(createdNode.id), null, 'Node must be deleted');
+  window.DataFlows.deleteFlow(connFlow.id);
+
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
 }
 

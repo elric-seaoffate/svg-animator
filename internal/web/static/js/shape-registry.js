@@ -201,6 +201,55 @@
     },
     getIds() {
       return allIds.slice();
+    },
+    renderShapeSVG(shapeDef, eff, w, h, hw, hh, commonStyle, n) {
+      if (window.EngineBridge && typeof window.EngineBridge.describeShape === 'function' && window.EngineBridge.isReady()) {
+        const desc = window.EngineBridge.describeShape(n.shape, w, h, n.text, n.subtext, eff.fontSize);
+        if (desc && Array.isArray(desc.elements) && desc.elements.length > 0) {
+          let elementsMarkup = '';
+          const filterAttr = 'filter="url(#nodeDropShadow)"';
+          desc.elements.forEach((el) => {
+            const attrs = Object.entries(el.attributes || {})
+              .map(([k, v]) => `${k}="${v}"`)
+              .join(' ');
+            if (el.type === 'rect') {
+              if (el.attributes.role === 'axes-bg') {
+                elementsMarkup += `<rect ${attrs} fill="${eff.fillColor}" fill-opacity="${eff.fillOpacity}" stroke="none" />`;
+              } else if (el.attributes.fill === 'transparent') {
+                elementsMarkup += `<rect ${attrs} />`;
+              } else {
+                elementsMarkup += `<rect ${attrs} ${commonStyle} ${filterAttr} />`;
+              }
+            } else if (el.type === 'circle') {
+              elementsMarkup += `<circle ${attrs} ${commonStyle} ${filterAttr} />`;
+            } else if (el.type === 'polygon') {
+              elementsMarkup += `<polygon ${attrs} ${commonStyle} ${filterAttr} />`;
+            } else if (el.type === 'polyline') {
+              if (el.attributes.role === 'callout-fold') {
+                elementsMarkup += `<polyline ${attrs} stroke="${eff.strokeColor}" stroke-width="${eff.strokeWidth}" />`;
+              } else if (el.attributes.role === 'axes-line') {
+                elementsMarkup += `<polyline ${attrs} stroke="${eff.strokeColor}" stroke-width="${Math.max(2, eff.strokeWidth)}" />`;
+              } else {
+                elementsMarkup += `<polyline ${attrs} ${commonStyle} />`;
+              }
+            } else if (el.type === 'path') {
+              elementsMarkup += `<path ${attrs} ${commonStyle} ${filterAttr} />`;
+            } else if (el.type === 'ellipse') {
+              elementsMarkup += `<ellipse ${attrs} ${commonStyle} />`;
+            } else if (el.type === 'line') {
+              elementsMarkup += `<line ${attrs} stroke="${eff.strokeColor}" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4,4" />`;
+            }
+          });
+          if (desc.shape === 'cylinder' || desc.shape === 'callout') {
+            return `<g ${filterAttr}>${elementsMarkup.replace(/filter="url\(#nodeDropShadow\)"/g, '')}</g>`;
+          }
+          return elementsMarkup;
+        }
+      }
+      if (shapeDef && typeof shapeDef.buildSVG === 'function') {
+        return shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
+      }
+      return '<rect x="' + (-hw) + '" y="' + (-hh) + '" width="' + w + '" height="' + h + '" rx="12" ' + commonStyle + ' filter="url(#nodeDropShadow)" />';
     }
   });
 })();

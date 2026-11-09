@@ -213,6 +213,153 @@
       return res && res.point ? res.point : null;
     },
 
+    getShapeCatalog() {
+      if (this.isReady()) {
+        const res = this.dispatch('Shape.GetCatalog', {});
+        if (Array.isArray(res) && res.length > 0) return res;
+      }
+      return (window.ShapeRegistry && typeof window.ShapeRegistry.getAll === 'function')
+        ? window.ShapeRegistry.getAll()
+        : [];
+    },
+
+    describeShape(shape, width, height, text = '', subtext = '', fontSize = 15) {
+      if (this.isReady()) {
+        const res = this.dispatch('Shape.Describe', {
+          shape: String(shape || 'rounded'),
+          width: Number(width) || 170,
+          height: Number(height) || 80,
+          text: String(text || ''),
+          subtext: String(subtext || ''),
+          fontSize: Number(fontSize) || 15
+        });
+        if (res && res.bounds) return res;
+      }
+      const w = Number(width) || 170;
+      const h = Number(height) || 80;
+      const hw = w / 2;
+      const hh = h / 2;
+      return {
+        shape: String(shape || 'rounded'),
+        width: w,
+        height: h,
+        halfWidth: hw,
+        halfHeight: hh,
+        bounds: { minX: -hw, minY: -hh, maxX: hw, maxY: hh, width: w, height: h },
+        anchors: {
+          top: { x: 0, y: -hh },
+          bottom: { x: 0, y: hh },
+          left: { x: -hw, y: 0 },
+          right: { x: hw, y: 0 },
+          center: { x: 0, y: 0 }
+        },
+        elements: [{ type: 'rect', attributes: { x: String(-hw), y: String(-hh), width: String(w), height: String(h), rx: '12' } }],
+        text: {
+          startY: -hh * 0.2,
+          lineHeight: fontSize * 1.25,
+          totalHeight: fontSize * 1.25,
+          lines: (text || '').split('|').map((s) => s.trim()).filter(Boolean),
+          hasSubtext: !!subtext,
+          subtext: String(subtext || ''),
+          anchor: shape === 'axes' ? 'start' : 'middle'
+        }
+      };
+    },
+
+    getDefaultPreset() {
+      if (this.isReady()) {
+        const res = this.dispatch('Preset.GetDefaults', {});
+        if (res && res.preset) return res;
+      }
+      return (window.NodePresets && typeof window.NodePresets.getState === 'function')
+        ? window.NodePresets.getState()
+        : null;
+    },
+
+    applyPreset(node, preset) {
+      if (!node || typeof node !== 'object') return false;
+      if (this.isReady() && preset && preset.preset) {
+        const res = this.dispatch('Preset.Apply', { node: node, preset: preset });
+        if (res && res.node) {
+          Object.assign(node, res.node);
+          return !!res.changed;
+        }
+      }
+      if (window.NodePresets && typeof window.NodePresets.applyToNodeObject === 'function') {
+        return window.NodePresets.applyToNodeObject(node);
+      }
+      return false;
+    },
+
+    extractPreset(node, preset) {
+      if (!node || typeof node !== 'object') return preset;
+      if (this.isReady() && preset && preset.preset) {
+        const res = this.dispatch('Preset.Extract', { node: node, preset: preset });
+        if (res && res.preset) return res;
+      }
+      if (window.NodePresets && typeof window.NodePresets.extractFromNodeObject === 'function') {
+        window.NodePresets.extractFromNodeObject(node);
+        return window.NodePresets.getState();
+      }
+      return preset;
+    },
+
+    createNode(initial = {}, preset = null, snap = true) {
+      if (this.isReady()) {
+        const res = this.dispatch('Node.Create', {
+          initial: initial,
+          preset: preset,
+          snap: !!snap
+        });
+        if (res && res.node) return res.node;
+      }
+      return null;
+    },
+
+    updateNode(id, patch = {}) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Node.Update', {
+          id: String(id),
+          patch: patch
+        });
+        if (res && res.node) return res.node;
+      }
+      return null;
+    },
+
+    deleteNode(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Node.Delete', { id: String(id) });
+        if (res && res.deleted !== undefined) return !!res.deleted;
+      }
+      return false;
+    },
+
+    getNodeBounds(id, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Node.GetBounds', {
+          id: String(id),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.screenRect) return res;
+      }
+      return null;
+    },
+
+    findNodeAt(xPct, yPct, canvasW = 1280, canvasH = 720) {
+      if (this.isReady()) {
+        const res = this.dispatch('Node.FindAt', {
+          xPct: Number(xPct) || 0,
+          yPct: Number(yPct) || 0,
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res !== undefined) return res;
+      }
+      return null;
+    },
+
     getActiveEngineName() {
       if (!this.isReady()) return 'JS fallback';
       if (this._lastSyncError) return 'Sync Failed (JS fallback)';

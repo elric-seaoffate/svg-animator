@@ -155,3 +155,82 @@ func TestNumericAndMixedIDDecoding(t *testing.T) {
 		t.Errorf("snapshot export failed: %+v", snapExport)
 	}
 }
+
+func TestNodeCRUDAndHitTesting(t *testing.T) {
+	s := NewScene()
+
+	// 1. Create Node without preset
+	node1 := s.CreateNode(Node{
+		Shape: "pill",
+		Text:  "Database Service",
+		X:     25,
+		Y:     30,
+		Width: 200,
+	}, nil, false)
+
+	if node1.ID != "1" {
+		t.Errorf("Expected node ID '1', got %q", node1.ID)
+	}
+	if node1.Shape != "pill" {
+		t.Errorf("Expected shape 'pill', got %q", node1.Shape)
+	}
+	if node1.Width != 200 {
+		t.Errorf("Expected width 200, got %v", node1.Width)
+	}
+
+	// 2. Create Node with preset auto-applied
+	preset := DefaultPreset()
+	preset.Preset["strokeColor"] = PresetParam{Enabled: true, Value: "#f43f5e"}
+	preset.Preset["fontSize"] = PresetParam{Enabled: true, Value: float64(22)}
+
+	node2 := s.CreateNode(Node{
+		Shape: "hexagon",
+		Text:  "Hexagon Node",
+		X:     70,
+		Y:     65,
+	}, &preset, false)
+
+	if node2.ID != "2" {
+		t.Errorf("Expected node ID '2', got %q", node2.ID)
+	}
+	if node2.StrokeColor != "#f43f5e" {
+		t.Errorf("Expected strokeColor '#f43f5e' from preset, got %q", node2.StrokeColor)
+	}
+	if node2.FontSize != 22 {
+		t.Errorf("Expected fontSize 22 from preset, got %v", node2.FontSize)
+	}
+
+	// 3. GetNode and GetAllNodes
+	retrieved := s.GetNode("1")
+	if retrieved == nil || retrieved.Text != "Database Service" {
+		t.Fatalf("Failed to retrieve node 1: %+v", retrieved)
+	}
+	all := s.GetAllNodes()
+	if len(all) != 2 {
+		t.Fatalf("Expected 2 nodes, got %d", len(all))
+	}
+
+	// 4. Hit testing with FindNodeAt
+	// Node 1 is at 25%, 30% on 1280x720 canvas
+	found1 := s.FindNodeAt(25, 30, 1280, 720)
+	if found1 == nil || found1.ID != "1" {
+		t.Errorf("Hit-test failed at (25%%, 30%%): expected node 1, got %+v", found1)
+	}
+	// Miss target
+	miss := s.FindNodeAt(95, 95, 1280, 720)
+	if miss != nil {
+		t.Errorf("Expected nil on hit miss, got %+v", miss)
+	}
+
+	// 5. Remove Node
+	removed := s.RemoveNode("1")
+	if !removed {
+		t.Errorf("Expected RemoveNode to succeed")
+	}
+	if s.GetNode("1") != nil {
+		t.Errorf("Node 1 should be nil after removal")
+	}
+	if len(s.GetAllNodes()) != 1 {
+		t.Errorf("Expected 1 node remaining, got %d", len(s.GetAllNodes()))
+	}
+}

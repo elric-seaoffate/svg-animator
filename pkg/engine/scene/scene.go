@@ -1,7 +1,10 @@
 package scene
 
 import (
+	"strconv"
 	"sync"
+
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
 )
 
 // Scene manages authoritative object collections, settings, and revision counters.
@@ -12,8 +15,9 @@ type Scene struct {
 	canvas CanvasConfig
 	camera CameraConfig
 
-	nodes   map[StringID]Node
-	nodeIDs []StringID
+	nodesCounter int64
+	nodes        map[StringID]Node
+	nodeIDs      []StringID
 
 	flows   map[StringID]Flow
 	flowIDs []StringID
@@ -94,6 +98,278 @@ func (s *Scene) SetCamera(cfg CameraConfig) {
 	defer s.mu.Unlock()
 	s.camera = cfg
 	s.revision++
+}
+
+// GetNodeEffectiveProps returns a copy of the node with defaults applied for missing properties.
+func (s *Scene) GetNodeEffectiveProps(n Node) Node {
+	eff := n
+	if eff.Width <= 0 {
+		eff.Width = 170
+	}
+	if eff.Height <= 0 {
+		eff.Height = 80
+	}
+	if eff.FillColor == "" {
+		if eff.Fill != "" {
+			eff.FillColor = eff.Fill
+		} else {
+			eff.FillColor = "#161b22"
+		}
+	}
+	if eff.Fill == "" {
+		eff.Fill = eff.FillColor
+	}
+	if eff.StrokeColor == "" {
+		if eff.Stroke != "" {
+			eff.StrokeColor = eff.Stroke
+		} else {
+			eff.StrokeColor = "#58a6ff"
+		}
+	}
+	if eff.Stroke == "" {
+		eff.Stroke = eff.StrokeColor
+	}
+	if eff.TextColor == "" {
+		eff.TextColor = "#e6edf3"
+	}
+	if eff.FontSize <= 0 {
+		eff.FontSize = 15
+	}
+	if eff.FillOpacity <= 0 && eff.Opacity > 0 {
+		eff.FillOpacity = eff.Opacity
+	}
+	if eff.FillOpacity <= 0 {
+		eff.FillOpacity = 0.92
+	}
+	if eff.StrokeWidth <= 0 {
+		eff.StrokeWidth = 2
+	}
+	if eff.StrokeStyle == "" {
+		eff.StrokeStyle = "solid"
+	}
+	return eff
+}
+
+// CreateNode adds a new node to the scene, applying defaults, optional presets, and grid snapping.
+func (s *Scene) CreateNode(initial Node, preset *PresetConfig, snapToGrid bool) Node {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	explicit := initial
+
+	s.nodesCounter++
+	if initial.ID == "" {
+		initial.ID = StringID(strconv.FormatInt(s.nodesCounter, 10))
+	} else if idNum, err := strconv.ParseInt(string(initial.ID), 10, 64); err == nil && idNum > s.nodesCounter {
+		s.nodesCounter = idNum
+	}
+
+	offset := float64(((s.nodesCounter - 1) % 6) * 6)
+	if initial.Shape == "" {
+		initial.Shape = "rounded"
+	} else {
+		initial.Shape = geometry.NormalizeShapeID(initial.Shape)
+	}
+
+	if initial.Label == "" && initial.Text == "" {
+		initial.Label = "Node " + strconv.FormatInt(s.nodesCounter, 10)
+		initial.Text = initial.Label
+	} else if initial.Label == "" {
+		initial.Label = initial.Text
+	} else if initial.Text == "" {
+		initial.Text = initial.Label
+	}
+
+	if initial.X == 0 {
+		initial.X = 32.0 + offset
+	}
+	if initial.Y == 0 {
+		initial.Y = 32.0 + offset
+	}
+
+	def := geometry.GetShapeDefinition(initial.Shape)
+	if initial.Width <= 0 {
+		if def.DefaultWidth > 0 {
+			initial.Width = def.DefaultWidth
+		} else {
+			initial.Width = 170
+		}
+	}
+	if initial.Height <= 0 {
+		if def.DefaultHeight > 0 {
+			initial.Height = def.DefaultHeight
+		} else {
+			initial.Height = 80
+		}
+	}
+
+	if initial.FillColor == "" {
+		initial.FillColor = "#161b22"
+	}
+	initial.Fill = initial.FillColor
+
+	if initial.StrokeColor == "" {
+		initial.StrokeColor = "#58a6ff"
+	}
+	initial.Stroke = initial.StrokeColor
+
+	if initial.TextColor == "" {
+		initial.TextColor = "#e6edf3"
+	}
+	if initial.FontSize <= 0 {
+		initial.FontSize = 15
+	}
+	if initial.FillOpacity <= 0 {
+		initial.FillOpacity = 0.92
+	}
+	if initial.StrokeWidth <= 0 {
+		initial.StrokeWidth = 2
+	}
+	if initial.StrokeStyle == "" {
+		initial.StrokeStyle = "solid"
+	}
+	if initial.Anim == "" && initial.Animation == "" {
+		initial.Anim = "none"
+		initial.Animation = "none"
+	}
+
+	if preset != nil {
+		preset.ApplyPresetToNode(&initial)
+		if explicit.Width > 0 {
+			initial.Width = explicit.Width
+		}
+		if explicit.Height > 0 {
+			initial.Height = explicit.Height
+		}
+		if explicit.Shape != "" {
+			initial.Shape = geometry.NormalizeShapeID(explicit.Shape)
+		}
+		if explicit.Text != "" {
+			initial.Text = explicit.Text
+			initial.Label = explicit.Text
+		} else if explicit.Label != "" {
+			initial.Text = explicit.Label
+			initial.Label = explicit.Label
+		}
+		if explicit.Subtext != "" {
+			initial.Subtext = explicit.Subtext
+		}
+		if explicit.FillColor != "" {
+			initial.FillColor = explicit.FillColor
+			initial.Fill = explicit.FillColor
+		} else if explicit.Fill != "" {
+			initial.FillColor = explicit.Fill
+			initial.Fill = explicit.Fill
+		}
+		if explicit.StrokeColor != "" {
+			initial.StrokeColor = explicit.StrokeColor
+			initial.Stroke = explicit.StrokeColor
+		} else if explicit.Stroke != "" {
+			initial.StrokeColor = explicit.Stroke
+			initial.Stroke = explicit.Stroke
+		}
+		if explicit.TextColor != "" {
+			initial.TextColor = explicit.TextColor
+		}
+		if explicit.FontSize > 0 {
+			initial.FontSize = explicit.FontSize
+		}
+		if explicit.FillOpacity > 0 {
+			initial.FillOpacity = explicit.FillOpacity
+		}
+		if explicit.StrokeWidth > 0 {
+			initial.StrokeWidth = explicit.StrokeWidth
+		}
+		if explicit.StrokeStyle != "" {
+			initial.StrokeStyle = explicit.StrokeStyle
+		}
+		if explicit.Anim != "" {
+			initial.Anim = explicit.Anim
+			initial.Animation = explicit.Anim
+		} else if explicit.Animation != "" {
+			initial.Anim = explicit.Animation
+			initial.Animation = explicit.Animation
+		}
+	}
+
+	if snapToGrid {
+		snapped := geometry.ComputeSnappedPosition(initial.X, initial.Y, geometry.SnapConfig{
+			Enabled:      true,
+			GridSizePx:   s.canvas.GridSize,
+			CanvasWidth:  s.canvas.Width,
+			CanvasHeight: s.canvas.Height,
+		})
+		initial.X = snapped.X
+		initial.Y = snapped.Y
+	}
+
+	if _, exists := s.nodes[initial.ID]; !exists {
+		s.nodeIDs = append(s.nodeIDs, initial.ID)
+	}
+	s.nodes[initial.ID] = initial
+	s.revision++
+
+	return initial
+}
+
+// GetNode returns a pointer to a copy of the requested node, or nil if not found.
+func (s *Scene) GetNode(id StringID) *Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n, exists := s.nodes[id]
+	if !exists {
+		return nil
+	}
+	res := n
+	return &res
+}
+
+// GetAllNodes returns a slice of all nodes in scene order.
+func (s *Scene) GetAllNodes() []Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make([]Node, len(s.nodeIDs))
+	for i, id := range s.nodeIDs {
+		res[i] = s.nodes[id]
+	}
+	return res
+}
+
+// FindNodeAt hit-tests the given percentage coordinates against nodes in the scene.
+func (s *Scene) FindNodeAt(xPct, yPct, canvasW, canvasH float64) *Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if canvasW <= 0 {
+		canvasW = s.canvas.Width
+	}
+	if canvasW <= 0 {
+		canvasW = 1280
+	}
+	if canvasH <= 0 {
+		canvasH = s.canvas.Height
+	}
+	if canvasH <= 0 {
+		canvasH = 720
+	}
+
+	px := (xPct / 100.0) * canvasW
+	py := (yPct / 100.0) * canvasH
+
+	for i := len(s.nodeIDs) - 1; i >= 0; i-- {
+		id := s.nodeIDs[i]
+		n := s.nodes[id]
+		eff := s.GetNodeEffectiveProps(n)
+		cx := (n.X / 100.0) * canvasW
+		cy := (n.Y / 100.0) * canvasH
+		hw := (eff.Width / 2.0) + 8.0
+		hh := (eff.Height / 2.0) + 8.0
+		if px >= cx-hw && px <= cx+hw && py >= cy-hh && py <= cy+hh {
+			res := n
+			return &res
+		}
+	}
+	return nil
 }
 
 // UpdateNode adds or modifies a node and bumps revision.
@@ -251,6 +527,9 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.nodes = make(map[StringID]Node, len(snap.Nodes))
 	s.nodeIDs = make([]StringID, 0, len(snap.Nodes))
 	for _, n := range snap.Nodes {
+		if idNum, err := strconv.ParseInt(string(n.ID), 10, 64); err == nil && idNum > s.nodesCounter {
+			s.nodesCounter = idNum
+		}
 		if n.Label == "" && n.Text != "" {
 			n.Label = n.Text
 		}

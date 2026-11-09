@@ -112,6 +112,8 @@ window.DataFlows = {
     };
     if (initialProps.customW) newFlow.customW = initialProps.customW;
     if (initialProps.customH) newFlow.customH = initialProps.customH;
+    if (initialProps.fromNodeId !== undefined) newFlow.fromNodeId = initialProps.fromNodeId;
+    if (initialProps.toNodeId !== undefined) newFlow.toNodeId = initialProps.toNodeId;
 
     this.list.push(newFlow);
     return newFlow;

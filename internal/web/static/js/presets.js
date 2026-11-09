@@ -112,6 +112,9 @@ window.NodePresets = {
 
   applyToNodeObject(node) {
     if (!node || typeof node !== 'object') return false;
+    if (window.EngineBridge && typeof window.EngineBridge.applyPreset === 'function' && window.EngineBridge.isReady()) {
+      return window.EngineBridge.applyPreset(node, this.getState());
+    }
     let changed = false;
     this.presetKeys.forEach((key) => {
       const entry = this.preset[key];
@@ -125,6 +128,13 @@ window.NodePresets = {
 
   extractFromNodeObject(node) {
     if (!node || typeof node !== 'object') return false;
+    if (window.EngineBridge && typeof window.EngineBridge.extractPreset === 'function' && window.EngineBridge.isReady()) {
+      const updated = window.EngineBridge.extractPreset(node, this.getState());
+      if (updated && updated.preset) {
+        this.setState(updated);
+        return true;
+      }
+    }
     this.presetKeys.forEach((key) => {
       if (node[key] !== undefined && this.preset[key]) {
         this.preset[key].value = node[key];
