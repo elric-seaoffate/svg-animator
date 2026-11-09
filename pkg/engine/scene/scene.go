@@ -19,6 +19,9 @@ type Scene struct {
 	nodes        map[StringID]Node
 	nodeIDs      []StringID
 
+	optical OpticalConfig
+	frame   FrameConfig
+
 	flowsCounter int64
 	flows        map[StringID]Flow
 	flowIDs      []StringID
@@ -54,6 +57,25 @@ func NewScene() *Scene {
 			EndZoom:   1.3,
 			Sway:      1.4,
 			Breathe:   1.8,
+		},
+		optical: OpticalConfig{
+			Type:     "none",
+			FocusDur: 4.0,
+			TSBlur:   12.0,
+			TSWidth:  20.0,
+			TSPos:    50.0,
+			TSPosX:   50.0,
+			MBInt:    15.0,
+		},
+		frame: FrameConfig{
+			Enabled:  false,
+			Style:    "walnut",
+			Depth:    44.0,
+			Lighting: true,
+			LightDir: "tl",
+			LightInt: 70.0,
+			Shadow:   0.55,
+			Fillet:   true,
 		},
 		nodes:     make(map[StringID]Node),
 		flows:     make(map[StringID]Flow),
@@ -476,6 +498,12 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 
 	s.canvas = snap.Canvas
 	s.camera = snap.Camera
+	s.optical = snap.Optical
+	if snap.Frame.Style != "" || snap.Frame.Enabled {
+		s.frame = snap.Frame
+	} else if snap.Overlays.Style != "" || snap.Overlays.Enabled {
+		s.frame = snap.Overlays
+	}
 
 	s.nodes = make(map[StringID]Node, len(snap.Nodes))
 	s.nodeIDs = make([]StringID, 0, len(snap.Nodes))
@@ -577,6 +605,9 @@ func (s *Scene) GetSnapshot() Snapshot {
 		Revision: s.revision,
 		Canvas:   s.canvas,
 		Camera:   s.camera,
+		Optical:  s.optical,
+		Frame:    s.frame,
+		Overlays: s.frame,
 		Nodes:    nodes,
 		Flows:    flows,
 		Glows:    glows,

@@ -50,24 +50,54 @@ type CanvasConfig struct {
 
 // CameraConfig defines 2D/3D viewport motion parameters.
 type CameraConfig struct {
-	Motion    string  `json:"motion"` // "static", "ken-burns", "handheld-drift", "perspective-tilt"
-	Duration  float64 `json:"camDuration"`
-	Loop      string  `json:"camLoop"` // "loop", "pingpong", "once"
-	StartX    float64 `json:"startX"`
-	StartY    float64 `json:"startY"`
-	StartZoom float64 `json:"startZoom"`
-	EndX      float64 `json:"endX"`
-	EndY      float64 `json:"endY"`
-	EndZoom   float64 `json:"endZoom"`
-	Sway      float64 `json:"sway"`
-	Breathe   float64 `json:"breathe"`
-	TiltX     float64 `json:"tiltX"`
-	TiltY     float64 `json:"tiltY"`
+	Motion        string  `json:"motion"` // "static", "ken-burns", "handheld-drift", "perspective-tilt"
+	Duration      float64 `json:"camDuration"`
+	Loop          string  `json:"camLoop"` // "loop", "pingpong", "once"
+	StartX        float64 `json:"startX"`
+	StartY        float64 `json:"startY"`
+	StartZoom     float64 `json:"startZoom"`
+	EndX          float64 `json:"endX"`
+	EndY          float64 `json:"endY"`
+	EndZoom       float64 `json:"endZoom"`
+	Sway          float64 `json:"sway"`
+	Breathe       float64 `json:"breathe"`
+	TiltX         float64 `json:"tiltX"`
+	TiltY         float64 `json:"tiltY"`
+	BgColor       string  `json:"bgColor,omitempty"`
+	BgTransparent bool    `json:"bgTransparent,omitempty"`
+}
+
+// OpticalConfig defines lens focus pull, tilt-shift, and motion blur parameters.
+type OpticalConfig struct {
+	Type      string  `json:"type"` // "none", "focus-pull", "tilt-shift", "motion-blur"
+	StartBlur float64 `json:"startBlur"`
+	EndBlur   float64 `json:"endBlur"`
+	FocusDur  float64 `json:"focusDur"`
+	TSShape   string  `json:"tsShape,omitempty"` // "horizontal", "vertical", "radial"
+	TSPosX    float64 `json:"tsPosX,omitempty"`
+	TSPos     float64 `json:"tsPos,omitempty"`
+	TSWidth   float64 `json:"tsWidth,omitempty"`
+	TSBlur    float64 `json:"tsBlur,omitempty"`
+	MBInt     float64 `json:"mbInt,omitempty"`
+	MBAng     float64 `json:"mbAng,omitempty"`
+}
+
+// FrameConfig defines border styles, mitering, lighting, and overlays.
+type FrameConfig struct {
+	Enabled       bool    `json:"frame"` // Matches JS state.overlays.frame
+	Style         string  `json:"frameStyle"`
+	Depth         float64 `json:"frameDepth"`
+	Lighting      bool    `json:"frameLighting"`
+	LightDir      string  `json:"frameLightDir"` // "tl", "tr", "bl", "br", "front"
+	LightInt      float64 `json:"frameLightInt"`
+	Shadow        float64 `json:"frameShadow"`
+	Fillet        bool    `json:"frameFillet"`
 }
 
 // Node represents an editable diagram shape.
 type Node struct {
 	ID          StringID `json:"id"`
+	Name        string   `json:"name,omitempty"` // Future user-editable display name
 	Shape       string   `json:"shape"`
 	Label       string   `json:"label,omitempty"`
 	Text        string   `json:"text,omitempty"` // Legacy JS alias
@@ -93,6 +123,7 @@ type Node struct {
 // Flow represents an animated or static connector between nodes/points.
 type Flow struct {
 	ID          StringID         `json:"id"`
+	Name        string           `json:"name,omitempty"` // Future user-editable display name
 	FromNodeID  StringID         `json:"fromNodeId,omitempty"`
 	ToNodeID    StringID         `json:"toNodeId,omitempty"`
 	Nodes       []geometry.Point `json:"nodes"`
@@ -122,6 +153,7 @@ type Flow struct {
 // Glow represents a pulsating hotspot or radar ping.
 type Glow struct {
 	ID           StringID `json:"id"`
+	Name         string   `json:"name,omitempty"` // Future user-editable display name
 	Shape        string   `json:"shape,omitempty"`
 	X            float64  `json:"x"`
 	Y            float64  `json:"y"`
@@ -150,6 +182,7 @@ type Glow struct {
 // Ripple represents a refractive water ripple effect.
 type Ripple struct {
 	ID         StringID `json:"id"`
+	Name       string   `json:"name,omitempty"` // Future user-editable display name
 	X          float64  `json:"x"`
 	Y          float64  `json:"y"`
 	InnerR     float64  `json:"innerR"`
@@ -167,11 +200,14 @@ type Ripple struct {
 
 // Snapshot is a serialized snapshot of the scene for import/export across boundaries.
 type Snapshot struct {
-	Revision int64        `json:"revision"`
-	Canvas   CanvasConfig `json:"canvas"`
-	Camera   CameraConfig `json:"camera"`
-	Nodes    []Node       `json:"nodes"`
-	Flows    []Flow       `json:"flows"`
-	Glows    []Glow       `json:"glows"`
-	Ripples  []Ripple     `json:"ripples"`
+	Revision int64         `json:"revision"`
+	Canvas   CanvasConfig  `json:"canvas"`
+	Camera   CameraConfig  `json:"camera"`
+	Optical  OpticalConfig `json:"optical,omitempty"`
+	Frame    FrameConfig   `json:"frame,omitempty"`
+	Overlays FrameConfig   `json:"overlays,omitempty"` // Alias for JS state.overlays compatibility
+	Nodes    []Node        `json:"nodes"`
+	Flows    []Flow        `json:"flows"`
+	Glows    []Glow        `json:"glows"`
+	Ripples  []Ripple      `json:"ripples"`
 }

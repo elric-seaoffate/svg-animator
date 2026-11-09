@@ -216,6 +216,13 @@ window.Effects = {
   },
 
   buildFrameMarkup(overlaysCfg, w, h) {
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.describeFrame === 'function') {
+      const bridgeDesc = window.EngineBridge.describeFrame(overlaysCfg, w, h);
+      if (bridgeDesc && (bridgeDesc.markup !== undefined || bridgeDesc.defs !== undefined)) {
+        return { defs: bridgeDesc.defs || '', overlay: bridgeDesc.markup || '' };
+      }
+    }
+
     const style = overlaysCfg.frameStyle || 'walnut';
     const rawDepth = overlaysCfg.frameDepth || 44;
     const maxD = Math.min(w, h) / 2 - 12;
@@ -454,6 +461,23 @@ window.Effects = {
     const isBlank = !!state.image.isBlankCanvas;
 
     const calcTransform = (zx, zy, zz, rollDeg = 0) => {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.evaluateCamera === 'function' && window.EngineBridge.isReady()) {
+        const camEval = window.EngineBridge.evaluateCamera(0, w, h, {
+          motion: 'static',
+          startX: zx !== undefined ? zx : 50,
+          startY: zy !== undefined ? zy : 50,
+          startZoom: zz || 1.0,
+          camDuration: 1.0
+        });
+        if (camEval && camEval.transform) {
+          const rot = rollDeg !== 0 ? ` rotateZ(${rollDeg.toFixed(3)}deg)` : '';
+          if (rollDeg !== 0 && !camEval.transform.includes('rotateZ')) {
+            return camEval.transform.replace(/ scale\(/, rot + ' scale(');
+          }
+          return camEval.transform;
+        }
+      }
+
       const safeZoom = Math.max(1.0, zz || 1.0);
       const vw = w / safeZoom;
       const vh = h / safeZoom;

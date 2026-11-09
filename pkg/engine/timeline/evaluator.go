@@ -1,7 +1,6 @@
 package timeline
 
 import (
-	"fmt"
 	"math"
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
@@ -58,6 +57,25 @@ type CameraFrameUpdate struct {
 	RotateX    float64 `json:"rotateX"`
 	RotateY    float64 `json:"rotateY"`
 	Transform  string  `json:"transform"`
+	Stage3D    string  `json:"stage3d,omitempty"`
+}
+
+// OpticalFrameUpdate holds the animated optical state (focus pull blur, tilt-shift, motion-blur) at time T.
+type OpticalFrameUpdate struct {
+	Type       string  `json:"type"`
+	Blur       float64 `json:"blur"`
+	FilterAttr string  `json:"filterAttr,omitempty"`
+	Defs       string  `json:"defs,omitempty"`
+	IsActive   bool    `json:"isActive"`
+}
+
+// FrameFrameUpdate holds the frame configuration and markup at time T.
+type FrameFrameUpdate struct {
+	Enabled bool    `json:"enabled"`
+	Style   string  `json:"style"`
+	Depth   float64 `json:"depth"`
+	Defs    string  `json:"defs,omitempty"`
+	Overlay string  `json:"overlay,omitempty"`
 }
 
 // NodeFrameUpdate holds animated transform/opacity for diagram nodes.
@@ -76,6 +94,8 @@ type FrameResult struct {
 	Glows          []GlowFrameUpdate   `json:"glows"`
 	Ripples        []RippleFrameUpdate `json:"ripples"`
 	Camera         CameraFrameUpdate   `json:"camera"`
+	Optical        OpticalFrameUpdate  `json:"optical"`
+	Frame          FrameFrameUpdate    `json:"frame"`
 	Nodes          []NodeFrameUpdate   `json:"nodes"`
 }
 
@@ -300,64 +320,57 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 	if cDur <= 0 {
 		cDur = dur
 	}
-	camProg, _, _ := EvaluateTimelineProgress(timeSec, cDur, cam.Loop)
-
-	switch cam.Motion {
-	case "ken-burns":
-		easedProg := SolveCubicBezier(0.42, 0, 0.58, 1, camProg)
-		scale := cam.StartZoom + (cam.EndZoom-cam.StartZoom)*easedProg
-		sx := cam.StartX + (cam.EndX-cam.StartX)*easedProg
-		sy := cam.StartY + (cam.EndY-cam.StartY)*easedProg
-		tx := (50.0 - sx) * (width / 100.0)
-		ty := (50.0 - sy) * (height / 100.0)
-
-		res.Camera = CameraFrameUpdate{
-			Motion:     cam.Motion,
-			Scale:      math.Round(scale*1000) / 1000,
-			TranslateX: math.Round(tx*100) / 100,
-			TranslateY: math.Round(ty*100) / 100,
-			Transform:  fmt.Sprintf("translate(%.2f, %.2f) scale(%.3f)", tx, ty, scale),
+	cLoop := cam.Loop
+	if cLoop == "" {
+		cLoop = "once"
+	}
+	easeCam := func(p float64) float64 {
+		if cLoop == "pingpong" {
+			return SolveCubicBezier(0.42, 0, 0.58, 1, p)
 		}
-
-	case "handheld-drift":
-		sway := cam.Sway
-		if sway <= 0 {
-			sway = 1.4
-		}
-		breathe := cam.Breathe
-		if breathe <= 0 {
-			breathe = 1.8
-		}
-		scale := cam.StartZoom + 0.015*math.Sin(timeSec*2.0*math.Pi/breathe)
-		tx := sway * 4.0 * math.Sin(timeSec*1.5)
-		ty := sway * 3.0 * math.Cos(timeSec*1.2)
-
-		res.Camera = CameraFrameUpdate{
-			Motion:     cam.Motion,
-			Scale:      math.Round(scale*1000) / 1000,
-			TranslateX: math.Round(tx*100) / 100,
-			TranslateY: math.Round(ty*100) / 100,
-			Transform:  fmt.Sprintf("translate(%.2f, %.2f) scale(%.3f)", tx, ty, scale),
-		}
-
-	default: // "static" or locked-off
-		scale := cam.StartZoom
-		if scale <= 0 {
-			scale = 1.0
-		}
-		tx := (50.0 - cam.StartX) * (width / 100.0)
-		ty := (50.0 - cam.StartY) * (height / 100.0)
-
-		res.Camera = CameraFrameUpdate{
-			Motion:     "static",
-			Scale:      math.Round(scale*1000) / 1000,
-			TranslateX: math.Round(tx*100) / 100,
-			TranslateY: math.Round(ty*100) / 100,
-			Transform:  fmt.Sprintf("translate(%.2f, %.2f) scale(%.3f)", tx, ty, scale),
-		}
+		return SolveCubicBezier(0.37, 0, 0.63, 1, p)
+	}
+	camTx, camTy, camScale, _, camTStr, stage3d := scene.EvaluateCameraAtTime(cam, timeSec, width, height, easeCam)
+	res.Camera = CameraFrameUpdate{
+		Motion:     cam.Motion,
+		Scale:      math.Round(camScale*1000) / 1000,
+		TranslateX: math.Round(camTx*100) / 100,
+		TranslateY: math.Round(camTy*100) / 100,
+		RotateX:    cam.TiltX,
+		RotateY:    cam.TiltY,
+		Transform:  camTStr,
+		Stage3D:    stage3d,
 	}
 
-	// 5. Evaluate Nodes
+	// 5. Evaluate Optics
+	opt := snap.Optical
+	easeOpt := func(p float64) float64 {
+		return SolveCubicBezier(0.42, 0, 0.58, 1, p)
+	}
+	optBlur, optFAttr, optDefs, optActive := scene.EvaluateOpticalAtTime(opt, timeSec, cDur, cLoop, easeOpt)
+	res.Optical = OpticalFrameUpdate{
+		Type:       opt.Type,
+		Blur:       math.Round(optBlur*100) / 100,
+		FilterAttr: optFAttr,
+		Defs:       optDefs,
+		IsActive:   optActive,
+	}
+
+	// 6. Evaluate Frame
+	frm := snap.Frame
+	if !frm.Enabled && snap.Overlays.Enabled {
+		frm = snap.Overlays
+	}
+	fDefs, fOverlay := scene.BuildFrameMarkup(frm, width, height)
+	res.Frame = FrameFrameUpdate{
+		Enabled: frm.Enabled,
+		Style:   frm.Style,
+		Depth:   frm.Depth,
+		Defs:    fDefs,
+		Overlay: fOverlay,
+	}
+
+	// 7. Evaluate Nodes
 	for _, n := range snap.Nodes {
 		op := n.Opacity
 		if op <= 0 {

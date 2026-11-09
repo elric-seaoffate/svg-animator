@@ -732,6 +732,114 @@
       return null;
     },
 
+    // =========================================================================
+    // Camera, Optics & Frame Operations (Stage 7)
+    // =========================================================================
+
+    updateCamera(camConfig) {
+      if (this.isReady() && camConfig && typeof camConfig === 'object') {
+        const res = this.dispatch('Camera.Update', { camera: camConfig });
+        if (res && res.camera) return res.camera;
+      }
+      return null;
+    },
+
+    getCamera() {
+      if (this.isReady()) {
+        const res = this.dispatch('Camera.Get', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    evaluateCamera(timeSec, canvasW = 1280, canvasH = 720, camConfig = null) {
+      if (this.isReady()) {
+        const payload = {
+          time: Number(timeSec) || 0,
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        };
+        if (camConfig && typeof camConfig === 'object') {
+          payload.camera = camConfig;
+        }
+        const res = this.dispatch('Camera.Evaluate', payload);
+        if (res && res.transform !== undefined) return res;
+      }
+      return null;
+    },
+
+    updateOptics(optConfig) {
+      if (this.isReady() && optConfig && typeof optConfig === 'object') {
+        const res = this.dispatch('Optics.Update', { optical: optConfig });
+        if (res && res.optical) return res.optical;
+      }
+      return null;
+    },
+
+    getOptics() {
+      if (this.isReady()) {
+        const res = this.dispatch('Optics.Get', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    evaluateOptics(timeSec, camDuration = 7.0, camLoop = 'once', optConfig = null) {
+      if (this.isReady()) {
+        const payload = {
+          time: Number(timeSec) || 0,
+          camDuration: Number(camDuration) || 7.0,
+          camLoop: String(camLoop || 'once')
+        };
+        if (optConfig && typeof optConfig === 'object') {
+          payload.optical = optConfig;
+        }
+        const res = this.dispatch('Optics.Evaluate', payload);
+        if (res && res.filterAttr !== undefined) return res;
+      }
+      return null;
+    },
+
+    updateFrame(frameConfig) {
+      if (this.isReady() && frameConfig && typeof frameConfig === 'object') {
+        const res = this.dispatch('Frame.Update', { frame: frameConfig });
+        if (res && res.frame) return res.frame;
+      }
+      return null;
+    },
+
+    getFrame() {
+      if (this.isReady()) {
+        const res = this.dispatch('Frame.Get', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    describeFrame(frameConfig, canvasW = 1280, canvasH = 720) {
+      if (this.isReady()) {
+        const payload = {
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        };
+        if (frameConfig && typeof frameConfig === 'object') {
+          payload.frame = {
+            frame: frameConfig.frame != null ? !!frameConfig.frame : (frameConfig.enabled != null ? !!frameConfig.enabled : true),
+            frameStyle: String(frameConfig.frameStyle || frameConfig.style || 'walnut'),
+            frameDepth: Number(frameConfig.frameDepth || frameConfig.depth) || 44,
+            frameLighting: frameConfig.frameLighting != null ? !!frameConfig.frameLighting : (frameConfig.lighting != null ? !!frameConfig.lighting : true),
+            frameLightDir: String(frameConfig.frameLightDir || frameConfig.lightDir || 'tl'),
+            frameLightInt: Number(frameConfig.frameLightInt != null ? frameConfig.frameLightInt : (frameConfig.lightInt != null ? frameConfig.lightInt : 70)),
+            frameShadow: Number(frameConfig.frameShadow != null ? frameConfig.frameShadow : (frameConfig.shadow != null ? frameConfig.shadow : 0.55)),
+            frameFillet: frameConfig.frameFillet != null ? !!frameConfig.frameFillet : (frameConfig.fillet != null ? !!frameConfig.fillet : true)
+          };
+        }
+        const res = this.dispatch('Frame.Describe', payload);
+        if (res && res.markup !== undefined) return res;
+      }
+      return null;
+    },
+
     getActiveEngineName() {
       if (!this.isReady()) return 'JS fallback';
       if (this._lastSyncError) return 'Sync Failed (JS fallback)';
@@ -877,6 +985,33 @@
         y: Number(r.y) || 0
       })) : [];
 
+      const opticalRaw = raw.optical || {};
+      const optical = {
+        type: String(opticalRaw.type || 'none'),
+        startBlur: Number(opticalRaw.startBlur) || 0,
+        endBlur: Number(opticalRaw.endBlur) || 0,
+        focusDur: Number(opticalRaw.focusDur) || 0,
+        tsShape: String(opticalRaw.tsShape || 'horizontal'),
+        tsPosX: Number(opticalRaw.tsPosX) || 50,
+        tsPos: Number(opticalRaw.tsPos) || 50,
+        tsWidth: Number(opticalRaw.tsWidth) || 20,
+        tsBlur: Number(opticalRaw.tsBlur) || 12,
+        mbInt: Number(opticalRaw.mbInt) || 0,
+        mbAng: Number(opticalRaw.mbAng) || 0
+      };
+
+      const frameRaw = raw.frame || raw.overlays || {};
+      const frame = {
+        frame: !!(frameRaw.frame != null ? frameRaw.frame : frameRaw.enabled),
+        frameStyle: String(frameRaw.frameStyle || frameRaw.style || 'walnut'),
+        frameDepth: Number(frameRaw.frameDepth || frameRaw.depth) || 44,
+        frameLighting: frameRaw.frameLighting != null ? !!frameRaw.frameLighting : (frameRaw.lighting != null ? !!frameRaw.lighting : true),
+        frameLightDir: String(frameRaw.frameLightDir || frameRaw.lightDir || 'tl'),
+        frameLightInt: Number(frameRaw.frameLightInt != null ? frameRaw.frameLightInt : (frameRaw.lightInt != null ? frameRaw.lightInt : 70)),
+        frameShadow: Number(frameRaw.frameShadow != null ? frameRaw.frameShadow : (frameRaw.shadow != null ? frameRaw.shadow : 0.55)),
+        frameFillet: frameRaw.frameFillet != null ? !!frameRaw.frameFillet : (frameRaw.fillet != null ? !!frameRaw.fillet : true)
+      };
+
       return {
         revision: Number(raw.revision) || Date.now(),
         canvas: {
@@ -906,6 +1041,9 @@
           tiltX: tiltX,
           tiltY: tiltY
         },
+        optical: optical,
+        frame: frame,
+        overlays: frame,
         nodes: nodes,
         flows: flows,
         glows: glows,
@@ -922,6 +1060,8 @@
       const dur = (rs && rs.duration) || 7.0;
       const loop = (rs && rs.loop) || 'once';
       const cam = (rs && rs.camera) || { motion: 'static', startX: 50, startY: 50, startZoom: 1.0 };
+      const optical = (rs && rs.optical) || {};
+      const overlays = (rs && rs.overlays) || {};
 
       const nodes = (typeof window !== 'undefined' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list))
         ? window.DiagramNodes.list
@@ -945,6 +1085,9 @@
           loop: loop
         },
         camera: cam,
+        optical: optical,
+        frame: overlays,
+        overlays: overlays,
         nodes: nodes,
         flows: flows,
         glows: glows,
@@ -1364,6 +1507,26 @@
         };
       });
 
+      const optical = snap.optical || {};
+      let optUpdate = { active: false, blur: 0, filterAttr: '' };
+      if (optical.type === 'focus-pull') {
+        const fDur = optical.focusDur > 0 ? optical.focusDur : dur;
+        const cyc = this._evaluateCycleJS(timeSec, 0, fDur, 0, snap.camera && snap.camera.camLoop || 'once');
+        const b = optical.startBlur + (optical.endBlur - optical.startBlur) * cyc.progress;
+        optUpdate = { active: true, blur: Number(b.toFixed(2)), filterAttr: 'url(#opt-focus)' };
+      } else if (optical.type === 'tilt-shift') {
+        optUpdate = { active: true, blur: optical.tsBlur || 12, filterAttr: 'url(#opt-ts-blur)' };
+      } else if (optical.type === 'motion-blur') {
+        optUpdate = { active: true, blur: optical.mbInt || 15, filterAttr: 'url(#opt-mb-blur)' };
+      }
+
+      const frame = snap.frame || snap.overlays || {};
+      const frameUpdate = {
+        enabled: !!(frame.frame || frame.enabled),
+        style: frame.frameStyle || frame.style || 'walnut',
+        depth: frame.frameDepth || frame.depth || 44
+      };
+
       return {
         time: timeSec,
         normalizedTime: Number(norm.progress.toFixed(4)),
@@ -1372,7 +1535,9 @@
         glows: glows,
         ripples: ripples,
         camera: camUpdate,
-        nodes: nodes
+        nodes: nodes,
+        optical: optUpdate,
+        frame: frameUpdate
       };
     }
   };

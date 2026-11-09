@@ -285,6 +285,44 @@ type RippleDescribeRequest struct {
 	CanvasH float64        `json:"canvasH"`
 }
 
+// CameraUpdateRequest is the payload for "Camera.Update".
+type CameraUpdateRequest struct {
+	Camera scene.CameraConfig `json:"camera"`
+}
+
+// CameraEvaluateRequest is the payload for "Camera.Evaluate".
+type CameraEvaluateRequest struct {
+	Time    float64             `json:"time"`
+	CanvasW float64             `json:"canvasW"`
+	CanvasH float64             `json:"canvasH"`
+	Camera  *scene.CameraConfig `json:"camera,omitempty"`
+}
+
+// OpticsUpdateRequest is the payload for "Optics.Update".
+type OpticsUpdateRequest struct {
+	Optical scene.OpticalConfig `json:"optical"`
+}
+
+// OpticsEvaluateRequest is the payload for "Optics.Evaluate".
+type OpticsEvaluateRequest struct {
+	Time        float64              `json:"time"`
+	CamDuration float64              `json:"camDuration"`
+	CamLoop     string               `json:"camLoop"`
+	Optical     *scene.OpticalConfig `json:"optical,omitempty"`
+}
+
+// FrameUpdateRequest is the payload for "Frame.Update".
+type FrameUpdateRequest struct {
+	Frame scene.FrameConfig `json:"frame"`
+}
+
+// FrameDescribeRequest is the payload for "Frame.Describe".
+type FrameDescribeRequest struct {
+	CanvasW float64            `json:"canvasW"`
+	CanvasH float64            `json:"canvasH"`
+	Frame   *scene.FrameConfig `json:"frame,omitempty"`
+}
+
 // Dispatch processes incoming commands and returns JSON-encoded responses.
 func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 	switch command {
@@ -1075,6 +1113,109 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		}
 		desc := activeScene.DescribeRipple(*ripple, req.CanvasW, req.CanvasH)
 		return json.Marshal(desc)
+
+	case "Camera.Get":
+		return json.Marshal(activeScene.GetCamera())
+
+	case "Camera.Update":
+		var req CameraUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding CameraUpdateRequest: %w", err)
+		}
+		if err := scene.ValidateCamera(&req.Camera); err != nil {
+			return nil, fmt.Errorf("validating camera: %w", err)
+		}
+		activeScene.UpdateCamera(req.Camera)
+		return json.Marshal(map[string]any{
+			"camera":   activeScene.GetCamera(),
+			"revision": activeScene.Revision(),
+		})
+
+	case "Camera.Evaluate":
+		var req CameraEvaluateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding CameraEvaluateRequest: %w", err)
+		}
+		cam := activeScene.GetCamera()
+		if req.Camera != nil {
+			cam = *req.Camera
+		}
+		tx, ty, scale, roll, transformStr, stage3dTransform := scene.EvaluateCameraAtTime(cam, req.Time, req.CanvasW, req.CanvasH, nil)
+		return json.Marshal(map[string]any{
+			"translateX":       tx,
+			"translateY":       ty,
+			"scale":            scale,
+			"roll":             roll,
+			"transform":        transformStr,
+			"stage3dTransform": stage3dTransform,
+		})
+
+	case "Optics.Get":
+		return json.Marshal(activeScene.GetOptical())
+
+	case "Optics.Update":
+		var req OpticsUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding OpticsUpdateRequest: %w", err)
+		}
+		if err := scene.ValidateOptical(&req.Optical); err != nil {
+			return nil, fmt.Errorf("validating optics: %w", err)
+		}
+		activeScene.UpdateOptical(req.Optical)
+		return json.Marshal(map[string]any{
+			"optical":  activeScene.GetOptical(),
+			"revision": activeScene.Revision(),
+		})
+
+	case "Optics.Evaluate":
+		var req OpticsEvaluateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding OpticsEvaluateRequest: %w", err)
+		}
+		opt := activeScene.GetOptical()
+		if req.Optical != nil {
+			opt = *req.Optical
+		}
+		blur, filterAttr, defs, isActive := scene.EvaluateOpticalAtTime(opt, req.Time, req.CamDuration, req.CamLoop, nil)
+		return json.Marshal(map[string]any{
+			"blur":       blur,
+			"filterAttr": filterAttr,
+			"defs":       defs,
+			"isActive":   isActive,
+		})
+
+	case "Frame.Get":
+		return json.Marshal(activeScene.GetFrame())
+
+	case "Frame.Update":
+		var req FrameUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FrameUpdateRequest: %w", err)
+		}
+		if err := scene.ValidateFrame(&req.Frame); err != nil {
+			return nil, fmt.Errorf("validating frame: %w", err)
+		}
+		activeScene.UpdateFrame(req.Frame)
+		return json.Marshal(map[string]any{
+			"frame":    activeScene.GetFrame(),
+			"revision": activeScene.Revision(),
+		})
+
+	case "Frame.Describe":
+		var req FrameDescribeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FrameDescribeRequest: %w", err)
+		}
+		f := activeScene.GetFrame()
+		if req.Frame != nil {
+			f = *req.Frame
+		}
+		defs, markup := scene.BuildFrameMarkup(f, req.CanvasW, req.CanvasH)
+		return json.Marshal(map[string]any{
+			"defs":    defs,
+			"markup":  markup,
+			"enabled": f.Enabled,
+		})
 
 	default:
 		return nil, errors.New("unknown engine command: " + command)

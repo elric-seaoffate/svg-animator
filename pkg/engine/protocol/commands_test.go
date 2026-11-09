@@ -727,6 +727,165 @@ func TestDispatchRippleLifecycleAndOperations(t *testing.T) {
 	}
 }
 
+func TestDispatchCameraCommands(t *testing.T) {
+	// 1. Camera.Get initial
+	getBytes, err := Dispatch("Camera.Get", nil)
+	if err != nil {
+		t.Fatalf("Camera.Get failed: %v", err)
+	}
+	var cam scene.CameraConfig
+	if err := json.Unmarshal(getBytes, &cam); err != nil {
+		t.Fatalf("unmarshal camera failed: %v", err)
+	}
+
+	// 2. Camera.Update
+	updateReq, _ := json.Marshal(CameraUpdateRequest{
+		Camera: scene.CameraConfig{
+			Motion:    "ken-burns",
+			Duration:  6.0,
+			StartZoom: 1.2,
+			EndZoom:   1.8,
+			StartX:    50,
+			StartY:    50,
+			EndX:      50,
+			EndY:      50,
+		},
+	})
+	upBytes, err := Dispatch("Camera.Update", updateReq)
+	if err != nil {
+		t.Fatalf("Camera.Update failed: %v", err)
+	}
+	var upRes struct {
+		Camera   scene.CameraConfig `json:"camera"`
+		Revision int64              `json:"revision"`
+	}
+	if err := json.Unmarshal(upBytes, &upRes); err != nil || upRes.Camera.Motion != "ken-burns" {
+		t.Fatalf("Camera.Update mismatch: %+v", upRes)
+	}
+
+	// 3. Camera.Evaluate
+	evalReq, _ := json.Marshal(CameraEvaluateRequest{
+		Time:    3.0,
+		CanvasW: 1920,
+		CanvasH: 1080,
+	})
+	evalBytes, err := Dispatch("Camera.Evaluate", evalReq)
+	if err != nil {
+		t.Fatalf("Camera.Evaluate failed: %v", err)
+	}
+	var evalRes struct {
+		Scale     float64 `json:"scale"`
+		Transform string  `json:"transform"`
+	}
+	if err := json.Unmarshal(evalBytes, &evalRes); err != nil || evalRes.Scale < 1.4 {
+		t.Fatalf("Camera.Evaluate mismatch: %+v", evalRes)
+	}
+}
+
+func TestDispatchOpticsCommands(t *testing.T) {
+	// 1. Optics.Get initial
+	getBytes, err := Dispatch("Optics.Get", nil)
+	if err != nil {
+		t.Fatalf("Optics.Get failed: %v", err)
+	}
+	var opt scene.OpticalConfig
+	if err := json.Unmarshal(getBytes, &opt); err != nil {
+		t.Fatalf("unmarshal optics failed: %v", err)
+	}
+
+	// 2. Optics.Update
+	upReq, _ := json.Marshal(OpticsUpdateRequest{
+		Optical: scene.OpticalConfig{
+			Type:      "focus-pull",
+			StartBlur: 8,
+			EndBlur:   0,
+			FocusDur:  4,
+		},
+	})
+	upBytes, err := Dispatch("Optics.Update", upReq)
+	if err != nil {
+		t.Fatalf("Optics.Update failed: %v", err)
+	}
+	var upRes struct {
+		Optical  scene.OpticalConfig `json:"optical"`
+		Revision int64               `json:"revision"`
+	}
+	if err := json.Unmarshal(upBytes, &upRes); err != nil || upRes.Optical.Type != "focus-pull" {
+		t.Fatalf("Optics.Update mismatch: %+v", upRes)
+	}
+
+	// 3. Optics.Evaluate
+	evalReq, _ := json.Marshal(OpticsEvaluateRequest{
+		Time:        2.0,
+		CamDuration: 4.0,
+		CamLoop:     "once",
+	})
+	evalBytes, err := Dispatch("Optics.Evaluate", evalReq)
+	if err != nil {
+		t.Fatalf("Optics.Evaluate failed: %v", err)
+	}
+	var evalRes struct {
+		Blur       float64 `json:"blur"`
+		FilterAttr string  `json:"filterAttr"`
+		IsActive   bool    `json:"isActive"`
+	}
+	if err := json.Unmarshal(evalBytes, &evalRes); err != nil || !evalRes.IsActive || evalRes.Blur <= 0 {
+		t.Fatalf("Optics.Evaluate mismatch: %+v", evalRes)
+	}
+}
+
+func TestDispatchFrameCommands(t *testing.T) {
+	// 1. Frame.Get initial
+	getBytes, err := Dispatch("Frame.Get", nil)
+	if err != nil {
+		t.Fatalf("Frame.Get failed: %v", err)
+	}
+	var frame scene.FrameConfig
+	if err := json.Unmarshal(getBytes, &frame); err != nil {
+		t.Fatalf("unmarshal frame failed: %v", err)
+	}
+
+	// 2. Frame.Update
+	upReq, _ := json.Marshal(FrameUpdateRequest{
+		Frame: scene.FrameConfig{
+			Enabled:  true,
+			Style:    "cyber-hud",
+			Depth:    40,
+			Lighting: true,
+			LightInt: 80,
+		},
+	})
+	upBytes, err := Dispatch("Frame.Update", upReq)
+	if err != nil {
+		t.Fatalf("Frame.Update failed: %v", err)
+	}
+	var upRes struct {
+		Frame    scene.FrameConfig `json:"frame"`
+		Revision int64             `json:"revision"`
+	}
+	if err := json.Unmarshal(upBytes, &upRes); err != nil || upRes.Frame.Style != "cyber-hud" {
+		t.Fatalf("Frame.Update mismatch: %+v", upRes)
+	}
+
+	// 3. Frame.Describe
+	descReq, _ := json.Marshal(FrameDescribeRequest{
+		CanvasW: 1920,
+		CanvasH: 1080,
+	})
+	descBytes, err := Dispatch("Frame.Describe", descReq)
+	if err != nil {
+		t.Fatalf("Frame.Describe failed: %v", err)
+	}
+	var descRes struct {
+		Defs    string `json:"defs"`
+		Markup  string `json:"markup"`
+		Enabled bool   `json:"enabled"`
+	}
+	if err := json.Unmarshal(descBytes, &descRes); err != nil || !descRes.Enabled || descRes.Markup == "" {
+		t.Fatalf("Frame.Describe mismatch: %+v", descRes)
+	}
+}
+
 func TestDispatchUnknownCommand(t *testing.T) {
 	_, err := Dispatch("Unknown.Action", nil)
 	if err == nil {

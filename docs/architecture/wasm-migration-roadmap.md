@@ -105,7 +105,7 @@ flowchart TD
     S3 --> S4["Stage 4: Connectors & Data Flows (Complete)"]
     S4 --> S5["Stage 5: Hotspots & Glow Effects (Complete)"]
     S5 --> S6["Stage 6: Refractive Liquid Ripples (Complete)"]
-    S6 --> S7["Stage 7: Optical Filters & Camera Transforms"]
+    S6 --> S7["Stage 7: Optical Filters, Camera & 3D Frames (Complete)"]
     S7 --> S8["Stage 8: Authoritative Scene State & Selection"]
     S8 --> S9["Stage 9: Undo/Redo & Command Processing"]
     S9 --> S10["Stage 10: Serialization & Future .sva Format"]
@@ -179,13 +179,16 @@ flowchart TD
 - **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol ./pkg/engine/timeline` + `node scripts/regression-harness.js` (Section 16.4).
 - **JS Retirement Plan**: `ripples.js` delegates operational CRUD, bounds, and hit-testing to `window.EngineBridge` with JS fallback.
 
-### Stage 7: Optical Filters & Camera Transforms
-- **Go Owner**: `pkg/engine/effects/camera.go`, `pkg/engine/effects/filters.go`
+### Stage 7: Optical Filters, Camera Transforms & 3D Frames (Complete)
+- **Go Owner**: `pkg/engine/scene/camera.go`, `pkg/engine/scene/optics.go`, `pkg/engine/scene/frame.go`, `pkg/engine/timeline/evaluator.go`
 - **Legacy JS Owner**: `effects.js`
-- **Boundary Contract**: `Camera.Evaluate(timestampMs)` -> `{ viewBox, transformMatrix, blurPx }`
-- **Parity Criteria**: Ken Burns, handheld drift, and 3D tilt matrices match Go backend `internal/effects/` output.
-- **Integration Tests**: Direct matrix parity tests against `internal/effects/tilt3d.go` and `kenburns.go`.
-- **JS Retirement Plan**: Unify frontend `effects.js` and backend `internal/effects/` into shared `pkg/engine/effects/`.
+- **Boundary Contract**:
+  - `Camera.Get`, `Camera.Update`, `Camera.Evaluate`
+  - `Optics.Get`, `Optics.Update`, `Optics.Evaluate`
+  - `Frame.Get`, `Frame.Update`, `Frame.Describe`
+- **Parity Criteria**: Ken Burns, handheld drift, perspective tilt, 4-sided mitered picture frames, CRT scanlines, and focus-pull/tilt-shift blur match browser SVG engine specifications.
+- **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol ./pkg/engine/timeline` + `node scripts/regression-harness.js` (Section 16.5).
+- **JS Retirement Plan**: `effects.js` delegates frame markup generation and camera transform evaluation to `window.EngineBridge` with robust fallback.
 
 ### Stage 8: Authoritative Scene State & Selection
 - **Go Owner**: `pkg/engine/model/scene.go`
@@ -295,3 +298,47 @@ flowchart TD
 - **Determinism**: Evaluating the same scene and timestamp repeatedly produces bit-for-bit identical results regardless of playback order or earlier frames.
 - **WASM Call Efficiency**: Exactly **one** WASM boundary crossing per animation frame (`Timeline.EvaluateSceneAtTime`), updating all objects in a single batch.
 - **Standalone SVG Export Independence**: Exported SVGs retain standalone SMIL `<animateMotion>` and `<animate>` elements, requiring zero WASM or editor JavaScript runtimes to animate natively in browsers or third-party viewers.
+
+---
+
+## 7. Stage 7 Implementation Report: Camera, Optics & 3D Frame Engines
+
+### Implemented Components
+
+1. **Go Scene Camera Engine (`pkg/engine/scene/camera.go`)**:
+   - `ValidateCamera`: Validates motion types (`static`, `ken-burns`, `handheld-drift`, `perspective-tilt`) and clamps duration/zoom parameters.
+   - `ComputeCameraTransform`: Viewport clamping math matching browser SVG engine: $vw = w / safeZoom$, $vh = h / safeZoom$, $vx \in [0, w-vw]$, $vy \in [0, h-vh]$, $tx = -vx \cdot safeZoom$, $ty = -vy \cdot safeZoom$.
+   - `EvaluateCameraAtTime`: Deterministic timeline evaluation supporting linear, pingpong, loop, and 8-point asymmetric harmonic handheld drift paths.
+   - Scene CRUD: `UpdateCamera`, `GetCamera`.
+
+2. **Go Scene Optics Engine (`pkg/engine/scene/optics.go`)**:
+   - `ValidateOptical`: Parameter bounds checking for focus-pull, tilt-shift, and motion-blur filters.
+   - `EvaluateOpticalAtTime`: Parametric animated blur calculations for focus-pull ($StartBlur \to EndBlur$), tilt-shift gradient masks, and directional motion-blur vectors ($bx = |\cos(\theta)| \cdot int$, $by = |\sin(\theta)| \cdot int$).
+   - Scene CRUD: `UpdateOptical`, `GetOptical`.
+
+3. **Go Scene 3D Frame Engine (`pkg/engine/scene/frame.go`)**:
+   - `ValidateFrame`: Validates and sanitizes all 10 border styles (`walnut`, `mahogany`, `gold`, `silver`, `matte`, `obsidian`, `blueprint-border`, `cyber-hud`, `mac-window`, `crt-vintage`).
+   - `BuildFrameMarkup`: Pure Go builder for SVG `<defs>` and frame `<g id="frameAssembly">` overlays, including lighting bevels, inner shadow rebates, fillets, CRT scanline patterns, and Cyber-HUD reticles.
+   - Scene CRUD: `UpdateFrame`, `GetFrame`.
+
+4. **Go Timeline Integration (`pkg/engine/timeline/evaluator.go`)**:
+   - Integrated camera transform evaluation, optical filter state, and frame configuration into batched `EvaluateSceneAtTime` and `EvaluateBatch`.
+
+5. **Engine Protocol Commands (`pkg/engine/protocol/commands.go`)**:
+   - `Camera.Get`, `Camera.Update`, `Camera.Evaluate`.
+   - `Optics.Get`, `Optics.Update`, `Optics.Evaluate`.
+   - `Frame.Get`, `Frame.Update`, `Frame.Describe`.
+
+6. **JavaScript Adapter & Browser Integration (`internal/web/static/js/`)**:
+   - `engine-bridge.js`: Exposes `updateCamera`, `getCamera`, `evaluateCamera`, `updateOptics`, `getOptics`, `evaluateOptics`, `updateFrame`, `getFrame`, `describeFrame`. Extends `normalizeSceneSnapshot` and `buildCurrentSceneSnapshot` with optical and frame models.
+   - `effects.js`: Delegates `buildFrameMarkup` to `window.EngineBridge.describeFrame` and `calcTransform` to `window.EngineBridge.evaluateCamera` with zero-breakage JS fallback.
+   - Preserved strict UI isolation: Opening the Frame accordion never auto-enables `chkModuleFrame`.
+
+---
+
+## 8. Deferred Features & Forward Architecture
+
+### Future Object Naming Foundation (Deferred from Stage 7)
+- **Model Preparation**: An optional `Name string json:"name,omitempty"` field has been established in `pkg/engine/scene/model.go` across `Node`, `Flow`, `Glow`, and `Ripple` structs.
+- **Contract Integrity**: The field is strictly optional and serialized with `omitempty`, maintaining 100% backward and forward compatibility with existing project JSON schemas (v1.2.0) and SQLite persistence without breaking database records or UI state.
+- **Scope Boundary**: UI naming controls, editable label inputs, and list badges are intentionally deferred to future property inspector work, ensuring operational engine stability without introducing premature presentation churn.

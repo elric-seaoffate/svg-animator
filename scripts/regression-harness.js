@@ -3412,7 +3412,115 @@ async function runHarness() {
   window.Ripples.deleteRipple(stage6Ripple.id);
   assert.strictEqual(window.Ripples.getRipple(stage6Ripple.id), null, 'Ripple must be deleted');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5 & 6 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow & Ripple engines verified.');
+  // ===========================================================================
+  // SECTION 16.5: WASM Stage 7 — Camera, Optics & Frame Engines
+  // ===========================================================================
+  console.log('[HARNESS] Testing WASM Stage 7 Camera, Optics & Frame engines...');
+
+  // 1. Camera Engine Operations
+  if (window.EngineBridge && typeof window.EngineBridge.updateCamera === 'function') {
+    const camCfg = {
+      motion: 'ken-burns',
+      camDuration: 8.0,
+      camLoop: 'pingpong',
+      startX: 40,
+      startY: 40,
+      startZoom: 1.1,
+      endX: 60,
+      endY: 60,
+      endZoom: 1.5
+    };
+    const updatedCam = window.EngineBridge.updateCamera(camCfg);
+    if (updatedCam) {
+      assert.strictEqual(updatedCam.motion, 'ken-burns', 'Camera motion must match');
+      assert.strictEqual(updatedCam.camDuration, 8.0, 'Camera duration must match');
+      assert.strictEqual(updatedCam.startZoom, 1.1, 'Camera startZoom must match');
+    }
+
+    const camEval = window.EngineBridge.evaluateCamera(4.0, 1920, 1080, camCfg);
+    if (camEval) {
+      assert.ok(camEval.scale >= 1.1 && camEval.scale <= 1.5, 'Evaluated scale must be between start and end');
+      assert.ok(typeof camEval.transform === 'string' && camEval.transform.includes('scale('), 'Evaluated camera must return transform string');
+    }
+  }
+
+  // 2. Optics Engine Operations
+  if (window.EngineBridge && typeof window.EngineBridge.updateOptics === 'function') {
+    const optCfg = {
+      type: 'focus-pull',
+      startBlur: 10,
+      endBlur: 0,
+      focusDur: 5
+    };
+    const updatedOpt = window.EngineBridge.updateOptics(optCfg);
+    if (updatedOpt) {
+      assert.strictEqual(updatedOpt.type, 'focus-pull', 'Optical type must match');
+      assert.strictEqual(updatedOpt.startBlur, 10, 'Optical startBlur must match');
+    }
+
+    const optEval = window.EngineBridge.evaluateOptics(2.5, 5.0, 'once', optCfg);
+    if (optEval) {
+      assert.strictEqual(optEval.isActive, true, 'Optical focus-pull must be active');
+      assert.ok(optEval.blur > 0 && optEval.blur < 10, 'Blur at midpoint must be between start and end');
+      assert.ok(optEval.filterAttr.includes('#opt-focus'), 'Filter attribute must reference #opt-focus');
+    }
+  }
+
+  // 3. Frame Engine Operations & Markup Generation
+  if (window.EngineBridge && typeof window.EngineBridge.updateFrame === 'function') {
+    const frameCfg = {
+      frame: true,
+      frameStyle: 'cyber-hud',
+      frameDepth: 35,
+      frameLighting: true,
+      frameLightInt: 80
+    };
+    const updatedFrame = window.EngineBridge.updateFrame(frameCfg);
+    if (updatedFrame) {
+      assert.strictEqual(updatedFrame.frameStyle, 'cyber-hud', 'Frame style must match');
+      assert.strictEqual(updatedFrame.frameDepth, 35, 'Frame depth must match');
+    }
+
+    const frameDesc = window.EngineBridge.describeFrame(frameCfg, 1920, 1080);
+    if (frameDesc) {
+      assert.ok(frameDesc.markup.includes('SYS.OPTICS // ONLINE'), 'Cyber-HUD markup must include SYS.OPTICS // ONLINE');
+      assert.ok(frameDesc.defs.includes('hudGlow'), 'Cyber-HUD defs must include hudGlow filter');
+    }
+  }
+
+  // 4. Live SVG Integration via Effects.buildFrameMarkup
+  if (window.Effects && typeof window.Effects.buildFrameMarkup === 'function') {
+    const walnutRes = window.Effects.buildFrameMarkup({
+      frame: true,
+      frameStyle: 'walnut',
+      frameDepth: 40,
+      frameLighting: true
+    }, 1920, 1080);
+    assert.ok(walnutRes && walnutRes.overlay, 'buildFrameMarkup must return overlay string');
+    assert.ok(walnutRes.overlay.includes('id="frameAssembly"'), 'Walnut overlay must contain #frameAssembly');
+  }
+
+  // 5. Timeline Evaluation with Camera, Optical & Frame Integration
+  if (window.EngineBridge && typeof window.EngineBridge.evaluateSceneAtTime === 'function') {
+    const fullEval = window.EngineBridge.evaluateSceneAtTime(2.0);
+    if (fullEval) {
+      assert.ok(fullEval.camera !== undefined, 'Scene evaluation must include camera update');
+      assert.ok(fullEval.optical !== undefined, 'Scene evaluation must include optical update');
+      assert.ok(fullEval.frame !== undefined, 'Scene evaluation must include frame update');
+    }
+  }
+
+  // 6. Accordion Isolation: Opening Frame accordion must NEVER toggle or auto-check chkModuleFrame
+  const chkFrameEl = document.getElementById('chkModuleFrame');
+  const wasCheckedBefore = chkFrameEl ? chkFrameEl.checked : false;
+  // Trigger openAccordion for acc-frame
+  if (window.openAccordion) {
+    window.openAccordion('acc-frame');
+  }
+  const isCheckedAfter = chkFrameEl ? chkFrameEl.checked : false;
+  assert.strictEqual(isCheckedAfter, wasCheckedBefore, 'Opening Frame accordion must never mutate chkModuleFrame.checked');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6 & 7 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics & Frame engines verified.');
 }
 
 runHarness()

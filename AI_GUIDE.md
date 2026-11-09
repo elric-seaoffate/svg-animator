@@ -77,6 +77,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Go Flow Connectors, Waypoint CRUD & Path Engine | **Implemented (WASM Stage 4)** | `pkg/engine/geometry/flow_geom.go`, `pkg/engine/scene/flow.go`, `flows.js` |
 | Go Hotspot Glows & Radar Ping Engine | **Implemented (WASM Stage 5)** | `pkg/engine/scene/glow.go`, `pkg/engine/protocol/`, `glows.js` |
 | Go Refractive Water Ripple Engine | **Implemented (WASM Stage 6)** | `pkg/engine/scene/ripple.go`, `pkg/engine/protocol/`, `ripples.js` |
+| Go Camera, Optics & 3D Frame Effect Engines | **Implemented (WASM Stage 7)** | `pkg/engine/scene/camera.go`, `optics.go`, `frame.go`, `pkg/engine/timeline/evaluator.go`, `effects.js` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
