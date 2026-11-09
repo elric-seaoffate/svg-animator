@@ -215,3 +215,209 @@ func GetFlowMidpoint(nodes []Point, curvature float64, width, height float64) Po
 		Y: math.Round(my*100) / 100,
 	}
 }
+
+// SampleFlowPathAtProgress calculates the point (in pixels) and tangent angle (in degrees)
+// along the flow path at a normalized progress value in [0, 1].
+func SampleFlowPathAtProgress(nodes []Point, curvature float64, width, height float64, routeMode string, progress float64) (Point, float64) {
+	if len(nodes) == 0 {
+		return Point{X: 0, Y: 0}, 0
+	}
+	if len(nodes) == 1 {
+		return Point{X: px(nodes[0].X, width), Y: py(nodes[0].Y, height)}, 0
+	}
+
+	if progress < 0 {
+		progress = 0
+	} else if progress > 1 {
+		progress = 1
+	}
+
+	// 1. Orthogonal routes: piecewise horizontal and vertical segments
+	if routeMode == "ortho-hv" || routeMode == "ortho-vh" || routeMode == "ortho-mid" {
+		var pts []Point
+		pts = append(pts, Point{X: px(nodes[0].X, width), Y: py(nodes[0].Y, height)})
+
+		for i := 0; i < len(nodes)-1; i++ {
+			x1 := px(nodes[i].X, width)
+			y1 := py(nodes[i].Y, height)
+			x2 := px(nodes[i+1].X, width)
+			y2 := py(nodes[i+1].Y, height)
+
+			if routeMode == "ortho-hv" {
+				pts = append(pts, Point{X: x2, Y: y1}, Point{X: x2, Y: y2})
+			} else if routeMode == "ortho-vh" {
+				pts = append(pts, Point{X: x1, Y: y2}, Point{X: x2, Y: y2})
+			} else {
+				midX := math.Round(((x1+x2)/2.0)*100.0) / 100.0
+				pts = append(pts, Point{X: midX, Y: y1}, Point{X: midX, Y: y2}, Point{X: x2, Y: y2})
+			}
+		}
+
+		return samplePiecewiseLinear(pts, progress)
+	}
+
+	// 2. Direct / zero curvature: straight segments
+	if curvature == 0 || routeMode == "direct" {
+		pts := make([]Point, len(nodes))
+		for i, n := range nodes {
+			pts[i] = Point{X: px(n.X, width), Y: py(n.Y, height)}
+		}
+		return samplePiecewiseLinear(pts, progress)
+	}
+
+	// 3. Two nodes with curvature: quadratic Bezier curve
+	if len(nodes) == 2 {
+		p1x := px(nodes[0].X, width)
+		p1y := py(nodes[0].Y, height)
+		p2x := px(nodes[1].X, width)
+		p2y := py(nodes[1].Y, height)
+
+		dx := p2x - p1x
+		dy := p2y - p1y
+		dist := math.Sqrt(dx*dx + dy*dy)
+		if dist == 0 {
+			return Point{X: p1x, Y: p1y}, 0
+		}
+		nx := -dy / dist
+		ny := dx / dist
+		bend := (curvature / 100.0) * (dist * 0.4)
+		cx := (p1x+p2x)/2.0 + nx*bend
+		cy := (p1y+p2y)/2.0 + ny*bend
+
+		u := progress
+		om := 1.0 - u
+		x := om*om*p1x + 2*om*u*cx + u*u*p2x
+		y := om*om*p1y + 2*om*u*cy + u*u*p2y
+
+		dxDu := 2*om*(cx-p1x) + 2*u*(p2x-cx)
+		dyDu := 2*om*(cy-p1y) + 2*u*(p2y-cy)
+		angle := math.Atan2(dyDu, dxDu) * (180.0 / math.Pi)
+
+		return Point{
+			X: math.Round(x*100) / 100,
+			Y: math.Round(y*100) / 100,
+		}, math.Round(angle*100) / 100
+	}
+
+	// 4. Multiple nodes with curvature: Catmull-Rom cubic spline
+	numSegments := len(nodes) - 1
+	t := (curvature / 100.0) * 0.3
+
+	scaled := progress * float64(numSegments)
+	segIdx := int(scaled)
+	var u float64
+	if segIdx >= numSegments {
+		segIdx = numSegments - 1
+		u = 1.0
+	} else {
+		u = scaled - float64(segIdx)
+	}
+
+	var p0 Point
+	if segIdx == 0 {
+		p0 = nodes[0]
+	} else {
+		p0 = nodes[segIdx-1]
+	}
+	p1 := nodes[segIdx]
+	p2 := nodes[segIdx+1]
+	var p3 Point
+	if segIdx+2 < len(nodes) {
+		p3 = nodes[segIdx+2]
+	} else {
+		p3 = p2
+	}
+
+	p0x := px(p0.X, width)
+	p0y := py(p0.Y, height)
+	p1x := px(p1.X, width)
+	p1y := py(p1.Y, height)
+	p2x := px(p2.X, width)
+	p2y := py(p2.Y, height)
+	p3x := px(p3.X, width)
+	p3y := py(p3.Y, height)
+
+	cp1x := p1x + (p2x-p0x)*t
+	cp1y := p1y + (p2y-p0y)*t
+	cp2x := p2x - (p3x-p1x)*t
+	cp2y := p2y - (p3y-p1y)*t
+
+	om := 1.0 - u
+	x := om*om*om*p1x + 3*om*om*u*cp1x + 3*om*u*u*cp2x + u*u*u*p2x
+	y := om*om*om*p1y + 3*om*om*u*cp1y + 3*om*u*u*cp2y + u*u*u*p2y
+
+	dxDu := 3*om*om*(cp1x-p1x) + 6*om*u*(cp2x-cp1x) + 3*u*u*(p2x-cp2x)
+	dyDu := 3*om*om*(cp1y-p1y) + 6*om*u*(cp2y-cp1y) + 3*u*u*(p2y-cp2y)
+	angle := math.Atan2(dyDu, dxDu) * (180.0 / math.Pi)
+
+	return Point{
+		X: math.Round(x*100) / 100,
+		Y: math.Round(y*100) / 100,
+	}, math.Round(angle*100) / 100
+}
+
+func samplePiecewiseLinear(pts []Point, progress float64) (Point, float64) {
+	if len(pts) < 2 {
+		if len(pts) == 1 {
+			return pts[0], 0
+		}
+		return Point{X: 0, Y: 0}, 0
+	}
+
+	type segInfo struct {
+		p1, p2 Point
+		len    float64
+		angle  float64
+	}
+	segs := make([]segInfo, 0, len(pts)-1)
+	totalLen := 0.0
+
+	for i := 0; i < len(pts)-1; i++ {
+		p1 := pts[i]
+		p2 := pts[i+1]
+		dx := p2.X - p1.X
+		dy := p2.Y - p1.Y
+		l := math.Sqrt(dx*dx + dy*dy)
+		ang := math.Atan2(dy, dx) * (180.0 / math.Pi)
+		segs = append(segs, segInfo{p1: p1, p2: p2, len: l, angle: ang})
+		totalLen += l
+	}
+
+	if totalLen == 0 {
+		return pts[0], 0
+	}
+
+	targetDist := progress * totalLen
+	accum := 0.0
+
+	for i, seg := range segs {
+		if seg.len == 0 && i < len(segs)-1 {
+			continue
+		}
+		if targetDist <= accum+seg.len || i == len(segs)-1 {
+			u := 0.0
+			if seg.len > 0 {
+				u = (targetDist - accum) / seg.len
+				if u < 0 {
+					u = 0
+				} else if u > 1 {
+					u = 1
+				}
+			}
+			x := seg.p1.X + (seg.p2.X-seg.p1.X)*u
+			y := seg.p1.Y + (seg.p2.Y-seg.p1.Y)*u
+			return Point{
+				X: math.Round(x*100) / 100,
+				Y: math.Round(y*100) / 100,
+			}, math.Round(seg.angle*100) / 100
+		}
+		accum += seg.len
+	}
+
+	last := pts[len(pts)-1]
+	lastAngle := segs[len(segs)-1].angle
+	return Point{
+		X: math.Round(last.X*100) / 100,
+		Y: math.Round(last.Y*100) / 100,
+	}, math.Round(lastAngle*100) / 100
+}

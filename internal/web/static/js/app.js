@@ -1762,6 +1762,195 @@ window.FloatingPropertiesEditor = {
   }
 };
 
+window.TimelinePlayer = {
+  isPlaying: false,
+  currentTime: 0.0,
+  duration: 7.0,
+  loopMode: 'once',
+  _lastTimestamp: null,
+  _rafId: null,
+
+  init() {
+    this._bindUI();
+    this.syncFromScene();
+  },
+
+  syncFromScene() {
+    if (window.SceneState && typeof window.SceneState.getNumControl === 'function') {
+      this.duration = window.SceneState.getNumControl('durationSlider', 7.0) || 7.0;
+      this.loopMode = window.SceneState.getControl('loopSelect', 'once') || 'once';
+    }
+    const scrubber = document.getElementById('timelineScrubber');
+    if (scrubber) {
+      scrubber.max = String(this.duration);
+    }
+    this.updateUI();
+  },
+
+  play() {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    this._lastTimestamp = null;
+    this.updatePlayButton();
+    this._loop();
+  },
+
+  pause() {
+    this.isPlaying = false;
+    if (this._rafId) {
+      if (typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this._rafId);
+      }
+      this._rafId = null;
+    }
+    this._lastTimestamp = null;
+    this.updatePlayButton();
+  },
+
+  toggle() {
+    if (this.isPlaying) this.pause();
+    else this.play();
+  },
+
+  reset() {
+    this.pause();
+    this.seek(0.0);
+  },
+
+  seek(timeSec) {
+    this.currentTime = Math.max(0, Math.min(this.duration, Number(timeSec) || 0));
+    this.evaluateAndApply(this.currentTime);
+    this.updateUI();
+  },
+
+  _loop(timestamp) {
+    if (!this.isPlaying) return;
+    if (this._lastTimestamp !== null && timestamp) {
+      const dt = (timestamp - this._lastTimestamp) / 1000.0;
+      const cappedDt = Math.min(dt, 0.1);
+      this.currentTime += cappedDt;
+
+      if (this.currentTime >= this.duration) {
+        if (this.loopMode === 'loop') {
+          this.currentTime = this.currentTime % this.duration;
+        } else if (this.loopMode === 'pingpong') {
+          // Handled mathematically in evaluator
+        } else {
+          this.currentTime = this.duration;
+          this.pause();
+        }
+      }
+    }
+    this._lastTimestamp = timestamp || null;
+    this.evaluateAndApply(this.currentTime);
+    this.updateUI();
+
+    if (this.isPlaying && typeof requestAnimationFrame === 'function') {
+      this._rafId = requestAnimationFrame((ts) => this._loop(ts));
+    }
+  },
+
+  evaluateAndApply(timeSec) {
+    if (!window.EngineBridge || typeof window.EngineBridge.evaluateSceneAtTime !== 'function') return;
+    const frame = window.EngineBridge.evaluateSceneAtTime(timeSec);
+    if (!frame) return;
+
+    this.applyFrameToDOM(frame);
+  },
+
+  applyFrameToDOM(frame) {
+    const container = document.getElementById('svgContainer');
+    if (!container || !frame) return;
+
+    // 1. Flows (Primary migrated pipeline)
+    if (Array.isArray(frame.flows)) {
+      frame.flows.forEach((fl) => {
+        const payload = container.querySelector('.flow-payload-group[data-flow-id="' + fl.id + '"]');
+        if (payload) {
+          payload.setAttribute('transform', 'translate(' + fl.x.toFixed(2) + ', ' + fl.y.toFixed(2) + ') rotate(' + fl.rotation.toFixed(2) + ')');
+          payload.setAttribute('opacity', fl.opacity.toFixed(3));
+        }
+        const track = container.querySelector('.flow-track-path[data-flow-id="' + fl.id + '"]');
+        if (track && fl.dashOffset !== undefined) {
+          track.setAttribute('stroke-dashoffset', fl.dashOffset.toFixed(2));
+        }
+      });
+    }
+
+    // 2. Glows
+    if (Array.isArray(frame.glows)) {
+      frame.glows.forEach((gl) => {
+        const inst = container.querySelector('.diagram-glow-instance[data-glow-id="' + gl.id + '"]');
+        if (inst) {
+          const core = inst.querySelector('.glow-core');
+          if (core) core.setAttribute('opacity', gl.coreOpacity.toFixed(3));
+        }
+      });
+    }
+
+    // 3. Camera
+    if (frame.camera && frame.camera.transform) {
+      const camRig = container.querySelector('.camera-rig');
+      if (camRig && frame.camera.motion !== 'static') {
+        camRig.style.transform = frame.camera.transform;
+      }
+    }
+  },
+
+  updateUI() {
+    const timeDisplay = document.getElementById('timelineTimeDisplay');
+    if (timeDisplay) {
+      timeDisplay.textContent = this.currentTime.toFixed(2) + 's / ' + this.duration.toFixed(2) + 's';
+    }
+    const scrubber = document.getElementById('timelineScrubber');
+    if (scrubber && document.activeElement !== scrubber) {
+      scrubber.value = String(this.currentTime);
+    }
+    const badge = document.getElementById('timelineEngineBadge');
+    if (badge && window.EngineBridge && typeof window.EngineBridge.getActiveEngineName === 'function') {
+      const engineName = window.EngineBridge.getActiveEngineName();
+      badge.textContent = 'Engine: ' + engineName;
+      if (engineName.startsWith('WASM')) {
+        badge.style.background = 'rgba(34, 197, 94, 0.15)';
+        badge.style.color = '#4ade80';
+        badge.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+      } else {
+        badge.style.background = 'rgba(234, 179, 8, 0.15)';
+        badge.style.color = '#facc15';
+        badge.style.borderColor = 'rgba(234, 179, 8, 0.3)';
+      }
+    }
+    const frameCount = document.getElementById('timelineFrameCount');
+    if (frameCount && window.EngineBridge && window.EngineBridge._stats) {
+      frameCount.textContent = window.EngineBridge._stats.framesEvaluated + ' frames';
+    }
+  },
+
+  updatePlayButton() {
+    const btn = document.getElementById('btnTimelinePlay');
+    if (btn) {
+      btn.textContent = this.isPlaying ? '⏸ Pause Scene' : '▶ Play Scene';
+    }
+  },
+
+  _bindUI() {
+    const btnPlay = document.getElementById('btnTimelinePlay');
+    if (btnPlay) {
+      btnPlay.addEventListener('click', () => this.toggle());
+    }
+    const btnReset = document.getElementById('btnTimelineReset');
+    if (btnReset) {
+      btnReset.addEventListener('click', () => this.reset());
+    }
+    const scrubber = document.getElementById('timelineScrubber');
+    if (scrubber) {
+      scrubber.addEventListener('input', (e) => {
+        this.seek(parseFloat(e.target.value) || 0);
+      });
+    }
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   let currentImage = null;
   window.currentRenderState = null;
@@ -2397,6 +2586,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (svgContainer) {
         svgContainer.innerHTML = window.buildFullSVG(state);
       }
+      if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function') {
+        window.EngineBridge.syncScene();
+      }
+      if (window.TimelinePlayer && typeof window.TimelinePlayer.syncFromScene === 'function') {
+        window.TimelinePlayer.syncFromScene();
+      }
     } catch (e) {
       console.error('SVG Render Exception:', e);
     }
@@ -2482,6 +2677,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (window.EngineBridge && typeof window.EngineBridge.init === 'function') {
     window.EngineBridge.init('wasm/engine.wasm').then((ready) => {
+      if (window.TimelinePlayer && typeof window.TimelinePlayer.init === 'function') {
+        window.TimelinePlayer.init();
+      }
       if (ready && typeof window.triggerAppRender === 'function') {
         window.triggerAppRender();
       }

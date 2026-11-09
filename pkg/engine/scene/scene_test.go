@@ -1,0 +1,108 @@
+package scene
+
+import (
+	"sync"
+	"testing"
+
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
+)
+
+func TestNewSceneDefaults(t *testing.T) {
+	s := NewScene()
+	if s.Revision() != 1 {
+		t.Errorf("expected initial revision 1, got %d", s.Revision())
+	}
+	if s.Canvas().Width != 1280 || s.Canvas().Height != 720 {
+		t.Errorf("expected 1280x720 canvas, got %vx%v", s.Canvas().Width, s.Canvas().Height)
+	}
+}
+
+func TestFlowCRUDAndRevision(t *testing.T) {
+	s := NewScene()
+	initialRev := s.Revision()
+
+	flow := Flow{
+		ID:        "flow-1",
+		Nodes:     []geometry.Point{{X: 10, Y: 10}, {X: 80, Y: 80}},
+		Curvature: 20,
+		Speed:     2.5,
+		Color:     "#38bdf8",
+		Scale:     1.0,
+		ShowLine:  true,
+	}
+
+	s.UpdateFlow(flow)
+	if s.Revision() <= initialRev {
+		t.Errorf("expected revision increment after UpdateFlow, got %d", s.Revision())
+	}
+
+	snap := s.GetSnapshot()
+	if len(snap.Flows) != 1 || snap.Flows[0].ID != "flow-1" {
+		t.Fatalf("expected 1 flow with ID flow-1, got %v", snap.Flows)
+	}
+
+	// Update existing flow
+	flow.Speed = 3.0
+	s.UpdateFlow(flow)
+	snap2 := s.GetSnapshot()
+	if len(snap2.Flows) != 1 || snap2.Flows[0].Speed != 3.0 {
+		t.Errorf("expected updated speed 3.0, got %v", snap2.Flows[0].Speed)
+	}
+
+	// Remove flow
+	ok := s.RemoveFlow("flow-1")
+	if !ok {
+		t.Errorf("expected RemoveFlow to return true")
+	}
+	snap3 := s.GetSnapshot()
+	if len(snap3.Flows) != 0 {
+		t.Errorf("expected 0 flows, got %d", len(snap3.Flows))
+	}
+}
+
+func TestSnapshotRoundtrip(t *testing.T) {
+	s := NewScene()
+	s.UpdateGlow(Glow{ID: "glow-1", Size: 30, Color: "#f59e0b", Duration: 2.0})
+	s.UpdateRipple(Ripple{ID: "rip-1", InnerR: 10, OuterR: 80, Duration: 3.0})
+
+	snap := s.GetSnapshot()
+
+	s2 := NewScene()
+	s2.SetFromSnapshot(snap)
+
+	snap2 := s2.GetSnapshot()
+	if len(snap2.Glows) != 1 || snap2.Glows[0].ID != "glow-1" {
+		t.Errorf("mismatch in glow roundtrip: %v", snap2.Glows)
+	}
+	if len(snap2.Ripples) != 1 || snap2.Ripples[0].ID != "rip-1" {
+		t.Errorf("mismatch in ripple roundtrip: %v", snap2.Ripples)
+	}
+	if snap2.Revision != snap.Revision {
+		t.Errorf("expected revision %d, got %d", snap.Revision, snap2.Revision)
+	}
+}
+
+func TestConcurrentSceneAccess(t *testing.T) {
+	s := NewScene()
+	var wg sync.WaitGroup
+
+	for i := 0; i < 50; i++ {
+		wg.Add(2)
+		go func(idx int) {
+			defer wg.Done()
+			s.UpdateFlow(Flow{ID: "flow-concur", Speed: float64(idx)})
+			_ = s.GetSnapshot()
+		}(i)
+
+		go func() {
+			defer wg.Done()
+			_ = s.Revision()
+			_ = s.Canvas()
+		}()
+	}
+
+	wg.Wait()
+	if s.Revision() <= 1 {
+		t.Errorf("expected revision > 1, got %d", s.Revision())
+	}
+}

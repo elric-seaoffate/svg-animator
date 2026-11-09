@@ -2218,6 +2218,163 @@ async function runHarness() {
   window.EngineBridge.status = 'ready';
   assert.strictEqual(window.EngineBridge.isReady(), true);
 
+  // ===========================================================================
+  // 16. Go-First Scene Model, Timeline & Batch Frame Evaluation Verification (Stage 2)
+  // ===========================================================================
+  const testSceneSnapshot = {
+    revision: 101,
+    canvas: {
+      width: 1200,
+      height: 800,
+      duration: 6.0,
+      loop: 'loop'
+    },
+    camera: {
+      motion: 'ken-burns',
+      camDuration: 6.0,
+      camLoop: 'loop',
+      startX: 40,
+      startY: 40,
+      startZoom: 1.0,
+      endX: 60,
+      endY: 60,
+      endZoom: 1.2
+    },
+    nodes: [
+      { id: 'node-anim-1', shape: 'rect', animation: 'pulse', x: 20, y: 30, width: 150, height: 80 }
+    ],
+    flows: [
+      {
+        id: 'flow-anim-1',
+        nodes: [{ x: 10, y: 20 }, { x: 90, y: 80 }],
+        curvature: 30,
+        routeMode: 'curve',
+        speed: 3.0,
+        delay: 0.5,
+        endDelay: 0.5,
+        opacity: 0.9,
+        lineStyle: 'marching',
+        showLine: true
+      }
+    ],
+    glows: [
+      {
+        id: 'glow-anim-1',
+        x: 50,
+        y: 50,
+        size: 40,
+        dur: 2.0,
+        delay: 0.0,
+        playback: 'pingpong',
+        isRadar: true,
+        radarRings: 3
+      }
+    ],
+    ripples: [
+      {
+        id: 'rip-anim-1',
+        x: 30,
+        y: 70,
+        innerR: 10,
+        outerR: 60,
+        dur: 2.0,
+        delay: 0.0
+      }
+    ]
+  };
+
+  const syncResult = window.EngineBridge.syncScene(testSceneSnapshot);
+  assert.strictEqual(syncResult, true, 'WASM engine must sync scene successfully');
+
+  // Empty Scene Evaluation
+  const emptySceneSnapshot = {
+    revision: 102,
+    canvas: { width: 1000, height: 1000, duration: 5.0, loop: 'once' },
+    camera: { motion: 'static' },
+    nodes: [],
+    flows: [],
+    glows: [],
+    ripples: []
+  };
+  window.EngineBridge.syncScene(emptySceneSnapshot);
+  const emptyFrame = window.EngineBridge.evaluateSceneAtTime(2.0);
+  assert.ok(emptyFrame, 'Empty scene evaluation must succeed');
+  assert.strictEqual(emptyFrame.time, 2.0);
+  assert.strictEqual(emptyFrame.flows.length, 0, 'Empty scene must have 0 flows');
+  assert.strictEqual(emptyFrame.glows.length, 0, 'Empty scene must have 0 glows');
+
+  // Restore testSceneSnapshot
+  window.EngineBridge.syncScene(testSceneSnapshot);
+
+  // Deterministic evaluation at time zero, mid-transit, end, and boundary
+  // At t = 0: flow has delay 0.5, so before start:
+  const frameT0 = window.EngineBridge.evaluateSceneAtTime(0.0);
+  assert.ok(frameT0, 'Evaluation at t=0 must succeed');
+  assert.strictEqual(frameT0.flows[0].visible, false, 'Flow must not be visible before delay');
+  assert.strictEqual(frameT0.flows[0].opacity, 0.0, 'Flow opacity must be 0 before delay');
+
+  // At t = 2.0s: local = 2.0 - 0.5 = 1.5s. In 3.0s speed, prog = 1.5 / 3.0 = 0.5 (midpoint!)
+  const frameT2 = window.EngineBridge.evaluateSceneAtTime(2.0);
+  assert.ok(frameT2 && frameT2.flows[0], 'Evaluation at t=2.0 must succeed');
+  const fl2 = frameT2.flows[0];
+  assert.strictEqual(fl2.visible, true);
+  assert.strictEqual(fl2.progress, 0.5);
+  assert.ok(fl2.x > 100 && fl2.x < 1100, `Flow X midpoint must be in middle range, got ${fl2.x}`);
+  assert.ok(fl2.y > 100 && fl2.y < 700, `Flow Y midpoint must be in middle range, got ${fl2.y}`);
+  assert.strictEqual(fl2.opacity, 0.9, 'Flow opacity at mid-transit should be peak 0.9');
+
+  // Determinism check: direct evaluation at t=2.0 produces identical result
+  const frameT2Repeat = window.EngineBridge.evaluateSceneAtTime(2.0);
+  assert.strictEqual(frameT2.flows[0].x, frameT2Repeat.flows[0].x, 'Frame evaluation must be deterministic');
+  assert.strictEqual(frameT2.flows[0].y, frameT2Repeat.flows[0].y, 'Frame evaluation must be deterministic');
+  assert.strictEqual(frameT2.flows[0].rotation, frameT2Repeat.flows[0].rotation, 'Frame rotation must be deterministic');
+
+  // Exact loop boundary: cycle length = speed (3.0) + endDelay (0.5) = 3.5s.
+  // Delay = 0.5s. So cycle 1 ends at t = 0.5 + 3.5 = 4.0s.
+  // At t = 4.1s: local = 4.1 - 0.5 = 3.6s. In cycle 2: tInCycle = 0.1s. prog = 0.1 / 3.0 = 0.0333...
+  const frameLoop = window.EngineBridge.evaluateSceneAtTime(4.1);
+  assert.ok(frameLoop && frameLoop.flows[0], 'Frame evaluation past loop boundary must succeed');
+  assert.ok(frameLoop.flows[0].progress < 0.1, `Flow progress should have wrapped to near 0, got ${frameLoop.flows[0].progress}`);
+
+  // Numerical Parity Check: Go WASM vs Pure JavaScript Fallback
+  const wasmFrame = window.EngineBridge.evaluateSceneAtTime(2.25);
+  const jsFrame = window.EngineBridge._evaluateSceneAtTimeJS(testSceneSnapshot, 2.25);
+
+  assert.strictEqual(wasmFrame.flows.length, jsFrame.flows.length, 'Flow counts must match between Go and JS');
+  const wasmFlow = wasmFrame.flows[0];
+  const jsFlow = jsFrame.flows[0];
+  assert.ok(Math.abs(wasmFlow.x - jsFlow.x) <= 0.05, `Parity check flow X: wasm=${wasmFlow.x}, js=${jsFlow.x}`);
+  assert.ok(Math.abs(wasmFlow.y - jsFlow.y) <= 0.05, `Parity check flow Y: wasm=${wasmFlow.y}, js=${jsFlow.y}`);
+  assert.ok(Math.abs(wasmFlow.rotation - jsFlow.rotation) <= 0.1, `Parity check flow rotation: wasm=${wasmFlow.rotation}, js=${jsFlow.rotation}`);
+  assert.ok(Math.abs(wasmFlow.opacity - jsFlow.opacity) <= 0.01, `Parity check flow opacity: wasm=${wasmFlow.opacity}, js=${jsFlow.opacity}`);
+
+  // Batch Frame Evaluation
+  const batchFrames = window.EngineBridge.evaluateBatch([0.0, 1.0, 2.0, 3.0]);
+  assert.strictEqual(batchFrames.length, 4, 'evaluateBatch must return 4 frames');
+  assert.strictEqual(batchFrames[2].flows[0].progress, 0.5, 'Batch frame at index 2 (t=2.0) must match');
+
+  // TimelinePlayer Play/Pause/Seek and DOM presentation verification
+  assert.ok(window.TimelinePlayer, 'window.TimelinePlayer must be defined');
+  window.TimelinePlayer.init();
+  window.TimelinePlayer.seek(1.5);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 1.5, 'TimelinePlayer seek must update currentTime');
+
+  // Verify Active Engine Badge and frame stats
+  const diagStats = window.EngineBridge.getFrameEvaluationStats();
+  assert.ok(diagStats.framesEvaluated >= 5, `Must have evaluated >= 5 frames, got ${diagStats.framesEvaluated}`);
+  assert.strictEqual(diagStats.activeEngine, 'WASM', 'Active engine must report WASM');
+
+  // Graceful fallback on failure / disabled WASM
+  window.EngineBridge.status = 'fallback';
+  assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'JS fallback');
+  const fallbackFrame = window.EngineBridge.evaluateSceneAtTime(2.0);
+  assert.ok(fallbackFrame && fallbackFrame.flows.length > 0, 'Fallback evaluation must succeed without WASM');
+  assert.strictEqual(fallbackFrame.flows[0].progress, 0.5, 'Fallback progress must match Go progress');
+
+  // Re-enable WASM
+  window.EngineBridge.status = 'ready';
+  assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'WASM (Ready)');
+
   // Verify FloatingPropertiesEditor lifecycle
   const fNode = window.DiagramNodes.createNode({ text: 'FloatingNodeTest', width: 220, height: 110, shape: 'rect' });
   const fFlow = window.DataFlows.createFlow({ label: 'FloatingFlowTest', color: '#123456' });

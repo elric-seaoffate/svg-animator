@@ -236,3 +236,45 @@ flowchart TD
 
 - **Numerical Parity**: Automated regression tests (`node scripts/regression-harness.js`) verify that Go/WASM and JavaScript produce identical SVG path strings for linear, quadratic, cubic spline, and orthogonal routes.
 - **Call Overhead**: Average WASM dispatch round-trip duration measured under **0.05 ms** per geometry path calculation in standard V8/Chromium execution.
+
+---
+
+## 6. Stage 2 Implementation Report: Go Scene Model, Timeline & Batch Frame Evaluation
+
+### Implemented Components
+
+1. **Go Core Scene Package (`pkg/engine/scene/`)**:
+   - `model.go`: Typed, portable scene data structures (`CanvasConfig`, `CameraConfig`, `Node`, `Flow`, `Glow`, `Ripple`, `Snapshot`). Independent of `syscall/js`, DOM, or HTML.
+   - `scene.go`: Thread-safe scene model (`sync.RWMutex`) with revision tracking (`Revision()`), object CRUD (`UpdateFlow`, `RemoveFlow`, `UpdateGlow`, `RemoveGlow`, `UpdateRipple`, `RemoveRipple`, `SetCanvas`, `SetCamera`), and snapshot import/export (`SetFromSnapshot`, `GetSnapshot`).
+   - `scene_test.go`: Automated tests verifying CRUD operations, snapshot round-trip consistency, revision increments, and concurrent thread safety.
+
+2. **Go Core Timeline Package (`pkg/engine/timeline/`)**:
+   - `bezier.go`: Unit cubic Bezier easing spline solver (`SolveCubicBezier`) using Newton-Raphson iteration matching SVG `calcMode="spline"` and CSS `cubic-bezier`.
+   - `timeline.go`: Deterministic playhead progress evaluation (`EvaluateTimelineProgress`) supporting `once`, `loop`, and `pingpong` modes, plus effect cycle evaluation (`EvaluateCycle`) with start delays and end-delay pauses.
+   - `evaluator.go`: Authoritative batched scene evaluation (`EvaluateSceneAtTime`). Computes frame updates for all scene objects (`Flows`, `Glows`, `Ripples`, `Camera`, `Nodes`) in a single pass without per-object bridge overhead.
+   - `timeline_test.go`: Automated tests verifying Bezier math, progress calculations, pingpong reversals, flow midpoint transit, and determinism.
+
+3. **Continuous Flow Path Sampling (`pkg/engine/geometry/flowpath.go`)**:
+   - `SampleFlowPathAtProgress`: Parametric sampling along linear, orthogonal, quadratic Bezier, and Catmull-Rom cubic spline paths, returning exact $(x, y)$ coordinates and tangent rotation angles in degrees.
+   - `flowpath_test.go`: 100% automated test coverage for path sampling.
+
+4. **Protocol Commands (`pkg/engine/protocol/commands.go`)**:
+   - `Scene.SetState`: Synchronizes full scene snapshot into Go engine memory.
+   - `Scene.GetState`: Returns active scene snapshot.
+   - `Scene.UpdateFlow` & `Scene.RemoveFlow`: Incremental flow updates.
+   - `Timeline.EvaluateSceneAtTime`: Evaluates entire frame state at time $T$.
+   - `Timeline.EvaluateBatch`: Batch evaluates multiple timestamps in a single invocation.
+   - `commands_test.go`: Unit tests for protocol dispatch and scene evaluation.
+
+5. **JavaScript Bridge & Browser Presentation (`internal/web/static/js/`)**:
+   - `engine-bridge.js`: Exposes `syncScene()`, `evaluateSceneAtTime()`, `evaluateBatch()`, `getActiveEngineName()`, and `getFrameEvaluationStats()`. Provides zero-DOM mathematical fallbacks with exact parity when WASM is unavailable.
+   - `flows.js`: Injects `.flow-payload-group[data-flow-id]` into SVG output for targeted DOM property updates.
+   - `app.js`: Introduces `window.TimelinePlayer` (`play`, `pause`, `toggle`, `reset`, `seek`). Connects `requestAnimationFrame` loop to `window.EngineBridge.evaluateSceneAtTime(t)`, applying Go-evaluated positions, rotations, opacities, and dash offsets directly to the SVG DOM. Automatically synchronizes scene state on render.
+   - `index.html`: Adds interactive Go Timeline Player controls in `#acc-playback` with live engine status badge (`WASM` vs `JS fallback`) and frame evaluation counters.
+
+### Parity, Determinism & Performance
+
+- **Numerical Parity**: Automated regression tests (`node scripts/regression-harness.js`) verify that Go/WASM and JavaScript fallback evaluations match within $\le 0.05$ pixels and degrees across all path modes.
+- **Determinism**: Evaluating the same scene and timestamp repeatedly produces bit-for-bit identical results regardless of playback order or earlier frames.
+- **WASM Call Efficiency**: Exactly **one** WASM boundary crossing per animation frame (`Timeline.EvaluateSceneAtTime`), updating all objects in a single batch.
+- **Standalone SVG Export Independence**: Exported SVGs retain standalone SMIL `<animateMotion>` and `<animate>` elements, requiring zero WASM or editor JavaScript runtimes to animate natively in browsers or third-party viewers.

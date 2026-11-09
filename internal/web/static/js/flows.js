@@ -381,7 +381,7 @@ window.DataFlows = {
         opAnim = '<animate attributeName="opacity" values="0; ' + f.opacity + '; ' + f.opacity + '; 0" keyTimes="0; 0.08; 0.92; 1" dur="' + f.speed + 's" begin="' + f.delay + 's" repeatCount="indefinite" />';
       }
 
-      elements += '<g class="flow-payload-wrapper" ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + opAnim + motionAnim + payloadSVG + '</g></g>';
+      elements += '<g class="flow-payload-wrapper" ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0" class="flow-payload-group" data-flow-id="' + f.id + '">' + opAnim + motionAnim + payloadSVG + '</g></g>';
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="flows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');

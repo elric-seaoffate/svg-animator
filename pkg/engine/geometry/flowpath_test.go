@@ -61,3 +61,57 @@ func TestGetFlowMidpoint(t *testing.T) {
 		t.Errorf("expected (500, 500), got (%v, %v)", mid.X, mid.Y)
 	}
 }
+
+func TestSampleFlowPathLinear(t *testing.T) {
+	nodes := []Point{{X: 0, Y: 0}, {X: 100, Y: 0}}
+	p0, ang0 := SampleFlowPathAtProgress(nodes, 0, 1000, 1000, "direct", 0.0)
+	if p0.X != 0 || p0.Y != 0 || ang0 != 0 {
+		t.Errorf("expected (0, 0) angle 0, got (%v, %v) angle %v", p0.X, p0.Y, ang0)
+	}
+
+	pMid, angMid := SampleFlowPathAtProgress(nodes, 0, 1000, 1000, "direct", 0.5)
+	if pMid.X != 500 || pMid.Y != 0 || angMid != 0 {
+		t.Errorf("expected (500, 0) angle 0, got (%v, %v) angle %v", pMid.X, pMid.Y, angMid)
+	}
+
+	pEnd, angEnd := SampleFlowPathAtProgress(nodes, 0, 1000, 1000, "direct", 1.0)
+	if pEnd.X != 1000 || pEnd.Y != 0 || angEnd != 0 {
+		t.Errorf("expected (1000, 0) angle 0, got (%v, %v) angle %v", pEnd.X, pEnd.Y, angEnd)
+	}
+}
+
+func TestSampleFlowPathQuad(t *testing.T) {
+	nodes := []Point{{X: 0, Y: 0}, {X: 100, Y: 0}}
+	p0, _ := SampleFlowPathAtProgress(nodes, 50, 1000, 1000, "curve", 0.0)
+	if p0.X != 0 || p0.Y != 0 {
+		t.Errorf("expected start at (0, 0), got (%v, %v)", p0.X, p0.Y)
+	}
+
+	p1, _ := SampleFlowPathAtProgress(nodes, 50, 1000, 1000, "curve", 1.0)
+	if p1.X != 1000 || p1.Y != 0 {
+		t.Errorf("expected end at (1000, 0), got (%v, %v)", p1.X, p1.Y)
+	}
+
+	pMid, _ := SampleFlowPathAtProgress(nodes, 50, 1000, 1000, "curve", 0.5)
+	if pMid.X != 500 || pMid.Y == 0 {
+		t.Errorf("expected mid X=500 and non-zero Y due to curvature, got (%v, %v)", pMid.X, pMid.Y)
+	}
+}
+
+func TestSampleFlowPathOrtho(t *testing.T) {
+	nodes := []Point{{X: 0, Y: 0}, {X: 100, Y: 100}}
+	// ortho-hv: (0,0) -> (1000, 0) -> (1000, 1000). Total len = 2000.
+	p0, _ := SampleFlowPathAtProgress(nodes, 0, 1000, 1000, "ortho-hv", 0.0)
+	if p0.X != 0 || p0.Y != 0 {
+		t.Errorf("expected (0, 0), got (%v, %v)", p0.X, p0.Y)
+	}
+	pMid, angMid := SampleFlowPathAtProgress(nodes, 0, 1000, 1000, "ortho-hv", 0.5)
+	if pMid.X != 1000 || pMid.Y != 0 {
+		t.Errorf("expected corner (1000, 0), got (%v, %v)", pMid.X, pMid.Y)
+	}
+	pEnd, angEnd := SampleFlowPathAtProgress(nodes, 0, 1000, 1000, "ortho-hv", 1.0)
+	if pEnd.X != 1000 || pEnd.Y != 1000 || angEnd != 90 {
+		t.Errorf("expected end (1000, 1000) angle 90, got (%v, %v) angle %v", pEnd.X, pEnd.Y, angEnd)
+	}
+	_ = angMid
+}

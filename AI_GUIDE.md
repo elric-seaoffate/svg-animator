@@ -32,7 +32,7 @@ Core principles:
 
 | Layer | Responsibility | Key Files / Packages |
 | :--- | :--- | :--- |
-| **Go Engine** | Authoritative models, geometry, path routing, snapping, constraints, timeline evaluation, validation, and serialization. | `pkg/engine/geometry/`, `pkg/engine/protocol/`, `cmd/wasm/` |
+| **Go Engine** | Authoritative models, geometry, path routing, snapping, constraints, timeline evaluation, validation, and serialization. | `pkg/engine/geometry/`, `pkg/engine/scene/`, `pkg/engine/timeline/`, `pkg/engine/protocol/`, `cmd/wasm/` |
 | **WASM Bridge** | Platform adapter, runtime instantiation, versioned command dispatch, and metrics. | `internal/web/static/js/engine-bridge.js`, `internal/web/static/js/wasm_exec.js` |
 | **Layer 1: UI Presentation** | HTML/CSS, drawer panels, form input listeners, stage pointer/keyboard events, floating inspector, and SVG DOM updates. | `index.html`, `css/*.css`, UI controllers in `app.js`, `stage.js`, `nodes.js`, etc. |
 | **Layer 2: Coordination** | Selection coordination, history debouncing, and tool panel synchronization. | `js/coordinator.js` (`window.AppCoordinator`) |
@@ -72,6 +72,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Go Core Engine & WebAssembly Runtime Foundation | **Implemented** | `pkg/engine/`, `cmd/wasm/`, `scripts/build-wasm.sh` |
 | WebAssembly Engine Bridge & Command Dispatcher | **Implemented** | `internal/web/static/js/engine-bridge.js`, `wasm/engine.wasm` |
 | Flow Path Geometry & Grid Snapping Migration (Slice 1) | **Implemented** | `pkg/engine/geometry/`, `js/flows.js`, `js/stage.js` |
+| Go Scene Model, Timeline & Batched Frame Evaluation (Slice 2) | **Implemented (WASM Stage 2)** | `pkg/engine/scene/`, `pkg/engine/timeline/`, `engine-bridge.js`, `app.js` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
