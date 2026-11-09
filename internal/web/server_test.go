@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -161,5 +162,68 @@ func TestProjectRESTEndpoints(t *testing.T) {
 	handleProjectDelete(recDel, reqDel)
 	if recDel.Code != http.StatusOK {
 		t.Fatalf("handleProjectDelete status = %d, want 200", recDel.Code)
+	}
+}
+
+func TestSVARESTEndpoints(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := db.InitDB(filepath.Join(tmpDir, "test_sva_endpoints.db")); err != nil {
+		t.Fatalf("db.InitDB failed: %v", err)
+	}
+
+	// 1. Save a project to SQLite
+	savePayload := map[string]interface{}{
+		"name":         "SVA Export Source",
+		"description":  "Database project to export to SVA",
+		"canvasWidth":  1600,
+		"canvasHeight": 900,
+		"schemaJson":   `{"version":"1.2.0","controls":{"canvasWidthInput":"1600","canvasHeightInput":"900"},"nodes":[{"id":"node1","name":"Core Router","shape":"rounded","text":"Gateway"}]}`,
+	}
+	bodyBytes, _ := json.Marshal(savePayload)
+	reqSave := httptest.NewRequest(http.MethodPost, "/api/projects/save", bytes.NewReader(bodyBytes))
+	recSave := httptest.NewRecorder()
+	handleProjectSave(recSave, reqSave)
+	if recSave.Code != http.StatusOK {
+		t.Fatalf("handleProjectSave status = %d", recSave.Code)
+	}
+	var savedSummary db.ProjectSummary
+	_ = json.Unmarshal(recSave.Body.Bytes(), &savedSummary)
+
+	// 2. GET /api/projects/export-sva?id=savedID
+	reqExport := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/projects/export-sva?id=%d", savedSummary.ID), nil)
+	recExport := httptest.NewRecorder()
+	handleExportSVA(recExport, reqExport)
+	if recExport.Code != http.StatusOK {
+		t.Fatalf("handleExportSVA status = %d, want 200; body = %s", recExport.Code, recExport.Body.String())
+	}
+	svaBytes := recExport.Body.Bytes()
+	if len(svaBytes) < 4 || string(svaBytes[:2]) != "PK" {
+		t.Fatalf("expected valid zip/sva magic header, got: %v", svaBytes[:min(10, len(svaBytes))])
+	}
+	if recExport.Header().Get("Content-Type") != "application/vnd.svg-animator.project+zip" {
+		t.Errorf("expected Content-Type application/vnd.svg-animator.project+zip, got %s", recExport.Header().Get("Content-Type"))
+	}
+
+	// 3. POST /api/projects/import-sva with the generated .sva bytes
+	reqImport := httptest.NewRequest(http.MethodPost, "/api/projects/import-sva", bytes.NewReader(svaBytes))
+	reqImport.Header.Set("Content-Type", "application/vnd.svg-animator.project+zip")
+	recImport := httptest.NewRecorder()
+	handleImportSVA(recImport, reqImport)
+	if recImport.Code != http.StatusOK {
+		t.Fatalf("handleImportSVA status = %d, want 200; body = %s", recImport.Code, recImport.Body.String())
+	}
+	var importRes struct {
+		Success    bool            `json:"success"`
+		Manifest   json.RawMessage `json:"manifest"`
+		SchemaJSON string          `json:"schemaJson"`
+	}
+	if err := json.Unmarshal(recImport.Body.Bytes(), &importRes); err != nil {
+		t.Fatalf("failed to decode import response: %v", err)
+	}
+	if !importRes.Success {
+		t.Fatalf("import failed: %s", recImport.Body.String())
+	}
+	if !strings.Contains(importRes.SchemaJSON, "Core Router") {
+		t.Errorf("imported schema missing node name: %s", importRes.SchemaJSON)
 	}
 }

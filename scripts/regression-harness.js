@@ -4093,7 +4093,46 @@ async function runHarness() {
   assert.ok(restoredFlow, 'Restored flow must exist');
   assert.strictEqual(restoredFlow.name, unicodeFlowName, 'Restored flow name must match');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7 & 8 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // =========================================================================
+  // STAGE 9 VERIFICATION: Native .sva Project Format, Asset Packaging and Go Serialization
+  // =========================================================================
+  console.log('[HARNESS] Testing WASM Stage 9: Native .sva Project Format & Asset Packaging...');
+
+  // 1. EngineBridge SVA encoding
+  const stage9StateStr = window.ProjectManager.serializeStudioState();
+  const stage9StateObj = JSON.parse(stage9StateStr);
+  stage9StateObj.metadata = {
+    futureDigitalTwinKey: 'TWIN-9942',
+    tierLevel: 3
+  };
+
+  const svaEncResult = window.EngineBridge.encodeSVA('Mission Critical Plant', 'Stage 9 Verification Package', stage9StateObj);
+  assert.ok(svaEncResult && svaEncResult.success, 'EngineBridge.encodeSVA must succeed');
+  assert.ok(svaEncResult.dataB64 && svaEncResult.dataB64.length > 50, 'dataB64 must be non-empty');
+  assert.strictEqual(svaEncResult.filename, 'Mission Critical Plant.sva', 'Filename must match project name with .sva extension');
+
+  // 2. EngineBridge SVA validation
+  const svaValResult = window.EngineBridge.validateSVA(svaEncResult.dataB64);
+  assert.ok(svaValResult && svaValResult.success, 'EngineBridge.validateSVA must succeed');
+  assert.strictEqual(svaValResult.manifest.format, 'sva', 'Format signature must be sva');
+  assert.strictEqual(svaValResult.manifest.version, '1.0.0', 'SVA format version must be 1.0.0');
+  assert.strictEqual(svaValResult.manifest.name, 'Mission Critical Plant');
+
+  // 3. EngineBridge SVA decoding & state extraction
+  const svaDecResult = window.EngineBridge.decodeSVA(svaEncResult.dataB64);
+  assert.ok(svaDecResult && svaDecResult.success, 'EngineBridge.decodeSVA must succeed');
+  assert.ok(svaDecResult.state, 'Decoded SVA must return restored state');
+
+  const restoredSVAState = (typeof svaDecResult.state === 'string') ? JSON.parse(svaDecResult.state) : svaDecResult.state;
+  assert.strictEqual(restoredSVAState.version, '1.2.0', 'Restored state must match schema 1.2.0');
+  assert.ok(restoredSVAState.nodes.length >= 1, 'Restored state must contain diagram nodes');
+  assert.strictEqual(restoredSVAState.metadata.futureDigitalTwinKey, 'TWIN-9942', 'Unknown extension metadata must survive SVA round-trip');
+
+  // 4. ProjectManager SVA interfaces
+  assert.strictEqual(typeof window.ProjectManager.exportSVA, 'function', 'ProjectManager.exportSVA must exist');
+  assert.strictEqual(typeof window.ProjectManager.importSVA, 'function', 'ProjectManager.importSVA must exist');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8 & 9 selection, history(50), schema 1.2.0, .sva packaging, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

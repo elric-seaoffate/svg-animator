@@ -79,6 +79,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Go Refractive Water Ripple Engine | **Implemented (WASM Stage 6)** | `pkg/engine/scene/ripple.go`, `pkg/engine/protocol/`, `ripples.js` |
 | Go Camera, Optics & 3D Frame Effect Engines | **Implemented (WASM Stage 7)** | `pkg/engine/scene/camera.go`, `optics.go`, `frame.go`, `pkg/engine/timeline/evaluator.go`, `effects.js` |
 | Go Authoritative Scene State, Selection, History & Object Naming | **Implemented (WASM Stage 8)** | `pkg/engine/scene/selection.go`, `history.go`, `model.go`, `protocol/`, `engine-bridge.js`, `coordinator.js`, `index.html` |
+| Native .sva Project Format & Asset Packaging | **Implemented (WASM Stage 9)** | `pkg/engine/sva/`, `pkg/engine/protocol/`, `internal/web/server.go`, `js/engine-bridge.js`, `js/projects.js`, `index.html` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
@@ -121,6 +122,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
   - [`history-and-persistence.md`](docs/architecture/history-and-persistence.md) — Undo/redo snapshot mechanics and SQLite `v1.2.0` project format.
   - [`phase2-progress.md`](docs/architecture/phase2-progress.md) — Phase 2 milestone logs, test reports, and roadmap.
   - [`phase3-progress.md`](docs/architecture/phase3-progress.md) — Phase 3 workspace redesign progress, drawer architecture, and verification.
+  - [`sva-format-specification.md`](docs/architecture/sva-format-specification.md) — Native `.sva` project package layout, manifest schema, security limits, and Go serialization.
 - **Modules (`docs/modules/`):**
   - [`app.md`](docs/modules/app.md) | [`stage.md`](docs/modules/stage.md) | [`presets.md`](docs/modules/presets.md) | [`nodes.md`](docs/modules/nodes.md) | [`shape-registry.md`](docs/modules/shape-registry.md) | [`flows.md`](docs/modules/flows.md) | [`glows.md`](docs/modules/glows.md) | [`ripples.md`](docs/modules/ripples.md) | [`effects.md`](docs/modules/effects.md) | [`history.md`](docs/modules/history.md) | [`projects.md`](docs/modules/projects.md)
 - **Development Guides (`docs/development/`):**

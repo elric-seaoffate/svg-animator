@@ -1,13 +1,16 @@
 package protocol
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene"
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/sva"
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/timeline"
 )
 
@@ -376,6 +379,48 @@ type ObjectRenameResponse struct {
 	ID      scene.StringID `json:"id"`
 	Name    string         `json:"name"`
 	Success bool           `json:"success"`
+}
+
+// EncodeSVARequest is the payload for "Project.EncodeSVA".
+type EncodeSVARequest struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	State       json.RawMessage `json:"state,omitempty"`
+}
+
+// EncodeSVAResponse is returned by "Project.EncodeSVA".
+type EncodeSVAResponse struct {
+	Success    bool   `json:"success"`
+	DataB64    string `json:"dataB64,omitempty"`
+	Filename   string `json:"filename,omitempty"`
+	Size       int64  `json:"size,omitempty"`
+	AssetCount int    `json:"assetCount,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// DecodeSVARequest is the payload for "Project.DecodeSVA".
+type DecodeSVARequest struct {
+	DataB64 string `json:"dataB64"`
+}
+
+// DecodeSVAResponse is returned by "Project.DecodeSVA".
+type DecodeSVAResponse struct {
+	Success  bool            `json:"success"`
+	Manifest *sva.Manifest   `json:"manifest,omitempty"`
+	State    json.RawMessage `json:"state,omitempty"`
+	Error    string          `json:"error,omitempty"`
+}
+
+// ValidateSVARequest is the payload for "Project.ValidateSVA".
+type ValidateSVARequest struct {
+	DataB64 string `json:"dataB64"`
+}
+
+// ValidateSVAResponse is returned by "Project.ValidateSVA".
+type ValidateSVAResponse struct {
+	Success  bool          `json:"success"`
+	Manifest *sva.Manifest `json:"manifest,omitempty"`
+	Error    string        `json:"error,omitempty"`
 }
 
 // Dispatch processes incoming commands and returns JSON-encoded responses.
@@ -1430,6 +1475,87 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			ID:      req.ID,
 			Name:    req.Name,
 			Success: true,
+		})
+
+	case "Project.EncodeSVA":
+		var req EncodeSVARequest
+		if len(payloadJSON) > 0 {
+			_ = json.Unmarshal(payloadJSON, &req)
+		}
+		var proj *sva.Project
+		var err error
+		if len(req.State) > 0 && string(req.State) != "null" && string(req.State) != "{}" {
+			proj, err = sva.BuildProjectFromStudioState(req.Name, req.Description, req.State)
+		} else {
+			snap := activeScene.GetSnapshot()
+			snapBytes, _ := json.Marshal(snap)
+			proj, err = sva.BuildProjectFromStudioState(req.Name, req.Description, snapBytes)
+		}
+		if err != nil {
+			return json.Marshal(EncodeSVAResponse{Success: false, Error: err.Error()})
+		}
+		data, err := sva.Encode(proj)
+		if err != nil {
+			return json.Marshal(EncodeSVAResponse{Success: false, Error: err.Error()})
+		}
+		cleanName := strings.TrimSpace(req.Name)
+		if cleanName == "" {
+			cleanName = "project"
+		}
+		b64 := base64.StdEncoding.EncodeToString(data)
+		return json.Marshal(EncodeSVAResponse{
+			Success:    true,
+			DataB64:    b64,
+			Filename:   cleanName + ".sva",
+			Size:       int64(len(data)),
+			AssetCount: len(proj.Assets),
+		})
+
+	case "Project.DecodeSVA":
+		var req DecodeSVARequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding DecodeSVARequest: %w", err)
+		}
+		svaBytes, err := base64.StdEncoding.DecodeString(req.DataB64)
+		if err != nil {
+			return json.Marshal(DecodeSVAResponse{Success: false, Error: "invalid base64: " + err.Error()})
+		}
+		proj, err := sva.Decode(svaBytes)
+		if err != nil {
+			return json.Marshal(DecodeSVAResponse{Success: false, Error: err.Error()})
+		}
+		// Apply scene to active Go engine scene
+		activeScene.SetFromSnapshot(proj.Scene.ToSnapshot())
+		activeScene.ClearSelection()
+		activeScene.History().Clear()
+		activeScene.History().Record(activeScene.GetSnapshot(), activeScene.GetSelection())
+
+		stateBytes, err := sva.ExtractStudioState(proj)
+		if err != nil {
+			return json.Marshal(DecodeSVAResponse{Success: false, Error: "extracting studio state: " + err.Error()})
+		}
+		return json.Marshal(DecodeSVAResponse{
+			Success:  true,
+			Manifest: &proj.Manifest,
+			State:    json.RawMessage(stateBytes),
+		})
+
+	case "Project.ValidateSVA":
+		var req ValidateSVARequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ValidateSVARequest: %w", err)
+		}
+		svaBytes, err := base64.StdEncoding.DecodeString(req.DataB64)
+		if err != nil {
+			return json.Marshal(ValidateSVAResponse{Success: false, Error: "invalid base64: " + err.Error()})
+		}
+		manifest, err := sva.Validate(svaBytes)
+		if err != nil {
+			return json.Marshal(ValidateSVAResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ValidateSVAResponse{
+			Success:  true,
+			Manifest: manifest,
 		})
 
 	default:

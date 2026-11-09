@@ -241,6 +241,16 @@ window.ProjectManager = {
     document.getElementById('btnCloseProjectsBottom')?.addEventListener('click', () => this.closeModal());
     document.getElementById('btnSaveProjectOverwrite')?.addEventListener('click', () => this.saveProject(false));
     document.getElementById('btnSaveProjectAsNew')?.addEventListener('click', () => this.saveProject(true));
+    document.getElementById('btnExportSVA')?.addEventListener('click', () => this.exportSVA());
+    document.getElementById('btnImportSVA')?.addEventListener('click', () => {
+      document.getElementById('inputImportSVA')?.click();
+    });
+    document.getElementById('inputImportSVA')?.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        this.importSVA(e.target.files[0]);
+        e.target.value = '';
+      }
+    });
     document.getElementById('btnNewBlankProject')?.addEventListener('click', () => this.resetToNewProject());
 
     const searchIn = document.getElementById('projectSearchInput');
@@ -358,6 +368,7 @@ window.ProjectManager = {
         '</div>' +
         '<div style="display:flex; gap:0.4rem; align-items:center;">' +
           '<button type="button" class="btn-primary" style="padding:0.35rem 0.75rem; font-size:0.76rem;" onclick="window.ProjectManager.loadProject(' + p.id + '); event.stopPropagation();">📂 Load</button>' +
+          '<button type="button" class="btn-secondary" style="padding:0.35rem 0.6rem; font-size:0.76rem;" title="Export this project as .sva" onclick="window.ProjectManager.exportSVAById(' + p.id + '); event.stopPropagation();">📦</button>' +
           '<button type="button" class="btn-danger" style="padding:0.35rem 0.6rem; font-size:0.76rem;" onclick="window.ProjectManager.deleteProject(' + p.id + '); event.stopPropagation();">🗑️</button>' +
         '</div>';
 
@@ -527,5 +538,155 @@ window.ProjectManager = {
     }
 
     this.setStatusMessage('Started a new blank project.');
+  },
+
+  async exportSVA() {
+    try {
+      this.setStatusMessage('Encoding .sva project package...');
+      const name = (document.getElementById('projectNameInput')?.value || this.currentProjectName || 'Untitled Project').trim();
+      const desc = (document.getElementById('projectDescInput')?.value || this.currentProjectDesc || '').trim();
+      const stateStr = this.serializeStudioState();
+      let stateObj = null;
+      try { stateObj = JSON.parse(stateStr); } catch (_) {}
+
+      let b64 = null;
+      let filename = (name || 'project').replace(/[^a-zA-Z0-9_\-]/g, '_') + '.sva';
+
+      if (window.EngineBridge && typeof window.EngineBridge.encodeSVA === 'function' && window.EngineBridge.isReady()) {
+        const wasmRes = window.EngineBridge.encodeSVA(name, desc, stateObj);
+        if (wasmRes && wasmRes.success && wasmRes.dataB64) {
+          b64 = wasmRes.dataB64;
+          if (wasmRes.filename) filename = wasmRes.filename;
+        }
+      }
+
+      if (!b64) {
+        // Fallback to server REST endpoint
+        const res = await fetch('/api/projects/export-sva', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, description: desc, schemaJson: stateObj })
+        });
+        if (!res.ok) {
+          throw new Error('Server SVA export failed: ' + (await res.text()));
+        }
+        const blob = await res.blob();
+        this._downloadBlob(blob, filename);
+        this.setStatusMessage('Exported .sva package: ' + filename);
+        return;
+      }
+
+      // Convert base64 to Blob and trigger browser download
+      const binaryStr = atob(b64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/vnd.svg-animator.project+zip' });
+      this._downloadBlob(blob, filename);
+      this.setStatusMessage('Exported .sva package: ' + filename + ' (' + (bytes.length / 1024).toFixed(1) + ' KB)');
+    } catch (err) {
+      console.error('SVA export error:', err);
+      this.setStatusMessage('Export .sva failed: ' + err.message, true);
+    }
+  },
+
+  async exportSVAById(id) {
+    try {
+      this.setStatusMessage('Fetching SVA package for project #' + id + '...');
+      const res = await fetch('/api/projects/export-sva?id=' + encodeURIComponent(id));
+      if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()));
+      const blob = await res.blob();
+      const p = this.projectsList.find((item) => Number(item.id) === Number(id));
+      const filename = (p ? p.name : ('project_' + id)).replace(/[^a-zA-Z0-9_\-]/g, '_') + '.sva';
+      this._downloadBlob(blob, filename);
+      this.setStatusMessage('Downloaded .sva package: ' + filename);
+    } catch (err) {
+      this.setStatusMessage('Export failed: ' + err.message, true);
+    }
+  },
+
+  _downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  async importSVA(file) {
+    if (!file) return;
+    try {
+      this.setStatusMessage('Reading .sva package: ' + file.name + '...');
+
+      // Read file into ArrayBuffer
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      const b64 = btoa(binary);
+
+      let decodedState = null;
+      let manifest = null;
+
+      if (window.EngineBridge && typeof window.EngineBridge.decodeSVA === 'function' && window.EngineBridge.isReady()) {
+        const wasmRes = window.EngineBridge.decodeSVA(b64);
+        if (wasmRes && wasmRes.success) {
+          decodedState = wasmRes.state;
+          manifest = wasmRes.manifest;
+        } else if (wasmRes && wasmRes.error) {
+          throw new Error(wasmRes.error);
+        }
+      }
+
+      if (!decodedState) {
+        // Fallback to server REST endpoint
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/projects/import-sva', {
+          method: 'POST',
+          body: formData
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error('Import failed: ' + errText);
+        }
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Server rejected SVA package');
+        decodedState = data.schemaJson;
+        manifest = data.manifest;
+      }
+
+      // Apply the decoded state transactionally
+      this.applyStudioState(decodedState);
+
+      const projName = (manifest && manifest.name) ? manifest.name : file.name.replace(/\.sva$/i, '');
+      const projDesc = (manifest && manifest.description) ? manifest.description : '';
+
+      this.currentProjectId = 0; // External import
+      this.currentProjectName = projName;
+      this.currentProjectDesc = projDesc;
+
+      const nameIn = document.getElementById('projectNameInput');
+      const descIn = document.getElementById('projectDescInput');
+      if (nameIn) nameIn.value = projName;
+      if (descIn) descIn.value = projDesc;
+
+      this.updateHeaderBadge();
+      this.setStatusMessage('Successfully imported .sva: ' + projName);
+
+      if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+        window.AppCoordinator.coordinatePostRestore({ source: 'sva_import' });
+      }
+    } catch (err) {
+      console.error('SVA import error:', err);
+      this.setStatusMessage('Import failed: ' + err.message, true);
+    }
   }
 };

@@ -1721,7 +1721,10 @@
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.8rem;">
             <span id="projectModalStatus" style="font-size: 0.8rem; color: #58a6ff;">Ready.</span>
-            <div style="display: flex; gap: 0.6rem;">
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button type="button" class="btn-secondary" id="btnExportSVA" title="Export project to portable .sva package file">📦 Export .sva</button>
+              <button type="button" class="btn-secondary" id="btnImportSVA" title="Import project from portable .sva package file">📂 Import .sva</button>
+              <input type="file" id="inputImportSVA" accept=".sva,application/zip" style="display: none;">
               <button type="button" class="btn-secondary" id="btnSaveProjectOverwrite" disabled>💾 Overwrite Current</button>
               <button type="button" class="btn-primary" id="btnSaveProjectAsNew">➕ Save as New Project</button>
             </div>

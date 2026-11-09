@@ -1145,3 +1145,77 @@ func TestDispatchAllObjectTypesRenameAndClear(t *testing.T) {
 		}
 	}
 }
+
+func TestDispatchSVACommands(t *testing.T) {
+	// 1. Create a node with custom name
+	cnReq, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{
+			Shape: "rounded",
+			Text:  "Database Primary",
+			Name:  "Primary PostgreSQL Instance",
+			X:     30,
+			Y:     40,
+		},
+	})
+	_, err := Dispatch("Node.Create", cnReq)
+	if err != nil {
+		t.Fatalf("Node.Create failed: %v", err)
+	}
+
+	// 2. Encode to SVA
+	encReq, _ := json.Marshal(EncodeSVARequest{
+		Name:        "Test Cluster",
+		Description: "Mission critical HA topology",
+	})
+	encBytes, err := Dispatch("Project.EncodeSVA", encReq)
+	if err != nil {
+		t.Fatalf("Project.EncodeSVA failed: %v", err)
+	}
+	var encRes EncodeSVAResponse
+	if err := json.Unmarshal(encBytes, &encRes); err != nil {
+		t.Fatalf("Unmarshal EncodeSVAResponse failed: %v", err)
+	}
+	if !encRes.Success || encRes.DataB64 == "" {
+		t.Fatalf("Project.EncodeSVA unsuccessful: %+v", encRes)
+	}
+	if encRes.Filename != "Test Cluster.sva" {
+		t.Errorf("expected filename 'Test Cluster.sva', got %q", encRes.Filename)
+	}
+
+	// 3. Validate SVA
+	valReq, _ := json.Marshal(ValidateSVARequest{DataB64: encRes.DataB64})
+	valBytes, err := Dispatch("Project.ValidateSVA", valReq)
+	if err != nil {
+		t.Fatalf("Project.ValidateSVA failed: %v", err)
+	}
+	var valRes ValidateSVAResponse
+	if err := json.Unmarshal(valBytes, &valRes); err != nil {
+		t.Fatalf("Unmarshal ValidateSVAResponse failed: %v", err)
+	}
+	if !valRes.Success || valRes.Manifest == nil || valRes.Manifest.Name != "Test Cluster" {
+		t.Fatalf("Project.ValidateSVA unexpected response: %+v", valRes)
+	}
+
+	// 4. Decode SVA
+	decReq, _ := json.Marshal(DecodeSVARequest{DataB64: encRes.DataB64})
+	decBytes, err := Dispatch("Project.DecodeSVA", decReq)
+	if err != nil {
+		t.Fatalf("Project.DecodeSVA failed: %v", err)
+	}
+	var decRes DecodeSVAResponse
+	if err := json.Unmarshal(decBytes, &decRes); err != nil {
+		t.Fatalf("Unmarshal DecodeSVAResponse failed: %v", err)
+	}
+	if !decRes.Success || decRes.Manifest == nil || decRes.Manifest.Name != "Test Cluster" {
+		t.Fatalf("Project.DecodeSVA unexpected response: %+v", decRes)
+	}
+
+	var restoredState map[string]any
+	if err := json.Unmarshal(decRes.State, &restoredState); err != nil {
+		t.Fatalf("Unmarshal restored state failed: %v", err)
+	}
+	nodes, ok := restoredState["nodes"].([]any)
+	if !ok || len(nodes) == 0 {
+		t.Fatalf("restored state has no nodes: %+v", restoredState)
+	}
+}

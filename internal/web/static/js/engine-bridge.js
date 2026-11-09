@@ -932,6 +932,38 @@
       return null;
     },
 
+    encodeSVA(name, description, stateObj) {
+      if (this.isReady()) {
+        const res = this.dispatch('Project.EncodeSVA', {
+          name: String(name || 'Untitled Project'),
+          description: String(description || ''),
+          state: stateObj || null
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    decodeSVA(b64Data) {
+      if (this.isReady() && b64Data) {
+        const res = this.dispatch('Project.DecodeSVA', {
+          dataB64: String(b64Data)
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    validateSVA(b64Data) {
+      if (this.isReady() && b64Data) {
+        const res = this.dispatch('Project.ValidateSVA', {
+          dataB64: String(b64Data)
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
     getActiveEngineName() {
       if (!this.isReady()) return 'JS fallback';
       if (this._lastSyncError) return 'Sync Failed (JS fallback)';

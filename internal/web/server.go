@@ -24,6 +24,7 @@ import (
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/db"
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/generator"
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/rasterizer"
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/sva"
 )
 
 //go:embed static/*
@@ -182,6 +183,12 @@ func StartServerWithConfig(cfg ServerConfig) error {
 	mux.HandleFunc("/api/export/projects/get", handleProjectGet)
 	mux.HandleFunc("/api/export/projects/save", handleProjectSave)
 	mux.HandleFunc("/api/export/projects/delete", handleProjectDelete)
+
+	// SVA Native Project Format Endpoints
+	mux.HandleFunc("/api/export/sva", handleExportSVA)
+	mux.HandleFunc("/api/projects/export-sva", handleExportSVA)
+	mux.HandleFunc("/api/import/sva", handleImportSVA)
+	mux.HandleFunc("/api/projects/import-sva", handleImportSVA)
 
 	mux.HandleFunc("/api/projects", handleProjectsList)
 	mux.HandleFunc("/api/projects/get", handleProjectGet)
@@ -442,6 +449,145 @@ func handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"deleted": true})
+}
+
+func handleExportSVA(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var projectName string
+	var projectDesc string
+	var schemaBytes []byte
+
+	if r.Method == http.MethodGet {
+		idStr := r.URL.Query().Get("id")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, "Invalid project id for SVA export", http.StatusBadRequest)
+			return
+		}
+		proj, err := db.GetProject(id)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to load project: %v", err), http.StatusInternalServerError)
+			return
+		}
+		projectName = proj.Name
+		schemaBytes = []byte(proj.SchemaJSON)
+	} else {
+		r.Body = http.MaxBytesReader(w, r.Body, 100*1024*1024)
+		var req struct {
+			Name        string          `json:"name"`
+			Description string          `json:"description"`
+			SchemaJSON  json.RawMessage `json:"schemaJson"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		projectName = req.Name
+		projectDesc = req.Description
+		schemaBytes = req.SchemaJSON
+	}
+
+	if projectName == "" {
+		projectName = "Untitled Project"
+	}
+
+	proj, err := sva.BuildProjectFromStudioState(projectName, projectDesc, schemaBytes)
+	if err != nil {
+		http.Error(w, "Failed to build SVA project: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	svaBytes, err := sva.Encode(proj)
+	if err != nil {
+		http.Error(w, "Failed to encode SVA package: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	safeFilename := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			return r
+		}
+		return '_'
+	}, projectName)
+	if safeFilename == "" {
+		safeFilename = "project"
+	}
+
+	w.Header().Set("Content-Type", "application/vnd.svg-animator.project+zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.sva\"", safeFilename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(svaBytes)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(svaBytes)
+}
+
+func handleImportSVA(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 100*1024*1024)
+
+	var data []byte
+	var err error
+
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		if err := r.ParseMultipartForm(100 * 1024 * 1024); err != nil {
+			http.Error(w, "Failed to parse multipart form: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "Missing file parameter in form: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		data, err = io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "Failed to read uploaded file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
+		data, err = io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	proj, err := sva.Decode(data)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	studioStateJSON, err := sva.ExtractStudioState(proj)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "Failed to extract studio state: " + err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"success":    true,
+		"manifest":   proj.Manifest,
+		"schemaJson": string(studioStateJSON),
+	})
 }
 
 func handleExportProgress(w http.ResponseWriter, r *http.Request) {
