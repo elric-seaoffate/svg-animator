@@ -1598,6 +1598,13 @@ window.FloatingPropertiesEditor = {
     return null;
   },
 
+  handleCanvasContextMenu(e) {
+    // Clean extension point for future canvas-specific context menu.
+    // SVG Animator Studio owns the interactive canvas context and suppresses the browser
+    // native context menu without opening Properties or altering current selection.
+    // No placeholder / empty custom menu is created.
+  },
+
   _bindEvents() {
     const editor = document.getElementById('floatingContextEditor');
     if (editor) {
@@ -1626,18 +1633,32 @@ window.FloatingPropertiesEditor = {
 
     const previewBox = document.getElementById('previewBox');
     if (previewBox) {
-      // Right-click: Open contextual properties for recognized editable objects
+      // Right-click: SVG Animator Studio owns the interactive canvas context.
       previewBox.addEventListener('contextmenu', (e) => {
-        // Allow native context menu inside floating editor (e.g. form inputs)
-        if (e.target && e.target.closest && e.target.closest('#floatingContextEditor')) {
-          return;
+        // Retain native browser context menu for form inputs, editable fields, and floating editor controls
+        const t = e.target;
+        if (t) {
+          const tag = (t.tagName || '').toLowerCase();
+          if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) {
+            return;
+          }
+          if (t.closest && (
+            t.closest('#floatingContextEditor') ||
+            t.closest('input') ||
+            t.closest('textarea') ||
+            t.closest('select') ||
+            t.closest('[contenteditable="true"]')
+          )) {
+            return;
+          }
         }
+
+        // Suppress browser native context menu across the interactive canvas
+        e.preventDefault();
+        e.stopPropagation();
 
         const obj = this._resolveTargetObject(e.target);
         if (obj) {
-          e.preventDefault();
-          e.stopPropagation();
-
           const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
           if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
             window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });
@@ -1647,8 +1668,11 @@ window.FloatingPropertiesEditor = {
             resetPosition: true,
             clickCoords: { clientX: e.clientX, clientY: e.clientY }
           });
+        } else {
+          // Right-click on empty canvas: does not open Properties or change selection.
+          // Dispatches to clean extension point for future canvas-specific context menu.
+          this.handleCanvasContextMenu(e);
         }
-        // If not recognized as editable object, do NOT preventDefault - allow native browser context menu
       });
 
       // Double-click: Open contextual properties for recognized editable objects

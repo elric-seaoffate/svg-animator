@@ -372,7 +372,7 @@ The workspace implements a **master-detail inspector pattern**:
 
 ### 15.2 Interaction & Triggering
 - **Object Double-Click**: Double-clicking an object on the canvas (`node`, `flow`, `glow`, `ripple`) immediately selects it and opens the floating contextual editor.
-- **Object Right-Click**: Right-clicking any editable SVG object on the canvas (`node`, `flow`, `glow`, `ripple`) immediately selects it and opens the floating contextual Properties editor at the mouse coordinates without an intermediate context menu. Right-clicking blank canvas preserves the browser's native context menu.
+- **Object Right-Click**: Right-clicking any editable SVG object on the canvas (`node`, `flow`, `glow`, `ripple`) immediately selects it and opens the floating contextual Properties editor at the mouse coordinates without an intermediate context menu. Right-clicking empty canvas suppresses the browser's native context menu without opening Properties or altering selection, reserving a clean extension point (`handleCanvasContextMenu`) for a future canvas context menu. Right-clicking form inputs, editable fields, and areas outside the canvas retains standard browser context menus.
 - **Smart Lifecycle Management**:
   - Selecting another object while the popup is open dynamically switches the editor contents to that object without closing.
   - Clicking inside the popup does not deselect the canvas object.

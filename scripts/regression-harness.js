@@ -2370,7 +2370,22 @@ async function runHarness() {
   window.FloatingPropertiesEditor.close();
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
 
-  // Test 5: Right-Click on blank / empty canvas space MUST NOT suppress native context menu
+  // Test 5: Right-Click on blank / empty canvas space suppresses native context menu,
+  // does not open Properties, does not change selection, and dispatches to extension point handleCanvasContextMenu
+  window.FloatingPropertiesEditor.close();
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
+
+  // Set active selection to testNode to verify selection is preserved on empty canvas right-click
+  window.AppCoordinator.selectObject('node', testNode.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id);
+  const historyLenBeforeBlank = window.HistoryManager.undoStack.length;
+
+  let canvasContextHookCalled = false;
+  const origHandleCanvasContext = window.FloatingPropertiesEditor.handleCanvasContextMenu;
+  window.FloatingPropertiesEditor.handleCanvasContextMenu = function(e) {
+    canvasContextHookCalled = true;
+  };
+
   const blankCanvasEl = makeStubElement('div');
   blankCanvasEl.id = 'svgBackgroundBlank';
   previewBoxEl.appendChild(blankCanvasEl);
@@ -2388,17 +2403,24 @@ async function runHarness() {
   };
   previewBoxEl.dispatchEvent(blankRightClickEvt);
 
-  assert.strictEqual(preventDefaultCalled, false, 'Right-clicking empty canvas must NOT call preventDefault() - preserves native browser context menu');
-  assert.strictEqual(stopPropagationCalled, false, 'Right-clicking empty canvas must NOT call stopPropagation()');
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking empty canvas must call preventDefault() - SVG Animator Studio owns canvas context');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking empty canvas must call stopPropagation()');
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Right-clicking empty canvas must NOT open Properties editor');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id, 'Right-clicking empty canvas must NOT alter selection');
+  assert.strictEqual(window.Stage.isDragging, false, 'Right-clicking empty canvas must NOT initiate stage dragging');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeBlank, 'Right-clicking empty canvas must NOT alter history');
+  assert.strictEqual(canvasContextHookCalled, true, 'Extension point handleCanvasContextMenu must be called on empty canvas right-click');
 
-  // Test 6: Right-Click inside floating editor controls MUST NOT suppress native context menu
+  window.FloatingPropertiesEditor.handleCanvasContextMenu = origHandleCanvasContext;
+
+  // Test 6: Right-Click inside text inputs, editable fields, and floating editor controls MUST NOT suppress native context menu
   window.FloatingPropertiesEditor.openFor('node', testNode.id);
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
   preventDefaultCalled = false;
   stopPropagationCalled = false;
 
   const editorInpEl = document.getElementById('fctx-nodeTextInput') || floatingEditorEl;
+  floatingEditorEl.appendChild(editorInpEl);
   const editorRightClickEvt = {
     type: 'contextmenu',
     button: 2,
@@ -2410,7 +2432,7 @@ async function runHarness() {
   };
   previewBoxEl.dispatchEvent(editorRightClickEvt);
 
-  assert.strictEqual(preventDefaultCalled, false, 'Right-clicking inside floating editor must NOT call preventDefault() - preserves input text context menu');
+  assert.strictEqual(preventDefaultCalled, false, 'Right-clicking inside floating editor / text inputs must NOT call preventDefault() - preserves native text context menu');
 
   // Test 7: Double-click activation on canvas object still works
   window.FloatingPropertiesEditor.close();
