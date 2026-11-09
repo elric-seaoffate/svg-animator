@@ -24,11 +24,11 @@ The deployment establishes:
 
 ## 2. Release Build Details
 
-- **Git Commit:** `d40738d` + Stage 3 changes
+- **Git Commit:** `f3431f5` (`feat: migrate node shapes and presets to Go WASM`)
 - **Go Version:** `go version go1.26.0 linux/amd64`
 - **Compiler Flags:** `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w"`
-- **Binary Size:** 17,477,632 bytes (~17 MB)
-- **SHA-256 Checksum:** `ba2b8fc5582521fbb82654df73f035c183f119b84d8254c1558e1e7b3529906b`
+- **Binary Size:** 17,068,194 bytes (~17 MB)
+- **SHA-256 Checksum:** `aba69d95ae5620b1b93d1773ab60a904d28d14eca60d04d0707ee0039fa19712`
 - **WebAssembly Engine Size:** 3,635,037 bytes (~3.63 MB)
 
 ### Asset Embedding Verification
