@@ -144,7 +144,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 
 	case "Scene.RemoveFlow":
 		var req struct {
-			ID string `json:"id"`
+			ID scene.StringID `json:"id"`
 		}
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding RemoveFlow: %w", err)

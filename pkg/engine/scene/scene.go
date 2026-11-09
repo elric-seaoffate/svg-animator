@@ -12,17 +12,17 @@ type Scene struct {
 	canvas CanvasConfig
 	camera CameraConfig
 
-	nodes   map[string]Node
-	nodeIDs []string
+	nodes   map[StringID]Node
+	nodeIDs []StringID
 
-	flows   map[string]Flow
-	flowIDs []string
+	flows   map[StringID]Flow
+	flowIDs []StringID
 
-	glows   map[string]Glow
-	glowIDs []string
+	glows   map[StringID]Glow
+	glowIDs []StringID
 
-	ripples   map[string]Ripple
-	rippleIDs []string
+	ripples   map[StringID]Ripple
+	rippleIDs []StringID
 }
 
 // NewScene initializes an empty Scene with default configuration.
@@ -48,14 +48,14 @@ func NewScene() *Scene {
 			Sway:      1.4,
 			Breathe:   1.8,
 		},
-		nodes:     make(map[string]Node),
-		flows:     make(map[string]Flow),
-		glows:     make(map[string]Glow),
-		ripples:   make(map[string]Ripple),
-		nodeIDs:   make([]string, 0),
-		flowIDs:   make([]string, 0),
-		glowIDs:   make([]string, 0),
-		rippleIDs: make([]string, 0),
+		nodes:     make(map[StringID]Node),
+		flows:     make(map[StringID]Flow),
+		glows:     make(map[StringID]Glow),
+		ripples:   make(map[StringID]Ripple),
+		nodeIDs:   make([]StringID, 0),
+		flowIDs:   make([]StringID, 0),
+		glowIDs:   make([]StringID, 0),
+		rippleIDs: make([]StringID, 0),
 	}
 }
 
@@ -96,10 +96,55 @@ func (s *Scene) SetCamera(cfg CameraConfig) {
 	s.revision++
 }
 
+// UpdateNode adds or modifies a node and bumps revision.
+func (s *Scene) UpdateNode(n Node) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n.Label == "" && n.Text != "" {
+		n.Label = n.Text
+	}
+	if n.Fill == "" && n.FillColor != "" {
+		n.Fill = n.FillColor
+	}
+	if n.Stroke == "" && n.StrokeColor != "" {
+		n.Stroke = n.StrokeColor
+	}
+	if n.Animation == "" && n.Anim != "" {
+		n.Animation = n.Anim
+	}
+	if _, exists := s.nodes[n.ID]; !exists {
+		s.nodeIDs = append(s.nodeIDs, n.ID)
+	}
+	s.nodes[n.ID] = n
+	s.revision++
+}
+
+// RemoveNode removes a node by ID and bumps revision.
+func (s *Scene) RemoveNode(id StringID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.nodes[id]; !exists {
+		return false
+	}
+	delete(s.nodes, id)
+	newIDs := make([]StringID, 0, len(s.nodeIDs)-1)
+	for _, nid := range s.nodeIDs {
+		if nid != id {
+			newIDs = append(newIDs, nid)
+		}
+	}
+	s.nodeIDs = newIDs
+	s.revision++
+	return true
+}
+
 // UpdateFlow adds or modifies a flow and bumps revision.
 func (s *Scene) UpdateFlow(f Flow) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if f.RouteMode == "" && f.Route != "" {
+		f.RouteMode = f.Route
+	}
 	if _, exists := s.flows[f.ID]; !exists {
 		s.flowIDs = append(s.flowIDs, f.ID)
 	}
@@ -108,14 +153,14 @@ func (s *Scene) UpdateFlow(f Flow) {
 }
 
 // RemoveFlow removes a flow by ID and bumps revision.
-func (s *Scene) RemoveFlow(id string) bool {
+func (s *Scene) RemoveFlow(id StringID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, exists := s.flows[id]; !exists {
 		return false
 	}
 	delete(s.flows, id)
-	newIDs := make([]string, 0, len(s.flowIDs)-1)
+	newIDs := make([]StringID, 0, len(s.flowIDs)-1)
 	for _, fid := range s.flowIDs {
 		if fid != id {
 			newIDs = append(newIDs, fid)
@@ -130,6 +175,12 @@ func (s *Scene) RemoveFlow(id string) bool {
 func (s *Scene) UpdateGlow(g Glow) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if g.Shape == "radar" {
+		g.IsRadar = true
+	}
+	if g.RadarRings <= 0 && g.Rings > 0 {
+		g.RadarRings = g.Rings
+	}
 	if _, exists := s.glows[g.ID]; !exists {
 		s.glowIDs = append(s.glowIDs, g.ID)
 	}
@@ -138,14 +189,14 @@ func (s *Scene) UpdateGlow(g Glow) {
 }
 
 // RemoveGlow removes a glow by ID.
-func (s *Scene) RemoveGlow(id string) bool {
+func (s *Scene) RemoveGlow(id StringID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, exists := s.glows[id]; !exists {
 		return false
 	}
 	delete(s.glows, id)
-	newIDs := make([]string, 0, len(s.glowIDs)-1)
+	newIDs := make([]StringID, 0, len(s.glowIDs)-1)
 	for _, gid := range s.glowIDs {
 		if gid != id {
 			newIDs = append(newIDs, gid)
@@ -160,6 +211,9 @@ func (s *Scene) RemoveGlow(id string) bool {
 func (s *Scene) UpdateRipple(r Ripple) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if r.WaveCount <= 0 && r.Rings > 0 {
+		r.WaveCount = r.Rings
+	}
 	if _, exists := s.ripples[r.ID]; !exists {
 		s.rippleIDs = append(s.rippleIDs, r.ID)
 	}
@@ -168,14 +222,14 @@ func (s *Scene) UpdateRipple(r Ripple) {
 }
 
 // RemoveRipple removes a ripple by ID.
-func (s *Scene) RemoveRipple(id string) bool {
+func (s *Scene) RemoveRipple(id StringID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, exists := s.ripples[id]; !exists {
 		return false
 	}
 	delete(s.ripples, id)
-	newIDs := make([]string, 0, len(s.rippleIDs)-1)
+	newIDs := make([]StringID, 0, len(s.rippleIDs)-1)
 	for _, rid := range s.rippleIDs {
 		if rid != id {
 			newIDs = append(newIDs, rid)
@@ -194,30 +248,54 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.canvas = snap.Canvas
 	s.camera = snap.Camera
 
-	s.nodes = make(map[string]Node, len(snap.Nodes))
-	s.nodeIDs = make([]string, 0, len(snap.Nodes))
+	s.nodes = make(map[StringID]Node, len(snap.Nodes))
+	s.nodeIDs = make([]StringID, 0, len(snap.Nodes))
 	for _, n := range snap.Nodes {
+		if n.Label == "" && n.Text != "" {
+			n.Label = n.Text
+		}
+		if n.Fill == "" && n.FillColor != "" {
+			n.Fill = n.FillColor
+		}
+		if n.Stroke == "" && n.StrokeColor != "" {
+			n.Stroke = n.StrokeColor
+		}
+		if n.Animation == "" && n.Anim != "" {
+			n.Animation = n.Anim
+		}
 		s.nodes[n.ID] = n
 		s.nodeIDs = append(s.nodeIDs, n.ID)
 	}
 
-	s.flows = make(map[string]Flow, len(snap.Flows))
-	s.flowIDs = make([]string, 0, len(snap.Flows))
+	s.flows = make(map[StringID]Flow, len(snap.Flows))
+	s.flowIDs = make([]StringID, 0, len(snap.Flows))
 	for _, f := range snap.Flows {
+		if f.RouteMode == "" && f.Route != "" {
+			f.RouteMode = f.Route
+		}
 		s.flows[f.ID] = f
 		s.flowIDs = append(s.flowIDs, f.ID)
 	}
 
-	s.glows = make(map[string]Glow, len(snap.Glows))
-	s.glowIDs = make([]string, 0, len(snap.Glows))
+	s.glows = make(map[StringID]Glow, len(snap.Glows))
+	s.glowIDs = make([]StringID, 0, len(snap.Glows))
 	for _, g := range snap.Glows {
+		if g.Shape == "radar" {
+			g.IsRadar = true
+		}
+		if g.RadarRings <= 0 && g.Rings > 0 {
+			g.RadarRings = g.Rings
+		}
 		s.glows[g.ID] = g
 		s.glowIDs = append(s.glowIDs, g.ID)
 	}
 
-	s.ripples = make(map[string]Ripple, len(snap.Ripples))
-	s.rippleIDs = make([]string, 0, len(snap.Ripples))
+	s.ripples = make(map[StringID]Ripple, len(snap.Ripples))
+	s.rippleIDs = make([]StringID, 0, len(snap.Ripples))
 	for _, r := range snap.Ripples {
+		if r.WaveCount <= 0 && r.Rings > 0 {
+			r.WaveCount = r.Rings
+		}
 		s.ripples[r.ID] = r
 		s.rippleIDs = append(s.rippleIDs, r.ID)
 	}

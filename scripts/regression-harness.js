@@ -2375,6 +2375,101 @@ async function runHarness() {
   window.EngineBridge.status = 'ready';
   assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'WASM (Ready)');
 
+  // ===========================================================================
+  // 16.1 Browser-Side Numeric ID Normalization & Real Go Scene Synchronization
+  // ===========================================================================
+  // Create live objects using the legacy JavaScript modules (which generate numeric IDs: 1, 2, 3...)
+  const liveN1 = window.DiagramNodes.createNode({ text: 'NumericNode1', x: 20, y: 20, shape: 'rounded' });
+  const liveN2 = window.DiagramNodes.createNode({ text: 'NumericNode2', x: 70, y: 70, shape: 'rect' });
+  const liveF1 = window.DataFlows.createFlow({
+    nodes: [{ x: 20, y: 20 }, { x: 70, y: 70 }],
+    speed: 2.5,
+    delay: 0.2,
+    opacity: 0.95
+  });
+  const liveG1 = window.Glows.createGlow({ shape: 'radar', rings: 3, dur: 1.8, delay: 0.1 });
+  const liveR1 = window.Ripples.createRipple({ innerR: 10, outerR: 120, dur: 2.2 });
+
+  // Verify that legacy JS objects indeed have numeric IDs
+  assert.strictEqual(typeof liveN1.id, 'number', 'Legacy Node ID must be numeric');
+  assert.strictEqual(typeof liveF1.id, 'number', 'Legacy Flow ID must be numeric');
+  assert.strictEqual(typeof liveG1.id, 'number', 'Legacy Glow ID must be numeric');
+  assert.strictEqual(typeof liveR1.id, 'number', 'Legacy Ripple ID must be numeric');
+
+  // Generate real snapshot using production bridge normalizer
+  const liveSnapshot = window.EngineBridge.buildCurrentSceneSnapshot();
+
+  // Verify normalized IDs in the snapshot are canonical strings
+  const snapNode = liveSnapshot.nodes.find((n) => n.id === String(liveN1.id));
+  const snapFlow = liveSnapshot.flows.find((f) => f.id === String(liveF1.id));
+  const snapGlow = liveSnapshot.glows.find((g) => g.id === String(liveG1.id));
+  const snapRipple = liveSnapshot.ripples.find((r) => r.id === String(liveR1.id));
+
+  assert.ok(snapNode, 'Normalized snapshot must contain node with canonical string ID');
+  assert.ok(snapFlow, 'Normalized snapshot must contain flow with canonical string ID');
+  assert.ok(snapGlow, 'Normalized snapshot must contain glow with canonical string ID');
+  assert.ok(snapRipple, 'Normalized snapshot must contain ripple with canonical string ID');
+  assert.strictEqual(typeof snapNode.id, 'string', 'Normalized node ID must be string');
+  assert.strictEqual(typeof snapFlow.id, 'string', 'Normalized flow ID must be string');
+
+  // Synchronize live snapshot to real Go WASM engine
+  const liveSyncSuccess = window.EngineBridge.syncScene(liveSnapshot);
+  assert.strictEqual(liveSyncSuccess, true, 'Real browser scene with numeric IDs must sync to Go without error');
+  assert.strictEqual(window.EngineBridge._sceneSynced, true, '_sceneSynced must be true');
+  assert.strictEqual(window.EngineBridge._lastSyncError, null, '_lastSyncError must be null');
+  assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'WASM (Ready)');
+
+  // Evaluate frame via Go WASM and verify flow frame update matches the live flow ID
+  const evalLive = window.EngineBridge.evaluateSceneAtTime(1.0);
+  assert.ok(evalLive && evalLive.flows.length > 0, 'Go WASM evaluation must return flow updates');
+  const matchedFlowUpdate = evalLive.flows.find((fl) => fl.id === String(liveF1.id));
+  assert.ok(matchedFlowUpdate, `Flow frame update must reference canonical flow ID "${liveF1.id}"`);
+  assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'WASM');
+
+  // Verify collision handling when different object types share the same numeric ID (e.g. Node 1, Flow 1, Glow 1, Ripple 1)
+  const idCollisionSnapshot = {
+    revision: 201,
+    canvas: { width: 1000, height: 1000, duration: 5.0, loop: 'once' },
+    camera: { motion: 'static' },
+    nodes: [{ id: 1, shape: 'rounded', text: 'SameIdNode' }],
+    flows: [{ id: 1, nodes: [{ x: 0, y: 0 }, { x: 50, y: 50 }], speed: 2 }],
+    glows: [{ id: 1, shape: 'circle', dur: 1.5 }],
+    ripples: [{ id: 1, dur: 2.0 }]
+  };
+  const collisionSync = window.EngineBridge.syncScene(idCollisionSnapshot);
+  assert.strictEqual(collisionSync, true, 'Same numeric ID in different collections must synchronize without collision');
+  const collisionFrame = window.EngineBridge.evaluateSceneAtTime(1.0);
+  assert.strictEqual(collisionFrame.flows[0].id, '1');
+  assert.strictEqual(collisionFrame.glows[0].id, '1');
+  assert.strictEqual(collisionFrame.ripples[0].id, '1');
+
+  // Synchronization failure lifecycle testing:
+  // If an invalid payload fails Scene.SetState, _sceneSynced must become false
+  const prevSyncError = window.EngineBridge._lastSyncError;
+  // Trigger failure by simulating rejected command
+  const badCommandResult = window.EngineBridge.dispatch('Scene.SetState', '{ invalid json [}');
+  assert.strictEqual(badCommandResult, null, 'Invalid JSON payload must return null');
+
+  // Test that evaluateSceneAtTime uses JS fallback when unsynced
+  window.EngineBridge._sceneSynced = false;
+  window.EngineBridge._lastSyncError = 'Simulated sync failure';
+  assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'Sync Failed (JS fallback)');
+  const fallbackEval = window.EngineBridge.evaluateSceneAtTime(1.0);
+  assert.ok(fallbackEval, 'Evaluation must gracefully fall back to JS when sync is failed');
+
+  // Clean recovery when valid scene is synchronized
+  window.EngineBridge.syncScene(testSceneSnapshot);
+  assert.strictEqual(window.EngineBridge._sceneSynced, true, 'Sync must recover on valid scene');
+  assert.strictEqual(window.EngineBridge.getActiveEngineName(), 'WASM (Ready)');
+
+  // Clean up live test objects
+  window.DiagramNodes.removeNode(liveN1.id);
+  window.DiagramNodes.removeNode(liveN2.id);
+  window.DataFlows.deleteFlow(liveF1.id);
+  window.Glows.deleteGlow(liveG1.id);
+  window.Ripples.deleteRipple(liveR1.id);
+  window.EngineBridge.syncScene(); // Resync clean scene
+
   // Verify FloatingPropertiesEditor lifecycle
   const fNode = window.DiagramNodes.createNode({ text: 'FloatingNodeTest', width: 220, height: 110, shape: 'rect' });
   const fFlow = window.DataFlows.createFlow({ label: 'FloatingFlowTest', color: '#123456' });

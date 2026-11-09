@@ -128,6 +128,31 @@ func TestDispatchSceneAndTimelineEvaluation(t *testing.T) {
 	}
 }
 
+func TestDispatchNumericSceneSetState(t *testing.T) {
+	// Directly replicate the browser payload with numeric Node.id, Flow.id, Glow.id, Ripple.id
+	rawJSON := `{
+		"revision": 202,
+		"canvas": {"width": 1280, "height": 720, "duration": 7.0, "loop": "once"},
+		"camera": {"motion": "static"},
+		"nodes": [{"id": 1, "shape": "rounded", "text": "Node 1", "x": 100, "y": 100}],
+		"flows": [{"id": 1, "nodes": [{"x": 10, "y": 10}, {"x": 50, "y": 50}], "speed": 2.0}],
+		"glows": [{"id": 1, "shape": "circle", "x": 50, "y": 50}],
+		"ripples": [{"id": 1, "x": 50, "y": 50}]
+	}`
+	resp, err := Dispatch("Scene.SetState", []byte(rawJSON))
+	if err != nil {
+		t.Fatalf("Dispatch Scene.SetState with numeric IDs failed: %v", err)
+	}
+	var setInfo SetSceneStateResponse
+	if err := json.Unmarshal(resp, &setInfo); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if setInfo.Revision != 202 || setInfo.FlowsCount != 1 {
+		t.Errorf("unexpected setInfo: %+v", setInfo)
+	}
+}
+
+
 
 func TestDispatchUnknownCommand(t *testing.T) {
 	_, err := Dispatch("Unknown.Action", nil)

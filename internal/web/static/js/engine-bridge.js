@@ -19,6 +19,10 @@
     _bridge: null,
     _initPromise: null,
     _sceneCache: null,
+    _sceneSynced: false,
+    _lastSyncError: null,
+    _lastSyncErrorLogged: null,
+    _syncRevision: 0,
     _lastEngineUsed: 'Unavailable',
     _stats: {
       totalCalls: 0,
@@ -210,19 +214,172 @@
     },
 
     getActiveEngineName() {
-      if (this.isReady() && this._lastEngineUsed === 'WASM') return 'WASM';
-      if (this.isReady()) return 'WASM (Ready)';
-      return 'JS fallback';
+      if (!this.isReady()) return 'JS fallback';
+      if (this._lastSyncError) return 'Sync Failed (JS fallback)';
+      if (!this._sceneSynced) return 'WASM (Syncing...)';
+      if (this._lastEngineUsed === 'WASM') return 'WASM';
+      return 'WASM (Ready)';
     },
 
     getFrameEvaluationStats() {
       return {
         activeEngine: this.getActiveEngineName(),
+        sceneSynced: this._sceneSynced,
+        lastSyncError: this._lastSyncError,
         framesEvaluated: this._stats.framesEvaluated,
         avgDurationMs: this._stats.totalCalls > 0
           ? Number((this._stats.totalDurationMs / this._stats.totalCalls).toFixed(3))
           : 0,
         lastDurationMs: this._stats.lastDurationMs
+      };
+    },
+
+    normalizeSceneSnapshot(raw) {
+      if (!raw || typeof raw !== 'object') {
+        raw = {};
+      }
+      const canvasRaw = raw.canvas || {};
+      const cameraRaw = raw.camera || {};
+
+      const width = Number(canvasRaw.width) || 1280;
+      const height = Number(canvasRaw.height) || 720;
+      const duration = Number(canvasRaw.duration) || 7.0;
+      const loop = String(canvasRaw.loop || canvasRaw.playbackMode || 'once');
+      const pattern = String(canvasRaw.pattern || 'blueprint');
+      const gridColor = String(canvasRaw.gridColor || '#1e293b');
+      const gridSize = Number(canvasRaw.gridSize) || 40;
+      const bgColor = String(canvasRaw.bgColor || '#0d1117');
+      const transparent = !!(canvasRaw.transparent || canvasRaw.bgTransparent);
+
+      const motion = String(cameraRaw.motion || 'static');
+      const camDuration = Number(cameraRaw.camDuration || cameraRaw.duration) || duration;
+      const camLoop = String(cameraRaw.camLoop || cameraRaw.loop || loop);
+      const startX = Number(cameraRaw.startX) || 50;
+      const startY = Number(cameraRaw.startY) || 50;
+      const startZoom = Number(cameraRaw.startZoom) || 1.0;
+      const endX = Number(cameraRaw.endX) || 60;
+      const endY = Number(cameraRaw.endY) || 40;
+      const endZoom = Number(cameraRaw.endZoom) || 1.3;
+      const sway = Number(cameraRaw.sway) || 1.4;
+      const breathe = Number(cameraRaw.breathe) || 1.8;
+      const tiltX = Number(cameraRaw.tiltX) || 0;
+      const tiltY = Number(cameraRaw.tiltY) || 0;
+
+      const nodes = Array.isArray(raw.nodes) ? raw.nodes.map((n) => ({
+        id: String(n.id != null ? n.id : ''),
+        shape: String(n.shape || 'rounded'),
+        label: String(n.label || n.text || ''),
+        text: String(n.text || n.label || ''),
+        subtext: String(n.subtext || ''),
+        x: Number(n.x) || 0,
+        y: Number(n.y) || 0,
+        width: Number(n.width) || 170,
+        height: Number(n.height) || 80,
+        fill: String(n.fill || n.fillColor || '#161b22'),
+        fillColor: String(n.fillColor || n.fill || '#161b22'),
+        fillOpacity: Number(n.fillOpacity != null ? n.fillOpacity : 0.92),
+        stroke: String(n.stroke || n.strokeColor || '#58a6ff'),
+        strokeColor: String(n.strokeColor || n.stroke || '#58a6ff'),
+        strokeWidth: Number(n.strokeWidth != null ? n.strokeWidth : 2),
+        strokeStyle: String(n.strokeStyle || 'solid'),
+        textColor: String(n.textColor || '#e6edf3'),
+        fontSize: Number(n.fontSize) || 15,
+        animation: String(n.animation || n.anim || 'none'),
+        anim: String(n.anim || n.animation || 'none')
+      })) : [];
+
+      const flows = Array.isArray(raw.flows) ? raw.flows.map((f) => ({
+        id: String(f.id != null ? f.id : ''),
+        fromNodeId: String(f.fromNodeId != null ? f.fromNodeId : ''),
+        toNodeId: String(f.toNodeId != null ? f.toNodeId : ''),
+        nodes: Array.isArray(f.nodes)
+          ? f.nodes.map((pt) => ({ x: Number(pt.x) || 0, y: Number(pt.y) || 0 }))
+          : [],
+        curvature: Number(f.curvature) || 0,
+        routeMode: String(f.routeMode || f.route || 'curve'),
+        route: String(f.route || f.routeMode || 'curve'),
+        lineWidth: Number(f.lineWidth != null ? f.lineWidth : 2.5),
+        lineStyle: String(f.lineStyle || 'dashed'),
+        arrow: String(f.arrow || 'none'),
+        color: String(f.color || '#00ffcc'),
+        opacity: Number(f.opacity != null ? f.opacity : 1.0),
+        speed: Number(f.speed != null ? f.speed : 2.0),
+        delay: Number(f.delay) || 0,
+        endDelay: Number(f.endDelay) || 0,
+        hideOnDelay: f.hideOnDelay !== false,
+        scale: Number(f.scale != null ? f.scale : 1.0),
+        type: String(f.type || 'orb'),
+        showLine: f.showLine !== false,
+        glow: Number(f.glow) || 0,
+        label: String(f.label || '')
+      })) : [];
+
+      const glows = Array.isArray(raw.glows) ? raw.glows.map((g) => ({
+        id: String(g.id != null ? g.id : ''),
+        shape: String(g.shape || 'circle'),
+        x: Number(g.x) || 0,
+        y: Number(g.y) || 0,
+        size: Number(g.size != null ? g.size : 25),
+        color: String(g.color || '#ff0044'),
+        opacity: Number(g.opacity != null ? g.opacity : 1.0),
+        dur: Number(g.dur != null ? g.dur : 2.0),
+        delay: Number(g.delay) || 0,
+        endDelay: Number(g.endDelay) || 0,
+        playback: String(g.playback || 'pingpong'),
+        isRadar: (g.shape === 'radar') || !!g.isRadar,
+        radarRings: Number(g.rings || g.radarRings || 1),
+        rings: Number(g.rings || g.radarRings || 1),
+        radarStagger: Number(g.radarStagger != null ? g.radarStagger : 0.25)
+      })) : [];
+
+      const ripples = Array.isArray(raw.ripples) ? raw.ripples.map((r) => ({
+        id: String(r.id != null ? r.id : ''),
+        color: String(r.color || '#ffffff'),
+        opacity: Number(r.opacity != null ? r.opacity : 0.4),
+        innerR: Number(r.innerR) || 0,
+        outerR: Number(r.outerR != null ? r.outerR : 150),
+        dur: Number(r.dur != null ? r.dur : 3.0),
+        delay: Number(r.delay) || 0,
+        endDelay: Number(r.endDelay) || 0,
+        waveCount: Number(r.rings || r.waveCount || 3),
+        rings: Number(r.rings || r.waveCount || 3),
+        x: Number(r.x) || 0,
+        y: Number(r.y) || 0
+      })) : [];
+
+      return {
+        revision: Number(raw.revision) || Date.now(),
+        canvas: {
+          width: width,
+          height: height,
+          duration: duration,
+          loop: loop,
+          pattern: pattern,
+          gridColor: gridColor,
+          gridSize: gridSize,
+          bgColor: bgColor,
+          transparent: transparent,
+          bgTransparent: transparent
+        },
+        camera: {
+          motion: motion,
+          camDuration: camDuration,
+          camLoop: camLoop,
+          startX: startX,
+          startY: startY,
+          startZoom: startZoom,
+          endX: endX,
+          endY: endY,
+          endZoom: endZoom,
+          sway: sway,
+          breathe: breathe,
+          tiltX: tiltX,
+          tiltY: tiltY
+        },
+        nodes: nodes,
+        flows: flows,
+        glows: glows,
+        ripples: ripples
       };
     },
 
@@ -249,7 +406,7 @@
         ? window.Ripples.list
         : [];
 
-      return {
+      return this.normalizeSceneSnapshot({
         revision: Date.now(),
         canvas: {
           width: cw,
@@ -257,34 +414,35 @@
           duration: dur,
           loop: loop
         },
-        camera: {
-          motion: cam.motion || 'static',
-          camDuration: cam.camDuration || dur,
-          camLoop: cam.camLoop || loop,
-          startX: cam.startX || 50,
-          startY: cam.startY || 50,
-          startZoom: cam.startZoom || 1.0,
-          endX: cam.endX || 60,
-          endY: cam.endY || 40,
-          endZoom: cam.endZoom || 1.3,
-          sway: cam.sway || 1.4,
-          breathe: cam.breathe || 1.8,
-          tiltX: cam.tiltX || 0,
-          tiltY: cam.tiltY || 0
-        },
+        camera: cam,
         nodes: nodes,
         flows: flows,
         glows: glows,
         ripples: ripples
-      };
+      });
     },
 
     syncScene(snapshot) {
-      this._sceneCache = snapshot || this.buildCurrentSceneSnapshot();
+      this._sceneCache = this.normalizeSceneSnapshot(snapshot || this.buildCurrentSceneSnapshot());
       if (this.isReady()) {
         const res = this.dispatch('Scene.SetState', this._sceneCache);
-        return res && res.status === 'ok';
+        if (res && res.status === 'ok') {
+          this._sceneSynced = true;
+          this._lastSyncError = null;
+          this._lastSyncErrorLogged = null;
+          this._syncRevision = res.revision;
+          return true;
+        } else {
+          this._sceneSynced = false;
+          this._lastSyncError = (res && res.error) || 'Failed to sync scene';
+          if (this._lastSyncError !== this._lastSyncErrorLogged) {
+            console.warn('[EngineBridge] Scene synchronization failed; falling back to JavaScript engine:', this._lastSyncError);
+            this._lastSyncErrorLogged = this._lastSyncError;
+          }
+          return false;
+        }
       }
+      this._sceneSynced = false;
       return false;
     },
 
@@ -294,18 +452,21 @@
         this._sceneCache = this.buildCurrentSceneSnapshot();
       }
 
-      if (this.isReady()) {
+      if (this.isReady() && this._sceneSynced) {
         const res = this.dispatch('Timeline.EvaluateSceneAtTime', { time: t });
         if (res && res.flows) {
           this._stats.framesEvaluated++;
           this._lastEngineUsed = 'WASM';
           return res;
+        } else {
+          // If evaluation failed unexpectedly, mark unsynced
+          this._sceneSynced = false;
         }
       }
 
       // Seamless mathematical JavaScript fallback
       this._stats.framesEvaluated++;
-      this._lastEngineUsed = 'JS fallback';
+      this._lastEngineUsed = this._lastSyncError ? 'Sync failed (JS fallback)' : 'JS fallback';
       return this._evaluateSceneAtTimeJS(this._sceneCache, t);
     },
 
@@ -315,7 +476,7 @@
         this._sceneCache = this.buildCurrentSceneSnapshot();
       }
 
-      if (this.isReady()) {
+      if (this.isReady() && this._sceneSynced) {
         const res = this.dispatch('Timeline.EvaluateBatch', { times: times });
         if (Array.isArray(res)) {
           this._stats.framesEvaluated += times.length;
@@ -325,7 +486,7 @@
       }
 
       this._stats.framesEvaluated += times.length;
-      this._lastEngineUsed = 'JS fallback';
+      this._lastEngineUsed = this._lastSyncError ? 'Sync failed (JS fallback)' : 'JS fallback';
       return times.map((t) => this._evaluateSceneAtTimeJS(this._sceneCache, t));
     },
 

@@ -142,7 +142,7 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		dashOffset := 32.0 - math.Mod(timeSec*32.0, 32.0)
 
 		res.Flows = append(res.Flows, FlowFrameUpdate{
-			ID:         f.ID,
+			ID:         string(f.ID),
 			Visible:    visible,
 			Progress:   math.Round(prog*10000) / 10000,
 			X:          pt.X,
@@ -204,7 +204,7 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		}
 
 		res.Glows = append(res.Glows, GlowFrameUpdate{
-			ID:          g.ID,
+			ID:          string(g.ID),
 			Visible:     active || timeSec >= g.Delay,
 			CoreOpacity: math.Round(coreOp*1000) / 1000,
 			RadarRings:  rings,
@@ -230,7 +230,7 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		}
 
 		res.Ripples = append(res.Ripples, RippleFrameUpdate{
-			ID:      r.ID,
+			ID:      string(r.ID),
 			Visible: active,
 			Radius:  math.Round(radius*100) / 100,
 			Opacity: math.Round(op*1000) / 1000,
@@ -313,7 +313,7 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 			dy = -6.0 * (math.Sin(timeSec*2.0*math.Pi/3.2) + 1.0) / 2.0
 		}
 		res.Nodes = append(res.Nodes, NodeFrameUpdate{
-			ID:         n.ID,
+			ID:         string(n.ID),
 			Opacity:    math.Round(op*1000) / 1000,
 			TranslateY: math.Round(dy*100) / 100,
 		})

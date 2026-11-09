@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"encoding/json"
 	"sync"
 	"testing"
 
@@ -104,5 +105,53 @@ func TestConcurrentSceneAccess(t *testing.T) {
 	wg.Wait()
 	if s.Revision() <= 1 {
 		t.Errorf("expected revision > 1, got %d", s.Revision())
+	}
+}
+
+func TestNumericAndMixedIDDecoding(t *testing.T) {
+	// Tests that numeric IDs (as produced by legacy JS counters) unmarshal cleanly into StringID
+	rawJSON := `{
+		"revision": 5,
+		"canvas": {"width": 1000, "height": 1000, "duration": 7.0, "loop": "once"},
+		"camera": {"motion": "static"},
+		"nodes": [{"id": 1, "shape": "rounded", "text": "Node 1", "x": 10, "y": 20}],
+		"flows": [{"id": 2, "fromNodeId": 1, "toNodeId": "node-target", "nodes": [{"x": 0, "y": 0}, {"x": 50, "y": 50}], "speed": 3}],
+		"glows": [{"id": 3, "shape": "radar", "rings": 3, "x": 30, "y": 30}],
+		"ripples": [{"id": 4, "innerR": 5, "outerR": 80, "x": 40, "y": 40}]
+	}`
+
+	var snap Snapshot
+	if err := json.Unmarshal([]byte(rawJSON), &snap); err != nil {
+		t.Fatalf("failed to unmarshal JSON with numeric IDs: %v", err)
+	}
+
+	if snap.Nodes[0].ID != "1" {
+		t.Errorf("expected node ID '1', got %q", snap.Nodes[0].ID)
+	}
+	if snap.Flows[0].ID != "2" {
+		t.Errorf("expected flow ID '2', got %q", snap.Flows[0].ID)
+	}
+	if snap.Flows[0].FromNodeID != "1" {
+		t.Errorf("expected fromNodeId '1', got %q", snap.Flows[0].FromNodeID)
+	}
+	if snap.Flows[0].ToNodeID != "node-target" {
+		t.Errorf("expected toNodeId 'node-target', got %q", snap.Flows[0].ToNodeID)
+	}
+	if snap.Glows[0].ID != "3" {
+		t.Errorf("expected glow ID '3', got %q", snap.Glows[0].ID)
+	}
+	if snap.Ripples[0].ID != "4" {
+		t.Errorf("expected ripple ID '4', got %q", snap.Ripples[0].ID)
+	}
+
+	// Verify scene methods with unmarshaled snapshot
+	s := NewScene()
+	s.SetFromSnapshot(snap)
+	if s.Revision() != 5 {
+		t.Errorf("expected revision 5, got %d", s.Revision())
+	}
+	snapExport := s.GetSnapshot()
+	if snapExport.Nodes[0].ID != "1" || snapExport.Flows[0].ID != "2" {
+		t.Errorf("snapshot export failed: %+v", snapExport)
 	}
 }
