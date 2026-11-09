@@ -102,7 +102,7 @@ pkg/engine/
 flowchart TD
     S1["Stage 1: Geometry & Path Routing (Complete)"] --> S2["Stage 2: Animation Timing & Frame Evaluation (Complete)"]
     S2 --> S3["Stage 3: Diagram Nodes & Shape Registry (Complete)"]
-    S3 --> S4["Stage 4: Connectors & Data Flows"]
+    S3 --> S4["Stage 4: Connectors & Data Flows (Complete)"]
     S4 --> S5["Stage 5: Hotspots & Glow Effects"]
     S5 --> S6["Stage 6: Refractive Liquid Ripples"]
     S6 --> S7["Stage 7: Optical Filters & Camera Transforms"]
@@ -145,13 +145,17 @@ flowchart TD
 - **Integration Tests**: `go test ./pkg/engine/geometry ./pkg/engine/scene ./pkg/engine/protocol` + `node scripts/regression-harness.js` (Section 16.2).
 - **JS Retirement Plan**: `nodes.js`, `presets.js`, and `shape-registry.js` operational methods delegate directly to `window.EngineBridge`.
 
-### Stage 4: Connectors & Data Flows
-- **Go Owner**: `pkg/engine/model/flow.go`
-- **Legacy JS Owner**: `flows.js` (Layer 3 CRUD and waypoint management)
-- **Boundary Contract**: `Flow.Create`, `Flow.Update`, `Flow.AddWaypoint`, `Flow.RemoveWaypoint`
-- **Parity Criteria**: Flow payload serialization matches schema `1.2.0`.
-- **Integration Tests**: Full CRUD cycle and waypoint manipulation tests in Go.
-- **JS Retirement Plan**: `flows.js` retains only sidebar DOM rendering and waypoint reticle positioning.
+### Stage 4: Connectors & Data Flows (Implemented)
+- **Go Owner**: `pkg/engine/geometry/flow_geom.go`, `pkg/engine/scene/flow.go`, `pkg/engine/timeline/evaluator.go`
+- **Legacy JS Owner**: `internal/web/static/js/flows.js` (Layer 3 CRUD and waypoint management)
+- **Boundary Contract**:
+  - `Flow.Create`, `Flow.Update`, `Flow.Delete`, `Flow.Get`, `Flow.GetAll`
+  - `Flow.AddWaypoint`, `Flow.RemoveWaypoint`, `Flow.UpdateWaypoint`
+  - `Flow.FindAt`, `Flow.GetBounds`, `Flow.Describe`
+  - `Flow.AttachToNode`, `Flow.DetachFromNode`, `Flow.RecalculateConnections`
+- **Parity Criteria**: Flow payload serialization matches schema `1.2.0`; path routing across curve, ortho-mid, ortho-hv, ortho-vh, and direct matches within float tolerances; waypoint manipulation, anchor updates on node movements, and hit testing verified.
+- **Integration Tests**: `go test ./pkg/engine/geometry ./pkg/engine/scene ./pkg/engine/protocol` + `node scripts/regression-harness.js` (Section 16.3).
+- **JS Retirement Plan**: `flows.js` operational methods delegate directly to `window.EngineBridge` with built-in JS fallbacks retained for offline/no-WASM operation.
 
 ### Stage 5: Hotspots & Glow Effects
 - **Go Owner**: `pkg/engine/effects/glow.go`

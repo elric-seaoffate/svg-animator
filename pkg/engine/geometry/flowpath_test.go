@@ -115,3 +115,66 @@ func TestSampleFlowPathOrtho(t *testing.T) {
 	}
 	_ = angMid
 }
+
+func TestFlowBoundsAndLength(t *testing.T) {
+	nodes := []Point{{X: 10, Y: 10}, {X: 90, Y: 10}}
+	bounds, mid := ComputeFlowBounds(nodes, 0, 1000, 1000, "curve")
+	if bounds.MinX != 100 || bounds.MaxX != 900 || bounds.MinY != 100 || bounds.MaxY != 100 {
+		t.Errorf("unexpected bounds: %+v", bounds)
+	}
+	if bounds.Width != 800 || bounds.Height != 0 {
+		t.Errorf("unexpected dimensions: width=%v, height=%v", bounds.Width, bounds.Height)
+	}
+	if mid.X != 500 || mid.Y != 100 {
+		t.Errorf("unexpected midpoint: %+v", mid)
+	}
+
+	length := ComputeFlowLength(nodes, 0, 1000, 1000, "curve")
+	if length < 799 || length > 801 {
+		t.Errorf("expected length ~800, got %v", length)
+	}
+
+	desc := DescribeFlowGeometry(nodes, 0, 1000, 1000, "curve")
+	if desc.PathD != "M 100,100 L 900,100" {
+		t.Errorf("unexpected pathD: %s", desc.PathD)
+	}
+	if desc.StartPt.X != 100 || desc.StartPt.Y != 100 || desc.EndPt.X != 900 || desc.EndPt.Y != 100 {
+		t.Errorf("unexpected start/end: start=%+v, end=%+v", desc.StartPt, desc.EndPt)
+	}
+}
+
+func TestDistanceToFlowPath(t *testing.T) {
+	nodes := []Point{{X: 10, Y: 10}, {X: 90, Y: 10}}
+	// Point on line: (500, 100) -> distance should be 0
+	d0 := DistanceToFlowPath(nodes, 0, 1000, 1000, "curve", 500, 100)
+	if d0 > 0.1 {
+		t.Errorf("expected distance near 0, got %v", d0)
+	}
+
+	// Point 15px above line: (500, 85) -> distance should be 15
+	d15 := DistanceToFlowPath(nodes, 0, 1000, 1000, "curve", 500, 85)
+	if d15 < 14.9 || d15 > 15.1 {
+		t.Errorf("expected distance near 15, got %v", d15)
+	}
+}
+
+func TestCalculateNodeAnchor(t *testing.T) {
+	// Node at center (50%, 50%), size 200x100 on 1000x1000 canvas.
+	// Half-width in pct = 100/1000*100 = 10%. Half-height in pct = 50/1000*100 = 5%.
+	centerAnchor := CalculateNodeAnchor(50, 50, 200, 100, 1000, 1000, 90, 50, false)
+	if centerAnchor.X != 50 || centerAnchor.Y != 50 {
+		t.Errorf("expected center anchor (50, 50), got %+v", centerAnchor)
+	}
+
+	// Target to the right (90%, 50%) -> closest edge anchor should be Right (60%, 50%)
+	rightAnchor := CalculateNodeAnchor(50, 50, 200, 100, 1000, 1000, 90, 50, true)
+	if rightAnchor.X != 60 || rightAnchor.Y != 50 {
+		t.Errorf("expected right anchor (60, 50), got %+v", rightAnchor)
+	}
+
+	// Target above (50%, 10%) -> closest edge anchor should be Top (50%, 45%)
+	topAnchor := CalculateNodeAnchor(50, 50, 200, 100, 1000, 1000, 50, 10, true)
+	if topAnchor.X != 50 || topAnchor.Y != 45 {
+		t.Errorf("expected top anchor (50, 45), got %+v", topAnchor)
+	}
+}

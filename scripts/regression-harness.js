@@ -3230,6 +3230,88 @@ async function runHarness() {
   assert.strictEqual(window.DiagramNodes.getNode(createdNode.id), null, 'Node must be deleted');
   window.DataFlows.deleteFlow(connFlow.id);
 
+  // ===========================================================================
+  // SECTION 16.3: WASM Stage 4 — Flow Operations, Geometry & Node Connections
+  // ===========================================================================
+  console.log('[HARNESS] Testing WASM Stage 4 Flow operations, geometry & connections...');
+
+  // 1. Live Flow Creation via Go WASM
+  const stage4Flow = window.DataFlows.createFlow({
+    label: 'Stage 4 Mesh Flow',
+    color: '#06b6d4',
+    speed: 3.0,
+    route: 'ortho-mid'
+  });
+  assert.ok(stage4Flow && stage4Flow.id, 'createFlow must return valid flow with ID');
+  assert.strictEqual(stage4Flow.color, '#06b6d4', 'Flow color must be preserved');
+  assert.strictEqual(stage4Flow.route, 'ortho-mid', 'Flow route must match ortho-mid');
+  assert.strictEqual(stage4Flow.nodes.length, 2, 'Flow must start with 2 waypoints');
+
+  // 2. Waypoint Management via Go WASM
+  const wpAddRes = window.DataFlows.addWaypoint(stage4Flow.id, 50, 40);
+  assert.ok(wpAddRes && wpAddRes.waypointIdx === 2, 'addWaypoint must append at index 2');
+  const flowAfterAdd = window.DataFlows.getFlow(stage4Flow.id);
+  assert.strictEqual(flowAfterAdd.nodes.length, 3, 'Flow nodes length must be 3');
+
+  const wpUpdRes = window.DataFlows.updateWaypoint(stage4Flow.id, 2, 55, 45);
+  assert.strictEqual(wpUpdRes.x, 55, 'Updated waypoint X must match');
+  assert.strictEqual(wpUpdRes.y, 45, 'Updated waypoint Y must match');
+
+  const wpRemRes = window.DataFlows.removeWaypoint(stage4Flow.id, 2);
+  assert.ok(wpRemRes && wpRemRes.waypointIdx === 1, 'removeWaypoint must return new active index');
+  const flowAfterRem = window.DataFlows.getFlow(stage4Flow.id);
+  assert.strictEqual(flowAfterRem.nodes.length, 2, 'Flow nodes length must be back to 2');
+
+  // Minimum waypoint guard: cannot reduce below 2
+  const wpRemFail = window.DataFlows.removeWaypoint(stage4Flow.id, 0);
+  assert.strictEqual(wpRemFail, null, 'removeWaypoint must reject dropping below 2 waypoints');
+  assert.strictEqual(window.DataFlows.getFlow(stage4Flow.id).nodes.length, 2);
+
+  // 3. Flow Hit-Testing via Go WASM
+  // Flow endpoints default to (25%, 50%) -> (75%, 50%)
+  const foundFlow = window.DataFlows.findFlowAtPct(50, 50, 1280, 720);
+  assert.ok(foundFlow, 'findFlowAtPct must locate flow at (50%, 50%)');
+  assert.strictEqual(String(foundFlow.id), String(stage4Flow.id), 'Found flow ID must match created flow');
+
+  const missFlow = window.DataFlows.findFlowAtPct(50, 85, 1280, 720);
+  assert.strictEqual(missFlow, null, 'findFlowAtPct must return null for far coordinates');
+
+  // 4. Flow Bounds via Go WASM
+  const flowBoundsRes = window.DataFlows.getFlowBounds(stage4Flow.id, 1280, 720);
+  if (flowBoundsRes && flowBoundsRes.bounds) {
+    assert.ok(flowBoundsRes.bounds.width > 0, 'Flow bounds width must be positive');
+  }
+
+  // 5. Node Attachment and Motion Synchronization
+  const s4Node1 = window.DiagramNodes.createNode({ shape: 'rect', x: 20, y: 30, text: 'Src' });
+  const s4Node2 = window.DiagramNodes.createNode({ shape: 'cylinder', x: 80, y: 70, text: 'Dst' });
+
+  const connectedFlow = window.DataFlows.createFlow({
+    fromNodeId: s4Node1.id,
+    toNodeId: s4Node2.id,
+    label: 'ConnTest'
+  });
+  assert.strictEqual(String(connectedFlow.fromNodeId), String(s4Node1.id));
+  assert.strictEqual(String(connectedFlow.toNodeId), String(s4Node2.id));
+
+  // Move s4Node1 -> attached flow start waypoint must update
+  window.DiagramNodes.updateNode(s4Node1.id, { x: 25, y: 35 });
+  const connFlowUpdated = window.DataFlows.getFlow(connectedFlow.id);
+  assert.strictEqual(connFlowUpdated.nodes[0].x, 25, 'Flow start waypoint must follow node X');
+  assert.strictEqual(connFlowUpdated.nodes[0].y, 35, 'Flow start waypoint must follow node Y');
+
+  // Delete s4Node1 -> flow endpoint must detach cleanly while preserving waypoint coordinates
+  window.DiagramNodes.removeNode(s4Node1.id);
+  const connFlowAfterDel = window.DataFlows.getFlow(connectedFlow.id);
+  assert.strictEqual(connFlowAfterDel.fromNodeId, undefined, 'fromNodeId must be cleared on node deletion');
+  assert.strictEqual(connFlowAfterDel.nodes[0].x, 25, 'Waypoint X must remain intact after node delete');
+  assert.strictEqual(connFlowAfterDel.nodes[0].y, 35, 'Waypoint Y must remain intact after node delete');
+
+  // 6. Cleanup
+  window.DiagramNodes.removeNode(s4Node2.id);
+  window.DataFlows.deleteFlow(stage4Flow.id);
+  window.DataFlows.deleteFlow(connectedFlow.id);
+
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
 }
 

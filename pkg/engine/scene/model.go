@@ -113,6 +113,10 @@ type Flow struct {
 	ShowLine    bool             `json:"showLine"`
 	Glow        float64          `json:"glow,omitempty"`
 	Label       string           `json:"label,omitempty"`
+	CustomB64   string           `json:"customB64,omitempty"`
+	CustomMime  string           `json:"customMime,omitempty"`
+	CustomW     float64          `json:"customW,omitempty"`
+	CustomH     float64          `json:"customH,omitempty"`
 }
 
 // Glow represents a pulsating hotspot or radar ping.

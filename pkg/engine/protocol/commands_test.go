@@ -308,6 +308,187 @@ func TestDispatchShapePresetAndNodeCommands(t *testing.T) {
 	}
 }
 
+func TestDispatchFlowLifecycleAndOperations(t *testing.T) {
+	// 1. Flow.Create
+	createReq, _ := json.Marshal(FlowCreateRequest{
+		Initial: scene.Flow{
+			Color: "#38bdf8",
+			Speed: 3.5,
+		},
+	})
+	createBytes, err := Dispatch("Flow.Create", createReq)
+	if err != nil {
+		t.Fatalf("Flow.Create failed: %v", err)
+	}
+	var createRes struct {
+		Flow     scene.Flow `json:"flow"`
+		Revision int64      `json:"revision"`
+	}
+	if err := json.Unmarshal(createBytes, &createRes); err != nil {
+		t.Fatalf("Unmarshal Flow.Create failed: %v", err)
+	}
+	flowID := createRes.Flow.ID
+	if flowID == "" || createRes.Flow.Color != "#38bdf8" || len(createRes.Flow.Nodes) != 2 {
+		t.Fatalf("Unexpected created flow: %+v", createRes.Flow)
+	}
+
+	// 2. Flow.Get
+	getReq, _ := json.Marshal(map[string]any{"id": flowID})
+	getBytes, err := Dispatch("Flow.Get", getReq)
+	if err != nil {
+		t.Fatalf("Flow.Get failed: %v", err)
+	}
+	var gotFlow scene.Flow
+	if err := json.Unmarshal(getBytes, &gotFlow); err != nil || gotFlow.ID != flowID {
+		t.Fatalf("Flow.Get mismatch: got %+v", gotFlow)
+	}
+
+	// 3. Flow.GetAll
+	getAllBytes, err := Dispatch("Flow.GetAll", nil)
+	if err != nil {
+		t.Fatalf("Flow.GetAll failed: %v", err)
+	}
+	var allFlows []scene.Flow
+	if err := json.Unmarshal(getAllBytes, &allFlows); err != nil || len(allFlows) == 0 {
+		t.Fatalf("Flow.GetAll failed or empty: %v", err)
+	}
+
+	// 4. Flow.AddWaypoint
+	addWpReq, _ := json.Marshal(FlowAddWaypointRequest{
+		ID: flowID,
+	})
+	addWpBytes, err := Dispatch("Flow.AddWaypoint", addWpReq)
+	if err != nil {
+		t.Fatalf("Flow.AddWaypoint failed: %v", err)
+	}
+	var addWpRes struct {
+		Flow        scene.Flow `json:"flow"`
+		WaypointIdx int        `json:"waypointIdx"`
+		Success     bool       `json:"success"`
+	}
+	if err := json.Unmarshal(addWpBytes, &addWpRes); err != nil || !addWpRes.Success || len(addWpRes.Flow.Nodes) != 3 {
+		t.Fatalf("Flow.AddWaypoint mismatch: %+v", addWpRes)
+	}
+
+	// 5. Flow.UpdateWaypoint
+	upWpReq, _ := json.Marshal(FlowUpdateWaypointRequest{
+		ID:          flowID,
+		WaypointIdx: 2,
+		X:           60,
+		Y:           70,
+	})
+	upWpBytes, err := Dispatch("Flow.UpdateWaypoint", upWpReq)
+	if err != nil {
+		t.Fatalf("Flow.UpdateWaypoint failed: %v", err)
+	}
+	var upWpRes struct {
+		Flow    scene.Flow `json:"flow"`
+		Success bool       `json:"success"`
+	}
+	if err := json.Unmarshal(upWpBytes, &upWpRes); err != nil || !upWpRes.Success || upWpRes.Flow.Nodes[2].X != 60 {
+		t.Fatalf("Flow.UpdateWaypoint mismatch: %+v", upWpRes)
+	}
+
+	// 6. Flow.Describe
+	descReq, _ := json.Marshal(FlowDescribeRequest{
+		Nodes:     upWpRes.Flow.Nodes,
+		Curvature: 0.3,
+		Width:     1280,
+		Height:    720,
+		RouteMode: "curve",
+	})
+	descBytes, err := Dispatch("Flow.Describe", descReq)
+	if err != nil {
+		t.Fatalf("Flow.Describe failed: %v", err)
+	}
+	var descRes geometry.FlowGeometryDescription
+	if err := json.Unmarshal(descBytes, &descRes); err != nil || descRes.PathD == "" || descRes.Length <= 0 {
+		t.Fatalf("Flow.Describe invalid: %+v", descRes)
+	}
+
+	// 7. Flow.GetBounds
+	boundsReq, _ := json.Marshal(FlowGetBoundsRequest{
+		ID:      flowID,
+		CanvasW: 1280,
+		CanvasH: 720,
+	})
+	boundsBytes, err := Dispatch("Flow.GetBounds", boundsReq)
+	if err != nil {
+		t.Fatalf("Flow.GetBounds failed: %v", err)
+	}
+	var boundsRes struct {
+		Bounds geometry.FlowBounds `json:"bounds"`
+	}
+	if err := json.Unmarshal(boundsBytes, &boundsRes); err != nil || boundsRes.Bounds.Width <= 0 {
+		t.Fatalf("Flow.GetBounds mismatch: %+v", boundsRes)
+	}
+
+	// 8. Flow.FindAt
+	findReq, _ := json.Marshal(FlowFindAtRequest{
+		XPct:    25,
+		YPct:    50,
+		CanvasW: 1280,
+		CanvasH: 720,
+	})
+	findBytes, err := Dispatch("Flow.FindAt", findReq)
+	if err != nil {
+		t.Fatalf("Flow.FindAt failed: %v", err)
+	}
+	var foundFlow *scene.Flow
+	if err := json.Unmarshal(findBytes, &foundFlow); err != nil || foundFlow == nil || foundFlow.ID != flowID {
+		t.Fatalf("Flow.FindAt expected to find flow %v, got %+v", flowID, foundFlow)
+	}
+
+	// 9. Flow.Update
+	updateReq, _ := json.Marshal(FlowUpdateRequest{
+		ID: flowID,
+		Patch: scene.Flow{
+			Label: "Encrypted Stream",
+			Color: "#a855f7",
+		},
+	})
+	updateBytes, err := Dispatch("Flow.Update", updateReq)
+	if err != nil {
+		t.Fatalf("Flow.Update failed: %v", err)
+	}
+	var updateRes struct {
+		Flow scene.Flow `json:"flow"`
+	}
+	if err := json.Unmarshal(updateBytes, &updateRes); err != nil || updateRes.Flow.Label != "Encrypted Stream" || updateRes.Flow.Color != "#a855f7" {
+		t.Fatalf("Flow.Update mismatch: %+v", updateRes)
+	}
+
+	// 10. Flow.RemoveWaypoint
+	remWpReq, _ := json.Marshal(FlowRemoveWaypointRequest{
+		ID:          flowID,
+		WaypointIdx: 2,
+	})
+	remWpBytes, err := Dispatch("Flow.RemoveWaypoint", remWpReq)
+	if err != nil {
+		t.Fatalf("Flow.RemoveWaypoint failed: %v", err)
+	}
+	var remWpRes struct {
+		Flow    scene.Flow `json:"flow"`
+		Success bool       `json:"success"`
+	}
+	if err := json.Unmarshal(remWpBytes, &remWpRes); err != nil || !remWpRes.Success || len(remWpRes.Flow.Nodes) != 2 {
+		t.Fatalf("Flow.RemoveWaypoint mismatch: %+v", remWpRes)
+	}
+
+	// 11. Flow.Delete
+	delReq, _ := json.Marshal(FlowDeleteRequest{ID: flowID})
+	delBytes, err := Dispatch("Flow.Delete", delReq)
+	if err != nil {
+		t.Fatalf("Flow.Delete failed: %v", err)
+	}
+	var delRes struct {
+		Deleted bool `json:"deleted"`
+	}
+	if err := json.Unmarshal(delBytes, &delRes); err != nil || !delRes.Deleted {
+		t.Fatalf("Flow.Delete mismatch: %+v", delRes)
+	}
+}
+
 func TestDispatchUnknownCommand(t *testing.T) {
 	_, err := Dispatch("Unknown.Action", nil)
 	if err == nil {

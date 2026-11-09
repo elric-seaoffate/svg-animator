@@ -73,6 +73,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | WebAssembly Engine Bridge & Command Dispatcher | **Implemented** | `internal/web/static/js/engine-bridge.js`, `wasm/engine.wasm` |
 | Flow Path Geometry & Grid Snapping Migration (Slice 1) | **Implemented** | `pkg/engine/geometry/`, `js/flows.js`, `js/stage.js` |
 | Go Scene Model, Timeline & Batched Frame Evaluation (Slice 2) | **Implemented (WASM Stage 2)** | `pkg/engine/scene/`, `pkg/engine/timeline/`, `engine-bridge.js`, `app.js` |
+| Go Shape Registry, Presets & Diagram Node Engine | **Implemented (WASM Stage 3)** | `pkg/engine/geometry/shapes.go`, `pkg/engine/scene/preset.go`, `nodes.js` |
+| Go Flow Connectors, Waypoint CRUD & Path Engine | **Implemented (WASM Stage 4)** | `pkg/engine/geometry/flow_geom.go`, `pkg/engine/scene/flow.go`, `flows.js` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |

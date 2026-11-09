@@ -130,6 +130,85 @@ type NodeGetBoundsRequest struct {
 	CanvasH float64        `json:"canvasH"`
 }
 
+// FlowCreateRequest is the payload for "Flow.Create".
+type FlowCreateRequest struct {
+	Initial scene.Flow `json:"initial"`
+}
+
+// FlowUpdateRequest is the payload for "Flow.Update".
+type FlowUpdateRequest struct {
+	ID    scene.StringID `json:"id"`
+	Patch scene.Flow     `json:"patch"`
+}
+
+// FlowDeleteRequest is the payload for "Flow.Delete".
+type FlowDeleteRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// FlowFindAtRequest is the payload for "Flow.FindAt".
+type FlowFindAtRequest struct {
+	XPct    float64 `json:"xPct"`
+	YPct    float64 `json:"yPct"`
+	CanvasW float64 `json:"canvasW"`
+	CanvasH float64 `json:"canvasH"`
+}
+
+// FlowGetBoundsRequest is the payload for "Flow.GetBounds".
+type FlowGetBoundsRequest struct {
+	ID      scene.StringID `json:"id"`
+	CanvasW float64        `json:"canvasW"`
+	CanvasH float64        `json:"canvasH"`
+}
+
+// FlowAddWaypointRequest is the payload for "Flow.AddWaypoint".
+type FlowAddWaypointRequest struct {
+	ID scene.StringID `json:"id"`
+	X  *float64       `json:"x,omitempty"`
+	Y  *float64       `json:"y,omitempty"`
+}
+
+// FlowRemoveWaypointRequest is the payload for "Flow.RemoveWaypoint".
+type FlowRemoveWaypointRequest struct {
+	ID          scene.StringID `json:"id"`
+	WaypointIdx int            `json:"waypointIdx"`
+}
+
+// FlowUpdateWaypointRequest is the payload for "Flow.UpdateWaypoint".
+type FlowUpdateWaypointRequest struct {
+	ID          scene.StringID `json:"id"`
+	WaypointIdx int            `json:"waypointIdx"`
+	X           float64        `json:"x"`
+	Y           float64        `json:"y"`
+}
+
+// FlowAttachToNodeRequest is the payload for "Flow.AttachToNode".
+type FlowAttachToNodeRequest struct {
+	FlowID scene.StringID `json:"flowId"`
+	NodeID scene.StringID `json:"nodeId"`
+	IsEnd  bool           `json:"isEnd"`
+}
+
+// FlowDetachFromNodeRequest is the payload for "Flow.DetachFromNode".
+type FlowDetachFromNodeRequest struct {
+	FlowID scene.StringID `json:"flowId"`
+	IsEnd  bool           `json:"isEnd"`
+}
+
+// FlowRecalculateConnectionsRequest is the payload for "Flow.RecalculateConnections".
+type FlowRecalculateConnectionsRequest struct {
+	NodeID scene.StringID `json:"nodeId"`
+}
+
+// FlowDescribeRequest is the payload for "Flow.Describe".
+type FlowDescribeRequest struct {
+	Nodes     []geometry.Point `json:"nodes"`
+	Curvature float64          `json:"curvature"`
+	Width     float64          `json:"width"`
+	Height    float64          `json:"height"`
+	RouteMode string           `json:"routeMode"`
+}
+
 // Dispatch processes incoming commands and returns JSON-encoded responses.
 func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 	switch command {
@@ -419,6 +498,228 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 				"height": desc.Bounds.Height,
 			},
 		})
+
+	case "Flow.Create":
+		var req FlowCreateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowCreateRequest: %w", err)
+		}
+		created := activeScene.CreateFlow(req.Initial)
+		return json.Marshal(map[string]any{
+			"flow":     created,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.Update":
+		var req FlowUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowUpdateRequest: %w", err)
+		}
+		existing := activeScene.GetFlow(req.ID)
+		if existing == nil {
+			return nil, fmt.Errorf("flow with id %q not found", req.ID)
+		}
+		updated := *existing
+		if len(req.Patch.Nodes) >= 2 {
+			updated.Nodes = req.Patch.Nodes
+		}
+		if req.Patch.Type != "" {
+			updated.Type = req.Patch.Type
+		}
+		if req.Patch.RouteMode != "" {
+			updated.RouteMode = req.Patch.RouteMode
+		} else if req.Patch.Route != "" {
+			updated.RouteMode = req.Patch.Route
+		}
+		if req.Patch.LineStyle != "" {
+			updated.LineStyle = req.Patch.LineStyle
+		}
+		if req.Patch.Arrow != "" {
+			updated.Arrow = req.Patch.Arrow
+		}
+		if req.Patch.LineWidth > 0 {
+			updated.LineWidth = req.Patch.LineWidth
+		}
+		if req.Patch.Color != "" {
+			updated.Color = req.Patch.Color
+		}
+		if req.Patch.Opacity > 0 {
+			updated.Opacity = req.Patch.Opacity
+		}
+		if req.Patch.Speed > 0 {
+			updated.Speed = req.Patch.Speed
+		}
+		if req.Patch.Delay >= 0 {
+			updated.Delay = req.Patch.Delay
+		}
+		if req.Patch.EndDelay >= 0 {
+			updated.EndDelay = req.Patch.EndDelay
+		}
+		updated.HideOnDelay = req.Patch.HideOnDelay
+		if req.Patch.Scale > 0 {
+			updated.Scale = req.Patch.Scale
+		}
+		if req.Patch.Glow >= 0 {
+			updated.Glow = req.Patch.Glow
+		}
+		updated.ShowLine = req.Patch.ShowLine
+		if req.Patch.Label != "" {
+			updated.Label = req.Patch.Label
+		}
+		if req.Patch.Curvature != 0 {
+			updated.Curvature = req.Patch.Curvature
+		}
+		if req.Patch.FromNodeID != "" {
+			updated.FromNodeID = req.Patch.FromNodeID
+		}
+		if req.Patch.ToNodeID != "" {
+			updated.ToNodeID = req.Patch.ToNodeID
+		}
+		if req.Patch.CustomB64 != "" {
+			updated.CustomB64 = req.Patch.CustomB64
+		}
+		if req.Patch.CustomMime != "" {
+			updated.CustomMime = req.Patch.CustomMime
+		}
+		if req.Patch.CustomW > 0 {
+			updated.CustomW = req.Patch.CustomW
+		}
+		if req.Patch.CustomH > 0 {
+			updated.CustomH = req.Patch.CustomH
+		}
+
+		activeScene.UpdateFlow(updated)
+		return json.Marshal(map[string]any{
+			"flow":     updated,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.Delete":
+		var req FlowDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowDeleteRequest: %w", err)
+		}
+		deleted := activeScene.RemoveFlow(req.ID)
+		return json.Marshal(map[string]any{
+			"deleted":  deleted,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.Get":
+		var req struct {
+			ID scene.StringID `json:"id"`
+		}
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding Flow.Get request: %w", err)
+		}
+		flow := activeScene.GetFlow(req.ID)
+		return json.Marshal(flow)
+
+	case "Flow.GetAll":
+		flows := activeScene.GetAllFlows()
+		return json.Marshal(flows)
+
+	case "Flow.FindAt":
+		var req FlowFindAtRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowFindAtRequest: %w", err)
+		}
+		found := activeScene.FindFlowAt(req.XPct, req.YPct, req.CanvasW, req.CanvasH)
+		return json.Marshal(found)
+
+	case "Flow.GetBounds":
+		var req FlowGetBoundsRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowGetBoundsRequest: %w", err)
+		}
+		flow := activeScene.GetFlow(req.ID)
+		if flow == nil {
+			return nil, fmt.Errorf("flow %q not found", req.ID)
+		}
+		bounds, mid := activeScene.GetFlowBounds(*flow, req.CanvasW, req.CanvasH)
+		return json.Marshal(map[string]any{
+			"flow":     flow,
+			"bounds":   bounds,
+			"midpoint": mid,
+		})
+
+	case "Flow.AddWaypoint":
+		var req FlowAddWaypointRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowAddWaypointRequest: %w", err)
+		}
+		f, idx, ok := activeScene.AddWaypoint(req.ID, req.X, req.Y)
+		return json.Marshal(map[string]any{
+			"flow":        f,
+			"waypointIdx": idx,
+			"success":     ok,
+			"revision":    activeScene.Revision(),
+		})
+
+	case "Flow.RemoveWaypoint":
+		var req FlowRemoveWaypointRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowRemoveWaypointRequest: %w", err)
+		}
+		f, idx, ok := activeScene.RemoveWaypoint(req.ID, req.WaypointIdx)
+		return json.Marshal(map[string]any{
+			"flow":        f,
+			"waypointIdx": idx,
+			"success":     ok,
+			"revision":    activeScene.Revision(),
+		})
+
+	case "Flow.UpdateWaypoint":
+		var req FlowUpdateWaypointRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowUpdateWaypointRequest: %w", err)
+		}
+		f, ok := activeScene.UpdateWaypoint(req.ID, req.WaypointIdx, req.X, req.Y)
+		return json.Marshal(map[string]any{
+			"flow":     f,
+			"success":  ok,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.AttachToNode":
+		var req FlowAttachToNodeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowAttachToNodeRequest: %w", err)
+		}
+		ok := activeScene.AttachFlowToNode(req.FlowID, req.IsEnd, req.NodeID)
+		return json.Marshal(map[string]any{
+			"success":  ok,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.DetachFromNode":
+		var req FlowDetachFromNodeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowDetachFromNodeRequest: %w", err)
+		}
+		ok := activeScene.DetachFlowFromNode(req.FlowID, req.IsEnd)
+		return json.Marshal(map[string]any{
+			"success":  ok,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.RecalculateConnections":
+		var req FlowRecalculateConnectionsRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowRecalculateConnectionsRequest: %w", err)
+		}
+		activeScene.RecalculateNodeConnections(req.NodeID)
+		return json.Marshal(map[string]any{
+			"revision": activeScene.Revision(),
+		})
+
+	case "Flow.Describe":
+		var req FlowDescribeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding FlowDescribeRequest: %w", err)
+		}
+		desc := geometry.DescribeFlowGeometry(req.Nodes, req.Curvature, req.Width, req.Height, req.RouteMode)
+		return json.Marshal(desc)
 
 	default:
 		return nil, errors.New("unknown engine command: " + command)

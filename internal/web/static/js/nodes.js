@@ -171,6 +171,23 @@ window.DiagramNodes = {
         node[key] = patch[key];
       }
     });
+
+    // Synchronize attached flows when node moves
+    if (patch.x !== undefined || patch.y !== undefined) {
+      if (window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        window.DataFlows.list.forEach((f) => {
+          if (String(f.fromNodeId) === String(id) && Array.isArray(f.nodes) && f.nodes[0]) {
+            if (patch.x !== undefined) f.nodes[0].x = patch.x;
+            if (patch.y !== undefined) f.nodes[0].y = patch.y;
+          }
+          if (String(f.toNodeId) === String(id) && Array.isArray(f.nodes) && f.nodes[f.nodes.length - 1]) {
+            if (patch.x !== undefined) f.nodes[f.nodes.length - 1].x = patch.x;
+            if (patch.y !== undefined) f.nodes[f.nodes.length - 1].y = patch.y;
+          }
+        });
+      }
+    }
+
     return node;
   },
 
@@ -178,6 +195,15 @@ window.DiagramNodes = {
     if (window.EngineBridge && typeof window.EngineBridge.deleteNode === 'function' && window.EngineBridge.isReady()) {
       window.EngineBridge.deleteNode(id);
     }
+
+    // Detach any flows attached to deleted node
+    if (window.DataFlows && Array.isArray(window.DataFlows.list)) {
+      window.DataFlows.list.forEach((f) => {
+        if (String(f.fromNodeId) === String(id)) f.fromNodeId = undefined;
+        if (String(f.toNodeId) === String(id)) f.toNodeId = undefined;
+      });
+    }
+
     const before = this.list.length;
     this.list = this.list.filter((n) => n.id !== id);
     if (this.activeId === id) {

@@ -360,6 +360,160 @@
       return null;
     },
 
+    createFlow(initial = {}) {
+      if (this.isReady()) {
+        const res = this.dispatch('Flow.Create', {
+          initial: initial
+        });
+        if (res && res.flow) return res.flow;
+      }
+      return null;
+    },
+
+    updateFlow(id, patch = {}) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Flow.Update', {
+          id: String(id),
+          patch: patch
+        });
+        if (res && res.flow) return res.flow;
+      }
+      return null;
+    },
+
+    deleteFlow(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Flow.Delete', { id: String(id) });
+        if (res && res.deleted !== undefined) return !!res.deleted;
+      }
+      return false;
+    },
+
+    getFlow(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Flow.Get', { id: String(id) });
+        if (res !== undefined) return res;
+      }
+      return null;
+    },
+
+    getAllFlows() {
+      if (this.isReady()) {
+        const res = this.dispatch('Flow.GetAll', {});
+        if (Array.isArray(res)) return res;
+      }
+      return null;
+    },
+
+    findFlowAt(xPct, yPct, canvasW = 1280, canvasH = 720) {
+      if (this.isReady()) {
+        const res = this.dispatch('Flow.FindAt', {
+          xPct: Number(xPct) || 0,
+          yPct: Number(yPct) || 0,
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res !== undefined) return res;
+      }
+      return null;
+    },
+
+    getFlowBounds(id, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Flow.GetBounds', {
+          id: String(id),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.bounds) return res;
+      }
+      return null;
+    },
+
+    addFlowWaypoint(id, x, y) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const payload = { id: String(id) };
+        if (x !== undefined && y !== undefined) {
+          payload.x = Number(x);
+          payload.y = Number(y);
+        }
+        const res = this.dispatch('Flow.AddWaypoint', payload);
+        if (res && res.flow) return res;
+      }
+      return null;
+    },
+
+    removeFlowWaypoint(id, waypointIdx) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Flow.RemoveWaypoint', {
+          id: String(id),
+          waypointIdx: parseInt(waypointIdx, 10) || 0
+        });
+        if (res && res.flow) return res;
+      }
+      return null;
+    },
+
+    updateFlowWaypoint(id, waypointIdx, x, y) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Flow.UpdateWaypoint', {
+          id: String(id),
+          waypointIdx: parseInt(waypointIdx, 10) || 0,
+          x: Number(x) || 0,
+          y: Number(y) || 0
+        });
+        if (res && res.flow) return res;
+      }
+      return null;
+    },
+
+    attachFlowToNode(flowId, isEnd, nodeId) {
+      if (this.isReady() && flowId !== undefined && nodeId !== undefined) {
+        const res = this.dispatch('Flow.AttachToNode', {
+          flowId: String(flowId),
+          isEnd: !!isEnd,
+          nodeId: String(nodeId)
+        });
+        if (res && res.success !== undefined) return !!res.success;
+      }
+      return false;
+    },
+
+    detachFlowFromNode(flowId, isEnd) {
+      if (this.isReady() && flowId !== undefined) {
+        const res = this.dispatch('Flow.DetachFromNode', {
+          flowId: String(flowId),
+          isEnd: !!isEnd
+        });
+        if (res && res.success !== undefined) return !!res.success;
+      }
+      return false;
+    },
+
+    recalculateFlowConnections(nodeId) {
+      if (this.isReady() && nodeId !== undefined) {
+        const res = this.dispatch('Flow.RecalculateConnections', {
+          nodeId: String(nodeId)
+        });
+        return res;
+      }
+      return null;
+    },
+
+    describeFlow(nodes, curvature, width, height, routeMode = 'curve') {
+      if (this.isReady() && Array.isArray(nodes)) {
+        const res = this.dispatch('Flow.Describe', {
+          nodes: nodes,
+          curvature: Number(curvature) || 0,
+          width: Number(width) || 1280,
+          height: Number(height) || 720,
+          routeMode: String(routeMode || 'curve')
+        });
+        if (res && res.pathD) return res;
+      }
+      return null;
+    },
+
     getActiveEngineName() {
       if (!this.isReady()) return 'JS fallback';
       if (this._lastSyncError) return 'Sync Failed (JS fallback)';

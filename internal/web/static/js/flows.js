@@ -83,6 +83,31 @@ window.DataFlows = {
   },
 
   createFlow(initialProps = {}) {
+    // 1. Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmFlow = window.EngineBridge.createFlow(initialProps);
+      if (wasmFlow && wasmFlow.id) {
+        const idNum = typeof wasmFlow.id === 'string' && /^\d+$/.test(wasmFlow.id) ? parseInt(wasmFlow.id, 10) : wasmFlow.id;
+        const normalized = Object.assign({}, wasmFlow, {
+          id: idNum,
+          fromNodeId: wasmFlow.fromNodeId !== undefined ? wasmFlow.fromNodeId : (initialProps.fromNodeId !== undefined ? initialProps.fromNodeId : undefined),
+          toNodeId: wasmFlow.toNodeId !== undefined ? wasmFlow.toNodeId : (initialProps.toNodeId !== undefined ? initialProps.toNodeId : undefined),
+          route: wasmFlow.routeMode || wasmFlow.route || initialProps.route || 'curve'
+        });
+        if (typeof idNum === 'number' && idNum > this.counter) {
+          this.counter = idNum;
+        }
+        const existingIdx = this.list.findIndex((f) => f.id === normalized.id);
+        if (existingIdx >= 0) {
+          this.list[existingIdx] = normalized;
+        } else {
+          this.list.push(normalized);
+        }
+        return normalized;
+      }
+    }
+
+    // 2. JavaScript fallback
     this.counter++;
     const defaultNodes = Array.isArray(initialProps.nodes) && initialProps.nodes.length >= 2
       ? JSON.parse(JSON.stringify(initialProps.nodes))
@@ -122,6 +147,12 @@ window.DataFlows = {
   updateFlow(id, patch) {
     const f = this.getFlow(id);
     if (!f || !patch || typeof patch !== 'object') return null;
+
+    // Go/WASM Engine synchronization
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.updateFlow(id, patch);
+    }
+
     Object.keys(patch).forEach((key) => {
       if (key !== 'id') {
         f[key] = patch[key];
@@ -131,6 +162,11 @@ window.DataFlows = {
   },
 
   deleteFlow(id) {
+    // Go/WASM Engine synchronization
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.deleteFlow(id);
+    }
+
     const before = this.list.length;
     this.list = this.list.filter((f) => f.id !== id);
     if (this.activeId === id) {
@@ -141,6 +177,18 @@ window.DataFlows = {
   },
 
   addWaypoint(flowId, x, y) {
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmRes = window.EngineBridge.addFlowWaypoint(flowId, x, y);
+      if (wasmRes && wasmRes.flow && Array.isArray(wasmRes.flow.nodes)) {
+        const localFlow = this.getFlow(flowId);
+        if (localFlow) {
+          localFlow.nodes = wasmRes.flow.nodes;
+        }
+        return { flow: localFlow || wasmRes.flow, waypointIdx: wasmRes.waypointIdx };
+      }
+    }
+
     const f = this.getFlow(flowId);
     if (!f || !Array.isArray(f.nodes) || f.nodes.length === 0) return null;
     const lastNode = f.nodes[f.nodes.length - 1];
@@ -153,6 +201,18 @@ window.DataFlows = {
   },
 
   removeWaypoint(flowId, waypointIdx) {
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmRes = window.EngineBridge.removeFlowWaypoint(flowId, waypointIdx);
+      if (wasmRes && wasmRes.flow && Array.isArray(wasmRes.flow.nodes)) {
+        const localFlow = this.getFlow(flowId);
+        if (localFlow) {
+          localFlow.nodes = wasmRes.flow.nodes;
+        }
+        return { flow: localFlow || wasmRes.flow, waypointIdx: wasmRes.waypointIdx };
+      }
+    }
+
     const f = this.getFlow(flowId);
     if (!f || !Array.isArray(f.nodes) || f.nodes.length <= 2) return null;
     const idx = Math.max(0, Math.min(f.nodes.length - 1, waypointIdx));
@@ -161,11 +221,43 @@ window.DataFlows = {
   },
 
   updateWaypoint(flowId, waypointIdx, x, y) {
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmRes = window.EngineBridge.updateFlowWaypoint(flowId, waypointIdx, x, y);
+      if (wasmRes && wasmRes.flow && Array.isArray(wasmRes.flow.nodes) && wasmRes.flow.nodes[waypointIdx]) {
+        const localFlow = this.getFlow(flowId);
+        if (localFlow && localFlow.nodes[waypointIdx]) {
+          localFlow.nodes[waypointIdx].x = wasmRes.flow.nodes[waypointIdx].x;
+          localFlow.nodes[waypointIdx].y = wasmRes.flow.nodes[waypointIdx].y;
+          return localFlow.nodes[waypointIdx];
+        }
+        return wasmRes.flow.nodes[waypointIdx];
+      }
+    }
+
     const f = this.getFlow(flowId);
     if (!f || !Array.isArray(f.nodes) || !f.nodes[waypointIdx]) return null;
     if (x !== undefined) f.nodes[waypointIdx].x = x;
     if (y !== undefined) f.nodes[waypointIdx].y = y;
     return f.nodes[waypointIdx];
+  },
+
+  findFlowAtPct(xPct, yPct, canvasW = 1280, canvasH = 720) {
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmFound = window.EngineBridge.findFlowAt(xPct, yPct, canvasW, canvasH);
+      if (wasmFound && wasmFound.id) {
+        const idNum = typeof wasmFound.id === 'string' && /^\d+$/.test(wasmFound.id) ? parseInt(wasmFound.id, 10) : wasmFound.id;
+        return this.getFlow(idNum) || wasmFound;
+      }
+    }
+    return null;
+  },
+
+  getFlowBounds(flowId, canvasW = 1280, canvasH = 720) {
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      return window.EngineBridge.getFlowBounds(flowId, canvasW, canvasH);
+    }
+    return null;
   },
 
   generatePathString(nodes, curvature, width, height, routeMode = 'curve') {

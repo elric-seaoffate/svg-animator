@@ -19,8 +19,9 @@ type Scene struct {
 	nodes        map[StringID]Node
 	nodeIDs      []StringID
 
-	flows   map[StringID]Flow
-	flowIDs []StringID
+	flowsCounter int64
+	flows        map[StringID]Flow
+	flowIDs      []StringID
 
 	glows   map[StringID]Glow
 	glowIDs []StringID
@@ -392,6 +393,7 @@ func (s *Scene) UpdateNode(n Node) {
 		s.nodeIDs = append(s.nodeIDs, n.ID)
 	}
 	s.nodes[n.ID] = n
+	s.recalculateNodeConnectionsLocked(n.ID)
 	s.revision++
 }
 
@@ -410,6 +412,24 @@ func (s *Scene) RemoveNode(id StringID) bool {
 		}
 	}
 	s.nodeIDs = newIDs
+
+	// Detach flow references to this deleted node
+	for _, fid := range s.flowIDs {
+		flow := s.flows[fid]
+		changed := false
+		if flow.FromNodeID == id {
+			flow.FromNodeID = ""
+			changed = true
+		}
+		if flow.ToNodeID == id {
+			flow.ToNodeID = ""
+			changed = true
+		}
+		if changed {
+			s.flows[fid] = flow
+		}
+	}
+
 	s.revision++
 	return true
 }
@@ -549,6 +569,9 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.flows = make(map[StringID]Flow, len(snap.Flows))
 	s.flowIDs = make([]StringID, 0, len(snap.Flows))
 	for _, f := range snap.Flows {
+		if idNum, err := strconv.ParseInt(string(f.ID), 10, 64); err == nil && idNum > s.flowsCounter {
+			s.flowsCounter = idNum
+		}
 		if f.RouteMode == "" && f.Route != "" {
 			f.RouteMode = f.Route
 		}
