@@ -195,15 +195,111 @@ Operational modules must not depend on the presentation layer.
 
 ### The fundamental rule
 
-`UI → Application coordination → Operational functionality`
+`Go Engine (Authoritative)  ──►  WASM Bridge  ──►  JavaScript Browser Adapter  ──►  Browser SVG Engine`
 
-Do not introduce dependencies that reverse this direction.
+**Go is the authoritative application engine. JavaScript is a browser adapter and SVG presenter.**
 
-For example, an operational module must not query an HTML input (`document.getElementById`), read a form value directly, or manipulate a property inspector DOM element. It must receive required information through its defined interface.
+All future features must follow this rule unless there is an explicitly documented browser-specific reason not to.
 
-Where an operational module genuinely needs stage dimensions or rendering surface interaction, use a defined stage/rendering interface rather than arbitrary DOM queries.
+#### Target ownership
 
-Do not create unnecessary abstractions merely to satisfy a diagram. Separate responsibilities according to their actual purpose.
+1. **Go engine (`pkg/engine/`, `internal/`):**
+   - Scene and object data models
+   - Object creation, update, and deletion operations
+   - Geometry, path routing, and bounding box math
+   - Animation timelines, duration, and frame steps
+   - Interpolation and easing calculations
+   - Connector flow calculations and waypoint routing
+   - Glow and hotspot pulse/radar calculations
+   - Ripple refraction and wave displacement calculations
+   - Camera effect calculations (Ken Burns, drift, tilt)
+   - Object constraints and operational validation
+   - Scene serialization models (including future native `.sva` format)
+   - Export planning and frame sequencing
+   - Deterministic scene evaluation at a requested timestamp
+   - Authoritative state transitions and undoable commands
+
+2. **JavaScript browser adapter (`internal/web/static/js/`):**
+   - DOM access and tree synchronization
+   - SVG element creation, update, and removal
+   - Browser mouse, pointer, and keyboard event listening
+   - Stage viewport transform, drag tracking, and scroll/zoom gestures
+   - Focus, keyboard shortcuts, and accessibility (a11y) behavior
+   - File drag-and-drop selection and blob downloads
+   - ResizeObserver and window layout observation
+   - `requestAnimationFrame` scheduling and playback loop coordination
+   - Browser-native display and platform APIs
+   - Forwarding user commands to the Go engine
+   - Applying Go-generated presentation updates to the SVG DOM
+
+3. **Browser SVG engine:**
+   - Native rasterization and rendering of SVG geometry
+   - Gradients, filters, masks, clip paths, and optical compositing
+   - Native declarative SVG/CSS animations where appropriate
+
+Do not put new object rules, effect algorithms, or scene-state business logic into JavaScript merely because it is convenient.
+
+#### SVG and WebAssembly distinctions
+
+- **SVG rendering is performed natively by the browser.** The Go/WASM engine evaluates scene behavior and generates scene descriptions, geometry attributes, or presentation patches; the JavaScript adapter applies those patches to the live SVG DOM.
+- **Go/WASM is not automatically executable inside an independently opened SVG file.** Standalone SVG export must explicitly support declarative SVG/CSS animation (SMIL / CSS `@keyframes`) or provide another appropriate export strategy (such as pre-rendered MP4/WebP/APNG).
+- The live studio must not rely on exporting a browser-specific Go/WASM runtime into a normal SVG document. Avoid promising universal SVG playback for effects that genuinely require an active application runtime.
+
+#### Permanent rules for future features
+
+- **Rule A — Extend existing Go components first:** Before implementing any feature:
+  1. Identify the existing Go engine component responsible for it.
+  2. Inspect that component's public contract.
+  3. Extend the existing model and operations where appropriate.
+  4. Reuse the established WASM bridge (`window.EngineBridge`).
+  5. Add only the minimal JavaScript required for browser presentation.
+  Do not invent a new parallel feature framework without documented justification.
+- **Rule B — One source of truth:** There must not be competing independent JavaScript and Go implementations of the same feature. During migration, existing JavaScript implementations may temporarily act as compatibility fallbacks. Each migrated subsystem must have:
+  - One clearly designated authoritative implementation.
+  - A documented fallback strategy, if required.
+  - Equivalence and parity tests.
+  - A defined retirement plan for obsolete JavaScript logic.
+- **Rule C — No direct browser dependencies inside the core:** The core Go engine (`pkg/engine/`) must not depend on HTML elements, browser event objects, CSS selectors, JavaScript DOM nodes, or browser-only APIs (`document`, `window`, `localStorage`). Use portable Go types for scene models and computations. Isolate browser/WASM-specific functionality in platform adapters.
+- **Rule D — Avoid a giant bridge interface:** Create typed, stable, versioned commands and responses (`pkg/engine/protocol`). Prefer commands describing user intent (e.g. `CreateObject`, `UpdateObject`, `SelectObject`, `ClearSelection`, `EvaluateScene`, `GenerateFlowPath`, `ValidateScene`). Avoid exposing large collections of unrelated global JavaScript functions. Avoid passing live DOM objects across the WASM boundary. Use efficient structured JSON messages or typed buffers.
+- **Rule E — No arbitrary per-object WASM calls on every frame:** Design frame evaluation so the engine can process scene state and animation time in suitably sized batches. Keep `requestAnimationFrame` scheduling in the browser adapter. Measure boundary overhead before deciding where to split computations. Do not automatically move trivial DOM operations into WASM.
+- **Rule F — Every new feature needs an architecture decision note:** Before writing code, record:
+  1. Which Go module owns the feature.
+  2. Which existing model it extends.
+  3. Which commands or calculations it adds.
+  4. What browser adapter changes are unavoidable.
+  5. How the new behavior is tested.
+  6. Whether any obsolete JavaScript code can be retired.
+  For ordinary additions, this should be a short implementation note, not a prolonged design ceremony.
+- **Rule G — Do not rebuild the UI:** The existing responsive workspace and contextual editing behavior are approved. Preserve:
+  - Right-click Properties for Nodes, Flows, Glows, and Ripples.
+  - Right-click blank canvas to deselect.
+  - Select None behavior (blank canvas click, Escape priority, sidebar deselect buttons).
+  - Left-click placement and dragging.
+  - Double-click editing.
+  - Floating Properties editor.
+  - 35/65 inspector proportions and 420px/460px drawer widths.
+  - Node resize clipping fix.
+  The migration must preserve functionality, not trigger another presentation redesign.
+
+#### Standard development checklists
+
+##### New feature checklist
+1. [ ] Identify Go domain owner (`pkg/engine/`).
+2. [ ] Define data models and validation in portable Go code.
+3. [ ] Add unit tests in Go (`go test ./pkg/engine/...`).
+4. [ ] Define versioned command/response in `pkg/engine/protocol`.
+5. [ ] Expose through WASM bridge in `cmd/wasm/main.go` and `engine-bridge.js`.
+6. [ ] Connect JavaScript adapter for DOM presentation and user events.
+7. [ ] Verify JavaScript fallback behavior when WASM is unavailable.
+8. [ ] Verify regression harness (`node scripts/regression-harness.js`).
+
+##### Migration completion checklist
+1. [ ] Go implementation covers 100% of the operational logic for the subsystem.
+2. [ ] Automated Go tests verify boundary conditions, math, and data structures.
+3. [ ] JavaScript adapter delegates directly to `window.EngineBridge`.
+4. [ ] Numerical parity verified between Go and legacy JS calculations.
+5. [ ] Legacy JavaScript operational code marked for retirement or safely retired.
+6. [ ] Architecture checks and regression suite pass with zero regressions.
 
 ---
 

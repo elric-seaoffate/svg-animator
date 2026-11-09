@@ -6,29 +6,30 @@
 
 ## 1. Quick Orientation
 
-- **Backend & CLI (`cmd/svg-animator/main.go`, `internal/`):**
-  - Written in Go (`go 1.25.0`, `modernc.org/sqlite`, `chromedp/chromedp`).
-  - `internal/web/server.go` embeds `internal/web/static/*` via `//go:embed static/*` and serves the studio UI plus REST APIs for SQLite project persistence (`/api/projects*` and `/api/export/projects*`) and multi-frame headless Chromium + FFmpeg export (`/api/export*`).
-  - `internal/db/sqlite.go` manages `studio_library.db` (`projects` and `assets` tables).
+- **Core Engine & CLI (`pkg/engine/`, `cmd/svg-animator/`, `cmd/wasm/`, `internal/`):**
+  - Portable Go engine (`pkg/engine/`) implementing authoritative scene data models, geometry, path routing, snapping, validation, and export calculations.
+  - WebAssembly execution engine (`cmd/wasm/main.go`, `internal/web/static/wasm/engine.wasm`) compiled with `GOOS=js GOARCH=wasm` via `scripts/build-wasm.sh`.
+  - HTTP studio server and REST API (`internal/web/server.go`) embedding `internal/web/static/*` via `//go:embed` and serving SQLite persistence (`/api/projects*`) and multi-frame Chromium/FFmpeg rasterization (`/api/export*`).
+  - Local SQLite persistence via `modernc.org/sqlite` (`internal/db/sqlite.go`, `studio_library.db`).
 - **Frontend Studio (`internal/web/static/`):**
   - Single-page 3-column HTML5/CSS3/ES6+ studio (`index.html`, `css/style.css`, `css/export-modal.css`).
-  - Vanilla JavaScript modules in `internal/web/static/js/` loaded via `<script>` tags in `index.html` and attached to `window.*`.
+  - WebAssembly engine bridge (`js/engine-bridge.js`, `js/wasm_exec.js`) with versioned command dispatch (`pkg/engine/protocol`) and seamless JavaScript fallbacks.
+  - Vanilla JavaScript presentation modules in `internal/web/static/js/` loaded via `<script>` tags in `index.html`.
 
 ---
 
-## 2. Three-Layer Frontend Architecture
+## 2. Go-First WebAssembly Architecture
 
-The frontend architecture is structured around three distinct layers with a strict one-way dependency rule:
+The application follows the fundamental rule:
+`Go Engine (Authoritative)  ──►  WASM Bridge  ──►  JavaScript Browser Adapter  ──►  Browser SVG Engine`
 
-```text
-Layer 1: UI Presentation  ──►  Layer 2: Application Coordination  ──►  Layer 3: Operational Functionality
-```
-
-| Layer | Responsibility | Key Files / Globals |
+| Layer | Responsibility | Key Files / Packages |
 | :--- | :--- | :--- |
-| **Layer 1: UI Presentation** | HTML/CSS, accordion panels, form input listeners, DOM list rendering, stage pointer/keyboard listeners, and modal dialogs. | `index.html`, `css/*.css`, UI controllers inside `app.js`, `stage.js`, `presets.js`, `nodes.js`, `flows.js`, `glows.js`, `ripples.js`, `projects.js`, `still-export-modal.js`, `export-modal.js` |
-| **Layer 2: Application Coordination** | Receives UI commands, coordinates single-active-object selection across all object types, coordinates `HistoryManager` recording, synchronizes `ControlStateAdaptor` <-> `SceneState`, triggers rendering, and emits UI notifications. | `js/coordinator.js` (`window.AppCoordinator`) |
-| **Layer 3: Operational Functionality** | Pure state ownership, CRUD operations, geometry/coordinate math, SVG filter/node/flow/glow/ripple/frame generation, history stack management (`undoStack`/`redoStack`), project JSON serialization (`v1.2.0`), and SMIL frame evaluation. Operational CRUD, math, and SVG builders do not query DOM inputs directly (`ControlStateAdaptor` bridges the 95 tracked DOM controls). | `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`), `js/effects.js` (`window.Effects`), `js/shape-registry.js` (`window.ShapeRegistry`), and operational APIs on `NodePresets`, `DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, `Stage`, `HistoryManager`, `ProjectManager`, `StillExportStudio`, `AnimatedExportStudio` |
+| **Go Engine** | Authoritative models, geometry, path routing, snapping, constraints, timeline evaluation, validation, and serialization. | `pkg/engine/geometry/`, `pkg/engine/protocol/`, `cmd/wasm/` |
+| **WASM Bridge** | Platform adapter, runtime instantiation, versioned command dispatch, and metrics. | `internal/web/static/js/engine-bridge.js`, `internal/web/static/js/wasm_exec.js` |
+| **Layer 1: UI Presentation** | HTML/CSS, drawer panels, form input listeners, stage pointer/keyboard events, floating inspector, and SVG DOM updates. | `index.html`, `css/*.css`, UI controllers in `app.js`, `stage.js`, `nodes.js`, etc. |
+| **Layer 2: Coordination** | Selection coordination, history debouncing, and tool panel synchronization. | `js/coordinator.js` (`window.AppCoordinator`) |
+| **Layer 3: Operational JS (Compatibility)** | Built-in JavaScript operational methods acting as graceful fallbacks whenever WebAssembly is not available. | `js/flows.js`, `js/stage.js`, `js/nodes.js`, `js/scene-state.js` |
 
 ---
 
@@ -36,21 +37,23 @@ Layer 1: UI Presentation  ──►  Layer 2: Application Coordination  ──�
 
 Because the frontend uses browser globals embedded via `//go:embed`, script load order in `index.html` is significant:
 
-1. `js/effects.js` (`window.Effects`) — Operational SVG filter, camera rig, and 3D mitered frame builders.
-2. `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`) — Operational canvas/control/photo state and DOM control synchronization adaptor.
-3. `js/coordinator.js` (`window.AppCoordinator`) — Central coordination layer for selection, history recording, rendering, and cross-module commands.
-4. `js/stage.js` (`window.Stage`) — Stage viewport geometry, grid snapping math, and pointer/wheel/drag interaction.
-5. `js/shape-registry.js` (`window.ShapeRegistry`) — Immutable central registry of built-in SVG node shape definitions, default dimensions, and operational SVG markup builders.
-6. `js/presets.js` (`window.NodePresets`) — Shape preset parameters (`preset`, `presetKeys`, `autoApplyToNewNodes`) and node preset application.
-7. `js/nodes.js` (`window.DiagramNodes`) — Diagram node state, CRUD API, SVG generation (`injectIntoSVG`), and node list/overlay UI.
-8. `js/flows.js` (`window.DataFlows`) — Data flow connector state, CRUD/waypoint API, path math, SVG generation, and flow UI.
-9. `js/glows.js` (`window.Glows`) — Hotspot/radar ping state, CRUD API, SVG generation, and glow UI.
-10. `js/ripples.js` (`window.Ripples`) — Refractive water ripple state, CRUD API, displacement filter/ring SVG generation, and ripple UI.
-11. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stacks (`undoStack`, `redoStack`, `maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
-12. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` (and `/api/projects*`) REST client, and library modal UI.
-13. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, dynamic shape dropdown population, and master preview compilation (`window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`).
-14. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
-15. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
+1. `js/wasm_exec.js` — Standard Go WebAssembly runtime bootstrap.
+2. `js/engine-bridge.js` (`window.EngineBridge`) — Go/WASM engine loader, command dispatcher, and readiness manager.
+3. `js/effects.js` (`window.Effects`) — Operational SVG filter, camera rig, and 3D mitered frame builders.
+4. `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`) — Operational canvas/control/photo state and DOM control synchronization adaptor.
+5. `js/coordinator.js` (`window.AppCoordinator`) — Central coordination layer for selection, history recording, rendering, and cross-module commands.
+6. `js/stage.js` (`window.Stage`) — Stage viewport geometry, grid snapping math, and pointer/wheel/drag interaction.
+7. `js/shape-registry.js` (`window.ShapeRegistry`) — Immutable central registry of built-in SVG node shape definitions, default dimensions, and operational SVG markup builders.
+8. `js/presets.js` (`window.NodePresets`) — Shape preset parameters (`preset`, `presetKeys`, `autoApplyToNewNodes`) and node preset application.
+9. `js/nodes.js` (`window.DiagramNodes`) — Diagram node state, CRUD API, SVG generation (`injectIntoSVG`), and node list/overlay UI.
+10. `js/flows.js` (`window.DataFlows`) — Data flow connector state, CRUD/waypoint API, path math, SVG generation, and flow UI.
+11. `js/glows.js` (`window.Glows`) — Hotspot/radar ping state, CRUD API, SVG generation, and glow UI.
+12. `js/ripples.js` (`window.Ripples`) — Refractive water ripple state, CRUD API, displacement filter/ring SVG generation, and ripple UI.
+13. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stacks (`undoStack`, `redoStack`, `maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
+14. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` (and `/api/projects*`) REST client, and library modal UI.
+15. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, dynamic shape dropdown population, and master preview compilation (`window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`).
+16. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
+17. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
 
 ---
 
@@ -59,6 +62,9 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Capability | Status | Location |
 | :--- | :--- | :--- |
 | Go HTTP server, SQLite `projects` & `assets` DB, Chromium/FFmpeg rasterizer | **Implemented** | `cmd/svg-animator/`, `internal/` |
+| Go Core Engine & WebAssembly Runtime Foundation | **Implemented** | `pkg/engine/`, `cmd/wasm/`, `scripts/build-wasm.sh` |
+| WebAssembly Engine Bridge & Command Dispatcher | **Implemented** | `internal/web/static/js/engine-bridge.js`, `wasm/engine.wasm` |
+| Flow Path Geometry & Grid Snapping Migration (Slice 1) | **Implemented** | `pkg/engine/geometry/`, `js/flows.js`, `js/stage.js` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
@@ -69,7 +75,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Architecture Boundary Cleanup (ARCH-04 & ARCH-02) | **Implemented (Stage 2.6)** | Removed Layer 3 DOM fallbacks in `HistoryManager` & `ProjectManager` (ARCH-04 PASS); relocated browser-dependent SVG serialization to Layer 1 `window.SVGExportAdapter` in `app.js` (ARCH-02 PASS); retained offscreen geometry sandbox in `StillExportStudio` (ARCH-05 deferred) |
 | Workspace Foundation, Icon Rails & Sliding Drawers | **Implemented (Stage 3.1)** | Dual vertical icon rails (`.icon-rail-left`, `.icon-rail-right`), collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`), maximized canvas mode, rail sync, and keyboard navigation in `internal/web/static/` (commit `01415e8`) |
 | Workspace Interaction & Responsive Layout Refinement | **Implemented (Stage 3.2)** | Responsive viewport profiles (desktop, compact, tablet slide-over, mobile narrow), drawer section memory, idempotent controller init, centralized overlay sync, and focus-visible polish in `internal/web/static/` |
-| Context-sensitive floating property inspectors | **Planned (Phase 4)** | Currently accordion property sections in `leftDrawer` / `rightDrawer` |
+| Context-sensitive floating property editor & Select None | **Implemented (Phase 4)** | Draggable `#floatingContextEditor`, right-click targeting, optical effect hit testing, blank canvas deselect, and escape clearing |
 
 ---
 

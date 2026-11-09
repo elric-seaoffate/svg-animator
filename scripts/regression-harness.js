@@ -109,6 +109,8 @@ async function runHarness() {
     getElementById() { return null; }
   };
 
+  loadProductionScript('wasm_exec.js');
+  loadProductionScript('engine-bridge.js');
   loadProductionScript('stage.js');
   loadProductionScript('shape-registry.js');
   loadProductionScript('presets.js');
@@ -2106,8 +2108,10 @@ async function runHarness() {
   while ((scriptMatch = scriptRegex.exec(htmlSource)) !== null) {
     scriptTagsInHtml.push(scriptMatch[1]);
   }
-  assert.strictEqual(scriptTagsInHtml.length, 15, 'index.html must contain exactly 15 script tags');
+  assert.strictEqual(scriptTagsInHtml.length, 17, 'index.html must contain exactly 17 script tags');
   const expectedScriptOrder = [
+    'js/wasm_exec.js',
+    'js/engine-bridge.js',
     'js/effects.js',
     'js/scene-state.js',
     'js/coordinator.js',
@@ -2124,7 +2128,7 @@ async function runHarness() {
     'js/still-export-modal.js',
     'js/export-modal.js'
   ];
-  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '15 script tags must be in exact dependency order');
+  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '17 script tags must be in exact dependency order');
 
   // 14. Phase 4: Floating Contextual Object Properties Editor Verification
   assert.ok(window.FloatingPropertiesEditor, 'window.FloatingPropertiesEditor must be defined');
@@ -2135,6 +2139,84 @@ async function runHarness() {
 
   const floatingEditorEl = document.getElementById('floatingContextEditor');
   assert.ok(floatingEditorEl, '#floatingContextEditor must exist in DOM');
+
+  // ===========================================================================
+  // 15. Go-First WebAssembly Engine & Bridge Verification
+  // ===========================================================================
+  assert.ok(window.EngineBridge, 'window.EngineBridge must be defined');
+  assert.strictEqual(typeof window.EngineBridge.isReady, 'function');
+  assert.strictEqual(typeof window.EngineBridge.dispatch, 'function');
+
+  // Verify WASM binary exists on disk
+  const wasmPath = path.join(__dirname, '..', 'internal', 'web', 'static', 'wasm', 'engine.wasm');
+  assert.ok(fs.existsSync(wasmPath), 'internal/web/static/wasm/engine.wasm must exist');
+  const wasmStat = fs.statSync(wasmPath);
+  assert.ok(wasmStat.size > 100000, `WASM binary size should be > 100KB, got ${wasmStat.size}`);
+
+  // Test WASM runtime instantiation & bridge communication in Node.js
+  const wasmBuffer = fs.readFileSync(wasmPath);
+  const goWasm = new window.Go();
+  const wasmModule = await WebAssembly.instantiate(wasmBuffer, goWasm.importObject);
+  goWasm.run(wasmModule.instance).catch(() => {});
+
+  assert.ok(window.__svgAnimatorWasmBridge, 'Go WASM must export window.__svgAnimatorWasmBridge');
+  assert.strictEqual(window.__svgAnimatorWasmBridge.isReady, true);
+  window.EngineBridge._bridge = window.__svgAnimatorWasmBridge;
+  window.EngineBridge.status = 'ready';
+  assert.strictEqual(window.EngineBridge.isReady(), true);
+
+  // Ping engine
+  const pingRes = window.EngineBridge.ping();
+  assert.ok(pingRes, 'Ping must return data');
+  assert.strictEqual(pingRes.status, 'ready');
+  assert.strictEqual(pingRes.version, '1.0.0');
+
+  // Test Flow Path Generation via WASM with Parity Check against JS
+  const testWaypoints = [
+    { x: 10, y: 15 },
+    { x: 45, y: 55 },
+    { x: 80, y: 85 }
+  ];
+
+  // Ortho-HV
+  const wasmOrthoHV = window.EngineBridge.generateFlowPath(testWaypoints, 0, 1000, 1000, 'ortho-hv');
+  assert.ok(wasmOrthoHV && wasmOrthoHV.path, 'WASM must return path for ortho-hv');
+  assert.strictEqual(wasmOrthoHV.path, 'M 100,150 L 450,150 L 450,550 L 800,550 L 800,850');
+
+  // Spline
+  const wasmSpline = window.EngineBridge.generateFlowPath(testWaypoints, 30, 1000, 1000, 'curve');
+  assert.ok(wasmSpline && wasmSpline.path.includes(' C '), 'WASM curve must generate cubic spline');
+
+  // 2-node Quad Bezier
+  const twoNodes = [{ x: 10, y: 10 }, { x: 90, y: 90 }];
+  const wasmQuad = window.EngineBridge.generateFlowPath(twoNodes, 40, 1000, 1000, 'curve');
+  assert.ok(wasmQuad && wasmQuad.path.includes(' Q '), 'WASM 2-node curve must generate quadratic Bezier');
+
+  // Snapped Position via WASM
+  const wasmSnap = window.EngineBridge.computeSnappedPosition(3.7, 5.0, {
+    enabled: true,
+    gridSizePx: 25,
+    canvasWidth: 1000,
+    canvasHeight: 1000
+  });
+  assert.ok(wasmSnap, 'WASM must return snapped position');
+  assert.strictEqual(wasmSnap.x, 2.5);
+  assert.strictEqual(wasmSnap.y, 5.0);
+
+  // Verification of call metrics
+  const stats = window.EngineBridge.getStats();
+  assert.ok(stats.totalCalls >= 4, 'Stats should record at least 4 WASM calls');
+  assert.strictEqual(stats.errors, 0, 'Stats should record zero errors');
+
+  // Test Graceful JS Fallback when WASM is disabled
+  window.EngineBridge.status = 'fallback';
+  assert.strictEqual(window.EngineBridge.isReady(), false);
+  const fallbackPath = window.DataFlows.generatePathString(testWaypoints, 0, 1000, 1000, 'ortho-hv');
+  assert.strictEqual(fallbackPath, 'M 100,150 L 450,150 L 450,550 L 800,550 L 800,850', 'JS fallback must generate identical path');
+
+  // Re-enable WASM bridge for subsequent tests
+  window.EngineBridge.status = 'ready';
+  assert.strictEqual(window.EngineBridge.isReady(), true);
 
   // Verify FloatingPropertiesEditor lifecycle
   const fNode = window.DiagramNodes.createNode({ text: 'FloatingNodeTest', width: 220, height: 110, shape: 'rect' });

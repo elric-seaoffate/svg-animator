@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,6 +28,10 @@ import (
 
 //go:embed static/*
 var staticFS embed.FS
+
+func init() {
+	_ = mime.AddExtensionType(".wasm", "application/wasm")
+}
 
 // ServerConfig holds runtime configuration for the HTTP studio server.
 type ServerConfig struct {

@@ -575,6 +575,8 @@ else:
 # ARCH-10: Script Load Order in index.html & Public window.* Method Definitions
 # -----------------------------------------------------------------------------
 expected_scripts = [
+    "js/wasm_exec.js",
+    "js/engine-bridge.js",
     "js/effects.js",
     "js/scene-state.js",
     "js/coordinator.js",
@@ -595,6 +597,7 @@ expected_scripts = [
 script_tags = re.findall(r'<script\s+src="([^"?]+)(?:\?[^"]*)?"\s*></script>', html_full)
 
 required_contracts = {
+    "engine-bridge.js": ["window.EngineBridge", "isReady", "getStatus", "getStats", "dispatch", "generateFlowPath", "getFlowMidpoint", "computeSnappedPosition"],
     "effects.js": ["window.Effects", "buildPhotoElement", "buildMiteredFrame", "buildFrameMarkup", "build"],
     "scene-state.js": ["window.SceneState", "window.ControlStateAdaptor", "buildCurrentCanvasState", "buildRenderState", "buildFullSVG", "syncFromDOM", "syncToDOM", "setPairValue"],
     "coordinator.js": ["window.AppCoordinator", "selectObject", "clearSelection", "requestRender", "recordHistoryImmediate", "recordHistoryDebounced", "snapPctToGrid", "snapPosition"],
@@ -646,7 +649,7 @@ if script_tags == expected_scripts and not missing_contracts:
     record(
         "PASS",
         "ARCH-10",
-        "All 15 <script> tags in index.html are in exact dependency order and all required window.* globals/method definitions are present in stripped source (static definition check)",
+        f"All {len(expected_scripts)} <script> tags in index.html are in exact dependency order and all required window.* globals/method definitions are present in stripped source (static definition check)",
         f"scripts={len(script_tags)}, method_and_global_definitions_verified={sum(len(v) for v in required_contracts.values())}"
     )
 else:

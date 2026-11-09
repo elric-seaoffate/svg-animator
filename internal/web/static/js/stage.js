@@ -43,6 +43,14 @@ window.Stage = {
   // =========================================================================
 
   computeSnappedPosition(xPct, yPct, snapConfig = {}) {
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmPt = window.EngineBridge.computeSnappedPosition(xPct, yPct, snapConfig);
+      if (wasmPt && typeof wasmPt.x === 'number' && typeof wasmPt.y === 'number') {
+        return wasmPt;
+      }
+    }
+
     if (!snapConfig || !snapConfig.enabled) {
       return {
         x: Math.round(Math.min(100, Math.max(0, xPct)) * 10) / 10,

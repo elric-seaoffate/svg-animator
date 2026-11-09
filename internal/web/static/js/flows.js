@@ -168,6 +168,15 @@ window.DataFlows = {
 
   generatePathString(nodes, curvature, width, height, routeMode = 'curve') {
     if (!nodes || nodes.length < 2) return '';
+
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmRes = window.EngineBridge.generateFlowPath(nodes, curvature, width, height, routeMode);
+      if (wasmRes && typeof wasmRes.path === 'string') {
+        return wasmRes.path;
+      }
+    }
+
     const px = (pct) => Number(((pct / 100) * width).toFixed(2));
     const py = (pct) => Number(((pct / 100) * height).toFixed(2));
 
@@ -226,6 +235,15 @@ window.DataFlows = {
 
   getMidpoint(nodes, curvature, width, height) {
     if (!nodes || nodes.length < 2) return { x: width / 2, y: height / 2 };
+
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmMid = window.EngineBridge.getFlowMidpoint(nodes, curvature, width, height);
+      if (wasmMid && typeof wasmMid.x === 'number' && typeof wasmMid.y === 'number') {
+        return wasmMid;
+      }
+    }
+
     const px = (pct) => (pct / 100) * width;
     const py = (pct) => (pct / 100) * height;
     const midIdx = Math.floor((nodes.length - 1) / 2);

@@ -2480,6 +2480,14 @@ document.addEventListener('DOMContentLoaded', () => {
     populateShapeDropdowns();
   }
 
+  if (window.EngineBridge && typeof window.EngineBridge.init === 'function') {
+    window.EngineBridge.init('wasm/engine.wasm').then((ready) => {
+      if (ready && typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
+    });
+  }
+
   if (window.DiagramNodes) window.DiagramNodes.init();
   if (window.DataFlows) window.DataFlows.init();
   if (window.Glows) window.Glows.init();
