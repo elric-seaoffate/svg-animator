@@ -209,6 +209,82 @@ type FlowDescribeRequest struct {
 	RouteMode string           `json:"routeMode"`
 }
 
+// GlowCreateRequest is the payload for "Glow.Create".
+type GlowCreateRequest struct {
+	Initial scene.Glow `json:"initial"`
+}
+
+// GlowUpdateRequest is the payload for "Glow.Update".
+type GlowUpdateRequest struct {
+	ID    scene.StringID `json:"id"`
+	Patch scene.Glow     `json:"patch"`
+}
+
+// GlowDeleteRequest is the payload for "Glow.Delete".
+type GlowDeleteRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// GlowFindAtRequest is the payload for "Glow.FindAt".
+type GlowFindAtRequest struct {
+	XPct    float64 `json:"xPct"`
+	YPct    float64 `json:"yPct"`
+	CanvasW float64 `json:"canvasW"`
+	CanvasH float64 `json:"canvasH"`
+}
+
+// GlowGetBoundsRequest is the payload for "Glow.GetBounds".
+type GlowGetBoundsRequest struct {
+	ID      scene.StringID `json:"id"`
+	CanvasW float64        `json:"canvasW"`
+	CanvasH float64        `json:"canvasH"`
+}
+
+// GlowDescribeRequest is the payload for "Glow.Describe".
+type GlowDescribeRequest struct {
+	ID      scene.StringID `json:"id"`
+	CanvasW float64        `json:"canvasW"`
+	CanvasH float64        `json:"canvasH"`
+}
+
+// RippleCreateRequest is the payload for "Ripple.Create".
+type RippleCreateRequest struct {
+	Initial scene.Ripple `json:"initial"`
+}
+
+// RippleUpdateRequest is the payload for "Ripple.Update".
+type RippleUpdateRequest struct {
+	ID    scene.StringID `json:"id"`
+	Patch scene.Ripple   `json:"patch"`
+}
+
+// RippleDeleteRequest is the payload for "Ripple.Delete".
+type RippleDeleteRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// RippleFindAtRequest is the payload for "Ripple.FindAt".
+type RippleFindAtRequest struct {
+	XPct    float64 `json:"xPct"`
+	YPct    float64 `json:"yPct"`
+	CanvasW float64 `json:"canvasW"`
+	CanvasH float64 `json:"canvasH"`
+}
+
+// RippleGetBoundsRequest is the payload for "Ripple.GetBounds".
+type RippleGetBoundsRequest struct {
+	ID      scene.StringID `json:"id"`
+	CanvasW float64        `json:"canvasW"`
+	CanvasH float64        `json:"canvasH"`
+}
+
+// RippleDescribeRequest is the payload for "Ripple.Describe".
+type RippleDescribeRequest struct {
+	ID      scene.StringID `json:"id"`
+	CanvasW float64        `json:"canvasW"`
+	CanvasH float64        `json:"canvasH"`
+}
+
 // Dispatch processes incoming commands and returns JSON-encoded responses.
 func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 	switch command {
@@ -719,6 +795,285 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return nil, fmt.Errorf("decoding FlowDescribeRequest: %w", err)
 		}
 		desc := geometry.DescribeFlowGeometry(req.Nodes, req.Curvature, req.Width, req.Height, req.RouteMode)
+		return json.Marshal(desc)
+
+	case "Glow.Create":
+		var req GlowCreateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GlowCreateRequest: %w", err)
+		}
+		glow := activeScene.CreateGlow(req.Initial)
+		return json.Marshal(map[string]any{
+			"glow":     glow,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Glow.Update":
+		var req GlowUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GlowUpdateRequest: %w", err)
+		}
+		existing := activeScene.GetGlow(req.ID)
+		if existing == nil {
+			return nil, fmt.Errorf("glow %q not found", req.ID)
+		}
+		updated := *existing
+		if req.Patch.Shape != "" {
+			updated.Shape = req.Patch.Shape
+		}
+		if req.Patch.Color != "" {
+			updated.Color = req.Patch.Color
+		}
+		if req.Patch.Playback != "" {
+			updated.Playback = req.Patch.Playback
+		}
+		if req.Patch.Size > 0 {
+			updated.Size = req.Patch.Size
+		}
+		if req.Patch.Scale > 0 {
+			updated.Scale = req.Patch.Scale
+		}
+		if req.Patch.Blur >= 0 {
+			updated.Blur = req.Patch.Blur
+		}
+		if req.Patch.Duration > 0 {
+			updated.Duration = req.Patch.Duration
+		}
+		if req.Patch.Delay >= 0 {
+			updated.Delay = req.Patch.Delay
+		}
+		if req.Patch.EndDelay >= 0 {
+			updated.EndDelay = req.Patch.EndDelay
+		}
+		if req.Patch.Opacity >= 0 {
+			updated.Opacity = req.Patch.Opacity
+		}
+		if req.Patch.Thick > 0 {
+			updated.Thick = req.Patch.Thick
+		}
+		if req.Patch.CoreR > 0 {
+			updated.CoreR = req.Patch.CoreR
+		}
+		if req.Patch.Rings > 0 {
+			updated.Rings = req.Patch.Rings
+			updated.RadarRings = req.Patch.Rings
+		} else if req.Patch.RadarRings > 0 {
+			updated.RadarRings = req.Patch.RadarRings
+			updated.Rings = req.Patch.RadarRings
+		}
+		if req.Patch.RadarStagger > 0 {
+			updated.RadarStagger = req.Patch.RadarStagger
+		}
+		updated.HideOnDelay = req.Patch.HideOnDelay
+		if req.Patch.X != 0 || req.Patch.Y != 0 {
+			updated.X = req.Patch.X
+			updated.Y = req.Patch.Y
+		}
+		if req.Patch.CustomB64 != "" {
+			updated.CustomB64 = req.Patch.CustomB64
+		}
+		if req.Patch.CustomMime != "" {
+			updated.CustomMime = req.Patch.CustomMime
+		}
+		if req.Patch.CustomW > 0 {
+			updated.CustomW = req.Patch.CustomW
+		}
+		if req.Patch.CustomH > 0 {
+			updated.CustomH = req.Patch.CustomH
+		}
+
+		activeScene.UpdateGlow(updated)
+		return json.Marshal(map[string]any{
+			"glow":     updated,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Glow.Delete":
+		var req GlowDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GlowDeleteRequest: %w", err)
+		}
+		deleted := activeScene.RemoveGlow(req.ID)
+		return json.Marshal(map[string]any{
+			"deleted":  deleted,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Glow.Get":
+		var req struct {
+			ID scene.StringID `json:"id"`
+		}
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding Glow.Get request: %w", err)
+		}
+		glow := activeScene.GetGlow(req.ID)
+		return json.Marshal(glow)
+
+	case "Glow.GetAll":
+		glows := activeScene.GetAllGlows()
+		return json.Marshal(glows)
+
+	case "Glow.FindAt":
+		var req GlowFindAtRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GlowFindAtRequest: %w", err)
+		}
+		found := activeScene.FindGlowAt(req.XPct, req.YPct, req.CanvasW, req.CanvasH)
+		return json.Marshal(found)
+
+	case "Glow.GetBounds":
+		var req GlowGetBoundsRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GlowGetBoundsRequest: %w", err)
+		}
+		glow := activeScene.GetGlow(req.ID)
+		if glow == nil {
+			return nil, fmt.Errorf("glow %q not found", req.ID)
+		}
+		bounds, center := activeScene.GetGlowBounds(*glow, req.CanvasW, req.CanvasH)
+		return json.Marshal(map[string]any{
+			"glow":   glow,
+			"bounds": bounds,
+			"center": center,
+		})
+
+	case "Glow.Describe":
+		var req GlowDescribeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GlowDescribeRequest: %w", err)
+		}
+		glow := activeScene.GetGlow(req.ID)
+		if glow == nil {
+			return nil, fmt.Errorf("glow %q not found", req.ID)
+		}
+		desc := activeScene.DescribeGlow(*glow, req.CanvasW, req.CanvasH)
+		return json.Marshal(desc)
+
+	case "Ripple.Create":
+		var req RippleCreateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding RippleCreateRequest: %w", err)
+		}
+		ripple := activeScene.CreateRipple(req.Initial)
+		return json.Marshal(map[string]any{
+			"ripple":   ripple,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Ripple.Update":
+		var req RippleUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding RippleUpdateRequest: %w", err)
+		}
+		existing := activeScene.GetRipple(req.ID)
+		if existing == nil {
+			return nil, fmt.Errorf("ripple %q not found", req.ID)
+		}
+		updated := *existing
+		if req.Patch.Color != "" {
+			updated.Color = req.Patch.Color
+		}
+		if req.Patch.Opacity >= 0 {
+			updated.Opacity = req.Patch.Opacity
+		}
+		if req.Patch.InnerR >= 0 {
+			updated.InnerR = req.Patch.InnerR
+		}
+		if req.Patch.OuterR > 0 {
+			updated.OuterR = req.Patch.OuterR
+		}
+		if req.Patch.Rings > 0 {
+			updated.Rings = req.Patch.Rings
+			updated.WaveCount = req.Patch.Rings
+		} else if req.Patch.WaveCount > 0 {
+			updated.WaveCount = req.Patch.WaveCount
+			updated.Rings = req.Patch.WaveCount
+		}
+		if req.Patch.Thick > 0 {
+			updated.Thick = req.Patch.Thick
+		}
+		if req.Patch.Refraction >= 0 {
+			updated.Refraction = req.Patch.Refraction
+		}
+		if req.Patch.Duration > 0 {
+			updated.Duration = req.Patch.Duration
+		}
+		if req.Patch.Delay >= 0 {
+			updated.Delay = req.Patch.Delay
+		}
+		if req.Patch.EndDelay >= 0 {
+			updated.EndDelay = req.Patch.EndDelay
+		}
+		if req.Patch.X != 0 || req.Patch.Y != 0 {
+			updated.X = req.Patch.X
+			updated.Y = req.Patch.Y
+		}
+
+		activeScene.UpdateRipple(updated)
+		return json.Marshal(map[string]any{
+			"ripple":   updated,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Ripple.Delete":
+		var req RippleDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding RippleDeleteRequest: %w", err)
+		}
+		deleted := activeScene.RemoveRipple(req.ID)
+		return json.Marshal(map[string]any{
+			"deleted":  deleted,
+			"revision": activeScene.Revision(),
+		})
+
+	case "Ripple.Get":
+		var req struct {
+			ID scene.StringID `json:"id"`
+		}
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding Ripple.Get request: %w", err)
+		}
+		ripple := activeScene.GetRipple(req.ID)
+		return json.Marshal(ripple)
+
+	case "Ripple.GetAll":
+		ripples := activeScene.GetAllRipples()
+		return json.Marshal(ripples)
+
+	case "Ripple.FindAt":
+		var req RippleFindAtRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding RippleFindAtRequest: %w", err)
+		}
+		found := activeScene.FindRippleAt(req.XPct, req.YPct, req.CanvasW, req.CanvasH)
+		return json.Marshal(found)
+
+	case "Ripple.GetBounds":
+		var req RippleGetBoundsRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding RippleGetBoundsRequest: %w", err)
+		}
+		ripple := activeScene.GetRipple(req.ID)
+		if ripple == nil {
+			return nil, fmt.Errorf("ripple %q not found", req.ID)
+		}
+		bounds, center := activeScene.GetRippleBounds(*ripple, req.CanvasW, req.CanvasH)
+		return json.Marshal(map[string]any{
+			"ripple": ripple,
+			"bounds": bounds,
+			"center": center,
+		})
+
+	case "Ripple.Describe":
+		var req RippleDescribeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding RippleDescribeRequest: %w", err)
+		}
+		ripple := activeScene.GetRipple(req.ID)
+		if ripple == nil {
+			return nil, fmt.Errorf("ripple %q not found", req.ID)
+		}
+		desc := activeScene.DescribeRipple(*ripple, req.CanvasW, req.CanvasH)
 		return json.Marshal(desc)
 
 	default:

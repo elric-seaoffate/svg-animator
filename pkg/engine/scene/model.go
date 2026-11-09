@@ -131,27 +131,38 @@ type Glow struct {
 	Duration     float64  `json:"dur"`
 	Delay        float64  `json:"delay"`
 	EndDelay     float64  `json:"endDelay,omitempty"`
-	Playback     string   `json:"playback"` // "pingpong", "loop", "once"
-	IsRadar      bool     `json:"isRadar"`
+	Playback     string   `json:"playback"` // "pingpong", "linear", "once", "static"
+	IsRadar      bool     `json:"isRadar,omitempty"`
 	RadarRings   int      `json:"radarRings,omitempty"`
 	Rings        int      `json:"rings,omitempty"` // Legacy JS alias
 	RadarStagger float64  `json:"radarStagger,omitempty"`
+	Scale        float64  `json:"scale,omitempty"`
+	Blur         float64  `json:"blur,omitempty"`
+	Thick        float64  `json:"thick,omitempty"`
+	CoreR        float64  `json:"coreR,omitempty"`
+	HideOnDelay  bool     `json:"hideOnDelay,omitempty"`
+	CustomB64    string   `json:"customB64,omitempty"`
+	CustomMime   string   `json:"customMime,omitempty"`
+	CustomW      float64  `json:"customW,omitempty"`
+	CustomH      float64  `json:"customH,omitempty"`
 }
 
 // Ripple represents a refractive water ripple effect.
 type Ripple struct {
-	ID        StringID `json:"id"`
-	X         float64  `json:"x"`
-	Y         float64  `json:"y"`
-	InnerR    float64  `json:"innerR"`
-	OuterR    float64  `json:"outerR"`
-	Duration  float64  `json:"dur"`
-	Delay     float64  `json:"delay"`
-	EndDelay  float64  `json:"endDelay,omitempty"`
-	Color     string   `json:"color"`
-	Opacity   float64  `json:"opacity"`
-	WaveCount int      `json:"waveCount,omitempty"`
-	Rings     int      `json:"rings,omitempty"` // Legacy JS alias
+	ID         StringID `json:"id"`
+	X          float64  `json:"x"`
+	Y          float64  `json:"y"`
+	InnerR     float64  `json:"innerR"`
+	OuterR     float64  `json:"outerR"`
+	Duration   float64  `json:"dur"`
+	Delay      float64  `json:"delay"`
+	EndDelay   float64  `json:"endDelay,omitempty"`
+	Color      string   `json:"color"`
+	Opacity    float64  `json:"opacity"`
+	WaveCount  int      `json:"waveCount,omitempty"`
+	Rings      int      `json:"rings,omitempty"` // Legacy JS alias
+	Thick      float64  `json:"thick,omitempty"`
+	Refraction float64  `json:"refraction,omitempty"`
 }
 
 // Snapshot is a serialized snapshot of the scene for import/export across boundaries.

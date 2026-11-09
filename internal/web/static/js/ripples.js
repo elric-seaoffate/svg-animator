@@ -50,6 +50,30 @@ window.Ripples = {
   },
 
   createRipple(initialProps = {}) {
+    // 1. Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmRipple = window.EngineBridge.createRipple(initialProps);
+      if (wasmRipple && wasmRipple.id) {
+        const idNum = typeof wasmRipple.id === 'string' && /^\d+$/.test(wasmRipple.id) ? parseInt(wasmRipple.id, 10) : wasmRipple.id;
+        const normalized = Object.assign({}, wasmRipple, {
+          id: idNum,
+          dur: wasmRipple.dur != null ? wasmRipple.dur : (initialProps.dur != null ? initialProps.dur : 3.0),
+          rings: wasmRipple.rings || wasmRipple.waveCount || initialProps.rings || 3
+        });
+        if (typeof idNum === 'number' && idNum > this.counter) {
+          this.counter = idNum;
+        }
+        const existingIdx = this.list.findIndex((r) => r.id === normalized.id);
+        if (existingIdx >= 0) {
+          this.list[existingIdx] = normalized;
+        } else {
+          this.list.push(normalized);
+        }
+        return normalized;
+      }
+    }
+
+    // 2. JavaScript fallback
     this.counter++;
     const newRipple = {
       id: this.counter,
@@ -73,6 +97,12 @@ window.Ripples = {
   updateRipple(id, patch) {
     const rp = this.getRipple(id);
     if (!rp || !patch || typeof patch !== 'object') return null;
+
+    // Go/WASM Engine synchronization
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.updateRipple(id, patch);
+    }
+
     Object.keys(patch).forEach((key) => {
       if (key !== 'id') {
         rp[key] = patch[key];
@@ -82,12 +112,71 @@ window.Ripples = {
   },
 
   deleteRipple(id) {
+    // Go/WASM Engine synchronization
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.deleteRipple(id);
+    }
+
     const before = this.list.length;
     this.list = this.list.filter((r) => r.id !== id);
     if (this.activeId === id) {
       this.activeId = null;
     }
     return this.list.length < before;
+  },
+
+  findRippleAt(xPct, yPct, canvasW = 1280, canvasH = 720) {
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmFound = window.EngineBridge.findRippleAt(xPct, yPct, canvasW, canvasH);
+      if (wasmFound && wasmFound.id) {
+        return this.getRipple(wasmFound.id) || wasmFound;
+      }
+      if (wasmFound === null) return null;
+    }
+
+    // JavaScript fallback
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const rp = this.list[i];
+      const rx = (rp.x / 100) * canvasW;
+      const ry = (rp.y / 100) * canvasH;
+      const testX = (xPct / 100) * canvasW;
+      const testY = (yPct / 100) * canvasH;
+      const hitR = Math.max(30, rp.outerR || 100);
+      const dx = testX - rx;
+      const dy = testY - ry;
+      if (dx * dx + dy * dy <= hitR * hitR) return rp;
+    }
+    return null;
+  },
+
+  findRippleAtPct(xPct, yPct, canvasW = 1280, canvasH = 720) {
+    return this.findRippleAt(xPct, yPct, canvasW, canvasH);
+  },
+
+  getRippleBounds(id, canvasW = 1280, canvasH = 720) {
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmBounds = window.EngineBridge.getRippleBounds(id, canvasW, canvasH);
+      if (wasmBounds && wasmBounds.bounds) return wasmBounds;
+    }
+
+    const rp = this.getRipple(id);
+    if (!rp) return null;
+    const rx = (rp.x / 100) * canvasW;
+    const ry = (rp.y / 100) * canvasH;
+    const hitR = Math.max(30, rp.outerR || 100);
+    return {
+      ripple: rp,
+      bounds: {
+        minX: rx - hitR,
+        minY: ry - hitR,
+        maxX: rx + hitR,
+        maxY: ry + hitR,
+        width: hitR * 2,
+        height: hitR * 2
+      },
+      center: { x: rx, y: ry }
+    };
   },
 
   injectIntoSVG(svgString, state) {

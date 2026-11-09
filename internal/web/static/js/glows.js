@@ -50,6 +50,30 @@ window.Glows = {
   },
 
   createGlow(initialProps = {}) {
+    // 1. Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmGlow = window.EngineBridge.createGlow(initialProps);
+      if (wasmGlow && wasmGlow.id) {
+        const idNum = typeof wasmGlow.id === 'string' && /^\d+$/.test(wasmGlow.id) ? parseInt(wasmGlow.id, 10) : wasmGlow.id;
+        const normalized = Object.assign({}, wasmGlow, {
+          id: idNum,
+          dur: wasmGlow.dur != null ? wasmGlow.dur : (initialProps.dur != null ? initialProps.dur : 2.0),
+          rings: wasmGlow.rings || wasmGlow.radarRings || initialProps.rings || 1
+        });
+        if (typeof idNum === 'number' && idNum > this.counter) {
+          this.counter = idNum;
+        }
+        const existingIdx = this.list.findIndex((g) => g.id === normalized.id);
+        if (existingIdx >= 0) {
+          this.list[existingIdx] = normalized;
+        } else {
+          this.list.push(normalized);
+        }
+        return normalized;
+      }
+    }
+
+    // 2. JavaScript fallback
     this.counter++;
     const newGlow = {
       id: this.counter,
@@ -82,6 +106,12 @@ window.Glows = {
   updateGlow(id, patch) {
     const glow = this.getGlow(id);
     if (!glow || !patch || typeof patch !== 'object') return null;
+
+    // Go/WASM Engine synchronization
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.updateGlow(id, patch);
+    }
+
     Object.keys(patch).forEach((key) => {
       if (key !== 'id') {
         glow[key] = patch[key];
@@ -91,12 +121,86 @@ window.Glows = {
   },
 
   deleteGlow(id) {
+    // Go/WASM Engine synchronization
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.deleteGlow(id);
+    }
+
     const before = this.list.length;
     this.list = this.list.filter((g) => g.id !== id);
     if (this.activeId === id) {
       this.activeId = null;
     }
     return this.list.length < before;
+  },
+
+  findGlowAt(xPct, yPct, canvasW = 1280, canvasH = 720) {
+    // Go/WASM Engine integration with seamless JS fallback
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmFound = window.EngineBridge.findGlowAt(xPct, yPct, canvasW, canvasH);
+      if (wasmFound && wasmFound.id) {
+        return this.getGlow(wasmFound.id) || wasmFound;
+      }
+      if (wasmFound === null) return null;
+    }
+
+    // JavaScript fallback
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const g = this.list[i];
+      const gx = (g.x / 100) * canvasW;
+      const gy = (g.y / 100) * canvasH;
+      const testX = (xPct / 100) * canvasW;
+      const testY = (yPct / 100) * canvasH;
+      const scale = g.scale || 1.0;
+      if (g.shape === 'square') {
+        const hw = Math.max(20, g.size || 25);
+        if (testX >= gx - hw && testX <= gx + hw && testY >= gy - hw && testY <= gy + hw) return g;
+      } else if (g.shape === 'custom' && g.customW && g.customH) {
+        const hw = Math.max(20, (g.customW * scale) / 2);
+        const hh = Math.max(20, (g.customH * scale) / 2);
+        if (testX >= gx - hw && testX <= gx + hw && testY >= gy - hh && testY <= gy + hh) return g;
+      } else {
+        const hitR = Math.max(20, g.size || 25);
+        const dx = testX - gx;
+        const dy = testY - gy;
+        if (dx * dx + dy * dy <= hitR * hitR) return g;
+      }
+    }
+    return null;
+  },
+
+  findGlowAtPct(xPct, yPct, canvasW = 1280, canvasH = 720) {
+    return this.findGlowAt(xPct, yPct, canvasW, canvasH);
+  },
+
+  getGlowBounds(id, canvasW = 1280, canvasH = 720) {
+    if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+      const wasmBounds = window.EngineBridge.getGlowBounds(id, canvasW, canvasH);
+      if (wasmBounds && wasmBounds.bounds) return wasmBounds;
+    }
+
+    const g = this.getGlow(id);
+    if (!g) return null;
+    const gx = (g.x / 100) * canvasW;
+    const gy = (g.y / 100) * canvasH;
+    const scale = g.scale || 1.0;
+    let minX, maxX, minY, maxY;
+    if (g.shape === 'square') {
+      const hw = Math.max(20, g.size || 25);
+      minX = gx - hw; maxX = gx + hw; minY = gy - hw; maxY = gy + hw;
+    } else if (g.shape === 'custom' && g.customW && g.customH) {
+      const hw = Math.max(20, (g.customW * scale) / 2);
+      const hh = Math.max(20, (g.customH * scale) / 2);
+      minX = gx - hw; maxX = gx + hw; minY = gy - hh; maxY = gy + hh;
+    } else {
+      const r = Math.max(20, g.size || 25);
+      minX = gx - r; maxX = gx + r; minY = gy - r; maxY = gy + r;
+    }
+    return {
+      glow: g,
+      bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY },
+      center: { x: gx, y: gy }
+    };
   },
 
   injectIntoSVG(svgString, width, height) {

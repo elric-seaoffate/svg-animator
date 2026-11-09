@@ -103,8 +103,8 @@ flowchart TD
     S1["Stage 1: Geometry & Path Routing (Complete)"] --> S2["Stage 2: Animation Timing & Frame Evaluation (Complete)"]
     S2 --> S3["Stage 3: Diagram Nodes & Shape Registry (Complete)"]
     S3 --> S4["Stage 4: Connectors & Data Flows (Complete)"]
-    S4 --> S5["Stage 5: Hotspots & Glow Effects"]
-    S5 --> S6["Stage 6: Refractive Liquid Ripples"]
+    S4 --> S5["Stage 5: Hotspots & Glow Effects (Complete)"]
+    S5 --> S6["Stage 6: Refractive Liquid Ripples (Complete)"]
     S6 --> S7["Stage 7: Optical Filters & Camera Transforms"]
     S7 --> S8["Stage 8: Authoritative Scene State & Selection"]
     S8 --> S9["Stage 9: Undo/Redo & Command Processing"]
@@ -157,21 +157,27 @@ flowchart TD
 - **Integration Tests**: `go test ./pkg/engine/geometry ./pkg/engine/scene ./pkg/engine/protocol` + `node scripts/regression-harness.js` (Section 16.3).
 - **JS Retirement Plan**: `flows.js` operational methods delegate directly to `window.EngineBridge` with built-in JS fallbacks retained for offline/no-WASM operation.
 
-### Stage 5: Hotspots & Glow Effects
-- **Go Owner**: `pkg/engine/effects/glow.go`
-- **Legacy JS Owner**: `glows.js` (Layer 3 CRUD and pulse equations)
-- **Boundary Contract**: `Glow.EvaluateAtTime(timestampMs)` -> `{ radius, opacity, beamAngle }`
-- **Parity Criteria**: Pulse and radar sweep angles match client CSS animations.
-- **Integration Tests**: Numerical wave radius verification.
-- **JS Retirement Plan**: Retire JS radar beam rotation calculations.
+### Stage 5: Hotspots & Glow Effects (Implemented)
+- **Go Owner**: `pkg/engine/scene/glow.go`, `pkg/engine/timeline/evaluator.go`
+- **Legacy JS Owner**: `internal/web/static/js/glows.js` (Layer 3 CRUD, bounds, hit-testing, and pulse math)
+- **Boundary Contract**:
+  - `Glow.Create`, `Glow.Update`, `Glow.Delete`, `Glow.Get`, `Glow.GetAll`
+  - `Glow.FindAt`, `Glow.GetBounds`, `Glow.Describe`
+  - `Timeline.EvaluateSceneAtTime` (glow frame updates with coreOpacity and radarRings)
+- **Parity Criteria**: Circle, square, radar, and custom graphic bounding boxes, radar ring stagger/expansion, opacity easing curves, and transparent hit targets match within float tolerances.
+- **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol ./pkg/engine/timeline` + `node scripts/regression-harness.js` (Section 16.4).
+- **JS Retirement Plan**: `glows.js` delegates operational CRUD, bounds, and hit-testing to `window.EngineBridge` with JS fallback.
 
-### Stage 6: Refractive Liquid Ripples
-- **Go Owner**: `pkg/engine/effects/ripple.go`
-- **Legacy JS Owner**: `ripples.js` (Layer 3 CRUD and wave expansion)
-- **Boundary Contract**: `Ripple.Evaluate(timestampMs)` -> `{ ringRadii, displacementScale }`
-- **Parity Criteria**: Displacement map radius expansion matches SVG `feDisplacementMap` timing.
-- **Integration Tests**: Wave decay and ring spacing unit tests in Go.
-- **JS Retirement Plan**: `ripples.js` delegates filter attribute generation to Go.
+### Stage 6: Refractive Liquid Ripples (Implemented)
+- **Go Owner**: `pkg/engine/scene/ripple.go`, `pkg/engine/timeline/evaluator.go`
+- **Legacy JS Owner**: `internal/web/static/js/ripples.js` (Layer 3 CRUD, bounds, hit-testing, and wave expansion)
+- **Boundary Contract**:
+  - `Ripple.Create`, `Ripple.Update`, `Ripple.Delete`, `Ripple.Get`, `Ripple.GetAll`
+  - `Ripple.FindAt`, `Ripple.GetBounds`, `Ripple.Describe`
+  - `Timeline.EvaluateSceneAtTime` (multi-wave updates with wave expansion and opacity decay)
+- **Parity Criteria**: Concentric ripple ring stagger math, inner/outer radius expansion, refraction scaling, and transparent hit targets match within float tolerances.
+- **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol ./pkg/engine/timeline` + `node scripts/regression-harness.js` (Section 16.4).
+- **JS Retirement Plan**: `ripples.js` delegates operational CRUD, bounds, and hit-testing to `window.EngineBridge` with JS fallback.
 
 ### Stage 7: Optical Filters & Camera Transforms
 - **Go Owner**: `pkg/engine/effects/camera.go`, `pkg/engine/effects/filters.go`

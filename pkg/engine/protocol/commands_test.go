@@ -489,6 +489,244 @@ func TestDispatchFlowLifecycleAndOperations(t *testing.T) {
 	}
 }
 
+func TestDispatchGlowLifecycleAndOperations(t *testing.T) {
+	// 1. Glow.Create
+	createReq, _ := json.Marshal(GlowCreateRequest{
+		Initial: scene.Glow{
+			Shape:   "circle",
+			Color:   "#ff0044",
+			X:       40,
+			Y:       50,
+			Size:    30,
+			Opacity: 0.8,
+		},
+	})
+	createBytes, err := Dispatch("Glow.Create", createReq)
+	if err != nil {
+		t.Fatalf("Glow.Create failed: %v", err)
+	}
+	var createRes struct {
+		Glow scene.Glow `json:"glow"`
+	}
+	if err := json.Unmarshal(createBytes, &createRes); err != nil || createRes.Glow.ID == "" {
+		t.Fatalf("unmarshal Glow.Create failed: %v", err)
+	}
+	glowID := createRes.Glow.ID
+
+	// 2. Glow.Get
+	getReq, _ := json.Marshal(map[string]any{"id": glowID})
+	getBytes, err := Dispatch("Glow.Get", getReq)
+	if err != nil {
+		t.Fatalf("Glow.Get failed: %v", err)
+	}
+	var fetchedGlow scene.Glow
+	if err := json.Unmarshal(getBytes, &fetchedGlow); err != nil || fetchedGlow.ID != glowID {
+		t.Fatalf("Glow.Get mismatch: %+v", fetchedGlow)
+	}
+
+	// 3. Glow.FindAt
+	findReq, _ := json.Marshal(GlowFindAtRequest{
+		XPct:    40,
+		YPct:    50,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	findBytes, err := Dispatch("Glow.FindAt", findReq)
+	if err != nil {
+		t.Fatalf("Glow.FindAt failed: %v", err)
+	}
+	var foundGlow *scene.Glow
+	if err := json.Unmarshal(findBytes, &foundGlow); err != nil || foundGlow == nil || foundGlow.ID != glowID {
+		t.Fatalf("Glow.FindAt mismatch: %+v", foundGlow)
+	}
+
+	// 4. Glow.GetBounds
+	boundsReq, _ := json.Marshal(GlowGetBoundsRequest{
+		ID:      glowID,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	boundsBytes, err := Dispatch("Glow.GetBounds", boundsReq)
+	if err != nil {
+		t.Fatalf("Glow.GetBounds failed: %v", err)
+	}
+	var boundsRes struct {
+		Bounds geometry.FlowBounds `json:"bounds"`
+		Center geometry.Point      `json:"center"`
+	}
+	if err := json.Unmarshal(boundsBytes, &boundsRes); err != nil || boundsRes.Center.X != 400 || boundsRes.Center.Y != 500 {
+		t.Fatalf("Glow.GetBounds mismatch: %+v", boundsRes)
+	}
+
+	// 5. Glow.Describe
+	descReq, _ := json.Marshal(GlowDescribeRequest{
+		ID:      glowID,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	descBytes, err := Dispatch("Glow.Describe", descReq)
+	if err != nil {
+		t.Fatalf("Glow.Describe failed: %v", err)
+	}
+	var descRes scene.GlowDescription
+	if err := json.Unmarshal(descBytes, &descRes); err != nil || descRes.ID != glowID {
+		t.Fatalf("Glow.Describe mismatch: %+v", descRes)
+	}
+
+	// 6. Glow.Update
+	updateReq, _ := json.Marshal(GlowUpdateRequest{
+		ID: glowID,
+		Patch: scene.Glow{
+			Color: "#00ff88",
+			Size:  35,
+		},
+	})
+	updateBytes, err := Dispatch("Glow.Update", updateReq)
+	if err != nil {
+		t.Fatalf("Glow.Update failed: %v", err)
+	}
+	var updateRes struct {
+		Glow scene.Glow `json:"glow"`
+	}
+	if err := json.Unmarshal(updateBytes, &updateRes); err != nil || updateRes.Glow.Color != "#00ff88" || updateRes.Glow.Size != 35 {
+		t.Fatalf("Glow.Update mismatch: %+v", updateRes)
+	}
+
+	// 7. Glow.Delete
+	delReq, _ := json.Marshal(GlowDeleteRequest{ID: glowID})
+	delBytes, err := Dispatch("Glow.Delete", delReq)
+	if err != nil {
+		t.Fatalf("Glow.Delete failed: %v", err)
+	}
+	var delRes struct {
+		Deleted bool `json:"deleted"`
+	}
+	if err := json.Unmarshal(delBytes, &delRes); err != nil || !delRes.Deleted {
+		t.Fatalf("Glow.Delete mismatch: %+v", delRes)
+	}
+}
+
+func TestDispatchRippleLifecycleAndOperations(t *testing.T) {
+	// 1. Ripple.Create
+	createReq, _ := json.Marshal(RippleCreateRequest{
+		Initial: scene.Ripple{
+			Color:      "#ffffff",
+			Opacity:    0.4,
+			InnerR:     0,
+			OuterR:     120,
+			Rings:      3,
+			Thick:      8,
+			Refraction: 35,
+			Duration:   3.0,
+			X:          50,
+			Y:          50,
+		},
+	})
+	createBytes, err := Dispatch("Ripple.Create", createReq)
+	if err != nil {
+		t.Fatalf("Ripple.Create failed: %v", err)
+	}
+	var createRes struct {
+		Ripple scene.Ripple `json:"ripple"`
+	}
+	if err := json.Unmarshal(createBytes, &createRes); err != nil || createRes.Ripple.ID == "" {
+		t.Fatalf("unmarshal Ripple.Create failed: %v", err)
+	}
+	rippleID := createRes.Ripple.ID
+
+	// 2. Ripple.Get
+	getReq, _ := json.Marshal(map[string]any{"id": rippleID})
+	getBytes, err := Dispatch("Ripple.Get", getReq)
+	if err != nil {
+		t.Fatalf("Ripple.Get failed: %v", err)
+	}
+	var fetchedRipple scene.Ripple
+	if err := json.Unmarshal(getBytes, &fetchedRipple); err != nil || fetchedRipple.ID != rippleID {
+		t.Fatalf("Ripple.Get mismatch: %+v", fetchedRipple)
+	}
+
+	// 3. Ripple.FindAt
+	findReq, _ := json.Marshal(RippleFindAtRequest{
+		XPct:    50,
+		YPct:    50,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	findBytes, err := Dispatch("Ripple.FindAt", findReq)
+	if err != nil {
+		t.Fatalf("Ripple.FindAt failed: %v", err)
+	}
+	var foundRipple *scene.Ripple
+	if err := json.Unmarshal(findBytes, &foundRipple); err != nil || foundRipple == nil || foundRipple.ID != rippleID {
+		t.Fatalf("Ripple.FindAt mismatch: %+v", foundRipple)
+	}
+
+	// 4. Ripple.GetBounds
+	boundsReq, _ := json.Marshal(RippleGetBoundsRequest{
+		ID:      rippleID,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	boundsBytes, err := Dispatch("Ripple.GetBounds", boundsReq)
+	if err != nil {
+		t.Fatalf("Ripple.GetBounds failed: %v", err)
+	}
+	var boundsRes struct {
+		Bounds geometry.FlowBounds `json:"bounds"`
+		Center geometry.Point      `json:"center"`
+	}
+	if err := json.Unmarshal(boundsBytes, &boundsRes); err != nil || boundsRes.Center.X != 500 || boundsRes.Center.Y != 500 {
+		t.Fatalf("Ripple.GetBounds mismatch: %+v", boundsRes)
+	}
+
+	// 5. Ripple.Describe
+	descReq, _ := json.Marshal(RippleDescribeRequest{
+		ID:      rippleID,
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	descBytes, err := Dispatch("Ripple.Describe", descReq)
+	if err != nil {
+		t.Fatalf("Ripple.Describe failed: %v", err)
+	}
+	var descRes scene.RippleDescription
+	if err := json.Unmarshal(descBytes, &descRes); err != nil || descRes.ID != rippleID {
+		t.Fatalf("Ripple.Describe mismatch: %+v", descRes)
+	}
+
+	// 6. Ripple.Update
+	updateReq, _ := json.Marshal(RippleUpdateRequest{
+		ID: rippleID,
+		Patch: scene.Ripple{
+			Color:  "#38bdf8",
+			OuterR: 160,
+		},
+	})
+	updateBytes, err := Dispatch("Ripple.Update", updateReq)
+	if err != nil {
+		t.Fatalf("Ripple.Update failed: %v", err)
+	}
+	var updateRes struct {
+		Ripple scene.Ripple `json:"ripple"`
+	}
+	if err := json.Unmarshal(updateBytes, &updateRes); err != nil || updateRes.Ripple.Color != "#38bdf8" || updateRes.Ripple.OuterR != 160 {
+		t.Fatalf("Ripple.Update mismatch: %+v", updateRes)
+	}
+
+	// 7. Ripple.Delete
+	delReq, _ := json.Marshal(RippleDeleteRequest{ID: rippleID})
+	delBytes, err := Dispatch("Ripple.Delete", delReq)
+	if err != nil {
+		t.Fatalf("Ripple.Delete failed: %v", err)
+	}
+	var delRes struct {
+		Deleted bool `json:"deleted"`
+	}
+	if err := json.Unmarshal(delBytes, &delRes); err != nil || !delRes.Deleted {
+		t.Fatalf("Ripple.Delete mismatch: %+v", delRes)
+	}
+}
+
 func TestDispatchUnknownCommand(t *testing.T) {
 	_, err := Dispatch("Unknown.Action", nil)
 	if err == nil {

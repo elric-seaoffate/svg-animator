@@ -3312,7 +3312,107 @@ async function runHarness() {
   window.DataFlows.deleteFlow(stage4Flow.id);
   window.DataFlows.deleteFlow(connectedFlow.id);
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
+  // ===========================================================================
+  // SECTION 16.4: WASM Stages 5 & 6 — Glow and Ripple Optical Engines
+  // ===========================================================================
+  console.log('[HARNESS] Testing WASM Stages 5 & 6 Glow and Ripple optical engines...');
+
+  // 1. Live Glow Creation via Go WASM
+  const stage5Glow = window.Glows.createGlow({
+    shape: 'circle',
+    color: '#ff0055',
+    x: 45,
+    y: 55,
+    size: 32,
+    opacity: 0.85
+  });
+  assert.ok(stage5Glow && stage5Glow.id, 'createGlow must return valid glow with ID');
+  assert.strictEqual(stage5Glow.color, '#ff0055', 'Glow color must match');
+  assert.strictEqual(stage5Glow.size, 32, 'Glow size must match');
+  assert.strictEqual(stage5Glow.x, 45, 'Glow X must match');
+  assert.strictEqual(stage5Glow.y, 55, 'Glow Y must match');
+
+  // 2. Glow Hit-Testing via Go WASM
+  const foundGlow = window.Glows.findGlowAtPct(45, 55, 1280, 720);
+  assert.ok(foundGlow, 'findGlowAtPct must locate glow at (45%, 55%)');
+  assert.strictEqual(String(foundGlow.id), String(stage5Glow.id), 'Found glow ID must match created glow');
+
+  const missGlow = window.Glows.findGlowAtPct(90, 10, 1280, 720);
+  assert.strictEqual(missGlow, null, 'findGlowAtPct must return null for far coordinates');
+
+  // 3. Glow Bounds via Go WASM
+  const glowBoundsRes = window.Glows.getGlowBounds(stage5Glow.id, 1280, 720);
+  assert.ok(glowBoundsRes && glowBoundsRes.bounds, 'getGlowBounds must return bounds');
+  assert.ok(glowBoundsRes.bounds.width > 0, 'Glow bounds width must be positive');
+
+  // 4. Glow Modification & Live SVG Verification
+  window.Glows.updateGlow(stage5Glow.id, { color: '#00ffaa', size: 40 });
+  const updatedGlow = window.Glows.getGlow(stage5Glow.id);
+  assert.strictEqual(updatedGlow.color, '#00ffaa', 'Updated glow color must match');
+  assert.strictEqual(updatedGlow.size, 40, 'Updated glow size must match');
+
+  const s5SvgState = { image: { width: 1280, height: 720, isBlankCanvas: true } };
+  const s5InjectedSvg = window.Glows.injectIntoSVG('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', 1280, 720);
+  assert.ok(s5InjectedSvg.includes('class="glow-hit-target"'), 'Glow SVG injection must include glow-hit-target');
+  assert.ok(s5InjectedSvg.includes('data-glow-id="' + stage5Glow.id + '"'), 'Glow SVG injection must include data-glow-id');
+
+  // 5. Live Ripple Creation via Go WASM
+  const stage6Ripple = window.Ripples.createRipple({
+    color: '#38bdf8',
+    opacity: 0.6,
+    innerR: 10,
+    outerR: 140,
+    rings: 3,
+    thick: 8,
+    refraction: 30,
+    x: 60,
+    y: 40
+  });
+  assert.ok(stage6Ripple && stage6Ripple.id, 'createRipple must return valid ripple with ID');
+  assert.strictEqual(stage6Ripple.color, '#38bdf8', 'Ripple color must match');
+  assert.strictEqual(stage6Ripple.outerR, 140, 'Ripple outerR must match');
+  assert.strictEqual(stage6Ripple.x, 60, 'Ripple X must match');
+  assert.strictEqual(stage6Ripple.y, 40, 'Ripple Y must match');
+
+  // 6. Ripple Hit-Testing via Go WASM
+  const foundRipple = window.Ripples.findRippleAtPct(60, 40, 1280, 720);
+  assert.ok(foundRipple, 'findRippleAtPct must locate ripple at (60%, 40%)');
+  assert.strictEqual(String(foundRipple.id), String(stage6Ripple.id), 'Found ripple ID must match created ripple');
+
+  const missRipple = window.Ripples.findRippleAtPct(10, 90, 1280, 720);
+  assert.strictEqual(missRipple, null, 'findRippleAtPct must return null for far coordinates');
+
+  // 7. Ripple Bounds via Go WASM
+  const rippleBoundsRes = window.Ripples.getRippleBounds(stage6Ripple.id, 1280, 720);
+  assert.ok(rippleBoundsRes && rippleBoundsRes.bounds, 'getRippleBounds must return bounds');
+  assert.ok(rippleBoundsRes.bounds.width > 0, 'Ripple bounds width must be positive');
+
+  // 8. Ripple Modification & Live SVG Verification
+  window.Ripples.updateRipple(stage6Ripple.id, { color: '#a78bfa', outerR: 180 });
+  const updatedRipple = window.Ripples.getRipple(stage6Ripple.id);
+  assert.strictEqual(updatedRipple.color, '#a78bfa', 'Updated ripple color must match');
+  assert.strictEqual(updatedRipple.outerR, 180, 'Updated ripple outerR must match');
+
+  const s6InjectedSvg = window.Ripples.injectIntoSVG('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', s5SvgState);
+  assert.ok(s6InjectedSvg.includes('class="ripple-hit-target"'), 'Ripple SVG injection must include ripple-hit-target');
+  assert.ok(s6InjectedSvg.includes('data-ripple-id="' + stage6Ripple.id + '"'), 'Ripple SVG injection must include data-ripple-id');
+
+  // 9. Timeline Evaluation with Multi-Wave Ripple & Glow Playback Modes
+  if (window.EngineBridge && typeof window.EngineBridge.evaluateSceneAtTime === 'function') {
+    const evalRes = window.EngineBridge.evaluateSceneAtTime(1.5);
+    if (evalRes) {
+      assert.ok(Array.isArray(evalRes.glows), 'Timeline evaluation must include glows');
+      assert.ok(Array.isArray(evalRes.ripples), 'Timeline evaluation must include ripples');
+    }
+  }
+
+  // 10. Cleanup
+  window.Glows.deleteGlow(stage5Glow.id);
+  assert.strictEqual(window.Glows.getGlow(stage5Glow.id), null, 'Glow must be deleted');
+  window.Ripples.deleteRipple(stage6Ripple.id);
+  assert.strictEqual(window.Ripples.getRipple(stage6Ripple.id), null, 'Ripple must be deleted');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5 & 6 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow & Ripple engines verified.');
 }
 
 runHarness()

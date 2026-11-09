@@ -23,11 +23,13 @@ type Scene struct {
 	flows        map[StringID]Flow
 	flowIDs      []StringID
 
-	glows   map[StringID]Glow
-	glowIDs []StringID
+	glowsCounter int64
+	glows        map[StringID]Glow
+	glowIDs      []StringID
 
-	ripples   map[StringID]Ripple
-	rippleIDs []StringID
+	ripplesCounter int64
+	ripples        map[StringID]Ripple
+	rippleIDs      []StringID
 }
 
 // NewScene initializes an empty Scene with default configuration.
@@ -467,75 +469,6 @@ func (s *Scene) RemoveFlow(id StringID) bool {
 	return true
 }
 
-// UpdateGlow adds or modifies a glow.
-func (s *Scene) UpdateGlow(g Glow) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if g.Shape == "radar" {
-		g.IsRadar = true
-	}
-	if g.RadarRings <= 0 && g.Rings > 0 {
-		g.RadarRings = g.Rings
-	}
-	if _, exists := s.glows[g.ID]; !exists {
-		s.glowIDs = append(s.glowIDs, g.ID)
-	}
-	s.glows[g.ID] = g
-	s.revision++
-}
-
-// RemoveGlow removes a glow by ID.
-func (s *Scene) RemoveGlow(id StringID) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.glows[id]; !exists {
-		return false
-	}
-	delete(s.glows, id)
-	newIDs := make([]StringID, 0, len(s.glowIDs)-1)
-	for _, gid := range s.glowIDs {
-		if gid != id {
-			newIDs = append(newIDs, gid)
-		}
-	}
-	s.glowIDs = newIDs
-	s.revision++
-	return true
-}
-
-// UpdateRipple adds or modifies a ripple.
-func (s *Scene) UpdateRipple(r Ripple) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if r.WaveCount <= 0 && r.Rings > 0 {
-		r.WaveCount = r.Rings
-	}
-	if _, exists := s.ripples[r.ID]; !exists {
-		s.rippleIDs = append(s.rippleIDs, r.ID)
-	}
-	s.ripples[r.ID] = r
-	s.revision++
-}
-
-// RemoveRipple removes a ripple by ID.
-func (s *Scene) RemoveRipple(id StringID) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.ripples[id]; !exists {
-		return false
-	}
-	delete(s.ripples, id)
-	newIDs := make([]StringID, 0, len(s.rippleIDs)-1)
-	for _, rid := range s.rippleIDs {
-		if rid != id {
-			newIDs = append(newIDs, rid)
-		}
-	}
-	s.rippleIDs = newIDs
-	s.revision++
-	return true
-}
-
 // SetFromSnapshot replaces the scene contents with a full snapshot.
 func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.mu.Lock()
@@ -582,6 +515,9 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.glows = make(map[StringID]Glow, len(snap.Glows))
 	s.glowIDs = make([]StringID, 0, len(snap.Glows))
 	for _, g := range snap.Glows {
+		if idNum, err := strconv.ParseInt(string(g.ID), 10, 64); err == nil && idNum > s.glowsCounter {
+			s.glowsCounter = idNum
+		}
 		if g.Shape == "radar" {
 			g.IsRadar = true
 		}
@@ -595,6 +531,9 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.ripples = make(map[StringID]Ripple, len(snap.Ripples))
 	s.rippleIDs = make([]StringID, 0, len(snap.Ripples))
 	for _, r := range snap.Ripples {
+		if idNum, err := strconv.ParseInt(string(r.ID), 10, 64); err == nil && idNum > s.ripplesCounter {
+			s.ripplesCounter = idNum
+		}
 		if r.WaveCount <= 0 && r.Rings > 0 {
 			r.WaveCount = r.Rings
 		}

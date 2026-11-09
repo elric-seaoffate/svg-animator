@@ -34,12 +34,19 @@ type GlowFrameUpdate struct {
 	RadarRings  []RadarRingUpdate `json:"radarRings,omitempty"`
 }
 
-// RippleFrameUpdate holds the animated state of a ripple wave at time T.
-type RippleFrameUpdate struct {
-	ID      string  `json:"id"`
-	Visible bool    `json:"visible"`
+// RippleWaveUpdate holds the animated radius and opacity of a single ripple ring.
+type RippleWaveUpdate struct {
 	Radius  float64 `json:"radius"`
 	Opacity float64 `json:"opacity"`
+}
+
+// RippleFrameUpdate holds the animated state of a ripple wave at time T.
+type RippleFrameUpdate struct {
+	ID      string             `json:"id"`
+	Visible bool               `json:"visible"`
+	Radius  float64            `json:"radius"`
+	Opacity float64            `json:"opacity"`
+	Waves   []RippleWaveUpdate `json:"waves,omitempty"`
 }
 
 // CameraFrameUpdate holds the animated viewport transform at time T.
@@ -168,10 +175,28 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		var coreOp float64
 		if timeSec < g.Delay {
 			coreOp = 0
+		} else if g.Playback == "static" {
+			coreOp = baseOp
 		} else if g.Playback == "pingpong" {
-			coreOp = baseOp * (0.3 + 0.7*(math.Sin(gProg*math.Pi)))
-		} else {
-			coreOp = baseOp * (1.0 - gProg)
+			if active {
+				coreOp = baseOp * math.Sin(gProg*math.Pi)
+			} else {
+				coreOp = 0
+			}
+		} else if g.Playback == "once" {
+			if active {
+				coreOp = baseOp * gProg
+			} else {
+				coreOp = baseOp
+			}
+		} else { // "linear" or default loop
+			if active {
+				coreOp = baseOp * gProg
+			} else if g.HideOnDelay {
+				coreOp = 0
+			} else {
+				coreOp = baseOp
+			}
 		}
 
 		var rings []RadarRingUpdate
@@ -217,23 +242,55 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		if rDur <= 0 {
 			rDur = 2.0
 		}
-		rProg, active := EvaluateCycle(timeSec, r.Delay, rDur, r.EndDelay, "loop")
+		numRings := r.Rings
+		if numRings <= 0 {
+			numRings = 1
+		}
 		baseOp := r.Opacity
 		if baseOp <= 0 {
 			baseOp = 0.85
 		}
 
-		radius := r.InnerR + (r.OuterR-r.InnerR)*rProg
-		op := baseOp * (1.0 - rProg)
-		if !active {
-			op = 0
+		waves := make([]RippleWaveUpdate, 0, numRings)
+		var firstRadius, firstOpacity float64
+		anyVisible := false
+
+		for k := 0; k < numRings; k++ {
+			stagger := (rDur / float64(numRings)) * float64(k)
+			rProg, active := EvaluateCycle(timeSec, r.Delay+stagger, rDur, r.EndDelay, "loop")
+			if active {
+				anyVisible = true
+				eased := SolveCubicBezier(0.1, 0.8, 0.3, 1.0, rProg)
+				waveR := r.InnerR + (r.OuterR-r.InnerR)*eased
+				waveOp := baseOp * (1.0 - eased)
+				wu := RippleWaveUpdate{
+					Radius:  math.Round(waveR*100) / 100,
+					Opacity: math.Round(waveOp*1000) / 1000,
+				}
+				waves = append(waves, wu)
+				if k == 0 {
+					firstRadius = wu.Radius
+					firstOpacity = wu.Opacity
+				}
+			} else {
+				wu := RippleWaveUpdate{
+					Radius:  r.InnerR,
+					Opacity: 0.0,
+				}
+				waves = append(waves, wu)
+				if k == 0 {
+					firstRadius = r.InnerR
+					firstOpacity = 0.0
+				}
+			}
 		}
 
 		res.Ripples = append(res.Ripples, RippleFrameUpdate{
 			ID:      string(r.ID),
-			Visible: active,
-			Radius:  math.Round(radius*100) / 100,
-			Opacity: math.Round(op*1000) / 1000,
+			Visible: anyVisible,
+			Radius:  firstRadius,
+			Opacity: firstOpacity,
+			Waves:   waves,
 		})
 	}
 

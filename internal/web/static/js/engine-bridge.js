@@ -514,6 +514,224 @@
       return null;
     },
 
+    // =========================================================================
+    // Glow Operations (Stage 5)
+    // =========================================================================
+
+    createGlow(initialProps = {}) {
+      if (this.isReady()) {
+        const payload = {
+          initial: {
+            id: initialProps.id != null ? String(initialProps.id) : '',
+            shape: String(initialProps.shape || 'circle'),
+            x: Number(initialProps.x != null ? initialProps.x : 50),
+            y: Number(initialProps.y != null ? initialProps.y : 50),
+            size: Number(initialProps.size != null ? initialProps.size : 25),
+            color: String(initialProps.color || '#ff0044'),
+            opacity: Number(initialProps.opacity != null ? initialProps.opacity : 1.0),
+            dur: Number(initialProps.dur != null ? initialProps.dur : 2.0),
+            delay: Number(initialProps.delay) || 0,
+            endDelay: Number(initialProps.endDelay) || 0,
+            playback: String(initialProps.playback || 'pingpong'),
+            isRadar: initialProps.shape === 'radar' || !!initialProps.isRadar,
+            radarRings: Number(initialProps.rings || initialProps.radarRings || 1),
+            rings: Number(initialProps.rings || initialProps.radarRings || 1),
+            radarStagger: Number(initialProps.radarStagger != null ? initialProps.radarStagger : 0.25),
+            scale: Number(initialProps.scale != null ? initialProps.scale : 1.0),
+            blur: Number(initialProps.blur != null ? initialProps.blur : 50),
+            thick: Number(initialProps.thick != null ? initialProps.thick : 2),
+            coreR: Number(initialProps.coreR != null ? initialProps.coreR : 5),
+            hideOnDelay: initialProps.hideOnDelay !== false,
+            customB64: String(initialProps.customB64 || ''),
+            customMime: String(initialProps.customMime || ''),
+            customW: Number(initialProps.customW) || 0,
+            customH: Number(initialProps.customH) || 0
+          }
+        };
+        const res = this.dispatch('Glow.Create', payload);
+        if (res && res.glow) return res.glow;
+      }
+      return null;
+    },
+
+    updateGlow(id, patch = {}) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const patchObj = Object.assign({}, patch);
+        delete patchObj.id;
+        const res = this.dispatch('Glow.Update', {
+          id: String(id),
+          patch: patchObj
+        });
+        if (res && res.glow) return res.glow;
+      }
+      return null;
+    },
+
+    deleteGlow(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Glow.Delete', { id: String(id) });
+        if (res && res.deleted !== undefined) return !!res.deleted;
+      }
+      return false;
+    },
+
+    getGlow(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Glow.Get', { id: String(id) });
+        if (res && res.id) return res;
+      }
+      return null;
+    },
+
+    getAllGlows() {
+      if (this.isReady()) {
+        const res = this.dispatch('Glow.GetAll', {});
+        if (Array.isArray(res)) return res;
+      }
+      return null;
+    },
+
+    findGlowAt(xPct, yPct, canvasW = 1280, canvasH = 720) {
+      if (this.isReady()) {
+        const res = this.dispatch('Glow.FindAt', {
+          xPct: Number(xPct) || 0,
+          yPct: Number(yPct) || 0,
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res !== undefined) return res;
+      }
+      return null;
+    },
+
+    getGlowBounds(id, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Glow.GetBounds', {
+          id: String(id),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.bounds) return res;
+      }
+      return null;
+    },
+
+    describeGlow(id, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Glow.Describe', {
+          id: String(id),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.id) return res;
+      }
+      return null;
+    },
+
+    // =========================================================================
+    // Ripple Operations (Stage 6)
+    // =========================================================================
+
+    createRipple(initialProps = {}) {
+      if (this.isReady()) {
+        const payload = {
+          initial: {
+            id: initialProps.id != null ? String(initialProps.id) : '',
+            color: String(initialProps.color || '#ffffff'),
+            opacity: Number(initialProps.opacity != null ? initialProps.opacity : 0.4),
+            innerR: Number(initialProps.innerR) || 0,
+            outerR: Number(initialProps.outerR != null ? initialProps.outerR : 150),
+            rings: Number(initialProps.rings || initialProps.waveCount || 3),
+            waveCount: Number(initialProps.rings || initialProps.waveCount || 3),
+            thick: Number(initialProps.thick != null ? initialProps.thick : 8),
+            refraction: Number(initialProps.refraction != null ? initialProps.refraction : 35),
+            dur: Number(initialProps.dur != null ? initialProps.dur : 3.0),
+            delay: Number(initialProps.delay) || 0,
+            endDelay: Number(initialProps.endDelay) || 0,
+            x: Number(initialProps.x != null ? initialProps.x : 50),
+            y: Number(initialProps.y != null ? initialProps.y : 50)
+          }
+        };
+        const res = this.dispatch('Ripple.Create', payload);
+        if (res && res.ripple) return res.ripple;
+      }
+      return null;
+    },
+
+    updateRipple(id, patch = {}) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const patchObj = Object.assign({}, patch);
+        delete patchObj.id;
+        const res = this.dispatch('Ripple.Update', {
+          id: String(id),
+          patch: patchObj
+        });
+        if (res && res.ripple) return res.ripple;
+      }
+      return null;
+    },
+
+    deleteRipple(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Ripple.Delete', { id: String(id) });
+        if (res && res.deleted !== undefined) return !!res.deleted;
+      }
+      return false;
+    },
+
+    getRipple(id) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Ripple.Get', { id: String(id) });
+        if (res && res.id) return res;
+      }
+      return null;
+    },
+
+    getAllRipples() {
+      if (this.isReady()) {
+        const res = this.dispatch('Ripple.GetAll', {});
+        if (Array.isArray(res)) return res;
+      }
+      return null;
+    },
+
+    findRippleAt(xPct, yPct, canvasW = 1280, canvasH = 720) {
+      if (this.isReady()) {
+        const res = this.dispatch('Ripple.FindAt', {
+          xPct: Number(xPct) || 0,
+          yPct: Number(yPct) || 0,
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res !== undefined) return res;
+      }
+      return null;
+    },
+
+    getRippleBounds(id, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Ripple.GetBounds', {
+          id: String(id),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.bounds) return res;
+      }
+      return null;
+    },
+
+    describeRipple(id, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Ripple.Describe', {
+          id: String(id),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.id) return res;
+      }
+      return null;
+    },
+
     getActiveEngineName() {
       if (!this.isReady()) return 'JS fallback';
       if (this._lastSyncError) return 'Sync Failed (JS fallback)';
@@ -630,7 +848,16 @@
         isRadar: (g.shape === 'radar') || !!g.isRadar,
         radarRings: Number(g.rings || g.radarRings || 1),
         rings: Number(g.rings || g.radarRings || 1),
-        radarStagger: Number(g.radarStagger != null ? g.radarStagger : 0.25)
+        radarStagger: Number(g.radarStagger != null ? g.radarStagger : 0.25),
+        scale: Number(g.scale != null ? g.scale : 1.0),
+        blur: Number(g.blur != null ? g.blur : 50),
+        thick: Number(g.thick != null ? g.thick : 2),
+        coreR: Number(g.coreR != null ? g.coreR : 5),
+        hideOnDelay: g.hideOnDelay !== false,
+        customB64: String(g.customB64 || ''),
+        customMime: String(g.customMime || ''),
+        customW: Number(g.customW) || 0,
+        customH: Number(g.customH) || 0
       })) : [];
 
       const ripples = Array.isArray(raw.ripples) ? raw.ripples.map((r) => ({
@@ -644,6 +871,8 @@
         endDelay: Number(r.endDelay) || 0,
         waveCount: Number(r.rings || r.waveCount || 3),
         rings: Number(r.rings || r.waveCount || 3),
+        thick: Number(r.thick != null ? r.thick : 8),
+        refraction: Number(r.refraction != null ? r.refraction : 35),
         x: Number(r.x) || 0,
         y: Number(r.y) || 0
       })) : [];

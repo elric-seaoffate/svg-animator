@@ -54,6 +54,10 @@ func EvaluateCycle(timeSec, startDelay, dur, endDelay float64, playbackMode stri
 		return 0, false
 	}
 
+	if playbackMode == "static" {
+		return 1.0, true
+	}
+
 	if playbackMode == "once" {
 		if localTime >= dur {
 			return 1.0, false
