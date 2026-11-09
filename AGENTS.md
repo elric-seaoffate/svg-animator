@@ -199,6 +199,13 @@ Operational modules must not depend on the presentation layer.
 
 **Go is the authoritative application engine. JavaScript is a browser adapter and SVG presenter.**
 
+Core principles:
+1. **Go is the primary application and animation engine.**
+2. **WASM runs the Go engine inside the browser-based editor.**
+3. **JavaScript is a thin browser/DOM/SVG presentation adapter.**
+4. **The browser renders the SVG.**
+5. **Exported SVG files remain standalone and must not require WASM or the editor's JavaScript runtime.**
+
 All future features must follow this rule unless there is an explicitly documented browser-specific reason not to.
 
 #### Target ownership
