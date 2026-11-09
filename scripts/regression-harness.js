@@ -3605,18 +3605,21 @@ async function runHarness() {
   assert.strictEqual(window.TimelinePlayer._initialized, true, 'TimelinePlayer must be initialized');
 
   // Test 1: Play Scene advances isPlaying
-  window.TimelinePlayer.pause();
-  window.TimelinePlayer.currentTime = 0.0;
+  window.TimelinePlayer.stop();
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0);
   window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.status, 'playing');
   assert.strictEqual(window.TimelinePlayer.isPlaying, true, 'TimelinePlayer.play() must set isPlaying = true');
   const playBtn = document.getElementById('btnTimelinePlay');
   assert.strictEqual(playBtn.textContent, '⏸ Pause Scene');
 
   // Test 2: Auto-rewind when clicking Play at end of playback
   window.TimelinePlayer.currentTime = window.TimelinePlayer.duration; // At 7.0s
-  window.TimelinePlayer.pause();
-  assert.strictEqual(window.TimelinePlayer.isPlaying, false);
+  window.TimelinePlayer.status = 'ended';
+  window.TimelinePlayer.isPlaying = false;
   window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.status, 'playing');
   assert.strictEqual(window.TimelinePlayer.isPlaying, true, 'Calling play() at duration must start playback');
   assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'Calling play() at duration must auto-rewind to 0.0');
 
@@ -3624,15 +3627,19 @@ async function runHarness() {
   window.TimelinePlayer.currentTime = 6.95;
   window.TimelinePlayer.duration = 7.0;
   window.TimelinePlayer.loopMode = 'once';
+  window.TimelinePlayer.status = 'playing';
+  window.TimelinePlayer.isPlaying = true;
   window.TimelinePlayer._lastTimestamp = 1000;
   window.TimelinePlayer._loop(1100); // +0.1s -> 7.05s >= 7.0s
+  assert.strictEqual(window.TimelinePlayer.status, 'ended', 'Status must be ended when duration reached in once mode');
   assert.strictEqual(window.TimelinePlayer.isPlaying, false, 'Playback must pause when duration reached in once mode');
   assert.strictEqual(window.TimelinePlayer.currentTime, 7.0, 'Current time must clamp to duration');
 
-  // Test 4: Seek and Reset
+  // Test 4: Seek and Stop
   window.TimelinePlayer.seek(3.5);
   assert.strictEqual(window.TimelinePlayer.currentTime, 3.5);
-  window.TimelinePlayer.reset();
+  window.TimelinePlayer.stop();
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped');
   assert.strictEqual(window.TimelinePlayer.isPlaying, false);
   assert.strictEqual(window.TimelinePlayer.currentTime, 0.0);
 
@@ -3656,6 +3663,113 @@ async function runHarness() {
   });
   assert.strictEqual(mockCamRig.style.animation, 'none', 'Ken Burns motion must disable CSS animation');
   assert.strictEqual(mockCamRig.style.transform, 'scale(1.15) translate(-20px, 10px)', 'Camera transform must be applied to camRig');
+
+  // -------------------------------------------------------------------------
+  // PLAYBACK CONTROL OWNERSHIP & TIMELINE STATE MACHINE VERIFICATION
+  // -------------------------------------------------------------------------
+  console.log('[HARNESS] Testing Playback Control Ownership & Timeline State Machine...');
+
+  // Case A: Editing while stopped
+  window.TimelinePlayer.stop();
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0);
+
+  // Create node and edit properties
+  const editStopNode = window.DiagramNodes.createNode({ text: 'EditStop', x: 20, y: 20 });
+  window.DiagramNodes.selectNode(editStopNode.id);
+  window.DiagramNodes.updateActive('width', 220);
+  window.DiagramNodes.applyPresetToActive();
+  window.triggerAppRender();
+
+  // Playhead must remain at 0.0 and status must remain stopped
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped', 'Editing while stopped must keep status stopped');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false, 'Editing while stopped must not start playback');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'Editing while stopped must not move playhead');
+
+  // Case B: Editing while paused
+  window.TimelinePlayer.seek(2.5);
+  window.TimelinePlayer.status = 'paused';
+  window.TimelinePlayer.isPlaying = false;
+  assert.strictEqual(window.TimelinePlayer.currentTime, 2.5);
+
+  // Edit object while paused
+  window.DiagramNodes.updateActive('x', 35);
+  window.SceneState.setControl('cameraMotionSelect', 'handheld-drift');
+  window.SceneState.setControl('effectSelect', 'focus-pull');
+  window.triggerAppRender();
+
+  assert.strictEqual(window.TimelinePlayer.status, 'paused', 'Editing while paused must keep status paused');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false, 'Editing while paused must not start playback');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 2.5, 'Editing while paused must preserve playhead');
+
+  // Resume from paused
+  window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.status, 'playing', 'Play while paused must resume playing');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, true);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 2.5, 'Resume must start from paused playhead');
+
+  // Case C: Editing while playing
+  window.DiagramNodes.updateActive('y', 45);
+  window.triggerAppRender();
+  assert.strictEqual(window.TimelinePlayer.status, 'playing', 'Editing while playing must keep playing');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, true);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 2.5, 'Editing while playing must not reset playhead');
+
+  // Case D: End-of-scene behavior in once mode
+  window.TimelinePlayer.duration = 7.0;
+  window.TimelinePlayer.loopMode = 'once';
+  window.TimelinePlayer.currentTime = 6.95;
+  window.TimelinePlayer._lastTimestamp = 2000;
+  window.TimelinePlayer._loop(2100); // 6.95 + 0.1 -> 7.05 >= 7.0
+  assert.strictEqual(window.TimelinePlayer.status, 'ended', 'Terminal frame must transition to ended');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false, 'Playback must stop at end');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 7.0, 'Playhead must clamp to duration');
+
+  // Additional ticks while ended must NOT restart playback
+  window.TimelinePlayer._loop(2200);
+  assert.strictEqual(window.TimelinePlayer.status, 'ended');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 7.0);
+
+  // Play while ended: Rewind and start once
+  window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.status, 'playing', 'Play from ended must start playing');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, true);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'Play from ended must rewind to zero');
+
+  // Case E: Duration change preserves state and clamps if needed
+  window.TimelinePlayer.pause();
+  window.TimelinePlayer.seek(4.0);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 4.0);
+  assert.strictEqual(window.TimelinePlayer.status, 'paused');
+
+  // Increase duration
+  window.SceneState.setControl('durationSlider', 10.0);
+  window.TimelinePlayer.syncFromScene();
+  assert.strictEqual(window.TimelinePlayer.duration, 10.0);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 4.0, 'Increasing duration must preserve playhead');
+  assert.strictEqual(window.TimelinePlayer.status, 'paused', 'Increasing duration must preserve paused status');
+
+  // Decrease duration below current playhead
+  window.SceneState.setControl('durationSlider', 3.0);
+  window.TimelinePlayer.syncFromScene();
+  assert.strictEqual(window.TimelinePlayer.duration, 3.0);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 3.0, 'Decreasing duration must clamp playhead');
+  assert.strictEqual(window.TimelinePlayer.status, 'paused', 'Decreasing duration must preserve paused status');
+
+  // Case F: Project load stops playback without autoplay
+  window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.status, 'playing');
+  window.AppCoordinator.coordinatePostRestore({ source: 'project', projectId: 'proj-123' });
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped', 'Project restore must stop playback');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false, 'Project restore must not autoplay');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'Project restore must reset playhead to 0.0');
+
+  // Case G: Seek and scrub without autoplay
+  window.TimelinePlayer.seek(1.5);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 1.5);
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped', 'Seek while stopped must remain stopped');
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false);
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6 & 7 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics & Frame engines verified.');
 }

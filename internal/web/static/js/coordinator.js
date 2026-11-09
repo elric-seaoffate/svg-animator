@@ -243,6 +243,12 @@
         this.requestRender();
       }
 
+      if (options && (options.source === 'project' || options.source === 'new_project')) {
+        if (window.TimelinePlayer && typeof window.TimelinePlayer.stop === 'function') {
+          window.TimelinePlayer.stop();
+        }
+      }
+
       this.emit('state:restored', {
         source: options.source || 'restore',
         projectId: options.projectId !== undefined ? options.projectId : null

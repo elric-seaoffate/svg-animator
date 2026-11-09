@@ -1764,10 +1764,11 @@ window.FloatingPropertiesEditor = {
 };
 
 window.TimelinePlayer = {
-  isPlaying: false,
+  status: 'stopped', // 'stopped' | 'playing' | 'paused' | 'ended'
+  isPlaying: false,  // legacy boolean matching status === 'playing'
   currentTime: 0.0,
   duration: 7.0,
-  loopMode: 'once',
+  loopMode: 'once',  // 'once' | 'loop' | 'pingpong'
   _lastTimestamp: null,
   _rafId: null,
   _initialized: false,
@@ -1787,6 +1788,13 @@ window.TimelinePlayer = {
       this.duration = window.SceneState.getNumControl('durationSlider', 7.0) || 7.0;
       this.loopMode = window.SceneState.getControl('loopSelect', 'once') || 'once';
     }
+    if (this.currentTime > this.duration) {
+      this.currentTime = this.duration;
+      if (this.status === 'playing' && this.loopMode === 'once') {
+        this.pause();
+        this.status = 'ended';
+      }
+    }
     const scrubber = document.getElementById('timelineScrubber');
     if (scrubber) {
       scrubber.max = String(this.duration);
@@ -1794,22 +1802,70 @@ window.TimelinePlayer = {
     this.updateUI();
   },
 
+  // Called whenever the SVG document in #svgContainer is re-rendered (by user edits, presets, project load, etc.)
+  onSceneRedrawn() {
+    this.syncFromScene();
+    const container = document.getElementById('svgContainer');
+    if (!container) return;
+    const svg = container.querySelector('svg');
+
+    if (this.status === 'playing') {
+      if (svg) {
+        if (typeof svg.setCurrentTime === 'function') {
+          try { svg.setCurrentTime(this.currentTime); } catch (_) {}
+        }
+        if (typeof svg.unpauseAnimations === 'function') {
+          try { svg.unpauseAnimations(); } catch (_) {}
+        }
+      }
+      this.evaluateAndApply(this.currentTime);
+      this.updateUI();
+    } else {
+      // 'stopped', 'paused', or 'ended': Ensure newly inserted SVG does NOT autoplay!
+      if (svg) {
+        if (typeof svg.pauseAnimations === 'function') {
+          try { svg.pauseAnimations(); } catch (_) {}
+        }
+        if (typeof svg.setCurrentTime === 'function') {
+          try { svg.setCurrentTime(this.currentTime); } catch (_) {}
+        }
+      }
+      this.evaluateAndApply(this.currentTime);
+      this.updateUI();
+    }
+  },
+
   play() {
-    if (this.isPlaying) return;
-    if (this.currentTime >= this.duration) {
+    if (this.status === 'playing') return;
+    if (this.status === 'ended' || this.currentTime >= this.duration) {
       this.currentTime = 0.0;
     }
+    this.status = 'playing';
     this.isPlaying = true;
     this._lastTimestamp = null;
     this.updatePlayButton();
+
     const svg = document.querySelector('#svgContainer svg');
-    if (svg && typeof svg.unpauseAnimations === 'function') {
-      try { svg.unpauseAnimations(); } catch (_) {}
+    if (svg) {
+      if (typeof svg.setCurrentTime === 'function') {
+        try { svg.setCurrentTime(this.currentTime); } catch (_) {}
+      }
+      if (typeof svg.unpauseAnimations === 'function') {
+        try { svg.unpauseAnimations(); } catch (_) {}
+      }
+    }
+    if (this._rafId) {
+      if (typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this._rafId);
+      }
+      this._rafId = null;
     }
     this._loop();
   },
 
   pause() {
+    if (this.status !== 'playing' && !this.isPlaying) return;
+    this.status = 'paused';
     this.isPlaying = false;
     if (this._rafId) {
       if (typeof cancelAnimationFrame === 'function') {
@@ -1819,37 +1875,75 @@ window.TimelinePlayer = {
     }
     this._lastTimestamp = null;
     this.updatePlayButton();
+
     const svg = document.querySelector('#svgContainer svg');
     if (svg && typeof svg.pauseAnimations === 'function') {
       try { svg.pauseAnimations(); } catch (_) {}
     }
+    this.updateUI();
   },
 
-  toggle() {
-    if (this.isPlaying) this.pause();
-    else this.play();
+  stop() {
+    this.status = 'stopped';
+    this.isPlaying = false;
+    if (this._rafId) {
+      if (typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this._rafId);
+      }
+      this._rafId = null;
+    }
+    this._lastTimestamp = null;
+    this.currentTime = 0.0;
+    this.updatePlayButton();
+
+    const svg = document.querySelector('#svgContainer svg');
+    if (svg) {
+      if (typeof svg.pauseAnimations === 'function') {
+        try { svg.pauseAnimations(); } catch (_) {}
+      }
+      if (typeof svg.setCurrentTime === 'function') {
+        try { svg.setCurrentTime(0.0); } catch (_) {}
+      }
+    }
+    this.evaluateAndApply(0.0);
+    this.updateUI();
   },
 
   reset() {
-    this.pause();
+    this.stop();
+  },
+
+  restart() {
     this.seek(0.0);
-    const container = document.getElementById('svgContainer');
-    if (container) {
-      const camRig = container.querySelector('.camera-rig');
-      if (camRig) {
-        camRig.style.animation = '';
-      }
-    }
+    this.play();
+  },
+
+  toggle() {
+    if (this.status === 'playing') this.pause();
+    else this.play();
   },
 
   seek(timeSec) {
     this.currentTime = Math.max(0, Math.min(this.duration, Number(timeSec) || 0));
+    if (this.status === 'ended' && this.currentTime < this.duration) {
+      this.status = 'paused';
+      this.updatePlayButton();
+    }
+    const svg = document.querySelector('#svgContainer svg');
+    if (svg) {
+      if (typeof svg.setCurrentTime === 'function') {
+        try { svg.setCurrentTime(this.currentTime); } catch (_) {}
+      }
+      if (this.status !== 'playing' && typeof svg.pauseAnimations === 'function') {
+        try { svg.pauseAnimations(); } catch (_) {}
+      }
+    }
     this.evaluateAndApply(this.currentTime);
     this.updateUI();
   },
 
   _loop(timestamp) {
-    if (!this.isPlaying) return;
+    if (this.status !== 'playing') return;
     if (this._lastTimestamp !== null && timestamp) {
       const dt = (timestamp - this._lastTimestamp) / 1000.0;
       const cappedDt = Math.min(dt, 0.1);
@@ -1858,11 +1952,29 @@ window.TimelinePlayer = {
       if (this.currentTime >= this.duration) {
         if (this.loopMode === 'loop') {
           this.currentTime = this.currentTime % this.duration;
+          const svg = document.querySelector('#svgContainer svg');
+          if (svg && typeof svg.setCurrentTime === 'function') {
+            try { svg.setCurrentTime(this.currentTime); } catch (_) {}
+          }
         } else if (this.loopMode === 'pingpong') {
           // Handled mathematically in evaluator
         } else {
+          // 'once' mode: Stop at end, freeze presentation, do not loop
           this.currentTime = this.duration;
-          this.pause();
+          this.status = 'ended';
+          this.isPlaying = false;
+          if (this._rafId) {
+            if (typeof cancelAnimationFrame === 'function') {
+              cancelAnimationFrame(this._rafId);
+            }
+            this._rafId = null;
+          }
+          this._lastTimestamp = null;
+          this.updatePlayButton();
+          const svg = document.querySelector('#svgContainer svg');
+          if (svg && typeof svg.pauseAnimations === 'function') {
+            try { svg.pauseAnimations(); } catch (_) {}
+          }
           this.evaluateAndApply(this.currentTime);
           this.updateUI();
           return;
@@ -1873,7 +1985,7 @@ window.TimelinePlayer = {
     this.evaluateAndApply(this.currentTime);
     this.updateUI();
 
-    if (this.isPlaying && typeof requestAnimationFrame === 'function') {
+    if (this.status === 'playing' && typeof requestAnimationFrame === 'function') {
       this._rafId = requestAnimationFrame((ts) => this._loop(ts));
     }
   },
@@ -2037,7 +2149,13 @@ window.TimelinePlayer = {
   updatePlayButton() {
     const btn = document.getElementById('btnTimelinePlay');
     if (btn) {
-      btn.textContent = this.isPlaying ? '⏸ Pause Scene' : '▶ Play Scene';
+      if (this.status === 'playing') {
+        btn.textContent = '⏸ Pause Scene';
+      } else if (this.status === 'paused') {
+        btn.textContent = '▶ Resume Scene';
+      } else {
+        btn.textContent = '▶ Play Scene';
+      }
     }
   },
 
@@ -2048,7 +2166,7 @@ window.TimelinePlayer = {
     }
     const btnReset = document.getElementById('btnTimelineReset');
     if (btnReset) {
-      btnReset.addEventListener('click', () => this.reset());
+      btnReset.addEventListener('click', () => this.stop());
     }
     const scrubber = document.getElementById('timelineScrubber');
     if (scrubber) {
@@ -2697,7 +2815,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function') {
         window.EngineBridge.syncScene();
       }
-      if (window.TimelinePlayer && typeof window.TimelinePlayer.syncFromScene === 'function') {
+      if (window.TimelinePlayer && typeof window.TimelinePlayer.onSceneRedrawn === 'function') {
+        window.TimelinePlayer.onSceneRedrawn();
+      } else if (window.TimelinePlayer && typeof window.TimelinePlayer.syncFromScene === 'function') {
         window.TimelinePlayer.syncFromScene();
       }
     } catch (e) {
@@ -2711,12 +2831,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('btnReplay')?.addEventListener('click', () => {
-    const container = document.getElementById('svgContainer');
-    if (!container || !window.currentRenderState) return;
-    container.innerHTML = '';
-    setTimeout(() => {
-      container.innerHTML = window.buildFullSVG(window.currentRenderState);
-    }, 10);
+    if (window.TimelinePlayer && typeof window.TimelinePlayer.restart === 'function') {
+      window.TimelinePlayer.restart();
+    } else {
+      const container = document.getElementById('svgContainer');
+      if (!container || !window.currentRenderState) return;
+      container.innerHTML = '';
+      setTimeout(() => {
+        container.innerHTML = window.buildFullSVG(window.currentRenderState);
+      }, 10);
+    }
   });
 
   document.getElementById('btnDownloadSVG')?.addEventListener('click', () => {
