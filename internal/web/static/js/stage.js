@@ -170,10 +170,7 @@ window.Stage = {
       }, { passive: false });
 
       this.previewBox.addEventListener('pointerdown', (e) => {
-        if (e.target && e.target.closest && (
-          e.target.closest('#btnCanvasContextEdit') ||
-          e.target.closest('#floatingContextEditor')
-        )) {
+        if (e.target && e.target.closest && e.target.closest('#floatingContextEditor')) {
           return;
         }
 

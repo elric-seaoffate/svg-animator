@@ -2114,9 +2114,7 @@ async function runHarness() {
   assert.strictEqual(window.FloatingPropertiesEditor._initialized, true);
 
   const floatingEditorEl = document.getElementById('floatingContextEditor');
-  const contextBtnEl = document.getElementById('btnCanvasContextEdit');
   assert.ok(floatingEditorEl, '#floatingContextEditor must exist in DOM');
-  assert.ok(contextBtnEl, '#btnCanvasContextEdit must exist in DOM');
 
   // Verify FloatingPropertiesEditor lifecycle
   const fNode = window.DiagramNodes.createNode({ text: 'FloatingNodeTest', width: 220, height: 110, shape: 'rect' });
@@ -2208,22 +2206,12 @@ async function runHarness() {
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'close() must close editor');
   window.DiagramNodes.deleteNode(escNode.id);
 
-  // Context button click triggers openFor
-  const btnTestNode = window.DiagramNodes.createNode({ text: 'BtnTest' });
-  window.DiagramNodes.selectNode(btnTestNode.id);
-  contextBtnEl.click();
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Clicking btnCanvasContextEdit must open editor');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeId, btnTestNode.id);
-  window.FloatingPropertiesEditor.close();
-  window.DiagramNodes.deleteNode(btnTestNode.id);
-
   // ===========================================================================
-  // Phase 4 Critical Interaction Test: Pointer-Event Isolation & Coordinate Protection
+  // Phase 4 Right-Click Contextual Properties & Interaction Protection Tests
   // ===========================================================================
   const previewBoxEl = document.getElementById('previewBox');
   const stageOverlayLayerEl = document.getElementById('stageOverlayLayer');
   previewBoxEl.appendChild(stageOverlayLayerEl);
-  stageOverlayLayerEl.appendChild(contextBtnEl);
 
   // Initialize Stage interaction with the production callback
   window.Stage.init((placement, x, y) => {
@@ -2248,128 +2236,198 @@ async function runHarness() {
   // Re-bind FloatingPropertiesEditor controls & events with the full previewBox tree
   window.FloatingPropertiesEditor.init();
 
-  // Test 1: Node selection and pointer interaction with #btnCanvasContextEdit
-  const testNode = window.DiagramNodes.createNode({ text: 'NoMoveTest', x: 38.4, y: 52.6 });
-  window.AppCoordinator.selectObject('node', testNode.id);
+  // Test 1: Right-Click on Node opens Properties immediately at click coords,
+  // prevents default, stops propagation, preserves node coordinates, and does not pollute history
+  const testNode = window.DiagramNodes.createNode({ text: 'RightClickNodeTest', x: 38.4, y: 52.6 });
+  const nodeSvgEl = makeStubElement('g');
+  nodeSvgEl.setAttribute('data-node-id', String(testNode.id));
+  previewBoxEl.appendChild(nodeSvgEl);
+
   const origNodeX = window.DiagramNodes.getNode(testNode.id).x;
   const origNodeY = window.DiagramNodes.getNode(testNode.id).y;
   const historyLenBeforeNode = window.HistoryManager.undoStack.length;
 
-  // Dispatch full pointer sequence on #btnCanvasContextEdit (coords that would otherwise move the node)
-  const pdownEvt = {
-    type: 'pointerdown',
-    button: 0,
+  let preventDefaultCalled = false;
+  let stopPropagationCalled = false;
+  const nodeRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
     clientX: 250,
     clientY: 180,
-    pointerId: 1,
-    target: contextBtnEl
+    target: nodeSvgEl,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
   };
-  contextBtnEl.dispatchEvent(pdownEvt);
+  previewBoxEl.dispatchEvent(nodeRightClickEvt);
 
-  assert.strictEqual(window.Stage.isDragging, false, 'Stage must NOT start dragging when context button is pressed');
-  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).x, origNodeX, 'Node X must not change on pointerdown on context button');
-  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).y, origNodeY, 'Node Y must not change on pointerdown on context button');
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking node must call preventDefault() to suppress browser context menu');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking node must call stopPropagation()');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Floating editor must open immediately on right-clicking node');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'node', 'Active type must be node');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testNode.id, 'Active ID must match clicked node');
+  assert.strictEqual(window.Stage.isDragging, false, 'Right-clicking node must not initiate stage dragging');
+  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).x, origNodeX, 'Node X must not change on right-click');
+  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).y, origNodeY, 'Node Y must not change on right-click');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeNode, 'Right-click activation must not pollute history');
 
-  // Complete click sequence
-  contextBtnEl.dispatchEvent({ type: 'mousedown', button: 0, target: contextBtnEl });
-  contextBtnEl.dispatchEvent({ type: 'pointerup', button: 0, target: contextBtnEl });
-  contextBtnEl.dispatchEvent({ type: 'mouseup', button: 0, target: contextBtnEl });
-  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
-
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Floating editor must open on context button click');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'node');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testNode.id);
-  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).x, origNodeX, 'Node X must remain unchanged after opening context editor');
-  assert.strictEqual(window.DiagramNodes.getNode(testNode.id).y, origNodeY, 'Node Y must remain unchanged after opening context editor');
-  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeNode, 'Opening editor via button must not pollute undo stack');
-
-  // Test property edit in popup updates node
+  // Verify property edit in popup updates node
   const nodeTextInp = document.getElementById('fctx-nodeTextInput');
   if (nodeTextInp) {
-    nodeTextInp.value = 'UpdatedViaContextPopup';
+    nodeTextInp.value = 'UpdatedViaRightClickPopup';
     nodeTextInp.dispatchEvent({ type: 'input', target: nodeTextInp });
-    assert.strictEqual(window.DiagramNodes.getNode(testNode.id).text, 'UpdatedViaContextPopup', 'Node text must update from context popup');
+    assert.strictEqual(window.DiagramNodes.getNode(testNode.id).text, 'UpdatedViaRightClickPopup', 'Node text must update from popup');
   }
 
-  window.FloatingPropertiesEditor.close();
-  window.DiagramNodes.deleteNode(testNode.id);
+  // Test 2: Right-Click on Flow switches editor immediately to Flow
+  const testFlow = window.DataFlows.createFlow({ label: 'RightClickFlowTest' });
+  const flowPathEl = makeStubElement('path');
+  flowPathEl.id = 'flowPath-' + testFlow.id;
+  flowPathEl.classList.add('flow-track-path');
+  previewBoxEl.appendChild(flowPathEl);
 
-  // Test 2: Flow interaction protection
-  const testFlow = window.DataFlows.createFlow({ label: 'FlowProtectTest' });
-  window.AppCoordinator.selectObject('flow', testFlow.id);
   const flowBeforeSnap = JSON.stringify(window.DataFlows.getFlow(testFlow.id));
   const historyLenBeforeFlow = window.HistoryManager.undoStack.length;
+  preventDefaultCalled = false;
+  stopPropagationCalled = false;
 
-  contextBtnEl.dispatchEvent({ type: 'pointerdown', button: 0, clientX: 300, clientY: 200, target: contextBtnEl });
-  assert.strictEqual(window.Stage.isDragging, false, 'Flow must not start drag from context button');
-  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+  const flowRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 300,
+    clientY: 210,
+    target: flowPathEl,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(flowRightClickEvt);
 
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for flow');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'flow');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testFlow.id);
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking flow must call preventDefault()');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking flow must call stopPropagation()');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must remain open');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'flow', 'Editor must switch to flow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testFlow.id, 'Editor must target clicked flow');
   assert.strictEqual(JSON.stringify(window.DataFlows.getFlow(testFlow.id)), flowBeforeSnap, 'Flow data must remain untouched');
-  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeFlow, 'Flow context activation must not add history entries');
-  window.FloatingPropertiesEditor.close();
-  window.DataFlows.deleteFlow(testFlow.id);
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeFlow, 'Flow right-click must not pollute history');
 
-  // Test 3: Glow interaction protection
+  // Test 3: Right-Click on Glow reticle
   const testGlow = window.Glows.createGlow({ color: '#ff5533', size: 30 });
-  window.AppCoordinator.selectObject('glow', testGlow.id);
+  const glowTargetEl = document.getElementById('glowReticleTarget');
   const glowX = window.Glows.getGlow(testGlow.id).x;
   const glowY = window.Glows.getGlow(testGlow.id).y;
   const historyLenBeforeGlow = window.HistoryManager.undoStack.length;
+  preventDefaultCalled = false;
+  stopPropagationCalled = false;
 
-  contextBtnEl.dispatchEvent({ type: 'pointerdown', button: 0, clientX: 400, clientY: 300, target: contextBtnEl });
-  assert.strictEqual(window.Stage.isDragging, false, 'Glow must not start drag from context button');
-  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+  const glowRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 400,
+    clientY: 250,
+    target: glowTargetEl,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(glowRightClickEvt);
 
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking glow reticle must call preventDefault()');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking glow reticle must call stopPropagation()');
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for glow');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow', 'Editor must switch to glow');
   assert.strictEqual(window.FloatingPropertiesEditor.activeId, testGlow.id);
   assert.strictEqual(window.Glows.getGlow(testGlow.id).x, glowX, 'Glow X must remain unchanged');
   assert.strictEqual(window.Glows.getGlow(testGlow.id).y, glowY, 'Glow Y must remain unchanged');
-  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeGlow, 'Glow context activation must not add history entries');
-  window.FloatingPropertiesEditor.close();
-  window.Glows.deleteGlow(testGlow.id);
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeGlow, 'Glow right-click must not pollute history');
 
-  // Test 4: Ripple interaction protection
+  // Test 4: Right-Click on Ripple reticle
   const testRipple = window.Ripples.createRipple({ color: '#44aaff', refraction: 35 });
-  window.AppCoordinator.selectObject('ripple', testRipple.id);
+  const rippleTargetEl = document.getElementById('rippleReticleTarget');
   const rippleX = window.Ripples.getRipple(testRipple.id).x;
   const rippleY = window.Ripples.getRipple(testRipple.id).y;
   const historyLenBeforeRipple = window.HistoryManager.undoStack.length;
+  preventDefaultCalled = false;
+  stopPropagationCalled = false;
 
-  contextBtnEl.dispatchEvent({ type: 'pointerdown', button: 0, clientX: 450, clientY: 250, target: contextBtnEl });
-  assert.strictEqual(window.Stage.isDragging, false, 'Ripple must not start drag from context button');
-  contextBtnEl.dispatchEvent({ type: 'click', button: 0, target: contextBtnEl });
+  const rippleRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 450,
+    clientY: 280,
+    target: rippleTargetEl,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(rippleRightClickEvt);
 
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking ripple reticle must call preventDefault()');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking ripple reticle must call stopPropagation()');
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for ripple');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple', 'Editor must switch to ripple');
   assert.strictEqual(window.FloatingPropertiesEditor.activeId, testRipple.id);
   assert.strictEqual(window.Ripples.getRipple(testRipple.id).x, rippleX, 'Ripple X must remain unchanged');
   assert.strictEqual(window.Ripples.getRipple(testRipple.id).y, rippleY, 'Ripple Y must remain unchanged');
-  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeRipple, 'Ripple context activation must not add history entries');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeRipple, 'Ripple right-click must not pollute history');
+
   window.FloatingPropertiesEditor.close();
-  window.Ripples.deleteRipple(testRipple.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
 
-  // Test 5: Double-click activation on canvas object
-  const dblNode = window.DiagramNodes.createNode({ text: 'DblClickNode', x: 20, y: 20 });
-  const nodeSvgEl = makeStubElement('g');
-  nodeSvgEl.setAttribute('data-node-id', String(dblNode.id));
-  previewBoxEl.appendChild(nodeSvgEl);
+  // Test 5: Right-Click on blank / empty canvas space MUST NOT suppress native context menu
+  const blankCanvasEl = makeStubElement('div');
+  blankCanvasEl.id = 'svgBackgroundBlank';
+  previewBoxEl.appendChild(blankCanvasEl);
+  preventDefaultCalled = false;
+  stopPropagationCalled = false;
 
+  const blankRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 100,
+    clientY: 100,
+    target: blankCanvasEl,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(blankRightClickEvt);
+
+  assert.strictEqual(preventDefaultCalled, false, 'Right-clicking empty canvas must NOT call preventDefault() - preserves native browser context menu');
+  assert.strictEqual(stopPropagationCalled, false, 'Right-clicking empty canvas must NOT call stopPropagation()');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Right-clicking empty canvas must NOT open Properties editor');
+
+  // Test 6: Right-Click inside floating editor controls MUST NOT suppress native context menu
+  window.FloatingPropertiesEditor.openFor('node', testNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
+  preventDefaultCalled = false;
+  stopPropagationCalled = false;
+
+  const editorInpEl = document.getElementById('fctx-nodeTextInput') || floatingEditorEl;
+  const editorRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 200,
+    clientY: 200,
+    target: editorInpEl,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(editorRightClickEvt);
+
+  assert.strictEqual(preventDefaultCalled, false, 'Right-clicking inside floating editor must NOT call preventDefault() - preserves input text context menu');
+
+  // Test 7: Double-click activation on canvas object still works
+  window.FloatingPropertiesEditor.close();
   previewBoxEl.dispatchEvent({
     type: 'dblclick',
     target: nodeSvgEl
   });
-
   assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Double-click on node SVG element must open editor');
   assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'node');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeId, dblNode.id);
-  assert.strictEqual(window.DiagramNodes.getNode(dblNode.id).x, 20, 'Node X must not change on double-click');
-  assert.strictEqual(window.DiagramNodes.getNode(dblNode.id).y, 20, 'Node Y must not change on double-click');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testNode.id);
+
+  // Cleanup test objects
   window.FloatingPropertiesEditor.close();
-  window.DiagramNodes.deleteNode(dblNode.id);
+  window.DiagramNodes.deleteNode(testNode.id);
+  window.DataFlows.deleteFlow(testFlow.id);
+  window.Glows.deleteGlow(testGlow.id);
+  window.Ripples.deleteRipple(testRipple.id);
 
   // CSS structure and frozen layout verification
   const phase4CssSource = fs.readFileSync(STYLE_CSS_PATH, 'utf8');
@@ -2378,74 +2436,12 @@ async function runHarness() {
   assert.ok(phase4CssSource.includes('--drawer-width: 460px;'), 'CSS must preserve 460px expanded drawer at 1600px');
   assert.ok(phase4CssSource.includes('.floating-context-editor'), 'CSS must define .floating-context-editor');
   assert.ok(phase4CssSource.includes('width: 380px;'), 'CSS must specify 380px width for floating editor');
-  assert.ok(phase4CssSource.includes('.canvas-context-btn'), 'CSS must define .canvas-context-btn');
-  assert.ok(phase4CssSource.includes('width: 35px;'), 'CSS must specify 35px width for contextual gear');
-  assert.ok(phase4CssSource.includes('height: 35px;'), 'CSS must specify 35px height for contextual gear');
+  assert.ok(!phase4CssSource.includes('.canvas-context-btn'), 'CSS must completely remove .canvas-context-btn');
 
-  // Contextual Gear Geometry & Corner Anchor Verification
+  // HTML verification: contextual gear button removed
   const indexHtmlSource = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
-  assert.ok(indexHtmlSource.includes('title="Edit object properties"'), 'Button must have tooltip title="Edit object properties"');
-  assert.ok(indexHtmlSource.includes('aria-label="Edit object properties"'), 'Button must have aria-label="Edit object properties"');
-  assert.ok(!indexHtmlSource.includes('⚙️ Properties'), 'Button must NOT have visible "Properties" text');
-  assert.ok(indexHtmlSource.includes('>⚙️</button>'), 'Button must contain only icon');
-
-  // Verify positionCanvasContextButton geometry calculation
-  const geomNode = window.DiagramNodes.createNode({ text: 'GeomTest', x: 25, y: 30, width: 100, height: 60 });
-  window.AppCoordinator.selectObject('node', geomNode.id);
-
-  previewBoxEl.getBoundingClientRect = () => ({ left: 100, top: 50, right: 1380, bottom: 770, width: 1280, height: 720 });
-  stageOverlayLayerEl.getBoundingClientRect = () => previewBoxEl.getBoundingClientRect();
-  const origGetTarget = window.FloatingPropertiesEditor.getTargetScreenRect;
-
-  // Case A: Normal anchor — Object R = 400 (screen 500), T = 150 (screen 200), L = 300 (screen 400)
-  window.FloatingPropertiesEditor.getTargetScreenRect = () => ({
-    left: 400,
-    top: 200,
-    right: 500,
-    bottom: 260,
-    width: 100,
-    height: 60
-  });
-  window.FloatingPropertiesEditor.positionCanvasContextButton();
-  // Relative to previewBox (left: 100, top: 50):
-  // objRight = 500 - 100 = 400. objTop = 200 - 50 = 150.
-  // Gear left = objRight + 3px = 403px. Gear top = objTop = 150px.
-  assert.strictEqual(contextBtnEl.style.left, '403px', 'Gear left must equal objRight + 3px');
-  assert.strictEqual(contextBtnEl.style.top, '150px', 'Gear top must align with objTop');
-  assert.strictEqual(contextBtnEl.style.width, '35px', 'Gear width must be 35px');
-  assert.strictEqual(contextBtnEl.style.height, '35px', 'Gear height must be 35px');
-
-  // Case B: Insufficient room on right — Object near right edge
-  // previewBox width is 1280. Object right is 1260 (screen 1360). Object left is 1160 (screen 1260).
-  window.FloatingPropertiesEditor.getTargetScreenRect = () => ({
-    left: 1260,
-    top: 200,
-    right: 1360,
-    bottom: 260,
-    width: 100,
-    height: 60
-  });
-  window.FloatingPropertiesEditor.positionCanvasContextButton();
-  // objLeft = 1260 - 100 = 1160.
-  // Insufficient room on right (1260 + 3 + 35 > 1276).
-  // Placed immediately to left: objLeft - 35 - 3 = 1160 - 38 = 1122px.
-  assert.strictEqual(contextBtnEl.style.left, '1122px', 'Gear must flip to left edge with 3px gap when right edge overflows');
-  assert.strictEqual(contextBtnEl.style.top, '150px', 'Gear top must remain aligned with objTop');
-
-  // Case C: Top clamp if object is at top edge (e.g. screen top: 40, pRect.top: 50 -> objTop: -10)
-  window.FloatingPropertiesEditor.getTargetScreenRect = () => ({
-    left: 400,
-    top: 40,
-    right: 500,
-    bottom: 100,
-    width: 100,
-    height: 60
-  });
-  window.FloatingPropertiesEditor.positionCanvasContextButton();
-  assert.strictEqual(contextBtnEl.style.top, '4px', 'Gear top must be clamped to visible stage minimum');
-
-  window.FloatingPropertiesEditor.getTargetScreenRect = origGetTarget;
-  window.DiagramNodes.deleteNode(geomNode.id);
+  assert.ok(!indexHtmlSource.includes('btnCanvasContextEdit'), 'HTML must completely remove #btnCanvasContextEdit');
+  assert.ok(!indexHtmlSource.includes('canvas-context-btn'), 'HTML must completely remove .canvas-context-btn');
 
   // ===========================================================================
   // Node Resize Clipping & Drop Shadow Filter Protection Test
@@ -2501,19 +2497,6 @@ async function runHarness() {
       `SVG markup must include centered y="-${expectedHh}" for size ${h}`
     );
   }
-
-  // Test Right-Click (contextmenu) does NOT activate the gear
-  window.FloatingPropertiesEditor.close();
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
-  const cmenuEvt = { type: 'contextmenu', defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
-  contextBtnEl.dispatchEvent(cmenuEvt);
-  assert.strictEqual(cmenuEvt.defaultPrevented, true, 'Right click on gear must prevent default browser menu');
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Right click on gear must NOT open contextual editor');
-
-  // Test Left-Click opens editor
-  contextBtnEl.click();
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Left click on gear must open editor');
-  window.FloatingPropertiesEditor.close();
 
   // Test Undo/Redo of dimensions
   window.HistoryManager.recordImmediate();

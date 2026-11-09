@@ -695,6 +695,12 @@ window.FloatingPropertiesEditor = {
       this._customPos = null;
     }
 
+    if (options.clickCoords) {
+      this._clickCoords = options.clickCoords;
+    } else if (options.resetPosition) {
+      this._clickCoords = null;
+    }
+
     const iconEl = document.getElementById('floatingEditorIcon');
     const badgeEl = document.getElementById('floatingEditorBadge');
     if (badgeEl) {
@@ -721,8 +727,7 @@ window.FloatingPropertiesEditor = {
     editor.style.display = 'flex';
 
     this.syncFromActiveObject();
-    this.updatePosition();
-    this.positionCanvasContextButton();
+    this.updatePosition(options.resetPosition);
   },
 
   close() {
@@ -733,6 +738,7 @@ window.FloatingPropertiesEditor = {
     this.activeType = null;
     this.activeId = null;
     this._customPos = null;
+    this._clickCoords = null;
 
     const editor = document.getElementById('floatingContextEditor');
     if (editor) {
@@ -750,13 +756,9 @@ window.FloatingPropertiesEditor = {
 
   handleSelectionChanged(sel) {
     if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
-      const btn = document.getElementById('btnCanvasContextEdit');
-      if (btn) btn.style.display = 'none';
       if (this.isOpen) this.close();
       return;
     }
-
-    this.positionCanvasContextButton();
 
     if (this.isOpen) {
       this.openFor(sel.type, sel.id, { resetPosition: false });
@@ -767,7 +769,6 @@ window.FloatingPropertiesEditor = {
     if (this.isOpen) {
       this.syncFromActiveObject();
     }
-    this.positionCanvasContextButton();
   },
 
   getTargetScreenRect(type, id) {
@@ -817,77 +818,6 @@ window.FloatingPropertiesEditor = {
     return null;
   },
 
-  positionCanvasContextButton() {
-    const btn = document.getElementById('btnCanvasContextEdit');
-    if (!btn) return;
-
-    const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
-    if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
-      btn.style.display = 'none';
-      return;
-    }
-
-    const previewBox = document.getElementById('previewBox');
-    if (!previewBox) {
-      btn.style.display = 'none';
-      return;
-    }
-
-    const targetRect = this.getTargetScreenRect(sel.type, sel.id);
-    if (!targetRect) {
-      btn.style.display = 'none';
-      return;
-    }
-
-    const pRect = (typeof previewBox.getBoundingClientRect === 'function')
-      ? previewBox.getBoundingClientRect()
-      : { left: 0, top: 0, width: 1280, height: 720 };
-
-    const parentEl = btn.offsetParent || document.getElementById('stageOverlayLayer') || previewBox;
-    const parentRect = (typeof parentEl.getBoundingClientRect === 'function')
-      ? parentEl.getBoundingClientRect()
-      : pRect;
-
-    const gearW = 35;
-    const gearH = 35;
-    const gap = 3;
-
-    // Object visible bounding box edges relative to button offsetParent
-    const objRight = targetRect.right - parentRect.left;
-    const objLeft = targetRect.left - parentRect.left;
-    const objTop = targetRect.top - parentRect.top;
-
-    const stageW = parentRect.width || pRect.width || 1280;
-    const stageH = parentRect.height || pRect.height || 720;
-
-    // Anchor to top-right corner immediately outside right edge with 3px gap
-    let gearLeft = objRight + gap;
-    let gearTop = objTop;
-
-    // Edge handling: if insufficient room on right, place immediately to left with 3px gap
-    if (gearLeft + gearW > stageW - 4) {
-      gearLeft = objLeft - gearW - gap;
-    }
-
-    // Keep gear inside visible stage
-    if (gearLeft < 4) {
-      gearLeft = Math.max(4, Math.min(gearLeft, stageW - gearW - 4));
-    }
-
-    // Clamp vertical space if needed without making it inaccessible
-    if (gearTop < 4) {
-      gearTop = 4;
-    } else if (gearTop + gearH > stageH - 4) {
-      gearTop = Math.max(4, stageH - gearH - 4);
-    }
-
-    btn.style.width = gearW + 'px';
-    btn.style.height = gearH + 'px';
-    btn.style.left = Math.round(gearLeft) + 'px';
-    btn.style.top = Math.round(gearTop) + 'px';
-    btn.style.display = 'flex';
-  },
-
   updatePosition(forceReset = false) {
     const editor = document.getElementById('floatingContextEditor');
     if (!editor || !this.isOpen) return;
@@ -916,18 +846,19 @@ window.FloatingPropertiesEditor = {
       let top = Math.max(stageRect.top + 8, Math.min(stageRect.bottom - editorH - 8, this._customPos.top));
       editor.style.left = `${Math.round(left)}px`;
       editor.style.top = `${Math.round(top)}px`;
+      editor.style.right = 'auto';
+      editor.style.bottom = 'auto';
       return;
     }
 
-    const targetRect = this.getTargetScreenRect(this.activeType, this.activeId);
     let left, top;
 
-    if (targetRect) {
-      left = targetRect.right + 14;
-      top = targetRect.top;
+    if (this._clickCoords && typeof this._clickCoords.clientX === 'number') {
+      left = this._clickCoords.clientX + 14;
+      top = this._clickCoords.clientY + 10;
 
       if (left + editorW > stageRect.right - 10) {
-        const leftCandidate = targetRect.left - editorW - 14;
+        const leftCandidate = this._clickCoords.clientX - editorW - 14;
         if (leftCandidate >= stageRect.left + 10) {
           left = leftCandidate;
         } else {
@@ -942,8 +873,30 @@ window.FloatingPropertiesEditor = {
         top = stageRect.top + 10;
       }
     } else {
-      left = Math.max(stageRect.left + 16, stageRect.right - editorW - 24);
-      top = stageRect.top + 24;
+      const targetRect = this.getTargetScreenRect(this.activeType, this.activeId);
+      if (targetRect) {
+        left = targetRect.right + 14;
+        top = targetRect.top;
+
+        if (left + editorW > stageRect.right - 10) {
+          const leftCandidate = targetRect.left - editorW - 14;
+          if (leftCandidate >= stageRect.left + 10) {
+            left = leftCandidate;
+          } else {
+            left = stageRect.right - editorW - 16;
+          }
+        }
+
+        if (top + editorH > stageRect.bottom - 10) {
+          top = Math.max(stageRect.top + 10, stageRect.bottom - editorH - 10);
+        }
+        if (top < stageRect.top + 10) {
+          top = stageRect.top + 10;
+        }
+      } else {
+        left = Math.max(stageRect.left + 16, stageRect.right - editorW - 24);
+        top = stageRect.top + 24;
+      }
     }
 
     left = Math.max(stageRect.left + 8, Math.min(stageRect.right - editorW - 8, left));
@@ -951,6 +904,8 @@ window.FloatingPropertiesEditor = {
 
     editor.style.left = `${Math.round(left)}px`;
     editor.style.top = `${Math.round(top)}px`;
+    editor.style.right = 'auto';
+    editor.style.bottom = 'auto';
   },
 
   syncFromActiveObject() {
@@ -1164,59 +1119,6 @@ window.FloatingPropertiesEditor = {
       closeBtn.addEventListener('click', (e) => {
         if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         this.close();
-      });
-    }
-
-    const contextBtn = document.getElementById('btnCanvasContextEdit');
-    if (contextBtn) {
-      const handleOpen = (e) => {
-        if (e) {
-          if (typeof e.stopPropagation === 'function') e.stopPropagation();
-          if (typeof e.preventDefault === 'function') e.preventDefault();
-        }
-        let type = null;
-        let id = null;
-        if (window.AppCoordinator && typeof window.AppCoordinator.getActiveSelection === 'function') {
-          const sel = window.AppCoordinator.getActiveSelection();
-          if (sel && sel.type && sel.id !== null) {
-            type = sel.type;
-            id = sel.id;
-          }
-        }
-        if (!type || id === null) {
-          if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
-            type = 'node';
-            id = window.DiagramNodes.activeId;
-          } else if (window.DataFlows && window.DataFlows.activeId !== null) {
-            type = 'flow';
-            id = window.DataFlows.activeId;
-          } else if (window.Glows && window.Glows.activeId !== null) {
-            type = 'glow';
-            id = window.Glows.activeId;
-          } else if (window.Ripples && window.Ripples.activeId !== null) {
-            type = 'ripple';
-            id = window.Ripples.activeId;
-          }
-        }
-        if (type && id !== null) {
-          this.openFor(type, id);
-        }
-      };
-
-      const stopPropagationOnly = (e) => {
-        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
-      };
-
-      contextBtn.addEventListener('pointerdown', stopPropagationOnly);
-      contextBtn.addEventListener('mousedown', stopPropagationOnly);
-      contextBtn.addEventListener('click', handleOpen);
-      contextBtn.addEventListener('contextmenu', (e) => {
-        if (e && typeof e.preventDefault === 'function') e.preventDefault();
-      });
-      contextBtn.addEventListener('keydown', (e) => {
-        if (e && (e.key === 'Enter' || e.key === ' ')) {
-          handleOpen(e);
-        }
       });
     }
 
@@ -1644,6 +1546,58 @@ window.FloatingPropertiesEditor = {
     }
   },
 
+  _resolveTargetObject(target) {
+    if (!target || !target.closest) return null;
+
+    // 1. Nodes: SVG node group or child elements, or active node selection box
+    const nodeEl = target.closest('[data-node-id]');
+    if (nodeEl && nodeEl.getAttribute) {
+      const id = parseInt(nodeEl.getAttribute('data-node-id'), 10);
+      if (!isNaN(id)) return { type: 'node', id };
+    }
+    if (target.closest('#nodeSelectionBox') && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+      return { type: 'node', id: window.DiagramNodes.activeId };
+    }
+
+    // 2. Flows: connector path, flow badge, or flow reticles
+    const flowReticle = target.closest('[data-flow-node-idx]');
+    const flowPath = target.closest('.flow-track-path') || (target.id && target.id.startsWith('flowPath-') ? target : null) || (target.closest && target.closest('[id^="flowPath-"]'));
+    if (flowReticle || flowPath) {
+      let flowId = null;
+      if (flowPath && flowPath.id) {
+        const m = flowPath.id.match(/flowPath-(\d+)/);
+        if (m) flowId = parseInt(m[1], 10);
+      }
+      if (flowId === null && window.DataFlows && window.DataFlows.activeId !== null) {
+        flowId = window.DataFlows.activeId;
+      }
+      if (flowId === null && window.DataFlows && window.DataFlows.list && window.DataFlows.list.length > 0) {
+        flowId = window.DataFlows.list[0].id;
+      }
+      if (flowId !== null && !isNaN(flowId)) return { type: 'flow', id: flowId };
+    }
+
+    // 3. Glows: glow reticle or glow layer element
+    const glowTarget = target.closest('#glowReticleTarget') || (target.id && target.id.startsWith('glow-') ? target : null) || (target.closest && target.closest('[id^="glow-"]'));
+    if (glowTarget) {
+      const glowId = window.Glows && window.Glows.activeId !== null
+        ? window.Glows.activeId
+        : (window.Glows && window.Glows.list && window.Glows.list.length > 0 ? window.Glows.list[0].id : null);
+      if (glowId !== null) return { type: 'glow', id: glowId };
+    }
+
+    // 4. Ripples: ripple reticle or ripple layer element
+    const rippleTarget = target.closest('#rippleReticleTarget') || (target.id && target.id.startsWith('ripple-') ? target : null) || (target.closest && target.closest('[id^="ripple-"]'));
+    if (rippleTarget) {
+      const rippleId = window.Ripples && window.Ripples.activeId !== null
+        ? window.Ripples.activeId
+        : (window.Ripples && window.Ripples.list && window.Ripples.list.length > 0 ? window.Ripples.list[0].id : null);
+      if (rippleId !== null) return { type: 'ripple', id: rippleId };
+    }
+
+    return null;
+  },
+
   _bindEvents() {
     const editor = document.getElementById('floatingContextEditor');
     if (editor) {
@@ -1672,50 +1626,45 @@ window.FloatingPropertiesEditor = {
 
     const previewBox = document.getElementById('previewBox');
     if (previewBox) {
-      previewBox.addEventListener('dblclick', (e) => {
-        if (e.target && e.target.closest && (e.target.closest('#floatingContextEditor') || e.target.closest('#btnCanvasContextEdit'))) return;
-
-        const nodeEl = (e.target && e.target.closest) ? e.target.closest('[data-node-id]') : null;
-        if (nodeEl && nodeEl.getAttribute) {
-          const id = parseInt(nodeEl.getAttribute('data-node-id'), 10);
-          if (!isNaN(id)) {
-            if (window.AppCoordinator) {
-              window.AppCoordinator.selectObject('node', id, { openAccordionId: 'acc-nodes' });
-            }
-            this.openFor('node', id);
-            return;
-          }
-        }
-
-        const flowReticle = (e.target && e.target.closest) ? e.target.closest('[data-flow-node-idx]') : null;
-        const flowPath = (e.target && e.target.closest) ? e.target.closest('.flow-track-path, [id^="flowPath-"]') : null;
-        if (flowReticle || flowPath) {
-          let flowId = (window.DataFlows && window.DataFlows.activeId !== null) ? window.DataFlows.activeId : null;
-          if (flowId === null && flowPath && flowPath.id) {
-            const m = flowPath.id.match(/flowPath-(\d+)/);
-            if (m) flowId = parseInt(m[1], 10);
-          }
-          if (flowId === null && window.DataFlows && window.DataFlows.list && window.DataFlows.list.length > 0) {
-            flowId = window.DataFlows.list[0].id;
-          }
-          if (flowId !== null) {
-            if (window.AppCoordinator) {
-              window.AppCoordinator.selectObject('flow', flowId, { openAccordionId: 'acc-flows' });
-            }
-            this.openFor('flow', flowId);
-            return;
-          }
-        }
-
-        const glowTarget = (e.target && e.target.closest) ? e.target.closest('#glowReticleTarget') : null;
-        if (glowTarget && window.Glows && window.Glows.activeId !== null) {
-          this.openFor('glow', window.Glows.activeId);
+      // Right-click: Open contextual properties for recognized editable objects
+      previewBox.addEventListener('contextmenu', (e) => {
+        // Allow native context menu inside floating editor (e.g. form inputs)
+        if (e.target && e.target.closest && e.target.closest('#floatingContextEditor')) {
           return;
         }
 
-        const rippleTarget = (e.target && e.target.closest) ? e.target.closest('#rippleReticleTarget') : null;
-        if (rippleTarget && window.Ripples && window.Ripples.activeId !== null) {
-          this.openFor('ripple', window.Ripples.activeId);
+        const obj = this._resolveTargetObject(e.target);
+        if (obj) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
+          if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+            window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });
+          }
+
+          this.openFor(obj.type, obj.id, {
+            resetPosition: true,
+            clickCoords: { clientX: e.clientX, clientY: e.clientY }
+          });
+        }
+        // If not recognized as editable object, do NOT preventDefault - allow native browser context menu
+      });
+
+      // Double-click: Open contextual properties for recognized editable objects
+      previewBox.addEventListener('dblclick', (e) => {
+        if (e.target && e.target.closest && e.target.closest('#floatingContextEditor')) return;
+
+        const obj = this._resolveTargetObject(e.target);
+        if (obj) {
+          const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
+          if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+            window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });
+          }
+          this.openFor(obj.type, obj.id, {
+            resetPosition: false,
+            clickCoords: { clientX: e.clientX, clientY: e.clientY }
+          });
           return;
         }
 
@@ -1727,16 +1676,12 @@ window.FloatingPropertiesEditor = {
         }
       });
 
+      // Blank canvas click closes editor
       previewBox.addEventListener('pointerdown', (e) => {
         if (e.button !== undefined && e.button !== 0) return;
         const isInteractive = e.target && e.target.closest && (
-          e.target.closest('[data-node-id]') ||
-          e.target.closest('[data-flow-node-idx]') ||
-          e.target.closest('.flow-track-path') ||
-          e.target.closest('#glowReticleTarget') ||
-          e.target.closest('#rippleReticleTarget') ||
+          this._resolveTargetObject(e.target) ||
           e.target.closest('#floatingContextEditor') ||
-          e.target.closest('#btnCanvasContextEdit') ||
           e.target.closest('.reticle')
         );
         if (!isInteractive && this.isOpen) {
@@ -1748,7 +1693,6 @@ window.FloatingPropertiesEditor = {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', () => {
         if (this.isOpen) this.updatePosition();
-        this.positionCanvasContextButton();
       });
     }
   }
