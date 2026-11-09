@@ -1805,34 +1805,8 @@ window.TimelinePlayer = {
   // Called whenever the SVG document in #svgContainer is re-rendered (by user edits, presets, project load, etc.)
   onSceneRedrawn() {
     this.syncFromScene();
-    const container = document.getElementById('svgContainer');
-    if (!container) return;
-    const svg = container.querySelector('svg');
-
-    if (this.status === 'playing') {
-      if (svg) {
-        if (typeof svg.setCurrentTime === 'function') {
-          try { svg.setCurrentTime(this.currentTime); } catch (_) {}
-        }
-        if (typeof svg.unpauseAnimations === 'function') {
-          try { svg.unpauseAnimations(); } catch (_) {}
-        }
-      }
-      this.evaluateAndApply(this.currentTime);
-      this.updateUI();
-    } else {
-      // 'stopped', 'paused', or 'ended': Ensure newly inserted SVG does NOT autoplay!
-      if (svg) {
-        if (typeof svg.pauseAnimations === 'function') {
-          try { svg.pauseAnimations(); } catch (_) {}
-        }
-        if (typeof svg.setCurrentTime === 'function') {
-          try { svg.setCurrentTime(this.currentTime); } catch (_) {}
-        }
-      }
-      this.evaluateAndApply(this.currentTime);
-      this.updateUI();
-    }
+    this.evaluateAndApply(this.currentTime);
+    this.updateUI();
   },
 
   play() {
@@ -1845,15 +1819,6 @@ window.TimelinePlayer = {
     this._lastTimestamp = null;
     this.updatePlayButton();
 
-    const svg = document.querySelector('#svgContainer svg');
-    if (svg) {
-      if (typeof svg.setCurrentTime === 'function') {
-        try { svg.setCurrentTime(this.currentTime); } catch (_) {}
-      }
-      if (typeof svg.unpauseAnimations === 'function') {
-        try { svg.unpauseAnimations(); } catch (_) {}
-      }
-    }
     if (this._rafId) {
       if (typeof cancelAnimationFrame === 'function') {
         cancelAnimationFrame(this._rafId);
@@ -1875,11 +1840,6 @@ window.TimelinePlayer = {
     }
     this._lastTimestamp = null;
     this.updatePlayButton();
-
-    const svg = document.querySelector('#svgContainer svg');
-    if (svg && typeof svg.pauseAnimations === 'function') {
-      try { svg.pauseAnimations(); } catch (_) {}
-    }
     this.updateUI();
   },
 
@@ -1895,16 +1855,6 @@ window.TimelinePlayer = {
     this._lastTimestamp = null;
     this.currentTime = 0.0;
     this.updatePlayButton();
-
-    const svg = document.querySelector('#svgContainer svg');
-    if (svg) {
-      if (typeof svg.pauseAnimations === 'function') {
-        try { svg.pauseAnimations(); } catch (_) {}
-      }
-      if (typeof svg.setCurrentTime === 'function') {
-        try { svg.setCurrentTime(0.0); } catch (_) {}
-      }
-    }
     this.evaluateAndApply(0.0);
     this.updateUI();
   },
@@ -1929,15 +1879,6 @@ window.TimelinePlayer = {
       this.status = 'paused';
       this.updatePlayButton();
     }
-    const svg = document.querySelector('#svgContainer svg');
-    if (svg) {
-      if (typeof svg.setCurrentTime === 'function') {
-        try { svg.setCurrentTime(this.currentTime); } catch (_) {}
-      }
-      if (this.status !== 'playing' && typeof svg.pauseAnimations === 'function') {
-        try { svg.pauseAnimations(); } catch (_) {}
-      }
-    }
     this.evaluateAndApply(this.currentTime);
     this.updateUI();
   },
@@ -1952,10 +1893,6 @@ window.TimelinePlayer = {
       if (this.currentTime >= this.duration) {
         if (this.loopMode === 'loop') {
           this.currentTime = this.currentTime % this.duration;
-          const svg = document.querySelector('#svgContainer svg');
-          if (svg && typeof svg.setCurrentTime === 'function') {
-            try { svg.setCurrentTime(this.currentTime); } catch (_) {}
-          }
         } else if (this.loopMode === 'pingpong') {
           // Handled mathematically in evaluator
         } else {
@@ -1971,10 +1908,6 @@ window.TimelinePlayer = {
           }
           this._lastTimestamp = null;
           this.updatePlayButton();
-          const svg = document.querySelector('#svgContainer svg');
-          if (svg && typeof svg.pauseAnimations === 'function') {
-            try { svg.pauseAnimations(); } catch (_) {}
-          }
           this.evaluateAndApply(this.currentTime);
           this.updateUI();
           return;
@@ -1991,21 +1924,6 @@ window.TimelinePlayer = {
   },
 
   evaluateAndApply(timeSec) {
-    const svg = document.querySelector('#svgContainer svg');
-    if (svg) {
-      if (typeof svg.setCurrentTime === 'function') {
-        try { svg.setCurrentTime(timeSec); } catch (_) {}
-      }
-      if (typeof svg.getAnimations === 'function') {
-        try {
-          const anims = svg.getAnimations({ subtree: true });
-          anims.forEach((anim) => {
-            anim.currentTime = timeSec * 1000;
-          });
-        } catch (_) {}
-      }
-    }
-
     if (!window.EngineBridge || typeof window.EngineBridge.evaluateSceneAtTime !== 'function') return;
     const frame = window.EngineBridge.evaluateSceneAtTime(timeSec);
     if (!frame) return;
@@ -2017,65 +1935,7 @@ window.TimelinePlayer = {
     const container = document.getElementById('svgContainer');
     if (!container || !frame) return;
 
-    // 1. Flows (Primary migrated pipeline)
-    if (Array.isArray(frame.flows)) {
-      frame.flows.forEach((fl) => {
-        const payload = container.querySelector('.flow-payload-group[data-flow-id="' + fl.id + '"]');
-        if (payload) {
-          payload.setAttribute('transform', 'translate(' + fl.x.toFixed(2) + ', ' + fl.y.toFixed(2) + ') rotate(' + fl.rotation.toFixed(2) + ')');
-          payload.setAttribute('opacity', fl.opacity.toFixed(3));
-          payload.style.display = fl.visible ? '' : 'none';
-        }
-        const track = container.querySelector('.flow-track-path[data-flow-id="' + fl.id + '"]');
-        if (track && fl.dashOffset !== undefined) {
-          track.setAttribute('stroke-dashoffset', fl.dashOffset.toFixed(2));
-        }
-      });
-    }
-
-    // 2. Glows
-    if (Array.isArray(frame.glows)) {
-      frame.glows.forEach((gl) => {
-        const inst = container.querySelector('.diagram-glow-instance[data-glow-id="' + gl.id + '"]');
-        if (inst) {
-          const core = inst.querySelector('.glow-core') || inst.querySelector('circle:not(.glow-hit-target), rect:not(.glow-hit-target)');
-          if (core) {
-            core.setAttribute('opacity', gl.coreOpacity.toFixed(3));
-          }
-          if (Array.isArray(gl.radarRings) && gl.radarRings.length > 0) {
-            const rings = inst.querySelectorAll('circle:not(.glow-hit-target)');
-            gl.radarRings.forEach((rg, idx) => {
-              if (rings[idx + 1]) { // +1 skipping base/core circle
-                const r = rg.Radius !== undefined ? rg.Radius : (rg.radius !== undefined ? rg.radius : 0);
-                const op = rg.Opacity !== undefined ? rg.Opacity : (rg.opacity !== undefined ? rg.opacity : 0);
-                rings[idx + 1].setAttribute('r', r.toFixed(2));
-                rings[idx + 1].setAttribute('opacity', op.toFixed(3));
-              }
-            });
-          }
-        }
-      });
-    }
-
-    // 3. Ripples
-    if (Array.isArray(frame.ripples)) {
-      frame.ripples.forEach((rp) => {
-        const inst = container.querySelector('.diagram-ripple-instance[data-ripple-id="' + rp.id + '"]');
-        if (inst && Array.isArray(rp.waves)) {
-          const waveCircles = inst.querySelectorAll('circle:not(.ripple-hit-target)');
-          rp.waves.forEach((wv, idx) => {
-            if (waveCircles[idx]) {
-              const r = wv.Radius !== undefined ? wv.Radius : (wv.radius !== undefined ? wv.radius : 0);
-              const op = wv.Opacity !== undefined ? wv.Opacity : (wv.opacity !== undefined ? wv.opacity : 0);
-              waveCircles[idx].setAttribute('r', r.toFixed(2));
-              waveCircles[idx].setAttribute('stroke-opacity', op.toFixed(3));
-            }
-          });
-        }
-      });
-    }
-
-    // 4. Camera (Ken Burns, Pan, Drift, 3D Tilt)
+    // 1. Camera (Ken Burns, Pan, Drift, 3D Perspective Tilt)
     if (frame.camera && frame.camera.transform) {
       const camRig = container.querySelector('.camera-rig');
       if (camRig) {
@@ -2092,7 +1952,7 @@ window.TimelinePlayer = {
       }
     }
 
-    // 5. Optics (Focus Pull, Tilt-Shift, Motion Blur)
+    // 2. Optics (Focus Pull, Tilt-Shift, Motion Blur)
     if (frame.optical && frame.optical.isActive) {
       if (frame.optical.type === 'focus-pull') {
         const fe = container.querySelector('#opt-focus feGaussianBlur');
@@ -2104,16 +1964,6 @@ window.TimelinePlayer = {
         const fe = container.querySelector('#opt-mb-blur feGaussianBlur');
         if (fe) fe.setAttribute('stdDeviation', String(frame.optical.blur.toFixed(2)) + ' 0');
       }
-    }
-
-    // 6. Nodes (Pulse, Float)
-    if (Array.isArray(frame.nodes)) {
-      frame.nodes.forEach((nd) => {
-        const nodeGroup = container.querySelector('[data-node-id="' + nd.id + '"]');
-        if (nodeGroup && nd.opacity !== undefined) {
-          nodeGroup.setAttribute('opacity', nd.opacity.toFixed(3));
-        }
-      });
     }
   },
 

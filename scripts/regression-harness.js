@@ -3771,6 +3771,111 @@ async function runHarness() {
   assert.strictEqual(window.TimelinePlayer.status, 'stopped', 'Seek while stopped must remain stopped');
   assert.strictEqual(window.TimelinePlayer.isPlaying, false);
 
+  // -------------------------------------------------------------------------
+  // INDEPENDENT OBJECT ANIMATIONS VS GLOBAL CAMERA TRANSPORT SEPARATION
+  // -------------------------------------------------------------------------
+  console.log('[HARNESS] Testing Independent Object Animations vs Global Camera Transport Separation...');
+
+  // 1. Flow visibility and independent animation markup
+  window.DataFlows.list = [];
+  window.DataFlows.counter = 0;
+  const indepFlow = window.DataFlows.createFlow({
+    nodes: [{ x: 10, y: 10 }, { x: 50, y: 50 }],
+    color: '#38bdf8',
+    speed: 2.5,
+    opacity: 0.9,
+    type: 'circle'
+  });
+  assert.ok(indepFlow, 'indepFlow must be created');
+
+  const testState = window.SceneState.buildRenderState();
+  const indepFullSvg = window.buildFullSVG ? window.buildFullSVG(testState) : window.DataFlows.injectIntoSVG(window.Effects.build(testState), testState);
+
+  // Flow payload and motion elements must be fully generated and visible
+  assert.ok(indepFullSvg.includes('class="flow-payload-group"'), 'SVG must include .flow-payload-group');
+  assert.ok(indepFullSvg.includes('<animateMotion'), 'SVG must include independent SMIL <animateMotion>');
+  assert.ok(indepFullSvg.includes('<mpath'), 'SVG must include <mpath> for path following');
+  assert.ok(indepFullSvg.includes('class="flow-track-path"'), 'SVG must include .flow-track-path');
+
+  // Verify applyFrameToDOM does NOT overwrite or hide Flow payload
+  let flowPayloadStyle = {};
+  let flowPayloadAttrs = {};
+  const mockFlowPayload = {
+    style: flowPayloadStyle,
+    setAttribute(k, v) { flowPayloadAttrs[k] = v; }
+  };
+  mockSvgContainer.querySelector = function(sel) {
+    if (sel.includes('.camera-rig')) return mockCamRig;
+    if (sel.includes('.flow-payload-group')) return mockFlowPayload;
+    return null;
+  };
+
+  // Evaluate frame at any time (stopped, paused, playing)
+  window.TimelinePlayer.evaluateAndApply(0.0);
+  assert.strictEqual(flowPayloadAttrs.opacity, undefined, 'applyFrameToDOM must NEVER overwrite Flow opacity');
+  assert.strictEqual(flowPayloadAttrs.transform, undefined, 'applyFrameToDOM must NEVER overwrite Flow transform');
+  assert.strictEqual(flowPayloadStyle.display, undefined, 'applyFrameToDOM must NEVER hide Flow payload');
+
+  // 2. Glow independent animation while global transport is paused
+  window.Glows.list = [];
+  window.Glows.counter = 0;
+  const indepRadarGlow = window.Glows.createGlow({
+    x: 40,
+    y: 40,
+    shape: 'radar',
+    size: 50,
+    rings: 3,
+    dur: 2.0
+  });
+  assert.ok(indepRadarGlow, 'Radar glow must be created');
+  const glowSvg = window.Glows.injectIntoSVG(window.Effects.build(testState), testState.image.width, testState.image.height);
+  assert.ok(glowSvg.includes('class="diagram-glow-instance"'), 'SVG must include .diagram-glow-instance');
+  assert.ok(glowSvg.includes('attributeName="r"'), 'Glow radar rings must include independent SMIL radius animation');
+
+  window.TimelinePlayer.play();
+  window.TimelinePlayer.seek(2.5);
+  window.TimelinePlayer.pause();
+  assert.strictEqual(window.TimelinePlayer.status, 'paused');
+  // Evaluating while paused updates ONLY Camera & Optics, never Glow rings
+  let glowAttrs = {};
+  const mockGlowCore = { setAttribute(k, v) { glowAttrs[k] = v; } };
+  mockSvgContainer.querySelector = function(sel) {
+    if (sel.includes('.camera-rig')) return mockCamRig;
+    if (sel.includes('.diagram-glow-instance')) return { querySelector: () => mockGlowCore, querySelectorAll: () => [] };
+    return null;
+  };
+  window.TimelinePlayer.evaluateAndApply(2.5);
+  assert.strictEqual(glowAttrs.opacity, undefined, 'applyFrameToDOM must NEVER overwrite Glow core opacity');
+
+  // 3. Ripple independent animation after global transport has ended
+  window.Ripples.list = [];
+  window.Ripples.counter = 0;
+  const indepRip = window.Ripples.createRipple({
+    x: 60,
+    y: 60,
+    rings: 4,
+    innerR: 10,
+    outerR: 80,
+    dur: 3.0
+  });
+  assert.ok(indepRip, 'Ripple must be created');
+  const ripSvg = window.Ripples.injectIntoSVG(window.Effects.build(testState), testState);
+  assert.ok(ripSvg.includes('class="diagram-ripple-instance"'), 'SVG must include .diagram-ripple-instance');
+  assert.ok(ripSvg.includes('attributeName="stroke-opacity"'), 'Ripple must include independent SMIL opacity animation');
+
+  // Set global timeline to ended
+  window.TimelinePlayer.currentTime = 7.0;
+  window.TimelinePlayer.status = 'ended';
+  window.TimelinePlayer.isPlaying = false;
+  window.TimelinePlayer.evaluateAndApply(7.0);
+  // Verify Camera was updated while Ripples remain untouched
+  assert.strictEqual(mockCamRig.style.animation, 'none');
+
+  // 4. Global seek updates Camera without touching Flow/Glow/Ripple DOM
+  window.TimelinePlayer.seek(2.1);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 2.1);
+  assert.strictEqual(window.TimelinePlayer.status, 'paused');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6 & 7 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics & Frame engines verified.');
 }
 
