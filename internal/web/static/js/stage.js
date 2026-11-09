@@ -240,10 +240,12 @@ window.Stage = {
         let clickedNode = null;
         const nodeGroup = e.target.closest ? e.target.closest('[data-node-id]') : null;
         if (nodeGroup) {
-          const clickedId = parseInt(nodeGroup.getAttribute('data-node-id'), 10);
+          const rawId = nodeGroup.getAttribute('data-node-id');
+          const clickedId = parseInt(rawId, 10);
+          const queryId = !isNaN(clickedId) ? clickedId : rawId;
           clickedNode = window.DiagramNodes && typeof window.DiagramNodes.getNode === 'function'
-            ? window.DiagramNodes.getNode(clickedId)
-            : (window.DiagramNodes && window.DiagramNodes.list ? window.DiagramNodes.list.find((n) => n.id === clickedId) : null);
+            ? (window.DiagramNodes.getNode(queryId) || window.DiagramNodes.getNode(rawId))
+            : (window.DiagramNodes && window.DiagramNodes.list ? window.DiagramNodes.list.find((n) => String(n.id) === String(rawId)) : null);
         } else if (window.DiagramNodes && typeof window.DiagramNodes.findNodeAtPct === 'function') {
           const otherOverlay = (window.DataFlows && window.DataFlows.activeId !== null) ||
             (window.Glows && window.Glows.activeId !== null) ||

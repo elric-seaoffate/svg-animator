@@ -1571,8 +1571,9 @@ window.FloatingPropertiesEditor = {
     // 1. Nodes: SVG node group or child elements, or active node selection box
     const nodeEl = target.closest('[data-node-id]');
     if (nodeEl && nodeEl.getAttribute) {
-      const id = parseInt(nodeEl.getAttribute('data-node-id'), 10);
-      if (!isNaN(id)) return { type: 'node', id };
+      const rawId = nodeEl.getAttribute('data-node-id');
+      const id = parseInt(rawId, 10);
+      return { type: 'node', id: !isNaN(id) ? id : rawId };
     }
     if (target.closest('#nodeSelectionBox') && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
       return { type: 'node', id: window.DiagramNodes.activeId };
@@ -1769,8 +1770,14 @@ window.TimelinePlayer = {
   loopMode: 'once',
   _lastTimestamp: null,
   _rafId: null,
+  _initialized: false,
 
   init() {
+    if (this._initialized) {
+      this.syncFromScene();
+      return;
+    }
+    this._initialized = true;
     this._bindUI();
     this.syncFromScene();
   },
@@ -1789,9 +1796,16 @@ window.TimelinePlayer = {
 
   play() {
     if (this.isPlaying) return;
+    if (this.currentTime >= this.duration) {
+      this.currentTime = 0.0;
+    }
     this.isPlaying = true;
     this._lastTimestamp = null;
     this.updatePlayButton();
+    const svg = document.querySelector('#svgContainer svg');
+    if (svg && typeof svg.unpauseAnimations === 'function') {
+      try { svg.unpauseAnimations(); } catch (_) {}
+    }
     this._loop();
   },
 
@@ -1805,6 +1819,10 @@ window.TimelinePlayer = {
     }
     this._lastTimestamp = null;
     this.updatePlayButton();
+    const svg = document.querySelector('#svgContainer svg');
+    if (svg && typeof svg.pauseAnimations === 'function') {
+      try { svg.pauseAnimations(); } catch (_) {}
+    }
   },
 
   toggle() {
@@ -1815,6 +1833,13 @@ window.TimelinePlayer = {
   reset() {
     this.pause();
     this.seek(0.0);
+    const container = document.getElementById('svgContainer');
+    if (container) {
+      const camRig = container.querySelector('.camera-rig');
+      if (camRig) {
+        camRig.style.animation = '';
+      }
+    }
   },
 
   seek(timeSec) {
@@ -1838,6 +1863,9 @@ window.TimelinePlayer = {
         } else {
           this.currentTime = this.duration;
           this.pause();
+          this.evaluateAndApply(this.currentTime);
+          this.updateUI();
+          return;
         }
       }
     }
@@ -1851,6 +1879,21 @@ window.TimelinePlayer = {
   },
 
   evaluateAndApply(timeSec) {
+    const svg = document.querySelector('#svgContainer svg');
+    if (svg) {
+      if (typeof svg.setCurrentTime === 'function') {
+        try { svg.setCurrentTime(timeSec); } catch (_) {}
+      }
+      if (typeof svg.getAnimations === 'function') {
+        try {
+          const anims = svg.getAnimations({ subtree: true });
+          anims.forEach((anim) => {
+            anim.currentTime = timeSec * 1000;
+          });
+        } catch (_) {}
+      }
+    }
+
     if (!window.EngineBridge || typeof window.EngineBridge.evaluateSceneAtTime !== 'function') return;
     const frame = window.EngineBridge.evaluateSceneAtTime(timeSec);
     if (!frame) return;
@@ -1869,6 +1912,7 @@ window.TimelinePlayer = {
         if (payload) {
           payload.setAttribute('transform', 'translate(' + fl.x.toFixed(2) + ', ' + fl.y.toFixed(2) + ') rotate(' + fl.rotation.toFixed(2) + ')');
           payload.setAttribute('opacity', fl.opacity.toFixed(3));
+          payload.style.display = fl.visible ? '' : 'none';
         }
         const track = container.querySelector('.flow-track-path[data-flow-id="' + fl.id + '"]');
         if (track && fl.dashOffset !== undefined) {
@@ -1882,18 +1926,82 @@ window.TimelinePlayer = {
       frame.glows.forEach((gl) => {
         const inst = container.querySelector('.diagram-glow-instance[data-glow-id="' + gl.id + '"]');
         if (inst) {
-          const core = inst.querySelector('.glow-core');
-          if (core) core.setAttribute('opacity', gl.coreOpacity.toFixed(3));
+          const core = inst.querySelector('.glow-core') || inst.querySelector('circle:not(.glow-hit-target), rect:not(.glow-hit-target)');
+          if (core) {
+            core.setAttribute('opacity', gl.coreOpacity.toFixed(3));
+          }
+          if (Array.isArray(gl.radarRings) && gl.radarRings.length > 0) {
+            const rings = inst.querySelectorAll('circle:not(.glow-hit-target)');
+            gl.radarRings.forEach((rg, idx) => {
+              if (rings[idx + 1]) { // +1 skipping base/core circle
+                const r = rg.Radius !== undefined ? rg.Radius : (rg.radius !== undefined ? rg.radius : 0);
+                const op = rg.Opacity !== undefined ? rg.Opacity : (rg.opacity !== undefined ? rg.opacity : 0);
+                rings[idx + 1].setAttribute('r', r.toFixed(2));
+                rings[idx + 1].setAttribute('opacity', op.toFixed(3));
+              }
+            });
+          }
         }
       });
     }
 
-    // 3. Camera
+    // 3. Ripples
+    if (Array.isArray(frame.ripples)) {
+      frame.ripples.forEach((rp) => {
+        const inst = container.querySelector('.diagram-ripple-instance[data-ripple-id="' + rp.id + '"]');
+        if (inst && Array.isArray(rp.waves)) {
+          const waveCircles = inst.querySelectorAll('circle:not(.ripple-hit-target)');
+          rp.waves.forEach((wv, idx) => {
+            if (waveCircles[idx]) {
+              const r = wv.Radius !== undefined ? wv.Radius : (wv.radius !== undefined ? wv.radius : 0);
+              const op = wv.Opacity !== undefined ? wv.Opacity : (wv.opacity !== undefined ? wv.opacity : 0);
+              waveCircles[idx].setAttribute('r', r.toFixed(2));
+              waveCircles[idx].setAttribute('stroke-opacity', op.toFixed(3));
+            }
+          });
+        }
+      });
+    }
+
+    // 4. Camera (Ken Burns, Pan, Drift, 3D Tilt)
     if (frame.camera && frame.camera.transform) {
       const camRig = container.querySelector('.camera-rig');
-      if (camRig && frame.camera.motion !== 'static') {
-        camRig.style.transform = frame.camera.transform;
+      if (camRig) {
+        if (frame.camera.motion && frame.camera.motion !== 'static') {
+          camRig.style.animation = 'none';
+          camRig.style.transform = frame.camera.transform;
+        } else {
+          camRig.style.transform = '';
+        }
       }
+      const camStage = container.querySelector('#cameraStage3D') || container.querySelector('.camera-stage-3d');
+      if (camStage && frame.camera.stage3d) {
+        camStage.style.transform = frame.camera.stage3d;
+      }
+    }
+
+    // 5. Optics (Focus Pull, Tilt-Shift, Motion Blur)
+    if (frame.optical && frame.optical.isActive) {
+      if (frame.optical.type === 'focus-pull') {
+        const fe = container.querySelector('#opt-focus feGaussianBlur');
+        if (fe) fe.setAttribute('stdDeviation', String(frame.optical.blur.toFixed(2)));
+      } else if (frame.optical.type === 'tilt-shift') {
+        const fe = container.querySelector('#opt-ts-blur feGaussianBlur');
+        if (fe) fe.setAttribute('stdDeviation', String(frame.optical.blur.toFixed(2)));
+      } else if (frame.optical.type === 'motion-blur') {
+        const fe = container.querySelector('#opt-mb-blur feGaussianBlur');
+        if (fe) fe.setAttribute('stdDeviation', String(frame.optical.blur.toFixed(2)) + ' 0');
+      }
+    }
+
+    // 6. Nodes (Pulse, Float)
+    if (Array.isArray(frame.nodes)) {
+      frame.nodes.forEach((nd) => {
+        const nodeGroup = container.querySelector('[data-node-id="' + nd.id + '"]');
+        if (nodeGroup && nd.opacity !== undefined) {
+          nodeGroup.setAttribute('opacity', nd.opacity.toFixed(3));
+        }
+      });
     }
   },
 
@@ -2690,6 +2798,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.DataFlows) window.DataFlows.init();
   if (window.Glows) window.Glows.init();
   if (window.Ripples) window.Ripples.init();
+  if (window.TimelinePlayer && typeof window.TimelinePlayer.init === 'function') {
+    window.TimelinePlayer.init();
+  }
   syncBackgroundUIVisibility();
   updateOrientationAndPaperUI();
   if (camMotionSel) camMotionSel.dispatchEvent(new Event('change'));

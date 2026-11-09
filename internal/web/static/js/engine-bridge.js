@@ -278,10 +278,12 @@
 
     applyPreset(node, preset) {
       if (!node || typeof node !== 'object') return false;
+      const originalId = node.id;
       if (this.isReady() && preset && preset.preset) {
         const res = this.dispatch('Preset.Apply', { node: node, preset: preset });
         if (res && res.node) {
           Object.assign(node, res.node);
+          node.id = originalId;
           return !!res.changed;
         }
       }

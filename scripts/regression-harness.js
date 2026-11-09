@@ -3520,6 +3520,143 @@ async function runHarness() {
   const isCheckedAfter = chkFrameEl ? chkFrameEl.checked : false;
   assert.strictEqual(isCheckedAfter, wasCheckedBefore, 'Opening Frame accordion must never mutate chkModuleFrame.checked');
 
+  // -------------------------------------------------------------------------
+  // DEFECT 1 REGRESSION: Shape remains selectable & editable after Snap Preset
+  // -------------------------------------------------------------------------
+  console.log('[HARNESS] Testing Defect 1 regression: Shape selection after Snap Preset...');
+  window.DiagramNodes.list = [];
+  window.DiagramNodes.counter = 0;
+  window.DiagramNodes.activeId = null;
+
+  const defect1Node = window.DiagramNodes.createNode({
+    shape: 'rounded',
+    text: 'Defect1 Node',
+    x: 50,
+    y: 50,
+    width: 200,
+    height: 100
+  });
+  assert.ok(defect1Node, 'Created test node must exist');
+  const createdId = defect1Node.id;
+  assert.ok(createdId !== null && createdId !== undefined, 'Created node must have a valid ID');
+
+  // Verify initial retrieval by both number and string ID
+  assert.strictEqual(window.DiagramNodes.getNode(createdId), defect1Node);
+  assert.strictEqual(window.DiagramNodes.getNode(String(createdId)), defect1Node);
+  assert.strictEqual(window.DiagramNodes.getNode(Number(createdId)), defect1Node);
+
+  // Apply Snap Preset
+  window.DiagramNodes.selectNode(createdId);
+  assert.strictEqual(String(window.DiagramNodes.activeId), String(createdId));
+  window.DiagramNodes.applyPresetToActive();
+
+  // Verify node ID is preserved and not corrupted or mutated to an incompatible type
+  assert.strictEqual(String(defect1Node.id), String(createdId), 'Node ID must remain unchanged after preset apply');
+  assert.strictEqual(window.DiagramNodes.getNode(createdId), defect1Node, 'getNode with original ID must succeed');
+  assert.strictEqual(window.DiagramNodes.getNode(String(createdId)), defect1Node, 'getNode with string ID must succeed');
+  assert.strictEqual(window.DiagramNodes.getNode(Number(createdId)), defect1Node, 'getNode with number ID must succeed');
+
+  // Verify stage hit testing and target resolution for contextual properties
+  const dummyEl = {
+    getAttribute(name) {
+      if (name === 'data-node-id') return String(createdId);
+      return null;
+    },
+    closest(sel) {
+      if (sel.includes('[data-node-id]')) return dummyEl;
+      return null;
+    }
+  };
+  const resolved = window.FloatingPropertiesEditor._resolveTargetObject(dummyEl);
+  assert.ok(resolved, '_resolveTargetObject must resolve node');
+  assert.strictEqual(resolved.type, 'node');
+  assert.strictEqual(String(resolved.id), String(createdId));
+
+  // Verify Stage node resolution
+  const stageTargetNode = window.DiagramNodes.getNode(parseInt(dummyEl.getAttribute('data-node-id'), 10)) ||
+                          window.DiagramNodes.getNode(dummyEl.getAttribute('data-node-id'));
+  assert.strictEqual(stageTargetNode, defect1Node, 'Stage click target resolution must find node');
+
+  // Verify dragging / stage position update
+  assert.strictEqual(window.DiagramNodes.handleStageClick(60, 65), true, 'handleStageClick on active node must succeed');
+  assert.strictEqual(defect1Node.x, 60);
+  assert.strictEqual(defect1Node.y, 65);
+
+  // Verify node dimensions update and preset re-application
+  window.DiagramNodes.updateActive('width', 240);
+  assert.strictEqual(defect1Node.width, 240);
+  window.DiagramNodes.updateActive('height', 120);
+  assert.strictEqual(defect1Node.height, 120);
+  window.DiagramNodes.applyPresetToActive();
+  assert.strictEqual(window.DiagramNodes.getNode(createdId), defect1Node);
+
+  // Verify deselect and re-select
+  window.DiagramNodes.deselectNode();
+  assert.strictEqual(window.DiagramNodes.activeId, null);
+  window.DiagramNodes.selectNode(createdId);
+  assert.strictEqual(String(window.DiagramNodes.activeId), String(createdId));
+
+  // -------------------------------------------------------------------------
+  // DEFECT 2 REGRESSION: Play Scene execution, auto-rewind & frame presentation
+  // -------------------------------------------------------------------------
+  console.log('[HARNESS] Testing Defect 2 regression: Timeline scene playback & presentation...');
+  assert.ok(window.TimelinePlayer, 'TimelinePlayer must exist');
+  window.TimelinePlayer.init();
+  assert.strictEqual(window.TimelinePlayer._initialized, true, 'TimelinePlayer must be initialized');
+
+  // Test 1: Play Scene advances isPlaying
+  window.TimelinePlayer.pause();
+  window.TimelinePlayer.currentTime = 0.0;
+  window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.isPlaying, true, 'TimelinePlayer.play() must set isPlaying = true');
+  const playBtn = document.getElementById('btnTimelinePlay');
+  assert.strictEqual(playBtn.textContent, '⏸ Pause Scene');
+
+  // Test 2: Auto-rewind when clicking Play at end of playback
+  window.TimelinePlayer.currentTime = window.TimelinePlayer.duration; // At 7.0s
+  window.TimelinePlayer.pause();
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false);
+  window.TimelinePlayer.play();
+  assert.strictEqual(window.TimelinePlayer.isPlaying, true, 'Calling play() at duration must start playback');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'Calling play() at duration must auto-rewind to 0.0');
+
+  // Test 3: Loop tick advances currentTime and clamps/pauses in 'once' mode
+  window.TimelinePlayer.currentTime = 6.95;
+  window.TimelinePlayer.duration = 7.0;
+  window.TimelinePlayer.loopMode = 'once';
+  window.TimelinePlayer._lastTimestamp = 1000;
+  window.TimelinePlayer._loop(1100); // +0.1s -> 7.05s >= 7.0s
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false, 'Playback must pause when duration reached in once mode');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 7.0, 'Current time must clamp to duration');
+
+  // Test 4: Seek and Reset
+  window.TimelinePlayer.seek(3.5);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 3.5);
+  window.TimelinePlayer.reset();
+  assert.strictEqual(window.TimelinePlayer.isPlaying, false);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0);
+
+  // Test 5: DOM Frame presentation
+  const mockSvgContainer = document.getElementById('svgContainer');
+  let camRigStyle = {};
+  const mockCamRig = {
+    style: camRigStyle
+  };
+  mockSvgContainer.querySelector = function(sel) {
+    if (sel.includes('.camera-rig')) return mockCamRig;
+    return null;
+  };
+  window.TimelinePlayer.applyFrameToDOM({
+    flows: [],
+    glows: [],
+    ripples: [],
+    camera: { motion: 'ken-burns', transform: 'scale(1.15) translate(-20px, 10px)' },
+    optical: { isActive: false },
+    nodes: []
+  });
+  assert.strictEqual(mockCamRig.style.animation, 'none', 'Ken Burns motion must disable CSS animation');
+  assert.strictEqual(mockCamRig.style.transform, 'scale(1.15) translate(-20px, 10px)', 'Camera transform must be applied to camRig');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6 & 7 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics & Frame engines verified.');
 }
 

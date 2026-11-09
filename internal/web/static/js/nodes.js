@@ -49,7 +49,8 @@ window.DiagramNodes = {
   },
 
   getNode(id) {
-    return this.list.find((n) => n.id === id) || null;
+    if (id === null || id === undefined) return null;
+    return this.list.find((n) => String(n.id) === String(id)) || null;
   },
 
   getAllNodes() {
@@ -205,8 +206,8 @@ window.DiagramNodes = {
     }
 
     const before = this.list.length;
-    this.list = this.list.filter((n) => n.id !== id);
-    if (this.activeId === id) {
+    this.list = this.list.filter((n) => String(n.id) !== String(id));
+    if (this.activeId !== null && String(this.activeId) === String(id)) {
       this.activeId = null;
     }
     return this.list.length < before;
@@ -585,7 +586,7 @@ window.DiagramNodes = {
   },
 
   removeNode(id) {
-    const wasActive = this.activeId === id;
+    const wasActive = this.activeId !== null && String(this.activeId) === String(id);
     this.deleteNode(id);
     if (wasActive) this.deselectNode();
     else this.renderList();
@@ -623,7 +624,7 @@ window.DiagramNodes = {
     };
     this.list.forEach((node) => {
       const eff = this.getNodeEffectiveProps(node);
-      const isSel = (this.activeId === node.id);
+      const isSel = (this.activeId !== null && String(this.activeId) === String(node.id));
       const div = document.createElement('div');
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = eff.strokeColor || '#58a6ff';
@@ -636,11 +637,11 @@ window.DiagramNodes = {
         '<span class="instance-icon" style="color:' + (eff.strokeColor || '#58a6ff') + ';" title="' + this.escapeXML(node.shape) + '">' + icon + '</span>' +
         '<span class="instance-label" title="' + safeLabel + '">' + safeLabel + '</span>' +
         '<span class="compact-meta">' + eff.width + '&times;' + eff.height + '</span>' +
-        '<button type="button" class="btn-row-action btn-row-preset" title="Snap this shape to active Preset settings" onclick="window.DiagramNodes.selectNode(' + node.id + '); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡</button>' +
-        '<button type="button" class="btn-row-action btn-row-delete" title="Delete shape" onclick="window.DiagramNodes.removeNode(' + node.id + '); event.stopPropagation();">&times;</button>';
+        '<button type="button" class="btn-row-action btn-row-preset" title="Snap this shape to active Preset settings" onclick="window.DiagramNodes.selectNode(\'' + node.id + '\'); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡</button>' +
+        '<button type="button" class="btn-row-action btn-row-delete" title="Delete shape" onclick="window.DiagramNodes.removeNode(\'' + node.id + '\'); event.stopPropagation();">&times;</button>';
 
       div.onclick = () => {
-        if (this.activeId === node.id) {
+        if (this.activeId !== null && String(this.activeId) === String(node.id)) {
           if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
             window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_node' });
           } else {
