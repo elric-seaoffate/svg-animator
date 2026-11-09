@@ -202,7 +202,22 @@ window.Glows = {
       } else {
         shapeEl = '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + glow.size + '" ' + fillAttr + ' />';
       }
-      elements += '<g ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + animTag + shapeEl + '</g></g>';
+      let hitTargetEl = '';
+      const hitRadius = Math.max(20, glow.size || 25);
+      if (shape === 'square') {
+        hitTargetEl = '<rect class="glow-hit-target" x="' + (px - glow.size).toFixed(2) + '" y="' + (py - glow.size).toFixed(2) + '" width="' + (glow.size * 2) + '" height="' + (glow.size * 2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+      } else if (shape === 'custom' && glow.customW && glow.customH) {
+        const hw = (glow.customW * scale) / 2;
+        const hh = (glow.customH * scale) / 2;
+        hitTargetEl = '<rect class="glow-hit-target" x="' + (px - hw).toFixed(2) + '" y="' + (py - hh).toFixed(2) + '" width="' + (hw * 2).toFixed(2) + '" height="' + (hh * 2).toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+      } else {
+        hitTargetEl = '<circle class="glow-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + hitRadius.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+      }
+
+      elements += '<g class="diagram-glow-instance" data-glow-id="' + glow.id + '">' +
+        hitTargetEl +
+        '<g ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + animTag + shapeEl + '</g></g>' +
+        '</g>';
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="glows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
@@ -218,6 +233,17 @@ window.Glows = {
 
     const btnAdd = document.getElementById('btnAddGlow');
     if (btnAdd) btnAdd.addEventListener('click', () => this.addGlow());
+
+    const btnDeselect = document.getElementById('btnDeselectGlow');
+    if (btnDeselect) {
+      btnDeselect.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'sidebar_deselect_glow' });
+        } else {
+          this.deselectGlow();
+        }
+      });
+    }
 
     ['playback', 'color', 'shape', 'hideOnDelay'].forEach((key) => {
       let elId = 'glow' + key.charAt(0).toUpperCase() + key.slice(1);
@@ -457,7 +483,17 @@ window.Glows = {
         '<span class="compact-meta">' + glow.shape + '</span>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete glow" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => this.selectGlow(glow.id);
+      div.onclick = () => {
+        if (this.activeId === glow.id) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+            window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_glow' });
+          } else {
+            this.deselectGlow();
+          }
+        } else {
+          this.selectGlow(glow.id);
+        }
+      };
       container.appendChild(div);
     });
   },

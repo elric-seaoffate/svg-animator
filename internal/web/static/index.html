@@ -247,6 +247,7 @@
               <div id="nodeEditor" style="display: none; margin-top: 0.25rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                   <span style="font-weight: bold; color: #d2a8ff;" id="editingNodeLabel">Editing Shape</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectNode" title="Deselect shape (Select None)">Deselect</button>
                 </div>
 
                 <div style="display: flex; gap: 0.35rem; margin-bottom: 0.4rem;">
@@ -553,7 +554,10 @@
               </div>
 
               <div id="flowEditor" style="display: none; margin-top: 0.25rem;">
-                <div style="font-weight: bold; margin-bottom: 0.35rem; color: #fff;" id="editingFlowLabel">Editing Flow</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span style="font-weight: bold; color: #fff;" id="editingFlowLabel">Editing Flow</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectFlow" title="Deselect flow (Select None)">Deselect</button>
+                </div>
 
                 <div class="control-row" style="background: rgba(88,166,255,0.08); padding: 0.35rem; border-radius: 6px; border: 1px solid rgba(88,166,255,0.4); margin-top: 0;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
@@ -714,7 +718,10 @@
               </div>
 
               <div id="glowEditor" style="display: none; margin-top: 0.25rem;">
-                <div style="font-weight: bold; margin-bottom: 0.35rem; color: #fff;" id="editingGlowLabel">Editing Glow</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span style="font-weight: bold; color: #fff;" id="editingGlowLabel">Editing Glow</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectGlow" title="Deselect glow (Select None)">Deselect</button>
+                </div>
                 <div class="stage-hint" style="margin-bottom:0.35rem;">Click or drag canvas to place centre.</div>
 
                 <div class="inspector-prop-row">
@@ -838,7 +845,10 @@
               </div>
 
               <div id="rippleEditor" style="display: none; margin-top: 0.25rem;">
-                <div style="font-weight: bold; margin-bottom: 0.35rem; color: #58a6ff;" id="editingRippleLabel">Editing Ripple</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span style="font-weight: bold; color: #58a6ff;" id="editingRippleLabel">Editing Ripple</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectRipple" title="Deselect ripple (Select None)">Deselect</button>
+                </div>
                 <div class="stage-hint" style="margin-bottom:0.35rem;">Click or drag canvas to place epicentre.</div>
 
                 <div class="inspector-prop-row">

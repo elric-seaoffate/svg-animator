@@ -287,19 +287,19 @@ window.DataFlows = {
       if (f.showLine) {
         const lStyle = f.lineStyle || 'dashed';
         if (lStyle === 'solid') {
-          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"' + markerAttrs + ' />';
         } else if (lStyle === 'dotted') {
-          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
         } else if (lStyle === 'marching') {
-          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
+          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
         } else if (lStyle === 'double') {
-          elements += '<path class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
-          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
+          elements += '<path class="flow-track-path" data-flow-id="' + f.id + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
         } else {
-          elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="8,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"' + markerAttrs + ' />';
+          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="8,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"' + markerAttrs + ' />';
         }
       } else {
-        elements += '<path id="' + pathId + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="none" />';
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="none" />';
       }
 
       if (f.label && f.label.trim() !== '') {
@@ -379,6 +379,17 @@ window.DataFlows = {
 
     const btnAdd = document.getElementById('btnAddFlow');
     if (btnAdd) btnAdd.addEventListener('click', () => this.addFlow());
+
+    const btnDeselect = document.getElementById('btnDeselectFlow');
+    if (btnDeselect) {
+      btnDeselect.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'sidebar_deselect_flow' });
+        } else {
+          this.deselectFlow();
+        }
+      });
+    }
 
     const btnAddNode = document.getElementById('btnFlowAddNode');
     if (btnAddNode) btnAddNode.addEventListener('click', () => this.addNodeToActive());
@@ -732,7 +743,17 @@ window.DataFlows = {
         '<span class="compact-meta">' + nodeCount + ' pts</span>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete connector" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => this.selectFlow(f.id);
+      div.onclick = () => {
+        if (this.activeId === f.id) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+            window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_flow' });
+          } else {
+            this.deselectFlow();
+          }
+        } else {
+          this.selectFlow(f.id);
+        }
+      };
       container.appendChild(div);
     });
   },

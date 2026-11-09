@@ -579,6 +579,16 @@ window.WorkspaceController = {
       this.toggleMaximizedCanvas();
       return true;
     } else if (e.key === 'Escape') {
+      if (window.FloatingPropertiesEditor && window.FloatingPropertiesEditor.isOpen) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        window.FloatingPropertiesEditor.close(true);
+        return true;
+      }
+      if (window.AppCoordinator && typeof window.AppCoordinator.getActiveSelection === 'function' && window.AppCoordinator.getActiveSelection().id !== null) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        window.AppCoordinator.clearSelection({ reason: 'escape_key' });
+        return true;
+      }
       if (this.isMaximized) {
         if (typeof e.preventDefault === 'function') e.preventDefault();
         this.setMaximized(false);
@@ -730,7 +740,7 @@ window.FloatingPropertiesEditor = {
     this.updatePosition(options.resetPosition);
   },
 
-  close() {
+  close(clearSelection = true) {
     if (!this.isOpen && (!document.getElementById('floatingContextEditor') || document.getElementById('floatingContextEditor').style.display === 'none')) {
       return;
     }
@@ -744,6 +754,10 @@ window.FloatingPropertiesEditor = {
     if (editor) {
       editor.style.display = 'none';
     }
+
+    if (clearSelection !== false && window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+      window.AppCoordinator.clearSelection({ reason: 'floating_editor_closed' });
+    }
   },
 
   toggle(type, id) {
@@ -756,7 +770,7 @@ window.FloatingPropertiesEditor = {
 
   handleSelectionChanged(sel) {
     if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
-      if (this.isOpen) this.close();
+      if (this.isOpen) this.close(false);
       return;
     }
 
@@ -787,13 +801,18 @@ window.FloatingPropertiesEditor = {
         if (selBox && selBox.style && selBox.style.display !== 'none') el = selBox;
       }
     } else if (type === 'flow') {
-      el = (document.querySelector ? document.querySelector('#svgContainer #flowPath-' + id) : null) ||
+      el = (document.querySelector ? document.querySelector('#svgContainer [data-flow-id="' + id + '"]') : null) ||
+           (document.querySelector ? document.querySelector('#svgContainer #flowPath-' + id) : null) ||
            document.getElementById('flowCurvePath') ||
            (document.querySelector ? document.querySelector('#dynamicFlowReticles [data-flow-node-idx]') : null);
     } else if (type === 'glow') {
-      el = document.getElementById('glowReticleTarget');
+      el = (document.querySelector ? document.querySelector('#svgContainer [data-glow-id="' + id + '"] .glow-hit-target') : null) ||
+           (document.querySelector ? document.querySelector('#svgContainer [data-glow-id="' + id + '"]') : null) ||
+           document.getElementById('glowReticleTarget');
     } else if (type === 'ripple') {
-      el = document.getElementById('rippleReticleTarget');
+      el = (document.querySelector ? document.querySelector('#svgContainer [data-ripple-id="' + id + '"] .ripple-hit-target') : null) ||
+           (document.querySelector ? document.querySelector('#svgContainer [data-ripple-id="' + id + '"]') : null) ||
+           document.getElementById('rippleReticleTarget');
     }
 
     if (el && typeof el.getBoundingClientRect === 'function') {
@@ -1559,7 +1578,12 @@ window.FloatingPropertiesEditor = {
       return { type: 'node', id: window.DiagramNodes.activeId };
     }
 
-    // 2. Flows: connector path, flow badge, or flow reticles
+    // 2. Flows: flow instance group, connector path, flow badge, or flow reticles
+    const flowEl = target.closest('[data-flow-id]');
+    if (flowEl && flowEl.getAttribute) {
+      const fid = parseInt(flowEl.getAttribute('data-flow-id'), 10);
+      if (!isNaN(fid)) return { type: 'flow', id: fid };
+    }
     const flowReticle = target.closest('[data-flow-node-idx]');
     const flowPath = target.closest('.flow-track-path') || (target.id && target.id.startsWith('flowPath-') ? target : null) || (target.closest && target.closest('[id^="flowPath-"]'));
     if (flowReticle || flowPath) {
@@ -1577,7 +1601,12 @@ window.FloatingPropertiesEditor = {
       if (flowId !== null && !isNaN(flowId)) return { type: 'flow', id: flowId };
     }
 
-    // 3. Glows: glow reticle or glow layer element
+    // 3. Glows: glow instance group (hit target or child), glow reticle, or glow layer element
+    const glowEl = target.closest('[data-glow-id]');
+    if (glowEl && glowEl.getAttribute) {
+      const gid = parseInt(glowEl.getAttribute('data-glow-id'), 10);
+      if (!isNaN(gid)) return { type: 'glow', id: gid };
+    }
     const glowTarget = target.closest('#glowReticleTarget') || (target.id && target.id.startsWith('glow-') ? target : null) || (target.closest && target.closest('[id^="glow-"]'));
     if (glowTarget) {
       const glowId = window.Glows && window.Glows.activeId !== null
@@ -1586,7 +1615,12 @@ window.FloatingPropertiesEditor = {
       if (glowId !== null) return { type: 'glow', id: glowId };
     }
 
-    // 4. Ripples: ripple reticle or ripple layer element
+    // 4. Ripples: ripple instance group (hit target or child), ripple reticle, or ripple layer element
+    const ripEl = target.closest('[data-ripple-id]');
+    if (ripEl && ripEl.getAttribute) {
+      const rid = parseInt(ripEl.getAttribute('data-ripple-id'), 10);
+      if (!isNaN(rid)) return { type: 'ripple', id: rid };
+    }
     const rippleTarget = target.closest('#rippleReticleTarget') || (target.id && target.id.startsWith('ripple-') ? target : null) || (target.closest && target.closest('[id^="ripple-"]'));
     if (rippleTarget) {
       const rippleId = window.Ripples && window.Ripples.activeId !== null
@@ -1619,7 +1653,7 @@ window.FloatingPropertiesEditor = {
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && this.isOpen) {
-          this.close();
+          this.close(true);
           if (typeof e.stopPropagation === 'function') e.stopPropagation();
         }
       });
@@ -1628,7 +1662,7 @@ window.FloatingPropertiesEditor = {
     if (window.AppCoordinator) {
       window.AppCoordinator.on('selection:changed', (sel) => this.handleSelectionChanged(sel));
       window.AppCoordinator.on('render:completed', () => this.handleRenderCompleted());
-      window.AppCoordinator.on('state:restored', () => this.close());
+      window.AppCoordinator.on('state:restored', () => this.close(false));
     }
 
     const previewBox = document.getElementById('previewBox');
@@ -1669,7 +1703,13 @@ window.FloatingPropertiesEditor = {
             clickCoords: { clientX: e.clientX, clientY: e.clientY }
           });
         } else {
-          // Right-click on empty canvas: does not open Properties or change selection.
+          // Right-click on empty canvas:
+          // Closes floating Properties if open and clears active selection
+          if (this.isOpen) {
+            this.close(true);
+          } else if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+            window.AppCoordinator.clearSelection({ reason: 'empty_canvas_contextmenu' });
+          }
           // Dispatches to clean extension point for future canvas-specific context menu.
           this.handleCanvasContextMenu(e);
         }

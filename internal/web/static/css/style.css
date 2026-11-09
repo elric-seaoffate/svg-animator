@@ -972,6 +972,24 @@ header h1 {
   border-radius: 4px;
 }
 
+.btn-deselect-sidebar {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid rgba(240, 246, 252, 0.15);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  padding: 1px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.btn-deselect-sidebar:hover {
+  color: var(--text-bright);
+  border-color: rgba(240, 246, 252, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* Expanded Inspector Drawer for Object-Based Tools */
 @media (min-width: 1280px) {
   .drawer.left-drawer.expanded-inspector:not(.collapsed) {

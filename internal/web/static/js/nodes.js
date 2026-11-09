@@ -271,6 +271,17 @@ window.DiagramNodes = {
     const btnAdd = document.getElementById('btnAddNode');
     if (btnAdd) btnAdd.addEventListener('click', () => this.addNode());
 
+    const btnDeselect = document.getElementById('btnDeselectNode');
+    if (btnDeselect) {
+      btnDeselect.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'sidebar_deselect_node' });
+        } else {
+          this.deselectNode();
+        }
+      });
+    }
+
     ['shape', 'strokeStyle', 'anim'].forEach((key) => {
       const cap = key.charAt(0).toUpperCase() + key.slice(1);
       const el = document.getElementById('node' + cap + 'Select');
@@ -558,7 +569,17 @@ window.DiagramNodes = {
         '<button type="button" class="btn-row-action btn-row-preset" title="Snap this shape to active Preset settings" onclick="window.DiagramNodes.selectNode(' + node.id + '); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡</button>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete shape" onclick="window.DiagramNodes.removeNode(' + node.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => this.selectNode(node.id);
+      div.onclick = () => {
+        if (this.activeId === node.id) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+            window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_node' });
+          } else {
+            this.deselectNode();
+          }
+        } else {
+          this.selectNode(node.id);
+        }
+      };
       container.appendChild(div);
     });
   },

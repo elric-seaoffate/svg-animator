@@ -193,8 +193,18 @@
       }
     },
 
-    clearSelection(exceptType = null) {
-      this.selectObject(exceptType, null);
+    /**
+     * Clears active selection across all modules (Select None state).
+     * Does not delete objects, disable effects, reset parameters, or pollute undo history.
+     *
+     * @param {Object|string} [options] - Options object ({ reason, exceptType }) or string exceptType
+     */
+    clearSelection(options = {}) {
+      const exceptType = (typeof options === 'string')
+        ? options
+        : (options && options.exceptType ? options.exceptType : null);
+      const opts = (typeof options === 'object' && options !== null) ? options : {};
+      this.selectObject(exceptType, null, opts);
     },
 
     /**

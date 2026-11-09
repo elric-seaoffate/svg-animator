@@ -196,6 +196,7 @@ window.Stage = {
 
         const coords = this.clientToCanvasPct(e.clientX, e.clientY);
 
+        // 1. Flow waypoint reticle
         const flowReticle = e.target.closest ? e.target.closest('[data-flow-node-idx]') : null;
         if (flowReticle) {
           const idx = parseInt(flowReticle.getAttribute('data-flow-node-idx'), 10);
@@ -215,46 +216,116 @@ window.Stage = {
           return;
         }
 
-        const otherOverlayActive =
-          (window.DataFlows && window.DataFlows.activeId !== null) ||
-          (window.Glows && window.Glows.activeId !== null) ||
-          (window.Ripples && window.Ripples.activeId !== null);
-
-        if (!otherOverlayActive && window.DiagramNodes) {
-          let clickedNode = null;
-          const nodeGroup = e.target.closest ? e.target.closest('[data-node-id]') : null;
-          if (nodeGroup) {
-            const clickedId = parseInt(nodeGroup.getAttribute('data-node-id'), 10);
-            clickedNode = window.DiagramNodes.getNode
-              ? window.DiagramNodes.getNode(clickedId)
-              : (window.DiagramNodes.list.find((n) => n.id === clickedId) || null);
-          }
-          if (!clickedNode && typeof window.DiagramNodes.findNodeAtPct === 'function') {
-            clickedNode = window.DiagramNodes.findNodeAtPct(coords.x, coords.y, this.canvasWidth, this.canvasHeight);
-          }
-
-          if (clickedNode) {
-            if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
-              window.AppCoordinator.selectObject('node', clickedNode.id, { openAccordionId: 'acc-nodes' });
-            }
-            this.nodeGrabOffsetX = clickedNode.x - coords.x;
-            this.nodeGrabOffsetY = clickedNode.y - coords.y;
-          } else {
-            this.nodeGrabOffsetX = 0;
-            this.nodeGrabOffsetY = 0;
-          }
-        } else {
-          this.nodeGrabOffsetX = 0;
-          this.nodeGrabOffsetY = 0;
+        // 2. Active camera placement mode
+        const isCameraMode = window.AppCoordinator &&
+          typeof window.AppCoordinator.getActiveSelection === 'function' &&
+          window.AppCoordinator.getActiveSelection().type === 'camera';
+        if (isCameraMode && this.activePlacement) {
+          this.isDragging = true;
+          try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+          const snappedCam = this.snapPctToGrid(coords.x, coords.y);
+          this.onPlaceCallback(this.activePlacement, snappedCam.x, snappedCam.y);
+          return;
         }
 
-        this.isDragging = true;
-        try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+        // 3. Node hit testing
+        let clickedNode = null;
+        const nodeGroup = e.target.closest ? e.target.closest('[data-node-id]') : null;
+        if (nodeGroup) {
+          const clickedId = parseInt(nodeGroup.getAttribute('data-node-id'), 10);
+          clickedNode = window.DiagramNodes && typeof window.DiagramNodes.getNode === 'function'
+            ? window.DiagramNodes.getNode(clickedId)
+            : (window.DiagramNodes && window.DiagramNodes.list ? window.DiagramNodes.list.find((n) => n.id === clickedId) : null);
+        } else if (window.DiagramNodes && typeof window.DiagramNodes.findNodeAtPct === 'function') {
+          const otherOverlay = (window.DataFlows && window.DataFlows.activeId !== null) ||
+            (window.Glows && window.Glows.activeId !== null) ||
+            (window.Ripples && window.Ripples.activeId !== null);
+          if (!otherOverlay) {
+            clickedNode = window.DiagramNodes.findNodeAtPct(coords.x, coords.y, this.canvasWidth, this.canvasHeight);
+          }
+        }
 
-        const rawTargetX = Math.min(100, Math.max(0, coords.x + this.nodeGrabOffsetX));
-        const rawTargetY = Math.min(100, Math.max(0, coords.y + this.nodeGrabOffsetY));
-        const snapped = this.snapPctToGrid(rawTargetX, rawTargetY);
-        this.onPlaceCallback(this.activePlacement, snapped.x, snapped.y);
+        if (clickedNode) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+            window.AppCoordinator.selectObject('node', clickedNode.id, { openAccordionId: 'acc-nodes' });
+          }
+          this.nodeGrabOffsetX = clickedNode.x - coords.x;
+          this.nodeGrabOffsetY = clickedNode.y - coords.y;
+          this.isDragging = true;
+          try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
+
+        // 4. Glow hit testing
+        const glowEl = e.target.closest ? e.target.closest('[data-glow-id], #glowReticleTarget') : null;
+        if (glowEl && window.Glows) {
+          let glowId = null;
+          if (glowEl.getAttribute && glowEl.getAttribute('data-glow-id')) {
+            glowId = parseInt(glowEl.getAttribute('data-glow-id'), 10);
+          } else if (window.Glows.activeId !== null) {
+            glowId = window.Glows.activeId;
+          }
+          if (glowId !== null && !isNaN(glowId)) {
+            if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+              window.AppCoordinator.selectObject('glow', glowId, { openAccordionId: 'acc-glows' });
+            }
+            const g = window.Glows.getGlow(glowId);
+            this.nodeGrabOffsetX = g ? (g.x - coords.x) : 0;
+            this.nodeGrabOffsetY = g ? (g.y - coords.y) : 0;
+            this.isDragging = true;
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          }
+        }
+
+        // 5. Ripple hit testing
+        const rippleEl = e.target.closest ? e.target.closest('[data-ripple-id], #rippleReticleTarget') : null;
+        if (rippleEl && window.Ripples) {
+          let rippleId = null;
+          if (rippleEl.getAttribute && rippleEl.getAttribute('data-ripple-id')) {
+            rippleId = parseInt(rippleEl.getAttribute('data-ripple-id'), 10);
+          } else if (window.Ripples.activeId !== null) {
+            rippleId = window.Ripples.activeId;
+          }
+          if (rippleId !== null && !isNaN(rippleId)) {
+            if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+              window.AppCoordinator.selectObject('ripple', rippleId, { openAccordionId: 'acc-ripples' });
+            }
+            const rp = window.Ripples.getRipple(rippleId);
+            this.nodeGrabOffsetX = rp ? (rp.x - coords.x) : 0;
+            this.nodeGrabOffsetY = rp ? (rp.y - coords.y) : 0;
+            this.isDragging = true;
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          }
+        }
+
+        // 6. Flow track hit testing
+        const flowEl = e.target.closest ? e.target.closest('.flow-track-path, [data-flow-id], [id^="flowPath-"]') : null;
+        if (flowEl && window.DataFlows) {
+          let flowId = null;
+          if (flowEl.getAttribute && flowEl.getAttribute('data-flow-id')) {
+            flowId = parseInt(flowEl.getAttribute('data-flow-id'), 10);
+          } else if (flowEl.id && flowEl.id.startsWith('flowPath-')) {
+            const m = flowEl.id.match(/flowPath-(\d+)/);
+            if (m) flowId = parseInt(m[1], 10);
+          }
+          if (flowId !== null && !isNaN(flowId)) {
+            if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+              window.AppCoordinator.selectObject('flow', flowId, { openAccordionId: 'acc-flows' });
+            }
+            this.isDragging = false;
+            return;
+          }
+        }
+
+        // 7. Blank Canvas Click in normal Select mode -> Clear Selection (Select None)
+        this.nodeGrabOffsetX = 0;
+        this.nodeGrabOffsetY = 0;
+        this.isDragging = false;
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'blank_canvas_click' });
+        }
       });
 
       this.previewBox.addEventListener('pointermove', (e) => {

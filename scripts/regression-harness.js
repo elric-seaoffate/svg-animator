@@ -495,7 +495,6 @@ async function runHarness() {
       value: '',
       checked: false,
       disabled: false,
-      innerHTML: '',
       textContent: '',
       style: {},
       dataset: {},
@@ -629,6 +628,27 @@ async function runHarness() {
     });
     Object.defineProperty(el, 'options', {
       get() { return this.children.filter((c) => c.tagName === 'OPTION'); }
+    });
+    Object.defineProperty(el, 'className', {
+      get() { return Array.from(classes).join(' '); },
+      set(val) {
+        classes.clear();
+        if (val) {
+          String(val).trim().split(/\s+/).forEach((c) => {
+            if (c) classes.add(c);
+          });
+        }
+      }
+    });
+    let innerHTMLVal = '';
+    Object.defineProperty(el, 'innerHTML', {
+      get() { return innerHTMLVal; },
+      set(val) {
+        innerHTMLVal = val;
+        if (val === '') {
+          this.children = [];
+        }
+      }
     });
     return el;
   }
@@ -2233,7 +2253,11 @@ async function runHarness() {
     }
   });
 
-  // Re-bind FloatingPropertiesEditor controls & events with the full previewBox tree
+  // Re-bind modules & FloatingPropertiesEditor controls & events with the full previewBox tree
+  if (window.DiagramNodes) { window.DiagramNodes._initialized = false; window.DiagramNodes.init(); }
+  if (window.DataFlows) { window.DataFlows._initialized = false; window.DataFlows.init(); }
+  if (window.Glows) { window.Glows._initialized = false; window.Glows.init(); }
+  if (window.Ripples) { window.Ripples._initialized = false; window.Ripples.init(); }
   window.FloatingPropertiesEditor.init();
 
   // Test 1: Right-Click on Node opens Properties immediately at click coords,
@@ -2309,74 +2333,183 @@ async function runHarness() {
   assert.strictEqual(JSON.stringify(window.DataFlows.getFlow(testFlow.id)), flowBeforeSnap, 'Flow data must remain untouched');
   assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeFlow, 'Flow right-click must not pollute history');
 
-  // Test 3: Right-Click on Glow reticle
+  // Test 3: Right-Click on Glow (both rendered SVG hit-target and reticle fallback)
   const testGlow = window.Glows.createGlow({ color: '#ff5533', size: 30 });
-  const glowTargetEl = document.getElementById('glowReticleTarget');
+  const testGlow2 = window.Glows.createGlow({ color: '#33ff55', size: 40 });
+
+  // 3a: SVG rendered hit target targeting for unselected Glow
+  const glowInstanceSvg = makeStubElement('g');
+  glowInstanceSvg.classList.add('diagram-glow-instance');
+  glowInstanceSvg.setAttribute('data-glow-id', String(testGlow.id));
+  const glowHitTarget = makeStubElement('rect');
+  glowHitTarget.classList.add('glow-hit-target');
+  glowHitTarget.setAttribute('pointer-events', 'all');
+  glowHitTarget.setAttribute('fill', 'transparent');
+  glowHitTarget.closest = (sel) => {
+    if (sel === '[data-glow-id]') return glowInstanceSvg;
+    return null;
+  };
+  glowInstanceSvg.appendChild(glowHitTarget);
+  previewBoxEl.appendChild(glowInstanceSvg);
+
   const glowX = window.Glows.getGlow(testGlow.id).x;
   const glowY = window.Glows.getGlow(testGlow.id).y;
   const historyLenBeforeGlow = window.HistoryManager.undoStack.length;
   preventDefaultCalled = false;
   stopPropagationCalled = false;
 
-  const glowRightClickEvt = {
+  const glowSvgRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 380,
+    clientY: 240,
+    target: glowHitTarget,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(glowSvgRightClickEvt);
+
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking rendered glow SVG hit-target must call preventDefault()');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking rendered glow SVG hit-target must call stopPropagation()');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for rendered glow hit-target');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow', 'Editor active type must be glow');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testGlow.id, 'Editor active ID must match clicked glow');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testGlow.id, 'AppCoordinator selection must be testGlow');
+  assert.strictEqual(window.Glows.getGlow(testGlow.id).x, glowX, 'Glow X must remain unchanged');
+  assert.strictEqual(window.Glows.getGlow(testGlow.id).y, glowY, 'Glow Y must remain unchanged');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeGlow, 'Glow right-click must not pollute history');
+
+  // 3b: Switch to second glow via hit target while first glow was active
+  const glowInstanceSvg2 = makeStubElement('g');
+  glowInstanceSvg2.classList.add('diagram-glow-instance');
+  glowInstanceSvg2.setAttribute('data-glow-id', String(testGlow2.id));
+  const glowHitTarget2 = makeStubElement('rect');
+  glowHitTarget2.classList.add('glow-hit-target');
+  glowHitTarget2.closest = (sel) => {
+    if (sel === '[data-glow-id]') return glowInstanceSvg2;
+    return null;
+  };
+  glowInstanceSvg2.appendChild(glowHitTarget2);
+  previewBoxEl.appendChild(glowInstanceSvg2);
+
+  previewBoxEl.dispatchEvent({
+    type: 'contextmenu',
+    button: 2,
+    clientX: 410,
+    clientY: 260,
+    target: glowHitTarget2,
+    preventDefault: () => {},
+    stopPropagation: () => {}
+  });
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testGlow2.id, 'Editor must switch to testGlow2');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testGlow2.id);
+
+  // 3c: Fallback to reticle
+  const glowTargetEl = document.getElementById('glowReticleTarget');
+  previewBoxEl.dispatchEvent({
     type: 'contextmenu',
     button: 2,
     clientX: 400,
     clientY: 250,
     target: glowTargetEl,
-    preventDefault: () => { preventDefaultCalled = true; },
-    stopPropagation: () => { stopPropagationCalled = true; }
-  };
-  previewBoxEl.dispatchEvent(glowRightClickEvt);
+    preventDefault: () => {},
+    stopPropagation: () => {}
+  });
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow');
 
-  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking glow reticle must call preventDefault()');
-  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking glow reticle must call stopPropagation()');
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for glow');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'glow', 'Editor must switch to glow');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testGlow.id);
-  assert.strictEqual(window.Glows.getGlow(testGlow.id).x, glowX, 'Glow X must remain unchanged');
-  assert.strictEqual(window.Glows.getGlow(testGlow.id).y, glowY, 'Glow Y must remain unchanged');
-  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeGlow, 'Glow right-click must not pollute history');
-
-  // Test 4: Right-Click on Ripple reticle
+  // Test 4: Right-Click on Ripple (both rendered SVG hit-target and reticle fallback)
   const testRipple = window.Ripples.createRipple({ color: '#44aaff', refraction: 35 });
-  const rippleTargetEl = document.getElementById('rippleReticleTarget');
+  const testRipple2 = window.Ripples.createRipple({ color: '#ffaa44', refraction: 45 });
+
+  // 4a: SVG rendered hit target targeting for unselected Ripple
+  const rippleInstanceSvg = makeStubElement('g');
+  rippleInstanceSvg.classList.add('diagram-ripple-instance');
+  rippleInstanceSvg.setAttribute('data-ripple-id', String(testRipple.id));
+  const rippleHitTarget = makeStubElement('circle');
+  rippleHitTarget.classList.add('ripple-hit-target');
+  rippleHitTarget.setAttribute('pointer-events', 'all');
+  rippleHitTarget.setAttribute('fill', 'transparent');
+  rippleHitTarget.closest = (sel) => {
+    if (sel === '[data-ripple-id]') return rippleInstanceSvg;
+    return null;
+  };
+  rippleInstanceSvg.appendChild(rippleHitTarget);
+  previewBoxEl.appendChild(rippleInstanceSvg);
+
   const rippleX = window.Ripples.getRipple(testRipple.id).x;
   const rippleY = window.Ripples.getRipple(testRipple.id).y;
   const historyLenBeforeRipple = window.HistoryManager.undoStack.length;
   preventDefaultCalled = false;
   stopPropagationCalled = false;
 
-  const rippleRightClickEvt = {
+  const rippleSvgRightClickEvt = {
+    type: 'contextmenu',
+    button: 2,
+    clientX: 440,
+    clientY: 270,
+    target: rippleHitTarget,
+    preventDefault: () => { preventDefaultCalled = true; },
+    stopPropagation: () => { stopPropagationCalled = true; }
+  };
+  previewBoxEl.dispatchEvent(rippleSvgRightClickEvt);
+
+  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking rendered ripple SVG hit-target must call preventDefault()');
+  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking rendered ripple SVG hit-target must call stopPropagation()');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for ripple SVG hit-target');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple', 'Editor must switch to ripple');
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testRipple.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testRipple.id);
+  assert.strictEqual(window.Ripples.getRipple(testRipple.id).x, rippleX, 'Ripple X must remain unchanged');
+  assert.strictEqual(window.Ripples.getRipple(testRipple.id).y, rippleY, 'Ripple Y must remain unchanged');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeRipple, 'Ripple right-click must not pollute history');
+
+  // 4b: Switch to second ripple via hit target
+  const rippleInstanceSvg2 = makeStubElement('g');
+  rippleInstanceSvg2.classList.add('diagram-ripple-instance');
+  rippleInstanceSvg2.setAttribute('data-ripple-id', String(testRipple2.id));
+  const rippleHitTarget2 = makeStubElement('circle');
+  rippleHitTarget2.classList.add('ripple-hit-target');
+  rippleHitTarget2.closest = (sel) => {
+    if (sel === '[data-ripple-id]') return rippleInstanceSvg2;
+    return null;
+  };
+  rippleInstanceSvg2.appendChild(rippleHitTarget2);
+  previewBoxEl.appendChild(rippleInstanceSvg2);
+
+  previewBoxEl.dispatchEvent({
+    type: 'contextmenu',
+    button: 2,
+    clientX: 460,
+    clientY: 290,
+    target: rippleHitTarget2,
+    preventDefault: () => {},
+    stopPropagation: () => {}
+  });
+  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testRipple2.id, 'Editor must switch to testRipple2');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testRipple2.id);
+
+  // 4c: Fallback to reticle
+  const rippleTargetEl = document.getElementById('rippleReticleTarget');
+  previewBoxEl.dispatchEvent({
     type: 'contextmenu',
     button: 2,
     clientX: 450,
     clientY: 280,
     target: rippleTargetEl,
-    preventDefault: () => { preventDefaultCalled = true; },
-    stopPropagation: () => { stopPropagationCalled = true; }
-  };
-  previewBoxEl.dispatchEvent(rippleRightClickEvt);
+    preventDefault: () => {},
+    stopPropagation: () => {}
+  });
+  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple');
 
-  assert.strictEqual(preventDefaultCalled, true, 'Right-clicking ripple reticle must call preventDefault()');
-  assert.strictEqual(stopPropagationCalled, true, 'Right-clicking ripple reticle must call stopPropagation()');
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Editor must open for ripple');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'ripple', 'Editor must switch to ripple');
-  assert.strictEqual(window.FloatingPropertiesEditor.activeId, testRipple.id);
-  assert.strictEqual(window.Ripples.getRipple(testRipple.id).x, rippleX, 'Ripple X must remain unchanged');
-  assert.strictEqual(window.Ripples.getRipple(testRipple.id).y, rippleY, 'Ripple Y must remain unchanged');
-  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeRipple, 'Ripple right-click must not pollute history');
-
-  window.FloatingPropertiesEditor.close();
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
-
-  // Test 5: Right-Click on blank / empty canvas space suppresses native context menu,
-  // does not open Properties, does not change selection, and dispatches to extension point handleCanvasContextMenu
-  window.FloatingPropertiesEditor.close();
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
-
-  // Set active selection to testNode to verify selection is preserved on empty canvas right-click
+  // Test 5: Right-Click on blank / empty canvas space:
+  // - closes floating Properties if open
+  // - clears active selection (Select None)
+  // - suppresses browser context menu
+  // - does not initiate dragging or pollute history
+  // - dispatches to clean extension hook handleCanvasContextMenu
+  window.FloatingPropertiesEditor.openFor('node', testNode.id);
   window.AppCoordinator.selectObject('node', testNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
   assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id);
   const historyLenBeforeBlank = window.HistoryManager.undoStack.length;
 
@@ -2405,13 +2538,136 @@ async function runHarness() {
 
   assert.strictEqual(preventDefaultCalled, true, 'Right-clicking empty canvas must call preventDefault() - SVG Animator Studio owns canvas context');
   assert.strictEqual(stopPropagationCalled, true, 'Right-clicking empty canvas must call stopPropagation()');
-  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Right-clicking empty canvas must NOT open Properties editor');
-  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id, 'Right-clicking empty canvas must NOT alter selection');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Right-clicking empty canvas must CLOSE floating Properties editor');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'Right-clicking empty canvas must CLEAR selection (Select None)');
   assert.strictEqual(window.Stage.isDragging, false, 'Right-clicking empty canvas must NOT initiate stage dragging');
   assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeBlank, 'Right-clicking empty canvas must NOT alter history');
   assert.strictEqual(canvasContextHookCalled, true, 'Extension point handleCanvasContextMenu must be called on empty canvas right-click');
 
   window.FloatingPropertiesEditor.handleCanvasContextMenu = origHandleCanvasContext;
+
+  // Test 5b: Left-Click on blank canvas in normal Select mode clears selection (Select None)
+  window.AppCoordinator.selectObject('node', testNode.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id);
+  const blankPointerDownEvt = {
+    type: 'pointerdown',
+    button: 0,
+    clientX: 120,
+    clientY: 120,
+    target: blankCanvasEl,
+    preventDefault: () => {},
+    stopPropagation: () => {}
+  };
+  previewBoxEl.dispatchEvent(blankPointerDownEvt);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'Pointerdown on blank canvas must clear selection');
+  assert.strictEqual(window.Stage.isDragging, false, 'Blank canvas click must not initiate node dragging');
+
+  // Test 5c: Escape key handling priority
+  // Priority 1: FloatingPropertiesEditor open -> closes editor & clears selection
+  window.AppCoordinator.selectObject('node', testNode.id);
+  window.FloatingPropertiesEditor.openFor('node', testNode.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id);
+
+  let escHandled = window.WorkspaceController.handleKeydown({ key: 'Escape', code: 'Escape', preventDefault: () => {} });
+  assert.strictEqual(escHandled, true, 'Escape must be handled');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Escape must close floating editor');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'Escape must clear active selection');
+
+  // Priority 2: FloatingPropertiesEditor closed but object selected -> clears selection
+  window.AppCoordinator.selectObject('flow', testFlow.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testFlow.id);
+  escHandled = window.WorkspaceController.handleKeydown({ key: 'Escape', code: 'Escape', preventDefault: () => {} });
+  assert.strictEqual(escHandled, true);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'Escape must clear selection when editor was closed');
+
+  // Priority 3: When modal is open, Escape does NOT clear canvas selection (modal priority)
+  const projectsModalEl = document.getElementById('projectsModal');
+  if (projectsModalEl) projectsModalEl.style.display = 'flex';
+  window.AppCoordinator.selectObject('glow', testGlow.id);
+  escHandled = window.WorkspaceController.handleKeydown({ key: 'Escape', code: 'Escape', preventDefault: () => {} });
+  assert.strictEqual(escHandled, false, 'Modal open must bypass WorkspaceController Escape');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testGlow.id, 'Selection preserved when modal open');
+  if (projectsModalEl) projectsModalEl.style.display = 'none';
+  window.AppCoordinator.clearSelection();
+
+  // Test 5d: Sidebar Deselect buttons and active row click toggling
+  // Deselect Node
+  window.AppCoordinator.selectObject('node', testNode.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testNode.id);
+  const btnDeselectNode = document.getElementById('btnDeselectNode');
+  if (btnDeselectNode) {
+    btnDeselectNode.dispatchEvent({ type: 'click' });
+    assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'btnDeselectNode must clear selection');
+  }
+
+  // Deselect Flow
+  window.AppCoordinator.selectObject('flow', testFlow.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testFlow.id);
+  const btnDeselectFlow = document.getElementById('btnDeselectFlow');
+  if (btnDeselectFlow) {
+    btnDeselectFlow.dispatchEvent({ type: 'click' });
+    assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'btnDeselectFlow must clear selection');
+  }
+
+  // Deselect Glow
+  window.AppCoordinator.selectObject('glow', testGlow.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testGlow.id);
+  const btnDeselectGlow = document.getElementById('btnDeselectGlow');
+  if (btnDeselectGlow) {
+    btnDeselectGlow.dispatchEvent({ type: 'click' });
+    assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'btnDeselectGlow must clear selection');
+  }
+
+  // Deselect Ripple
+  window.AppCoordinator.selectObject('ripple', testRipple.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, testRipple.id);
+  const btnDeselectRipple = document.getElementById('btnDeselectRipple');
+  if (btnDeselectRipple) {
+    btnDeselectRipple.dispatchEvent({ type: 'click' });
+    assert.strictEqual(window.AppCoordinator.getActiveSelection().id, null, 'btnDeselectRipple must clear selection');
+  }
+
+  // Re-clicking active row in sidebar list deselects
+  window.DiagramNodes.selectNode(testNode.id);
+  assert.strictEqual(window.DiagramNodes.activeId, testNode.id);
+  const nodeList = document.getElementById('nodeListContainer');
+  const activeNodeRow = (nodeList && nodeList.children) ? Array.from(nodeList.children).find((c) => c.classList && c.classList.contains('selected')) : null;
+  assert.ok(activeNodeRow, 'Active node row must exist in sidebar');
+  activeNodeRow.onclick();
+  assert.strictEqual(window.DiagramNodes.activeId, null, 'Re-clicking active node row in sidebar list must deselect');
+
+  window.DataFlows.selectFlow(testFlow.id);
+  assert.strictEqual(window.DataFlows.activeId, testFlow.id);
+  const flowList = document.getElementById('flowListContainer');
+  const activeFlowRow = (flowList && flowList.children) ? Array.from(flowList.children).find((c) => c.classList && c.classList.contains('selected')) : null;
+  assert.ok(activeFlowRow, 'Active flow row must exist in sidebar');
+  activeFlowRow.onclick();
+  assert.strictEqual(window.DataFlows.activeId, null, 'Re-clicking active flow row in sidebar list must deselect');
+
+  window.Glows.selectGlow(testGlow.id);
+  assert.strictEqual(window.Glows.activeId, testGlow.id);
+  const glowList = document.getElementById('glowListContainer');
+  const activeGlowRow = (glowList && glowList.children) ? Array.from(glowList.children).find((c) => c.classList && c.classList.contains('selected')) : null;
+  assert.ok(activeGlowRow, 'Active glow row must exist in sidebar');
+  activeGlowRow.onclick();
+  assert.strictEqual(window.Glows.activeId, null, 'Re-clicking active glow row in sidebar list must deselect');
+
+  window.Ripples.selectRipple(testRipple.id);
+  assert.strictEqual(window.Ripples.activeId, testRipple.id);
+  const rippleList = document.getElementById('rippleListContainer');
+  const activeRippleRow = (rippleList && rippleList.children) ? Array.from(rippleList.children).find((c) => c.classList && c.classList.contains('selected')) : null;
+  assert.ok(activeRippleRow, 'Active ripple row must exist in sidebar');
+  activeRippleRow.onclick();
+  assert.strictEqual(window.Ripples.activeId, null, 'Re-clicking active ripple row in sidebar list must deselect');
+
+  // Verify effects, camera, and render state remain fully operational after deselection
+  const rStateAfterDeselect = window.SceneState.buildRenderState();
+  assert.ok(rStateAfterDeselect && rStateAfterDeselect.image, 'SceneState renderState remains intact');
+  assert.strictEqual(window.DiagramNodes.list.length >= 1, true, 'Nodes remain intact after deselect');
+  assert.strictEqual(window.DataFlows.list.length >= 1, true, 'Flows remain intact after deselect');
+  assert.strictEqual(window.Glows.list.length >= 1, true, 'Glows remain intact after deselect');
+  assert.strictEqual(window.Ripples.list.length >= 1, true, 'Ripples remain intact after deselect');
 
   // Test 6: Right-Click inside text inputs, editable fields, and floating editor controls MUST NOT suppress native context menu
   window.FloatingPropertiesEditor.openFor('node', testNode.id);

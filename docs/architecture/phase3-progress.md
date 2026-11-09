@@ -393,3 +393,24 @@ The workspace implements a **master-detail inspector pattern**:
 - Glassmorphic dark styling (`#161b22`, border `#30363d`, backdrop blur 12px) with draggable grab header, type badge (`NODE`, `FLOW`, `GLOW`, `RIPPLE`), and close button.
 - Smart screen clamping keeps the editor visible within the stage viewport while preserving user-dragged coordinates during the session.
 - Responsive mobile docking (`@media (max-width: 767px)`): Seamlessly docks to the bottom viewport as an accessible bottom-sheet modal.
+
+---
+
+## 16. Contextual Effect Targeting & Select None (Complete)
+
+### 16.1 Direct SVG Hit Testing for Optical Effects (Glows & Ripples)
+- Rendered SVG instances for Glows (`<g class="diagram-glow-instance" data-glow-id="...">`) and Ripples (`<g class="diagram-ripple-instance" data-ripple-id="...">`) now include transparent hit target elements (`.glow-hit-target` and `.ripple-hit-target`) with `fill="transparent"` and `pointer-events="all"`.
+- Enables direct right-click selection and contextual Properties editor activation on unselected effect instances without relying on selection reticles (`#glowReticleTarget`, `#rippleReticleTarget`) which are only shown when selected.
+- Flows include `data-flow-id` attributes on SVG path elements for direct right-click targeting.
+
+### 16.2 Complete Select None Architecture
+- **AppCoordinator.clearSelection**: Supports `{ reason, exceptType }` to orchestrate clean selection clearing across all modules (`DiagramNodes`, `DataFlows`, `Glows`, `Ripples`, and `Stage` camera mode).
+- **Blank Canvas Left-Click**: Clicking on empty canvas space in normal mode clears selection (`Select None`) without moving objects or modifying history.
+- **Blank Canvas Right-Click**: Closes floating Properties if open, clears selection, suppresses native browser context menu, and dispatches to clean extension hook `handleCanvasContextMenu(e)`.
+- **Escape Key Handling**:
+  1. Priority 1: If floating Properties editor is open, closes editor and contextually clears selection.
+  2. Priority 2: If an object is selected, clears selection.
+  3. Priority 3: Preserves modal dialog and camera placement priority.
+- **Sidebar Deselect Controls**: Added dedicated Deselect buttons (`.btn-deselect-sidebar`) to Node, Flow, Glow, and Ripple inspector headers.
+- **Sidebar List Row Re-Click**: Clicking an already active instance row in the sidebar list toggles/clears its selection.
+- **State Preservation**: Deselection cleanly hides active reticles and editor forms without mutating object lists or interrupting background animations, SVG filters, camera settings, or history stacks.

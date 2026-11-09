@@ -146,7 +146,12 @@ window.Ripples = {
       const refractedPhoto = !isBlank && window.Effects
         ? '<g mask="url(#' + maskId + ')" pointer-events="none"><g transform="translate(' + px + ', ' + py + ') scale(' + scaleRefract + ') translate(' + (-px) + ', ' + (-py) + ')">' + window.Effects.buildPhotoElement(state.image, width, height) + '</g></g>'
         : '';
-      elements += refractedPhoto + '<g pointer-events="none">' + ringShadows + '</g><g pointer-events="none">' + ringHighlights + '</g>';
+      const maxR = Math.max(30, rp.outerR || 100);
+      const hitTargetEl = '<circle class="ripple-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + maxR.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+      elements += '<g class="diagram-ripple-instance" data-ripple-id="' + rp.id + '">' +
+        hitTargetEl +
+        refractedPhoto + '<g pointer-events="none">' + ringShadows + '</g><g pointer-events="none">' + ringHighlights + '</g>' +
+        '</g>';
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="ripples-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
@@ -162,6 +167,17 @@ window.Ripples = {
 
     const btnAdd = document.getElementById('btnAddRipple');
     if (btnAdd) btnAdd.addEventListener('click', () => this.addRipple());
+
+    const btnDeselect = document.getElementById('btnDeselectRipple');
+    if (btnDeselect) {
+      btnDeselect.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'sidebar_deselect_ripple' });
+        } else {
+          this.deselectRipple();
+        }
+      });
+    }
 
     const colPick = document.getElementById('rippleColorPicker');
     if (colPick) {
@@ -329,7 +345,17 @@ window.Ripples = {
         '<span class="compact-meta">' + (rp.rings || 3) + ' rings</span>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete ripple" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => this.selectRipple(rp.id);
+      div.onclick = () => {
+        if (this.activeId === rp.id) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+            window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_ripple' });
+          } else {
+            this.deselectRipple();
+          }
+        } else {
+          this.selectRipple(rp.id);
+        }
+      };
       container.appendChild(div);
     });
   },
