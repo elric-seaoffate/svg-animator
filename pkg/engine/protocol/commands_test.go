@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
@@ -890,5 +891,257 @@ func TestDispatchUnknownCommand(t *testing.T) {
 	_, err := Dispatch("Unknown.Action", nil)
 	if err == nil {
 		t.Errorf("expected error on unknown command")
+	}
+}
+
+func TestDispatchSelectionCommands(t *testing.T) {
+	// 1. Create a node to select
+	cReq, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "rounded", Text: "SelTarget"},
+	})
+	cBytes, _ := Dispatch("Node.Create", cReq)
+	var cRes struct {
+		Node scene.Node `json:"node"`
+	}
+	_ = json.Unmarshal(cBytes, &cRes)
+	node := cRes.Node
+
+	// 2. Selection.Set valid
+	sReq, _ := json.Marshal(SelectionSetRequest{
+		Type: "node",
+		ID:   node.ID,
+	})
+	sBytes, err := Dispatch("Selection.Set", sReq)
+	if err != nil {
+		t.Fatalf("Selection.Set failed: %v", err)
+	}
+	var sRes SelectionResponse
+	if err := json.Unmarshal(sBytes, &sRes); err != nil || !sRes.Success || sRes.ID != node.ID {
+		t.Fatalf("Selection.Set response mismatch: %+v", sRes)
+	}
+
+	// 3. Selection.Get
+	gBytes, err := Dispatch("Selection.Get", nil)
+	if err != nil {
+		t.Fatalf("Selection.Get failed: %v", err)
+	}
+	var gRes SelectionResponse
+	if err := json.Unmarshal(gBytes, &gRes); err != nil || gRes.ID != node.ID {
+		t.Fatalf("Selection.Get mismatch: %+v", gRes)
+	}
+
+	// 4. Selection.Clear
+	clrBytes, err := Dispatch("Selection.Clear", nil)
+	if err != nil {
+		t.Fatalf("Selection.Clear failed: %v", err)
+	}
+	var clrRes SelectionResponse
+	if err := json.Unmarshal(clrBytes, &clrRes); err != nil || clrRes.Type != "none" {
+		t.Fatalf("Selection.Clear mismatch: %+v", clrRes)
+	}
+}
+
+func TestDispatchHistoryCommands(t *testing.T) {
+	// 1. History.Clear
+	Dispatch("History.Clear", nil)
+
+	// 2. History.Record initial
+	recBytes, err := Dispatch("History.Record", nil)
+	if err != nil {
+		t.Fatalf("History.Record failed: %v", err)
+	}
+	var recRes HistoryStateResponse
+	if err := json.Unmarshal(recBytes, &recRes); err != nil || recRes.UndoCount < 1 {
+		t.Fatalf("History.Record mismatch: %+v", recRes)
+	}
+
+	// 3. Modify scene and record
+	cReq, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "pill", Text: "HistNode"},
+	})
+	Dispatch("Node.Create", cReq)
+	Dispatch("History.Record", nil)
+
+	// 4. Check state
+	stBytes, _ := Dispatch("History.GetState", nil)
+	var stRes HistoryStateResponse
+	_ = json.Unmarshal(stBytes, &stRes)
+	if !stRes.CanUndo || stRes.UndoCount < 2 {
+		t.Fatalf("expected canUndo with >= 2 entries, got %+v", stRes)
+	}
+
+	// 5. History.Undo
+	uBytes, err := Dispatch("History.Undo", nil)
+	if err != nil {
+		t.Fatalf("History.Undo failed: %v", err)
+	}
+	var uRes HistoryRestoreResponse
+	if err := json.Unmarshal(uBytes, &uRes); err != nil || !uRes.Success {
+		t.Fatalf("History.Undo response mismatch: %+v", uRes)
+	}
+
+	// 6. History.Redo
+	rBytes, err := Dispatch("History.Redo", nil)
+	if err != nil {
+		t.Fatalf("History.Redo failed: %v", err)
+	}
+	var rRes HistoryRestoreResponse
+	if err := json.Unmarshal(rBytes, &rRes); err != nil || !rRes.Success {
+		t.Fatalf("History.Redo response mismatch: %+v", rRes)
+	}
+}
+
+func TestDispatchObjectRenameCommands(t *testing.T) {
+	// Create a node
+	cReq, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "diamond", Text: "DiamondLabel"},
+	})
+	cBytes, _ := Dispatch("Node.Create", cReq)
+	var cRes struct {
+		Node scene.Node `json:"node"`
+	}
+	_ = json.Unmarshal(cBytes, &cRes)
+	node := cRes.Node
+
+	// Object.Rename
+	rReq, _ := json.Marshal(ObjectRenameRequest{
+		Type: "node",
+		ID:   node.ID,
+		Name: "Core Pump Unit 1",
+	})
+	rBytes, err := Dispatch("Object.Rename", rReq)
+	if err != nil {
+		t.Fatalf("Object.Rename failed: %v", err)
+	}
+	var rRes ObjectRenameResponse
+	if err := json.Unmarshal(rBytes, &rRes); err != nil || !rRes.Success || rRes.Name != "Core Pump Unit 1" {
+		t.Fatalf("Object.Rename response mismatch: %+v", rRes)
+	}
+
+	// Verify Node.Get has Name and unchanged Text
+	gBytes, _ := Dispatch("Node.Get", []byte(fmt.Sprintf(`{"id":"%s"}`, node.ID)))
+	var gNode scene.Node
+	_ = json.Unmarshal(gBytes, &gNode)
+	if gNode.Name != "Core Pump Unit 1" {
+		t.Errorf("expected node name 'Core Pump Unit 1', got %q", gNode.Name)
+	}
+	if gNode.Text != "DiamondLabel" {
+		t.Errorf("node text must remain untouched, got %q", gNode.Text)
+	}
+}
+
+func TestDispatchAllObjectTypesRenameAndClear(t *testing.T) {
+	// 1. Flow
+	cfReq, _ := json.Marshal(FlowCreateRequest{
+		Initial: scene.Flow{RouteMode: "direct", Label: "Badge 1"},
+	})
+	cfBytes, _ := Dispatch("Flow.Create", cfReq)
+	var cfRes struct {
+		Flow scene.Flow `json:"flow"`
+	}
+	_ = json.Unmarshal(cfBytes, &cfRes)
+	flow := cfRes.Flow
+
+	rfReq, _ := json.Marshal(ObjectRenameRequest{
+		Type: "flow",
+		ID:   flow.ID,
+		Name: "Main Cooling Loop #1 (High Flux) / 冷却水供給",
+	})
+	rfBytes, err := Dispatch("Object.Rename", rfReq)
+	if err != nil {
+		t.Fatalf("rename flow failed: %v", err)
+	}
+	var rfRes ObjectRenameResponse
+	_ = json.Unmarshal(rfBytes, &rfRes)
+	if !rfRes.Success || rfRes.Name != "Main Cooling Loop #1 (High Flux) / 冷却水供給" {
+		t.Fatalf("rename flow response mismatch: %+v", rfRes)
+	}
+
+	// Verify Flow.Get preserves label
+	gfBytes, _ := Dispatch("Flow.Get", []byte(fmt.Sprintf(`{"id":"%s"}`, flow.ID)))
+	var gFlow scene.Flow
+	_ = json.Unmarshal(gfBytes, &gFlow)
+	if gFlow.Name != "Main Cooling Loop #1 (High Flux) / 冷却水供給" {
+		t.Errorf("flow name mismatch: %q", gFlow.Name)
+	}
+	if gFlow.Label != "Badge 1" {
+		t.Errorf("flow label must not be altered by rename: %q", gFlow.Label)
+	}
+
+	// 2. Glow
+	cgReq, _ := json.Marshal(GlowCreateRequest{
+		Initial: scene.Glow{Shape: "circle", Size: 30},
+	})
+	cgBytes, _ := Dispatch("Glow.Create", cgReq)
+	var cgRes struct {
+		Glow scene.Glow `json:"glow"`
+	}
+	_ = json.Unmarshal(cgBytes, &cgRes)
+	glow := cgRes.Glow
+
+	rgReq, _ := json.Marshal(ObjectRenameRequest{
+		Type: "glow",
+		ID:   glow.ID,
+		Name: "Primary Overheat Hotspot",
+	})
+	rgBytes, err := Dispatch("Object.Rename", rgReq)
+	if err != nil {
+		t.Fatalf("rename glow failed: %v", err)
+	}
+	var rgRes ObjectRenameResponse
+	_ = json.Unmarshal(rgBytes, &rgRes)
+	if !rgRes.Success || rgRes.Name != "Primary Overheat Hotspot" {
+		t.Fatalf("rename glow response mismatch: %+v", rgRes)
+	}
+
+	// 3. Ripple
+	crReq, _ := json.Marshal(RippleCreateRequest{
+		Initial: scene.Ripple{Rings: 4},
+	})
+	crBytes, _ := Dispatch("Ripple.Create", crReq)
+	var crRes struct {
+		Ripple scene.Ripple `json:"ripple"`
+	}
+	_ = json.Unmarshal(crBytes, &crRes)
+	rip := crRes.Ripple
+
+	rrReq, _ := json.Marshal(ObjectRenameRequest{
+		Type: "ripple",
+		ID:   rip.ID,
+		Name: "Cavitation Wave",
+	})
+	rrBytes, err := Dispatch("Object.Rename", rrReq)
+	if err != nil {
+		t.Fatalf("rename ripple failed: %v", err)
+	}
+	var rrRes ObjectRenameResponse
+	_ = json.Unmarshal(rrBytes, &rrRes)
+	if !rrRes.Success || rrRes.Name != "Cavitation Wave" {
+		t.Fatalf("rename ripple response mismatch: %+v", rrRes)
+	}
+
+	// 4. Clear names
+	for _, obj := range []struct {
+		typ string
+		id  scene.StringID
+	}{
+		{"flow", flow.ID},
+		{"glow", glow.ID},
+		{"ripple", rip.ID},
+	} {
+		clrReq, _ := json.Marshal(ObjectRenameRequest{
+			Type: obj.typ,
+			ID:   obj.id,
+			Name: "",
+		})
+		clrBytes, err := Dispatch("Object.Rename", clrReq)
+		if err != nil {
+			t.Fatalf("clear name failed for %s: %v", obj.typ, err)
+		}
+		var clrRes ObjectRenameResponse
+		_ = json.Unmarshal(clrBytes, &clrRes)
+		if !clrRes.Success || clrRes.Name != "" {
+			t.Errorf("expected empty name for %s, got %+v", obj.typ, clrRes)
+		}
 	}
 }

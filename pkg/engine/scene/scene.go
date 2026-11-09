@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"errors"
 	"strconv"
 	"sync"
 
@@ -33,6 +34,9 @@ type Scene struct {
 	ripplesCounter int64
 	ripples        map[StringID]Ripple
 	rippleIDs      []StringID
+
+	selection SelectionState
+	history   *HistoryManager
 }
 
 // NewScene initializes an empty Scene with default configuration.
@@ -85,6 +89,8 @@ func NewScene() *Scene {
 		flowIDs:   make([]StringID, 0),
 		glowIDs:   make([]StringID, 0),
 		rippleIDs: make([]StringID, 0),
+		selection: SelectionState{Type: SelectionNone, ID: ""},
+		history:   NewHistoryManager(50),
 	}
 }
 
@@ -413,7 +419,11 @@ func (s *Scene) UpdateNode(n Node) {
 	if n.Animation == "" && n.Anim != "" {
 		n.Animation = n.Anim
 	}
-	if _, exists := s.nodes[n.ID]; !exists {
+	if old, exists := s.nodes[n.ID]; exists {
+		if n.Name == "" && old.Name != "" {
+			n.Name = old.Name
+		}
+	} else {
 		s.nodeIDs = append(s.nodeIDs, n.ID)
 	}
 	s.nodes[n.ID] = n
@@ -465,7 +475,11 @@ func (s *Scene) UpdateFlow(f Flow) {
 	if f.RouteMode == "" && f.Route != "" {
 		f.RouteMode = f.Route
 	}
-	if _, exists := s.flows[f.ID]; !exists {
+	if old, exists := s.flows[f.ID]; exists {
+		if f.Name == "" && old.Name != "" {
+			f.Name = old.Name
+		}
+	} else {
 		s.flowIDs = append(s.flowIDs, f.ID)
 	}
 	s.flows[f.ID] = f
@@ -489,6 +503,93 @@ func (s *Scene) RemoveFlow(id StringID) bool {
 	s.flowIDs = newIDs
 	s.revision++
 	return true
+}
+
+// RenameObject updates the human-readable display name of a Node, Flow, Glow, or Ripple.
+func (s *Scene) RenameObject(selType SelectionType, id StringID, name string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch selType {
+	case SelectionNode:
+		node, ok := s.nodes[id]
+		if !ok {
+			return false, errors.New("node not found: " + string(id))
+		}
+		node.Name = name
+		s.nodes[id] = node
+		s.revision++
+		return true, nil
+
+	case SelectionFlow:
+		flow, ok := s.flows[id]
+		if !ok {
+			return false, errors.New("flow not found: " + string(id))
+		}
+		flow.Name = name
+		s.flows[id] = flow
+		s.revision++
+		return true, nil
+
+	case SelectionGlow:
+		glow, ok := s.glows[id]
+		if !ok {
+			return false, errors.New("glow not found: " + string(id))
+		}
+		glow.Name = name
+		s.glows[id] = glow
+		s.revision++
+		return true, nil
+
+	case SelectionRipple:
+		ripple, ok := s.ripples[id]
+		if !ok {
+			return false, errors.New("ripple not found: " + string(id))
+		}
+		ripple.Name = name
+		s.ripples[id] = ripple
+		s.revision++
+		return true, nil
+
+	default:
+		return false, errors.New("unsupported object type for rename: " + string(selType))
+	}
+}
+
+// History returns the scene's history manager.
+func (s *Scene) History() *HistoryManager {
+	return s.history
+}
+
+// RecordHistory captures the current scene snapshot and active selection into history.
+func (s *Scene) RecordHistory() bool {
+	snap := s.GetSnapshot()
+	sel := s.GetSelection()
+	return s.history.Record(snap, sel)
+}
+
+// UndoHistory restores the previous scene snapshot and selection.
+func (s *Scene) UndoHistory() (HistoryEntry, error) {
+	currentSnap := s.GetSnapshot()
+	currentSel := s.GetSelection()
+	entry, err := s.history.Undo(currentSnap, currentSel)
+	if err != nil {
+		return HistoryEntry{}, err
+	}
+	s.SetFromSnapshot(entry.Snapshot)
+	_, _ = s.SetSelection(entry.Selection.Type, entry.Selection.ID)
+	return entry, nil
+}
+
+// RedoHistory restores the next undone scene snapshot and selection.
+func (s *Scene) RedoHistory() (HistoryEntry, error) {
+	entry, err := s.history.Redo()
+	if err != nil {
+		return HistoryEntry{}, err
+	}
+	s.SetFromSnapshot(entry.Snapshot)
+	_, _ = s.SetSelection(entry.Selection.Type, entry.Selection.ID)
+	return entry, nil
 }
 
 // SetFromSnapshot replaces the scene contents with a full snapshot.

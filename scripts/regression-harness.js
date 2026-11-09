@@ -3980,7 +3980,120 @@ async function runHarness() {
   assert.strictEqual(window.TimelinePlayer.currentTime, 0.0);
   assert.strictEqual(feAttrs.stdDeviation, '18.00', 'Blur must reset to 18.00 on stop');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6 & 7 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics & Frame engines verified.');
+  // =========================================================================
+  // STAGE 8 VERIFICATION: Authoritative Scene State, Selection, History & Editable Object Names
+  // =========================================================================
+  console.log('[HARNESS] Testing WASM Stage 8: Authoritative Scene State, Selection, History and Object Naming...');
+
+  // Create objects for testing
+  const stage8Node = window.DiagramNodes.createNode({ shape: 'rounded', text: 'Shape Text Label' });
+  const stage8Flow = window.DataFlows.createFlow({ label: 'Badge Label' });
+  const stage8Glow = window.Glows.createGlow({ shape: 'circle' });
+  const stage8Ripple = window.Ripples.createRipple({ rings: 3 });
+
+  // 1. Selection Coordination and Go Engine Parity
+  window.AppCoordinator.selectObject('node', stage8Node.id);
+  const selNode = window.EngineBridge.getSelection();
+  assert.ok(selNode && selNode.success, 'EngineBridge.getSelection must return success');
+  assert.strictEqual(selNode.type, 'node', 'Go selection type must be node');
+  assert.strictEqual(String(selNode.id), String(stage8Node.id), 'Go selection id must match selected node');
+
+  window.AppCoordinator.clearSelection();
+  const selCleared = window.EngineBridge.getSelection();
+  assert.strictEqual(selCleared.type, 'none', 'Go selection type must be none after clearSelection');
+  assert.strictEqual(selCleared.id, '', 'Go selection id must be empty after clearSelection');
+
+  // 2. Object Naming End-to-End
+
+  // Node Rename
+  window.DiagramNodes.selectNode(stage8Node.id);
+  const unicodeNodeName = '🚀 Primary Core Pump #1 / 冷却ポンプ';
+  window.DiagramNodes.updateActive('name', unicodeNodeName);
+  assert.strictEqual(stage8Node.name, unicodeNodeName, 'stage8Node.name must be updated');
+  assert.strictEqual(stage8Node.text, 'Shape Text Label', 'Node diagram text must remain intact after renaming');
+
+  // Verify rename sent to Go engine
+  const wasmNodeState = window.EngineBridge.dispatch('Node.Get', { id: String(stage8Node.id) });
+  assert.ok(wasmNodeState, 'Node.Get must return node');
+  assert.strictEqual(wasmNodeState.name, unicodeNodeName, 'Go scene node name must match renamed string');
+  assert.strictEqual(wasmNodeState.text, 'Shape Text Label', 'Go scene node text must not be overwritten');
+
+  // Flow Rename
+  window.DataFlows.selectFlow(stage8Flow.id);
+  const unicodeFlowName = 'Main Cooling Water Loop (High Temp) 💧';
+  window.DataFlows.updateActive('name', unicodeFlowName);
+  assert.strictEqual(stage8Flow.name, unicodeFlowName, 'stage8Flow.name must be updated');
+  assert.strictEqual(stage8Flow.label, 'Badge Label', 'Flow midpoint badge label must remain intact after renaming');
+
+  const wasmFlowState = window.EngineBridge.getFlow(stage8Flow.id);
+  assert.ok(wasmFlowState, 'getFlow must return flow');
+  assert.strictEqual(wasmFlowState.name, unicodeFlowName, 'Go scene flow name must match renamed string');
+
+  // Glow Rename
+  window.Glows.selectGlow(stage8Glow.id);
+  const glowName = 'Reactor Core Overheat Alarm #3';
+  window.Glows.updateActive('name', glowName);
+  assert.strictEqual(stage8Glow.name, glowName, 'stage8Glow.name must be updated');
+
+  const wasmGlowState = window.EngineBridge.dispatch('Glow.Get', { id: String(stage8Glow.id) });
+  assert.strictEqual(wasmGlowState.name, glowName, 'Go scene glow name must match');
+
+  // Ripple Rename
+  window.Ripples.selectRipple(stage8Ripple.id);
+  const rippleName = 'Expansion Wave Alpha';
+  window.Ripples.updateActive('name', rippleName);
+  assert.strictEqual(stage8Ripple.name, rippleName, 'stage8Ripple.name must be updated');
+
+  const wasmRippleState = window.EngineBridge.dispatch('Ripple.Get', { id: String(stage8Ripple.id) });
+  assert.strictEqual(wasmRippleState.name, rippleName, 'Go scene ripple name must match');
+
+  // 3. Clear Name returns to default display label
+  window.DiagramNodes.selectNode(stage8Node.id);
+  window.DiagramNodes.updateActive('name', '');
+  assert.strictEqual(stage8Node.name, '', 'Name should be cleared');
+  const wasmNodeCleared = window.EngineBridge.dispatch('Node.Get', { id: String(stage8Node.id) });
+  assert.strictEqual(wasmNodeCleared.name || '', '', 'Go scene node name should be cleared');
+
+  // Restore name for round-trip test
+  window.DiagramNodes.updateActive('name', unicodeNodeName);
+
+  // 4. Undo and Redo of Renames
+  window.HistoryManager.recordImmediate();
+  const histState1 = window.EngineBridge.getHistoryState();
+  assert.ok(histState1 && histState1.undoCount >= 2, 'History stack must have >= 2 entries');
+
+  window.DiagramNodes.updateActive('name', 'Modified Temporary Name');
+  window.HistoryManager.recordImmediate();
+
+  window.HistoryManager.undo();
+  assert.strictEqual(window.DiagramNodes.getNode(stage8Node.id).name, unicodeNodeName, 'Undo must restore previous object name');
+
+  window.HistoryManager.redo();
+  assert.strictEqual(window.DiagramNodes.getNode(stage8Node.id).name, 'Modified Temporary Name', 'Redo must re-apply modified object name');
+
+  // Undo back to unicodeNodeName
+  window.HistoryManager.undo();
+  assert.strictEqual(window.DiagramNodes.getNode(stage8Node.id).name, unicodeNodeName, 'Undo must restore unicodeNodeName');
+
+  // 5. Persistence: Project Save / Load Round-Trip
+  const serialized = window.ProjectManager.serializeStudioState();
+  assert.ok(serialized.includes(unicodeNodeName), 'Serialized project state must include custom object names');
+  assert.ok(serialized.includes(unicodeFlowName), 'Serialized project state must include custom flow names');
+  assert.ok(serialized.includes(glowName), 'Serialized project state must include custom glow names');
+  assert.ok(serialized.includes(rippleName), 'Serialized project state must include custom ripple names');
+
+  // Simulate loading the project state
+  window.ProjectManager.applyStudioState(serialized);
+  const restoredNode = window.DiagramNodes.getNode(stage8Node.id);
+  assert.ok(restoredNode, 'Restored node must exist');
+  assert.strictEqual(restoredNode.name, unicodeNodeName, 'Restored node name must match');
+  assert.strictEqual(restoredNode.text, 'Shape Text Label', 'Restored node text must match');
+
+  const restoredFlow = window.DataFlows.getFlow(stage8Flow.id);
+  assert.ok(restoredFlow, 'Restored flow must exist');
+  assert.strictEqual(restoredFlow.name, unicodeFlowName, 'Restored flow name must match');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7 & 8 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

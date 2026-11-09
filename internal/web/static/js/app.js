@@ -940,8 +940,9 @@ window.FloatingPropertiesEditor = {
           return;
         }
         if (titleEl) {
-          titleEl.textContent = 'Node #' + node.id + (node.text ? ': ' + node.text : '');
+          titleEl.textContent = 'Node #' + node.id + (node.name ? ' (' + node.name + ')' : (node.text ? ': ' + node.text : ''));
         }
+        this._setVal('fctx-nodeNameInput', node.name || '');
         this._setVal('fctx-nodeShapeSelect', node.shape || 'rounded');
         this._setVal('fctx-nodeTextInput', node.text || '');
         this._setVal('fctx-nodeSubtextInput', node.subtext || '');
@@ -962,8 +963,9 @@ window.FloatingPropertiesEditor = {
           return;
         }
         if (titleEl) {
-          titleEl.textContent = 'Flow #' + flow.id + (flow.label ? ': ' + flow.label : '');
+          titleEl.textContent = 'Flow #' + flow.id + (flow.name ? ' (' + flow.name + ')' : (flow.label ? ': ' + flow.label : ''));
         }
+        this._setVal('fctx-flowNameInput', flow.name || '');
         const nodeSlider = document.getElementById('fctx-flowNodeSlider');
         const nodeNum = document.getElementById('fctx-flowNodeNum');
         if (nodeSlider && flow.nodes) {
@@ -994,8 +996,9 @@ window.FloatingPropertiesEditor = {
           return;
         }
         if (titleEl) {
-          titleEl.textContent = 'Glow #' + glow.id;
+          titleEl.textContent = 'Glow #' + glow.id + (glow.name ? ' (' + glow.name + ')' : '');
         }
+        this._setVal('fctx-glowNameInput', glow.name || '');
         this._setVal('fctx-glowShapeSelect', glow.shape || 'circle');
         this._setVal('fctx-glowPlaybackSelect', glow.playback || 'pingpong');
         this._setVal('fctx-glowColorPicker', glow.color || '#ff0044');
@@ -1022,8 +1025,9 @@ window.FloatingPropertiesEditor = {
           return;
         }
         if (titleEl) {
-          titleEl.textContent = 'Ripple #' + ripple.id;
+          titleEl.textContent = 'Ripple #' + ripple.id + (ripple.name ? ' (' + ripple.name + ')' : '');
         }
+        this._setVal('fctx-rippleNameInput', ripple.name || '');
         this._setVal('fctx-rippleColorPicker', ripple.color || '#ffffff');
         this._setPair('fctx-rippleOpacity', ripple.opacity !== undefined ? ripple.opacity : 0.4);
         this._setPair('fctx-rippleRefraction', ripple.refraction !== undefined ? ripple.refraction : 35);
@@ -1062,6 +1066,7 @@ window.FloatingPropertiesEditor = {
     if (val === undefined || val === null) return;
     const map = {
       node: {
+        name: ['nodeNameInput'],
         text: ['nodeTextInput'],
         subtext: ['nodeSubtextInput'],
         shape: ['nodeShapeSelect'],
@@ -1077,6 +1082,7 @@ window.FloatingPropertiesEditor = {
         animation: ['nodeAnimSelect']
       },
       flow: {
+        name: ['flowNameInput'],
         label: ['flowLabelInput'],
         route: ['flowRouteSelect'],
         lineStyle: ['flowLineStyleSelect'],
@@ -1095,6 +1101,7 @@ window.FloatingPropertiesEditor = {
         hideOnDelay: ['flowHideOnDelay']
       },
       glow: {
+        name: ['glowNameInput'],
         shape: ['glowShapeSelect'],
         playback: ['glowPlaybackSelect'],
         color: ['glowColorPicker'],
@@ -1110,6 +1117,7 @@ window.FloatingPropertiesEditor = {
         hideOnDelay: ['glowHideOnDelay']
       },
       ripple: {
+        name: ['rippleNameInput'],
         color: ['rippleColorPicker'],
         opacity: ['rippleOpacitySlider', 'rippleOpacityNum'],
         refraction: ['rippleRefractionSlider', 'rippleRefractionNum'],
@@ -1214,6 +1222,23 @@ window.FloatingPropertiesEditor = {
       if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
       if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
     });
+
+    const nodeNameIn = document.getElementById('fctx-nodeNameInput');
+    if (nodeNameIn) {
+      nodeNameIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive('name', e.target.value);
+          this._syncSidebar('node', 'name', e.target.value);
+        }
+        const titleEl = document.getElementById('floatingEditorTitle');
+        if (titleEl) {
+          const activeNode = window.DiagramNodes ? window.DiagramNodes.getNode(this.activeId) : null;
+          titleEl.textContent = 'Node #' + this.activeId + (e.target.value ? ' (' + e.target.value + ')' : (activeNode && activeNode.text ? ': ' + activeNode.text : ''));
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
 
     const nodeTextIn = document.getElementById('fctx-nodeTextInput');
     if (nodeTextIn) {
@@ -1320,6 +1345,23 @@ window.FloatingPropertiesEditor = {
       if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
       if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
     });
+
+    const flowNameIn = document.getElementById('fctx-flowNameInput');
+    if (flowNameIn) {
+      flowNameIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'flow') return;
+        if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
+          window.DataFlows.updateActive('name', e.target.value);
+          this._syncSidebar('flow', 'name', e.target.value);
+        }
+        const titleEl = document.getElementById('floatingEditorTitle');
+        if (titleEl) {
+          const activeFlow = window.DataFlows ? window.DataFlows.getFlow(this.activeId) : null;
+          titleEl.textContent = 'Flow #' + this.activeId + (e.target.value ? ' (' + e.target.value + ')' : (activeFlow && activeFlow.label ? ': ' + activeFlow.label : ''));
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
 
     const flowLblIn = document.getElementById('fctx-flowLabelInput');
     if (flowLblIn) {
@@ -1451,6 +1493,22 @@ window.FloatingPropertiesEditor = {
       if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
     });
 
+    const glowNameIn = document.getElementById('fctx-glowNameInput');
+    if (glowNameIn) {
+      glowNameIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'glow') return;
+        if (window.Glows && typeof window.Glows.updateActive === 'function') {
+          window.Glows.updateActive('name', e.target.value);
+          this._syncSidebar('glow', 'name', e.target.value);
+        }
+        const titleEl = document.getElementById('floatingEditorTitle');
+        if (titleEl) {
+          titleEl.textContent = 'Glow #' + this.activeId + (e.target.value ? ' (' + e.target.value + ')' : '');
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
+
     const glowColPick = document.getElementById('fctx-glowColorPicker');
     if (glowColPick) {
       glowColPick.addEventListener('input', (e) => {
@@ -1538,6 +1596,22 @@ window.FloatingPropertiesEditor = {
       if (slider) slider.addEventListener('input', (e) => handleInput(e.target.value));
       if (num) num.addEventListener('input', (e) => handleInput(e.target.value));
     });
+
+    const rippleNameIn = document.getElementById('fctx-rippleNameInput');
+    if (rippleNameIn) {
+      rippleNameIn.addEventListener('input', (e) => {
+        if (this._isSyncing || this.activeType !== 'ripple') return;
+        if (window.Ripples && typeof window.Ripples.updateActive === 'function') {
+          window.Ripples.updateActive('name', e.target.value);
+          this._syncSidebar('ripple', 'name', e.target.value);
+        }
+        const titleEl = document.getElementById('floatingEditorTitle');
+        if (titleEl) {
+          titleEl.textContent = 'Ripple #' + this.activeId + (e.target.value ? ' (' + e.target.value + ')' : '');
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+      });
+    }
 
     const ripColPick = document.getElementById('fctx-rippleColorPicker');
     if (ripColPick) {

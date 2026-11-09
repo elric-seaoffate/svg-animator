@@ -139,7 +139,11 @@ func (s *Scene) UpdateGlow(g Glow) {
 		g.Rings = g.RadarRings
 	}
 
-	if _, exists := s.glows[g.ID]; !exists {
+	if old, exists := s.glows[g.ID]; exists {
+		if g.Name == "" && old.Name != "" {
+			g.Name = old.Name
+		}
+	} else {
 		s.glowIDs = append(s.glowIDs, g.ID)
 	}
 	s.glows[g.ID] = g

@@ -323,6 +323,61 @@ type FrameDescribeRequest struct {
 	Frame   *scene.FrameConfig `json:"frame,omitempty"`
 }
 
+// SelectionSetRequest is the payload for "Selection.Set".
+type SelectionSetRequest struct {
+	Type string         `json:"type"`
+	ID   scene.StringID `json:"id"`
+}
+
+// SelectionResponse is the payload for "Selection.Get", "Selection.Set", "Selection.Clear".
+type SelectionResponse struct {
+	Type    string         `json:"type"`
+	ID      scene.StringID `json:"id"`
+	Success bool           `json:"success"`
+}
+
+// HistoryRecordRequest is the payload for "History.Record".
+type HistoryRecordRequest struct {
+	Snapshot  *scene.Snapshot       `json:"snapshot,omitempty"`
+	Selection *scene.SelectionState `json:"selection,omitempty"`
+}
+
+// HistoryStateResponse is the response for "History.Record", "History.GetState", "History.Clear".
+type HistoryStateResponse struct {
+	UndoCount int  `json:"undoCount"`
+	RedoCount int  `json:"redoCount"`
+	CanUndo   bool `json:"canUndo"`
+	CanRedo   bool `json:"canRedo"`
+	Recorded  bool `json:"recorded,omitempty"`
+}
+
+// HistoryRestoreResponse is the response for "History.Undo" and "History.Redo".
+type HistoryRestoreResponse struct {
+	Success   bool                  `json:"success"`
+	Snapshot  *scene.Snapshot       `json:"snapshot,omitempty"`
+	Selection *scene.SelectionState `json:"selection,omitempty"`
+	UndoCount int                   `json:"undoCount"`
+	RedoCount int                   `json:"redoCount"`
+	CanUndo   bool                  `json:"canUndo"`
+	CanRedo   bool                  `json:"canRedo"`
+	Error     string                `json:"error,omitempty"`
+}
+
+// ObjectRenameRequest is the payload for "Object.Rename".
+type ObjectRenameRequest struct {
+	Type string         `json:"type"`
+	ID   scene.StringID `json:"id"`
+	Name string         `json:"name"`
+}
+
+// ObjectRenameResponse is the response for "Object.Rename".
+type ObjectRenameResponse struct {
+	Type    string         `json:"type"`
+	ID      scene.StringID `json:"id"`
+	Name    string         `json:"name"`
+	Success bool           `json:"success"`
+}
+
 // Dispatch processes incoming commands and returns JSON-encoded responses.
 func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 	switch command {
@@ -481,6 +536,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return nil, fmt.Errorf("node with id %q not found", req.ID)
 		}
 		updated := *existing
+		if req.Patch.Name != "" {
+			updated.Name = req.Patch.Name
+		}
 		if req.Patch.Shape != "" {
 			updated.Shape = geometry.NormalizeShapeID(req.Patch.Shape)
 		}
@@ -634,6 +692,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return nil, fmt.Errorf("flow with id %q not found", req.ID)
 		}
 		updated := *existing
+		if req.Patch.Name != "" {
+			updated.Name = req.Patch.Name
+		}
 		if len(req.Patch.Nodes) >= 2 {
 			updated.Nodes = req.Patch.Nodes
 		}
@@ -856,6 +917,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return nil, fmt.Errorf("glow %q not found", req.ID)
 		}
 		updated := *existing
+		if req.Patch.Name != "" {
+			updated.Name = req.Patch.Name
+		}
 		if req.Patch.Shape != "" {
 			updated.Shape = req.Patch.Shape
 		}
@@ -1008,6 +1072,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return nil, fmt.Errorf("ripple %q not found", req.ID)
 		}
 		updated := *existing
+		if req.Patch.Name != "" {
+			updated.Name = req.Patch.Name
+		}
 		if req.Patch.Color != "" {
 			updated.Color = req.Patch.Color
 		}
@@ -1215,6 +1282,154 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			"defs":    defs,
 			"markup":  markup,
 			"enabled": f.Enabled,
+		})
+
+	case "Selection.Get":
+		sel := activeScene.GetSelection()
+		return json.Marshal(SelectionResponse{
+			Type:    string(sel.Type),
+			ID:      sel.ID,
+			Success: true,
+		})
+
+	case "Selection.Set":
+		var req SelectionSetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding SelectionSetRequest: %w", err)
+		}
+		sel, err := activeScene.SetSelection(scene.SelectionType(req.Type), req.ID)
+		if err != nil {
+			return json.Marshal(SelectionResponse{
+				Type:    string(sel.Type),
+				ID:      sel.ID,
+				Success: false,
+			})
+		}
+		return json.Marshal(SelectionResponse{
+			Type:    string(sel.Type),
+			ID:      sel.ID,
+			Success: true,
+		})
+
+	case "Selection.Clear":
+		sel := activeScene.ClearSelection()
+		return json.Marshal(SelectionResponse{
+			Type:    string(sel.Type),
+			ID:      sel.ID,
+			Success: true,
+		})
+
+	case "History.Record":
+		var req HistoryRecordRequest
+		if len(payloadJSON) > 0 && string(payloadJSON) != "{}" && string(payloadJSON) != "null" {
+			_ = json.Unmarshal(payloadJSON, &req)
+		}
+		snap := activeScene.GetSnapshot()
+		if req.Snapshot != nil {
+			snap = *req.Snapshot
+		}
+		sel := activeScene.GetSelection()
+		if req.Selection != nil {
+			sel = *req.Selection
+		}
+		rec := activeScene.History().Record(snap, sel)
+		uCount, rCount, canUndo, canRedo := activeScene.History().GetState()
+		return json.Marshal(HistoryStateResponse{
+			UndoCount: uCount,
+			RedoCount: rCount,
+			CanUndo:   canUndo,
+			CanRedo:   canRedo,
+			Recorded:  rec,
+		})
+
+	case "History.Undo":
+		entry, err := activeScene.UndoHistory()
+		uCount, rCount, canUndo, canRedo := activeScene.History().GetState()
+		if err != nil {
+			return json.Marshal(HistoryRestoreResponse{
+				Success:   false,
+				Error:     err.Error(),
+				UndoCount: uCount,
+				RedoCount: rCount,
+				CanUndo:   canUndo,
+				CanRedo:   canRedo,
+			})
+		}
+		snapCopy := entry.Snapshot
+		selCopy := entry.Selection
+		return json.Marshal(HistoryRestoreResponse{
+			Success:   true,
+			Snapshot:  &snapCopy,
+			Selection: &selCopy,
+			UndoCount: uCount,
+			RedoCount: rCount,
+			CanUndo:   canUndo,
+			CanRedo:   canRedo,
+		})
+
+	case "History.Redo":
+		entry, err := activeScene.RedoHistory()
+		uCount, rCount, canUndo, canRedo := activeScene.History().GetState()
+		if err != nil {
+			return json.Marshal(HistoryRestoreResponse{
+				Success:   false,
+				Error:     err.Error(),
+				UndoCount: uCount,
+				RedoCount: rCount,
+				CanUndo:   canUndo,
+				CanRedo:   canRedo,
+			})
+		}
+		snapCopy := entry.Snapshot
+		selCopy := entry.Selection
+		return json.Marshal(HistoryRestoreResponse{
+			Success:   true,
+			Snapshot:  &snapCopy,
+			Selection: &selCopy,
+			UndoCount: uCount,
+			RedoCount: rCount,
+			CanUndo:   canUndo,
+			CanRedo:   canRedo,
+		})
+
+	case "History.GetState":
+		uCount, rCount, canUndo, canRedo := activeScene.History().GetState()
+		return json.Marshal(HistoryStateResponse{
+			UndoCount: uCount,
+			RedoCount: rCount,
+			CanUndo:   canUndo,
+			CanRedo:   canRedo,
+		})
+
+	case "History.Clear":
+		activeScene.History().Clear()
+		uCount, rCount, canUndo, canRedo := activeScene.History().GetState()
+		return json.Marshal(HistoryStateResponse{
+			UndoCount: uCount,
+			RedoCount: rCount,
+			CanUndo:   canUndo,
+			CanRedo:   canRedo,
+		})
+
+	case "Object.Rename":
+		var req ObjectRenameRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ObjectRenameRequest: %w", err)
+		}
+		ok, err := activeScene.RenameObject(scene.SelectionType(req.Type), req.ID, req.Name)
+		if err != nil || !ok {
+			return json.Marshal(ObjectRenameResponse{
+				Type:    req.Type,
+				ID:      req.ID,
+				Name:    req.Name,
+				Success: false,
+			})
+		}
+		return json.Marshal(ObjectRenameResponse{
+			Type:    req.Type,
+			ID:      req.ID,
+			Name:    req.Name,
+			Success: true,
 		})
 
 	default:

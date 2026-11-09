@@ -22,6 +22,15 @@ window.Glows = {
   // Layer 3: Operational Functionality (Zero DOM Dependencies)
   // =========================================================================
 
+  escapeXML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
   getGlow(id) {
     return this.list.find((g) => g.id === id) || null;
   },
@@ -108,6 +117,9 @@ window.Glows = {
     if (!glow || !patch || typeof patch !== 'object') return null;
 
     // Go/WASM Engine synchronization
+    if (patch.name !== undefined && typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.renameObject === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.renameObject('glow', id, patch.name);
+    }
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
       window.EngineBridge.updateGlow(id, patch);
     }
@@ -349,6 +361,15 @@ window.Glows = {
       });
     }
 
+    const nameIn = document.getElementById('glowNameInput');
+    if (nameIn) {
+      nameIn.addEventListener('input', (e) => {
+        this.updateActive('name', e.target.value);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+        else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+      });
+    }
+
     ['playback', 'color', 'shape', 'hideOnDelay'].forEach((key) => {
       let elId = 'glow' + key.charAt(0).toUpperCase() + key.slice(1);
       if (key === 'color') elId += 'Picker';
@@ -451,7 +472,10 @@ window.Glows = {
     const empty = document.getElementById('emptyGlowSelection');
     if (empty) empty.style.display = 'none';
     const lbl = document.getElementById('editingGlowLabel');
-    if (lbl) lbl.innerText = 'Editing Glow ' + glow.id;
+    if (lbl) lbl.innerText = 'Editing Glow ' + glow.id + (glow.name ? ' (' + glow.name + ')' : '');
+
+    const nameIn = document.getElementById('glowNameInput');
+    if (nameIn) nameIn.value = glow.name || '';
 
     const shSel = document.getElementById('glowShapeSelect');
     if (shSel) shSel.value = glow.shape || 'circle';
@@ -578,7 +602,8 @@ window.Glows = {
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = glow.color || '#ff0044';
       const icon = glowIcons[glow.shape] || '✨';
-      const safeLabel = 'Glow ' + glow.id;
+      const labelText = glow.name || ('Glow ' + glow.id);
+      const safeLabel = this.escapeXML(labelText);
       div.title = safeLabel + ' (' + glow.shape + ')';
 
       div.innerHTML =

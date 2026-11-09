@@ -164,6 +164,9 @@ window.DiagramNodes = {
   updateNode(id, patch) {
     const node = this.getNode(id);
     if (!node || !patch || typeof patch !== 'object') return null;
+    if (patch.name !== undefined && window.EngineBridge && typeof window.EngineBridge.renameObject === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.renameObject('node', id, patch.name);
+    }
     if (window.EngineBridge && typeof window.EngineBridge.updateNode === 'function' && window.EngineBridge.isReady()) {
       window.EngineBridge.updateNode(id, patch);
     }
@@ -378,7 +381,7 @@ window.DiagramNodes = {
       }
     });
 
-    ['text', 'subtext'].forEach((key) => {
+    ['name', 'text', 'subtext'].forEach((key) => {
       const cap = key.charAt(0).toUpperCase() + key.slice(1);
       const el = document.getElementById('node' + cap + 'Input');
       if (el) {
@@ -454,9 +457,12 @@ window.DiagramNodes = {
     if (empty) empty.style.display = 'none';
 
     const lbl = document.getElementById('editingNodeLabel');
-    if (lbl) lbl.innerText = 'Editing Shape ' + node.id;
+    if (lbl) lbl.innerText = 'Editing Shape ' + node.id + (node.name ? ' (' + node.name + ')' : '');
 
     this.updateActiveDimBadge(node);
+
+    const nameIn = document.getElementById('nodeNameInput');
+    if (nameIn) nameIn.value = node.name || '';
 
     const shSel = document.getElementById('nodeShapeSelect');
     if (shSel) {
@@ -629,7 +635,7 @@ window.DiagramNodes = {
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = eff.strokeColor || '#58a6ff';
       const icon = shapeIcons[node.shape] || '▢';
-      const labelText = (node.text || ('Node ' + node.id)).split('|')[0];
+      const labelText = node.name || (node.text || ('Node ' + node.id)).split('|')[0];
       const safeLabel = this.escapeXML(labelText);
       div.title = safeLabel + ' (' + node.shape + ', ' + eff.width + 'x' + eff.height + 'px)';
 

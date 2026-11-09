@@ -134,9 +134,10 @@ type FrameConfig struct {
 
 // Node represents an editable diagram shape.
 type Node struct {
-	ID          StringID `json:"id"`
-	Name        string   `json:"name,omitempty"` // Future user-editable display name
-	Shape       string   `json:"shape"`
+	ID          StringID       `json:"id"`
+	Name        string         `json:"name,omitempty"` // User-editable display name (distinct from ID and text/label)
+	Metadata    map[string]any `json:"metadata,omitempty"` // Forward-compatible extension metadata (e.g. future Digital Twin bindings)
+	Shape       string         `json:"shape"`
 	Label       string   `json:"label,omitempty"`
 	Text        string   `json:"text,omitempty"` // Legacy JS alias
 	Subtext     string   `json:"subtext,omitempty"`
@@ -161,7 +162,8 @@ type Node struct {
 // Flow represents an animated or static connector between nodes/points.
 type Flow struct {
 	ID          StringID         `json:"id"`
-	Name        string           `json:"name,omitempty"` // Future user-editable display name
+	Name        string           `json:"name,omitempty"` // User-editable display name (distinct from ID and label)
+	Metadata    map[string]any   `json:"metadata,omitempty"` // Forward-compatible extension metadata (e.g. future Digital Twin bindings)
 	FromNodeID  StringID         `json:"fromNodeId,omitempty"`
 	ToNodeID    StringID         `json:"toNodeId,omitempty"`
 	Nodes       []geometry.Point `json:"nodes"`
@@ -190,9 +192,10 @@ type Flow struct {
 
 // Glow represents a pulsating hotspot or radar ping.
 type Glow struct {
-	ID           StringID `json:"id"`
-	Name         string   `json:"name,omitempty"` // Future user-editable display name
-	Shape        string   `json:"shape,omitempty"`
+	ID           StringID       `json:"id"`
+	Name         string         `json:"name,omitempty"` // User-editable display name (distinct from ID)
+	Metadata     map[string]any `json:"metadata,omitempty"` // Forward-compatible extension metadata (e.g. future Digital Twin bindings)
+	Shape        string         `json:"shape,omitempty"`
 	X            float64  `json:"x"`
 	Y            float64  `json:"y"`
 	Size         float64  `json:"size"`
@@ -219,9 +222,10 @@ type Glow struct {
 
 // Ripple represents a refractive water ripple effect.
 type Ripple struct {
-	ID         StringID `json:"id"`
-	Name       string   `json:"name,omitempty"` // Future user-editable display name
-	X          float64  `json:"x"`
+	ID         StringID       `json:"id"`
+	Name       string         `json:"name,omitempty"` // User-editable display name (distinct from ID)
+	Metadata   map[string]any `json:"metadata,omitempty"` // Forward-compatible extension metadata (e.g. future Digital Twin bindings)
+	X          float64        `json:"x"`
 	Y          float64  `json:"y"`
 	InnerR     float64  `json:"innerR"`
 	OuterR     float64  `json:"outerR"`

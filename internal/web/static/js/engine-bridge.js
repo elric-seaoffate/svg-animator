@@ -842,6 +842,96 @@
       return null;
     },
 
+    renameObject(type, id, name) {
+      if (this.isReady() && id !== undefined && id !== null) {
+        const res = this.dispatch('Object.Rename', {
+          type: String(type || ''),
+          id: String(id),
+          name: String(name || '')
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    getSelection() {
+      if (this.isReady()) {
+        const res = this.dispatch('Selection.Get', {});
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    setSelection(type, id) {
+      if (this.isReady()) {
+        const res = this.dispatch('Selection.Set', {
+          type: String(type || 'none'),
+          id: id != null ? String(id) : ''
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    clearSelection() {
+      if (this.isReady()) {
+        const res = this.dispatch('Selection.Clear', {});
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    recordHistory(snapshot = null, selection = null) {
+      if (this.isReady()) {
+        const payload = {};
+        if (snapshot) payload.snapshot = snapshot;
+        if (selection) payload.selection = selection;
+        const res = this.dispatch('History.Record', payload);
+        if (res) return res;
+      }
+      return null;
+    },
+
+    undoHistory() {
+      if (this.isReady()) {
+        const res = this.dispatch('History.Undo', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    redoHistory() {
+      if (this.isReady()) {
+        const res = this.dispatch('History.Redo', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    getHistoryState() {
+      if (this.isReady()) {
+        const res = this.dispatch('History.GetState', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    clearHistory() {
+      if (this.isReady()) {
+        const res = this.dispatch('History.Clear', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
+    getSceneState() {
+      if (this.isReady()) {
+        const res = this.dispatch('Scene.GetState', {});
+        if (res) return res;
+      }
+      return null;
+    },
+
     getActiveEngineName() {
       if (!this.isReady()) return 'JS fallback';
       if (this._lastSyncError) return 'Sync Failed (JS fallback)';
@@ -896,6 +986,7 @@
 
       const nodes = Array.isArray(raw.nodes) ? raw.nodes.map((n) => ({
         id: String(n.id != null ? n.id : ''),
+        name: n.name != null ? String(n.name) : undefined,
         shape: String(n.shape || 'rounded'),
         label: String(n.label || n.text || ''),
         text: String(n.text || n.label || ''),
@@ -919,6 +1010,7 @@
 
       const flows = Array.isArray(raw.flows) ? raw.flows.map((f) => ({
         id: String(f.id != null ? f.id : ''),
+        name: f.name != null ? String(f.name) : undefined,
         fromNodeId: String(f.fromNodeId != null ? f.fromNodeId : ''),
         toNodeId: String(f.toNodeId != null ? f.toNodeId : ''),
         nodes: Array.isArray(f.nodes)
@@ -945,6 +1037,7 @@
 
       const glows = Array.isArray(raw.glows) ? raw.glows.map((g) => ({
         id: String(g.id != null ? g.id : ''),
+        name: g.name != null ? String(g.name) : undefined,
         shape: String(g.shape || 'circle'),
         x: Number(g.x) || 0,
         y: Number(g.y) || 0,
@@ -972,6 +1065,7 @@
 
       const ripples = Array.isArray(raw.ripples) ? raw.ripples.map((r) => ({
         id: String(r.id != null ? r.id : ''),
+        name: r.name != null ? String(r.name) : undefined,
         color: String(r.color || '#ffffff'),
         opacity: Number(r.opacity != null ? r.opacity : 0.4),
         innerR: Number(r.innerR) || 0,

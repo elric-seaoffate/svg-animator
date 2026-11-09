@@ -134,6 +134,14 @@
           id: normalizedId
         };
 
+        if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+          if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple'].includes(normalizedType)) {
+            window.EngineBridge.setSelection(normalizedType, normalizedId);
+          } else {
+            window.EngineBridge.clearSelection();
+          }
+        }
+
         if (options.openAccordionId && typeof window.openAccordionById === 'function') {
           window.openAccordionById(options.openAccordionId);
         }
@@ -231,6 +239,9 @@
         window.Stage.clearActive();
       }
       this.activeSelection = { type: null, id: null };
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.clearSelection();
+      }
       this.emit('selection:changed', this.getActiveSelection());
 
       if (window.NodePresets && typeof window.NodePresets.syncAllRowsUI === 'function') {

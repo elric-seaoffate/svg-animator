@@ -278,6 +278,11 @@
                 </div>
 
                 <div class="inspector-prop-row">
+                  <label>Name</label>
+                  <input type="text" id="nodeNameInput" class="text-field-input" placeholder="Display name (optional)">
+                </div>
+
+                <div class="inspector-prop-row">
                   <label>Text</label>
                   <input type="text" id="nodeTextInput" value="Node" class="text-field-input" placeholder="Primary text">
                 </div>
@@ -616,6 +621,11 @@
                 </div>
 
                 <div class="inspector-prop-row">
+                  <label>Name</label>
+                  <input type="text" id="flowNameInput" placeholder="Display name (optional)" class="text-field-input">
+                </div>
+
+                <div class="inspector-prop-row">
                   <label>Text Label</label>
                   <input type="text" id="flowLabelInput" placeholder="Optional" class="text-field-input">
                 </div>
@@ -735,6 +745,11 @@
                 </div>
 
                 <div class="inspector-prop-row">
+                  <label>Name</label>
+                  <input type="text" id="glowNameInput" placeholder="Display name (optional)" class="text-field-input">
+                </div>
+
+                <div class="inspector-prop-row">
                   <label>Playback</label>
                   <select id="glowPlaybackSelect">
                     <option value="pingpong" selected>Pulse (In &amp; Out)</option>
@@ -850,6 +865,11 @@
                   <button type="button" class="btn-deselect-sidebar" id="btnDeselectRipple" title="Deselect ripple (Select None)">Deselect</button>
                 </div>
                 <div class="stage-hint" style="margin-bottom:0.35rem;">Click or drag canvas to place epicentre.</div>
+
+                <div class="inspector-prop-row">
+                  <label>Name</label>
+                  <input type="text" id="rippleNameInput" placeholder="Display name (optional)" class="text-field-input">
+                </div>
 
                 <div class="inspector-prop-row">
                   <label>Highlight</label>
@@ -975,6 +995,10 @@
               <option value="circle">Circle / Hub</option>
               <option value="axes">Coordinate Axes</option>
             </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-nodeNameInput">Name</label>
+            <input type="text" id="fctx-nodeNameInput" class="text-field-input" placeholder="Display name (optional)">
           </div>
           <div class="floating-prop-row">
             <label for="fctx-nodeTextInput">Text</label>
@@ -1105,6 +1129,10 @@
             </div>
           </div>
           <div class="floating-prop-row">
+            <label for="fctx-flowNameInput">Name</label>
+            <input type="text" id="fctx-flowNameInput" placeholder="Display name (optional)" class="text-field-input">
+          </div>
+          <div class="floating-prop-row">
             <label for="fctx-flowLabelInput">Label</label>
             <input type="text" id="fctx-flowLabelInput" placeholder="Optional label" class="text-field-input">
           </div>
@@ -1199,6 +1227,10 @@
             </select>
           </div>
           <div class="floating-prop-row">
+            <label for="fctx-glowNameInput">Name</label>
+            <input type="text" id="fctx-glowNameInput" placeholder="Display name (optional)" class="text-field-input">
+          </div>
+          <div class="floating-prop-row">
             <label for="fctx-glowPlaybackSelect">Playback</label>
             <select id="fctx-glowPlaybackSelect">
               <option value="pingpong" selected>Pulse (In &amp; Out)</option>
@@ -1287,6 +1319,10 @@
           <div class="floating-actions-bar">
             <span style="font-size: 0.72rem; color: #8b949e;">Ripple Parameters</span>
             <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteRipple" title="Delete ripple">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-rippleNameInput">Name</label>
+            <input type="text" id="fctx-rippleNameInput" placeholder="Display name (optional)" class="text-field-input">
           </div>
           <div class="floating-prop-row">
             <label for="fctx-rippleColorPicker">Highlight</label>

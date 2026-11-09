@@ -149,6 +149,9 @@ window.DataFlows = {
     if (!f || !patch || typeof patch !== 'object') return null;
 
     // Go/WASM Engine synchronization
+    if (patch.name !== undefined && typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.renameObject === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.renameObject('flow', id, patch.name);
+    }
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
       window.EngineBridge.updateFlow(id, patch);
     }
@@ -552,14 +555,17 @@ window.DataFlows = {
       }
     });
 
-    const lblIn = document.getElementById('flowLabelInput');
-    if (lblIn) {
-      lblIn.addEventListener('input', (e) => {
-        this.updateActive('label', e.target.value);
-        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
-        else if (window.HistoryManager) window.HistoryManager.recordDebounced();
-      });
-    }
+    ['name', 'label'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const el = document.getElementById('flow' + cap + 'Input');
+      if (el) {
+        el.addEventListener('input', (e) => {
+          this.updateActive(key, e.target.value);
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+      }
+    });
 
     const nodeSlider = document.getElementById('flowNodeSlider');
     if (nodeSlider) {
@@ -653,7 +659,10 @@ window.DataFlows = {
     const empty = document.getElementById('emptyFlowSelection');
     if (empty) empty.style.display = 'none';
     const lbl = document.getElementById('editingFlowLabel');
-    if (lbl) lbl.innerText = 'Editing Connector / Flow ' + f.id;
+    if (lbl) lbl.innerText = 'Editing Connector / Flow ' + f.id + (f.name ? ' (' + f.name + ')' : '');
+
+    const nameIn = document.getElementById('flowNameInput');
+    if (nameIn) nameIn.value = f.name || '';
 
     const tSel = document.getElementById('flowTypeSelect');
     if (tSel) tSel.value = f.type || 'orb';
@@ -844,7 +853,7 @@ window.DataFlows = {
       const div = document.createElement('div');
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = f.color || '#00ffcc';
-      const labelText = f.label ? f.label : ('Flow ' + f.id);
+      const labelText = f.name || (f.label ? f.label : ('Flow ' + f.id));
       const safeLabel = this.escapeXML(labelText);
       const nodeCount = Array.isArray(f.nodes) ? f.nodes.length : 2;
       div.title = safeLabel + ' (' + nodeCount + ' waypoints)';

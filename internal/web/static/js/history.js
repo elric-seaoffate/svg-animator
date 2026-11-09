@@ -209,6 +209,11 @@ window.HistoryManager = {
       this.undoStack.shift();
     }
     this.redoStack = [];
+
+    if (window.EngineBridge && typeof window.EngineBridge.recordHistory === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.recordHistory();
+    }
+
     this.notifyStackChange();
   },
 
@@ -312,6 +317,11 @@ window.HistoryManager = {
     this.redoStack.push(current);
     const prev = this.undoStack[this.undoStack.length - 1];
     this.applySnapshot(prev);
+
+    if (window.EngineBridge && typeof window.EngineBridge.undoHistory === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.undoHistory();
+    }
+
     this.notifyStackChange();
     if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
       window.AppCoordinator.coordinatePostRestore({ source: 'undo' });
@@ -323,6 +333,11 @@ window.HistoryManager = {
     const next = this.redoStack.pop();
     this.undoStack.push(next);
     this.applySnapshot(next);
+
+    if (window.EngineBridge && typeof window.EngineBridge.redoHistory === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.redoHistory();
+    }
+
     this.notifyStackChange();
     if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
       window.AppCoordinator.coordinatePostRestore({ source: 'redo' });

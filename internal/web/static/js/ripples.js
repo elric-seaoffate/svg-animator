@@ -22,6 +22,15 @@ window.Ripples = {
   // Layer 3: Operational Functionality (Zero DOM Dependencies)
   // =========================================================================
 
+  escapeXML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
   getRipple(id) {
     return this.list.find((r) => r.id === id) || null;
   },
@@ -99,6 +108,9 @@ window.Ripples = {
     if (!rp || !patch || typeof patch !== 'object') return null;
 
     // Go/WASM Engine synchronization
+    if (patch.name !== undefined && typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.renameObject === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.renameObject('ripple', id, patch.name);
+    }
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
       window.EngineBridge.updateRipple(id, patch);
     }
@@ -268,6 +280,15 @@ window.Ripples = {
       });
     }
 
+    const nameIn = document.getElementById('rippleNameInput');
+    if (nameIn) {
+      nameIn.addEventListener('input', (e) => {
+        this.updateActive('name', e.target.value);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+        else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+      });
+    }
+
     const colPick = document.getElementById('rippleColorPicker');
     if (colPick) {
       colPick.addEventListener('input', (e) => this.updateActive('color', e.target.value));
@@ -315,7 +336,10 @@ window.Ripples = {
     const empty = document.getElementById('emptyRippleSelection');
     if (empty) empty.style.display = 'none';
     const lbl = document.getElementById('editingRippleLabel');
-    if (lbl) lbl.innerText = 'Editing Ripple ' + rp.id;
+    if (lbl) lbl.innerText = 'Editing Ripple ' + rp.id + (rp.name ? ' (' + rp.name + ')' : '');
+    const nameIn = document.getElementById('rippleNameInput');
+    if (nameIn) nameIn.value = rp.name || '';
+
     const colPick = document.getElementById('rippleColorPicker');
     if (colPick) colPick.value = rp.color;
 
@@ -425,7 +449,8 @@ window.Ripples = {
       const div = document.createElement('div');
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
       div.style.borderLeftColor = '#58a6ff';
-      const safeLabel = 'Ripple ' + rp.id;
+      const labelText = rp.name || ('Ripple ' + rp.id);
+      const safeLabel = this.escapeXML(labelText);
       div.title = safeLabel + ' (' + (rp.rings || 3) + ' rings)';
 
       div.innerHTML =

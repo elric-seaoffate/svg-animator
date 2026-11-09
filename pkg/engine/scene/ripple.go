@@ -124,7 +124,11 @@ func (s *Scene) UpdateRipple(r Ripple) {
 		r.Rings = r.WaveCount
 	}
 
-	if _, exists := s.ripples[r.ID]; !exists {
+	if old, exists := s.ripples[r.ID]; exists {
+		if r.Name == "" && old.Name != "" {
+			r.Name = old.Name
+		}
+	} else {
 		s.rippleIDs = append(s.rippleIDs, r.ID)
 	}
 	s.ripples[r.ID] = r
