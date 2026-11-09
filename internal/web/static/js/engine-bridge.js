@@ -1510,16 +1510,17 @@
       });
 
       const optical = snap.optical || {};
-      let optUpdate = { active: false, blur: 0, filterAttr: '' };
+      let optUpdate = { type: optical.type || 'none', active: false, isActive: false, blur: 0, filterAttr: '' };
       if (optical.type === 'focus-pull') {
         const fDur = optical.focusDur > 0 ? optical.focusDur : dur;
         const cyc = this._evaluateCycleJS(timeSec, 0, fDur, 0, snap.camera && snap.camera.camLoop || 'once');
-        const b = optical.startBlur + (optical.endBlur - optical.startBlur) * cyc.progress;
-        optUpdate = { active: true, blur: Number(b.toFixed(2)), filterAttr: 'url(#opt-focus)' };
+        const easedP = this._solveCubicBezierJS(0.42, 0, 0.58, 1, cyc.progress);
+        const b = optical.startBlur + (optical.endBlur - optical.startBlur) * easedP;
+        optUpdate = { type: 'focus-pull', active: true, isActive: true, blur: Number(b.toFixed(2)), filterAttr: 'url(#opt-focus)' };
       } else if (optical.type === 'tilt-shift') {
-        optUpdate = { active: true, blur: optical.tsBlur || 12, filterAttr: 'url(#opt-ts-blur)' };
+        optUpdate = { type: 'tilt-shift', active: true, isActive: true, blur: optical.tsBlur || 12, filterAttr: 'url(#opt-ts-blur)' };
       } else if (optical.type === 'motion-blur') {
-        optUpdate = { active: true, blur: optical.mbInt || 15, filterAttr: 'url(#opt-mb-blur)' };
+        optUpdate = { type: 'motion-blur', active: true, isActive: true, blur: optical.mbInt || 15, filterAttr: 'url(#opt-mb-blur)' };
       }
 
       const frame = snap.frame || snap.overlays || {};

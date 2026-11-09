@@ -152,3 +152,107 @@ func TestEvaluateSceneAtTimeEmpty(t *testing.T) {
 		t.Errorf("expected empty lists for empty scene")
 	}
 }
+
+func TestReproductionCameraAndOptics17s(t *testing.T) {
+	s := scene.NewScene()
+	s.SetCanvas(scene.CanvasConfig{
+		Width:        1280,
+		Height:       720,
+		Duration:     17.0,
+		PlaybackMode: "once",
+	})
+	s.UpdateCamera(scene.CameraConfig{
+		Motion:    "ken-burns",
+		Duration:  8.0,
+		Loop:      "once",
+		StartX:    50,
+		StartY:    50,
+		StartZoom: 1.0,
+		EndX:      60,
+		EndY:      40,
+		EndZoom:   2.0,
+	})
+	s.UpdateOptical(scene.OpticalConfig{
+		Type:      "focus-pull",
+		StartBlur: 18.0,
+		EndBlur:   0.0,
+		FocusDur:  6.0,
+	})
+
+	// 1. At t=0: Camera at start, Focus pull at 18
+	res0 := EvaluateSceneAtTime(s, 0.0)
+	if math.Abs(res0.Camera.Scale-1.0) > 0.01 {
+		t.Errorf("expected camera scale 1.0 at t=0, got %v", res0.Camera.Scale)
+	}
+	if math.Abs(res0.Optical.Blur-18.0) > 0.01 {
+		t.Errorf("expected focus pull blur 18.0 at t=0, got %v", res0.Optical.Blur)
+	}
+	if !res0.Optical.IsActive {
+		t.Errorf("expected optical to be active")
+	}
+
+	// 2. At t=3: Focus pull at midpoint (~9.0), Ken Burns transitioning
+	res3 := EvaluateSceneAtTime(s, 3.0)
+	if math.Abs(res3.Optical.Blur-9.0) > 0.5 {
+		t.Errorf("expected focus pull blur ~9.0 at t=3s, got %v", res3.Optical.Blur)
+	}
+	if res3.Camera.Scale <= 1.0 || res3.Camera.Scale >= 2.0 {
+		t.Errorf("expected camera scale transitioning between 1.0 and 2.0, got %v", res3.Camera.Scale)
+	}
+
+	// 3. At t=6: Focus pull completed (0.0), Ken Burns still moving
+	res6 := EvaluateSceneAtTime(s, 6.0)
+	if math.Abs(res6.Optical.Blur-0.0) > 0.01 {
+		t.Errorf("expected focus pull blur 0.0 at t=6s, got %v", res6.Optical.Blur)
+	}
+	if res6.Camera.Scale >= 2.0 {
+		t.Errorf("expected camera still moving towards 2.0 at t=6s (dur=8s), got %v", res6.Camera.Scale)
+	}
+
+	// 4. At t=8: Ken Burns completed (scale 2.0), Focus pull holds at 0.0
+	res8 := EvaluateSceneAtTime(s, 8.0)
+	if math.Abs(res8.Camera.Scale-2.0) > 0.01 {
+		t.Errorf("expected camera scale 2.0 at t=8s, got %v", res8.Camera.Scale)
+	}
+	if math.Abs(res8.Optical.Blur-0.0) > 0.01 {
+		t.Errorf("expected focus pull blur holds at 0.0 at t=8s, got %v", res8.Optical.Blur)
+	}
+
+	// 5. At t=12: Both completed individual durations, holding until 17s scene end
+	res12 := EvaluateSceneAtTime(s, 12.0)
+	if math.Abs(res12.Camera.Scale-2.0) > 0.01 {
+		t.Errorf("expected camera scale holds at 2.0 at t=12s, got %v", res12.Camera.Scale)
+	}
+	if math.Abs(res12.Optical.Blur-0.0) > 0.01 {
+		t.Errorf("expected focus pull blur holds at 0.0 at t=12s, got %v", res12.Optical.Blur)
+	}
+
+	// 6. At t=17: Scene duration end, holding
+	res17 := EvaluateSceneAtTime(s, 17.0)
+	if math.Abs(res17.Camera.Scale-2.0) > 0.01 {
+		t.Errorf("expected camera scale holds at 2.0 at t=17s, got %v", res17.Camera.Scale)
+	}
+	if math.Abs(res17.Optical.Blur-0.0) > 0.01 {
+		t.Errorf("expected focus pull blur holds at 0.0 at t=17s, got %v", res17.Optical.Blur)
+	}
+
+	// 7. Test with "loop" mode for Ken Burns (8s) and Focus Pull (6s)
+	s.UpdateCamera(scene.CameraConfig{
+		Motion:    "ken-burns",
+		Duration:  8.0,
+		Loop:      "loop",
+		StartX:    50,
+		StartY:    50,
+		StartZoom: 1.0,
+		EndX:      60,
+		EndY:      40,
+		EndZoom:   2.0,
+	})
+	res9 := EvaluateSceneAtTime(s, 9.0) // 9s = 1s into second 8s cycle for camera; 3s into second 6s cycle for optics
+	if res9.Camera.Scale >= 2.0 || res9.Camera.Scale <= 1.0 {
+		t.Errorf("expected camera looped back and started second cycle, got %v", res9.Camera.Scale)
+	}
+	if math.Abs(res9.Optical.Blur-9.0) > 0.5 {
+		t.Errorf("expected focus pull at midpoint of second 6s cycle (~9.0) at t=9s, got %v", res9.Optical.Blur)
+	}
+}

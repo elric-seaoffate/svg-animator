@@ -3876,6 +3876,110 @@ async function runHarness() {
   assert.strictEqual(window.TimelinePlayer.currentTime, 2.1);
   assert.strictEqual(window.TimelinePlayer.status, 'paused');
 
+  // 5. Test Camera & Optics Preview Playback, Exact Reproduction Settings & Export Distinction
+  console.log('[HARNESS] Testing Camera and Optics Preview Playback (17s Scene, 8s Ken Burns, 6s Focus Pull)...');
+  window.SceneState.setControl('durationSlider', 17.0);
+  window.SceneState.setControl('camDurationSlider', 8.0);
+  window.SceneState.setControl('cameraMotionSelect', 'ken-burns');
+  window.SceneState.setControl('camLoopSelect', 'once');
+  window.SceneState.setControl('effectSelect', 'focus-pull');
+  window.SceneState.setControl('startBlurSlider', 18.0);
+  window.SceneState.setControl('endBlurSlider', 0.0);
+  window.SceneState.setControl('focusDurSlider', 6.0);
+
+  const reproState = window.SceneState.buildRenderState();
+  assert.strictEqual(reproState.duration, 17.0, 'Global Scene duration must be 17s');
+  assert.strictEqual(reproState.camera.camDuration, 8.0, 'Ken Burns duration must be 8s');
+  assert.strictEqual(reproState.optical.focusDur, 6.0, 'Focus Pull duration must be 6s');
+  window.EngineBridge.syncScene();
+
+  // A. Standalone SVG export must contain declarative SMIL & CSS animations
+  const exportSvg = window.Effects.build(reproState);
+  assert.ok(exportSvg.includes('@keyframes camKenBurns'), 'Exported SVG must contain CSS @keyframes camKenBurns for standalone viewer playback');
+  assert.ok(exportSvg.includes('animation: camKenBurns 8s'), 'Exported SVG must configure 8s Ken Burns CSS animation');
+  assert.ok(exportSvg.includes('<filter id="opt-focus"'), 'Exported SVG must contain #opt-focus filter');
+  assert.ok(exportSvg.includes('<animate attributeName="stdDeviation"'), 'Exported SVG must contain declarative SMIL <animate> for standalone viewer playback');
+  assert.ok(exportSvg.includes('dur="6s"'), 'Exported SVG SMIL animate must have dur="6s"');
+
+  // B. Live Editor Preview: applyFrameToDOM must neutralize SMIL in DOM and drive feGaussianBlur stdDeviation
+  let feAttrs = {};
+  let removedAnimElements = [];
+  const mockAnimTag = {
+    remove() { removedAnimElements.push(this); }
+  };
+  const mockFeGaussianBlur = {
+    setAttribute(k, v) { feAttrs[k] = v; },
+    querySelector(sel) {
+      if (sel === 'animate') return mockAnimTag;
+      return null;
+    }
+  };
+  const mockOptFocus = {
+    querySelector(sel) {
+      if (sel.includes('feGaussianBlur')) return mockFeGaussianBlur;
+      return null;
+    }
+  };
+
+  mockSvgContainer.querySelector = function(sel) {
+    if (sel.includes('.camera-rig')) return mockCamRig;
+    if (sel.includes('feGaussianBlur')) return mockFeGaussianBlur;
+    if (sel.includes('#opt-focus')) return mockOptFocus;
+    return null;
+  };
+  mockSvgContainer.querySelectorAll = function(sel) {
+    if (sel.includes('animate')) return [mockAnimTag];
+    return [];
+  };
+
+  // Sync timeline player to scene
+  window.TimelinePlayer.syncFromScene();
+  assert.strictEqual(window.TimelinePlayer.duration, 17.0, 'TimelinePlayer duration must be 17s');
+
+  // Evaluate at t=0s
+  window.TimelinePlayer.stop();
+  window.TimelinePlayer.evaluateAndApply(0.0);
+  assert.ok(removedAnimElements.length > 0, 'Live preview must neutralize SMIL <animate> inside optics filter');
+  assert.strictEqual(feAttrs.stdDeviation, '18.00', 'Blur must be 18.00 at t=0s');
+  assert.strictEqual(mockCamRig.style.animation, 'none', 'Live preview must neutralize CSS @keyframes on camera-rig');
+
+  // Evaluate at t=3s (midpoint of 6s focus pull)
+  window.TimelinePlayer.evaluateAndApply(3.0);
+  const blur3 = parseFloat(feAttrs.stdDeviation);
+  assert.ok(blur3 < 18.0 && blur3 > 0.0, `Blur at t=3s must transition between 18 and 0 (got ${blur3})`);
+
+  // Evaluate at t=6s (end of 6s focus pull duration)
+  window.TimelinePlayer.evaluateAndApply(6.0);
+  assert.strictEqual(feAttrs.stdDeviation, '0.00', 'Blur must reach 0.00 at t=6s');
+
+  // Evaluate at t=8s (end of 8s Ken Burns duration)
+  window.TimelinePlayer.evaluateAndApply(8.0);
+  assert.strictEqual(feAttrs.stdDeviation, '0.00', 'Blur must hold at 0.00 at t=8s');
+  const camTrans8 = mockCamRig.style.transform;
+
+  // Evaluate at t=12s (both individual durations ended, scene still running)
+  window.TimelinePlayer.evaluateAndApply(12.0);
+  assert.strictEqual(feAttrs.stdDeviation, '0.00', 'Blur must hold at 0.00 at t=12s');
+  assert.strictEqual(mockCamRig.style.transform, camTrans8, 'Camera must hold at end transform at t=12s');
+
+  // Evaluate at t=17s (end of global scene duration)
+  window.TimelinePlayer.evaluateAndApply(17.0);
+  assert.strictEqual(feAttrs.stdDeviation, '0.00', 'Blur must hold at 0.00 at t=17s');
+  assert.strictEqual(mockCamRig.style.transform, camTrans8, 'Camera must hold at end transform at t=17s');
+
+  // Seek and Pause testing
+  window.TimelinePlayer.play();
+  window.TimelinePlayer.seek(4.5);
+  window.TimelinePlayer.pause();
+  assert.strictEqual(window.TimelinePlayer.status, 'paused');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 4.5);
+
+  // Stop resets to t=0
+  window.TimelinePlayer.stop();
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped');
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0);
+  assert.strictEqual(feAttrs.stdDeviation, '18.00', 'Blur must reset to 18.00 on stop');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6 & 7 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics & Frame engines verified.');
 }
 

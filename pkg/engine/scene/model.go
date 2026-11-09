@@ -67,6 +67,27 @@ type CameraConfig struct {
 	BgTransparent bool    `json:"bgTransparent,omitempty"`
 }
 
+// UnmarshalJSON supports both camDuration/duration and camLoop/loop aliases.
+func (c *CameraConfig) UnmarshalJSON(b []byte) error {
+	type alias CameraConfig
+	var aux struct {
+		alias
+		AltDuration float64 `json:"duration"`
+		AltLoop     string  `json:"loop"`
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	*c = CameraConfig(aux.alias)
+	if c.Duration <= 0 && aux.AltDuration > 0 {
+		c.Duration = aux.AltDuration
+	}
+	if c.Loop == "" && aux.AltLoop != "" {
+		c.Loop = aux.AltLoop
+	}
+	return nil
+}
+
 // OpticalConfig defines lens focus pull, tilt-shift, and motion blur parameters.
 type OpticalConfig struct {
 	Type      string  `json:"type"` // "none", "focus-pull", "tilt-shift", "motion-blur"
@@ -80,6 +101,23 @@ type OpticalConfig struct {
 	TSBlur    float64 `json:"tsBlur,omitempty"`
 	MBInt     float64 `json:"mbInt,omitempty"`
 	MBAng     float64 `json:"mbAng,omitempty"`
+}
+
+// UnmarshalJSON supports both focusDur and duration aliases.
+func (o *OpticalConfig) UnmarshalJSON(b []byte) error {
+	type alias OpticalConfig
+	var aux struct {
+		alias
+		AltDuration float64 `json:"duration"`
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	*o = OpticalConfig(aux.alias)
+	if o.FocusDur <= 0 && aux.AltDuration > 0 {
+		o.FocusDur = aux.AltDuration
+	}
+	return nil
 }
 
 // FrameConfig defines border styles, mitering, lighting, and overlays.

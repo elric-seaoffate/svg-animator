@@ -1953,7 +1953,11 @@ window.TimelinePlayer = {
     }
 
     // 2. Optics (Focus Pull, Tilt-Shift, Motion Blur)
-    if (frame.optical && frame.optical.isActive) {
+    if (frame.optical && (frame.optical.isActive || frame.optical.active)) {
+      // Neutralize declarative SMIL animations inside optics filters in the live editor preview
+      // so Go/WASM evaluation directly controls feGaussianBlur stdDeviation without SMIL overriding it.
+      container.querySelectorAll('#opt-focus animate, #opt-ts-blur animate, #opt-mb-blur animate').forEach((el) => el.remove());
+
       if (frame.optical.type === 'focus-pull') {
         const fe = container.querySelector('#opt-focus feGaussianBlur');
         if (fe) fe.setAttribute('stdDeviation', String(frame.optical.blur.toFixed(2)));
