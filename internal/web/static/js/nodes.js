@@ -182,7 +182,7 @@ window.DiagramNodes = {
     const canvasH = state.image.height || 720;
 
     const defs =
-      '<filter id="nodeDropShadow" filterUnits="userSpaceOnUse" x="-10%" y="-10%" width="120%" height="120%">' +
+      '<filter id="nodeDropShadow" x="-30%" y="-30%" width="160%" height="160%">' +
       '<feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.45" />' +
       '</filter>';
     let elements = '';

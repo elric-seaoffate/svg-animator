@@ -774,7 +774,13 @@ window.FloatingPropertiesEditor = {
     if (!type || id === null) return null;
     let el = null;
     if (type === 'node') {
-      el = document.querySelector ? document.querySelector('#svgContainer [data-node-id="' + id + '"]') : null;
+      const nodeEl = document.querySelector ? document.querySelector('#svgContainer [data-node-id="' + id + '"]') : null;
+      if (nodeEl) {
+        // Query the underlying SVG geometry element to obtain the true shape boundary
+        // without drop-shadow blur margins
+        const shapeEl = nodeEl.querySelector ? nodeEl.querySelector('rect, polygon, path, circle, ellipse') : null;
+        el = shapeEl || nodeEl;
+      }
       if (!el) {
         const selBox = document.getElementById('nodeSelectionBox');
         if (selBox && selBox.style && selBox.style.display !== 'none') el = selBox;
@@ -837,17 +843,22 @@ window.FloatingPropertiesEditor = {
       ? previewBox.getBoundingClientRect()
       : { left: 0, top: 0, width: 1280, height: 720 };
 
+    const parentEl = btn.offsetParent || document.getElementById('stageOverlayLayer') || previewBox;
+    const parentRect = (typeof parentEl.getBoundingClientRect === 'function')
+      ? parentEl.getBoundingClientRect()
+      : pRect;
+
     const gearW = 35;
     const gearH = 35;
     const gap = 3;
 
-    // Object visible bounding box edges relative to previewBox
-    const objRight = targetRect.right - pRect.left;
-    const objLeft = targetRect.left - pRect.left;
-    const objTop = targetRect.top - pRect.top;
+    // Object visible bounding box edges relative to button offsetParent
+    const objRight = targetRect.right - parentRect.left;
+    const objLeft = targetRect.left - parentRect.left;
+    const objTop = targetRect.top - parentRect.top;
 
-    const stageW = pRect.width || 1280;
-    const stageH = pRect.height || 720;
+    const stageW = parentRect.width || pRect.width || 1280;
+    const stageH = parentRect.height || pRect.height || 720;
 
     // Anchor to top-right corner immediately outside right edge with 3px gap
     let gearLeft = objRight + gap;
@@ -1201,7 +1212,6 @@ window.FloatingPropertiesEditor = {
       contextBtn.addEventListener('click', handleOpen);
       contextBtn.addEventListener('contextmenu', (e) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
-        handleOpen(e);
       });
       contextBtn.addEventListener('keydown', (e) => {
         if (e && (e.key === 'Enter' || e.key === ' ')) {

@@ -2394,6 +2394,7 @@ async function runHarness() {
   window.AppCoordinator.selectObject('node', geomNode.id);
 
   previewBoxEl.getBoundingClientRect = () => ({ left: 100, top: 50, right: 1380, bottom: 770, width: 1280, height: 720 });
+  stageOverlayLayerEl.getBoundingClientRect = () => previewBoxEl.getBoundingClientRect();
   const origGetTarget = window.FloatingPropertiesEditor.getTargetScreenRect;
 
   // Case A: Normal anchor — Object R = 400 (screen 500), T = 150 (screen 200), L = 300 (screen 400)
@@ -2445,6 +2446,86 @@ async function runHarness() {
 
   window.FloatingPropertiesEditor.getTargetScreenRect = origGetTarget;
   window.DiagramNodes.deleteNode(geomNode.id);
+
+  // ===========================================================================
+  // Node Resize Clipping & Drop Shadow Filter Protection Test
+  // ===========================================================================
+  const resizeNode = window.DiagramNodes.createNode({ text: 'ResizeTest', x: 32, y: 32, width: 170, height: 80 });
+  window.AppCoordinator.selectObject('node', resizeNode.id);
+
+  const testWidths = [170, 200, 203, 204, 250, 350];
+  const testHeights = [170, 200, 203, 204, 250, 350];
+
+  const rState = window.SceneState.buildRenderState();
+  const rBaseSvg = window.Effects.build(rState);
+
+  // Test across width threshold
+  for (const w of testWidths) {
+    window.DiagramNodes.updateActive('width', w);
+    const updated = window.DiagramNodes.getNode(resizeNode.id);
+    assert.strictEqual(updated.width, w, `Node width must be ${w}`);
+    assert.strictEqual(updated.x, 32, 'Node x must remain 32% (center anchor preserved)');
+
+    const fullSvg = window.DiagramNodes.injectIntoSVG(rBaseSvg, rState);
+    // Ensure nodeDropShadow does NOT have userSpaceOnUse (which caused ~203px clipping)
+    assert.ok(!fullSvg.includes('filterUnits="userSpaceOnUse"'), 'nodeDropShadow must not use userSpaceOnUse');
+    assert.ok(fullSvg.includes('<filter id="nodeDropShadow"'), 'nodeDropShadow filter must be defined');
+
+    // Verify SVG rect coordinates match expected width and centered anchor
+    const expectedHw = w / 2;
+    assert.ok(
+      fullSvg.includes(`width="${w}"`),
+      `SVG markup must include width="${w}" for size ${w}`
+    );
+    assert.ok(
+      fullSvg.includes(`x="-${expectedHw}"`),
+      `SVG markup must include centered x="-${expectedHw}" for size ${w}`
+    );
+  }
+
+  // Test across height threshold
+  for (const h of testHeights) {
+    window.DiagramNodes.updateActive('height', h);
+    const updated = window.DiagramNodes.getNode(resizeNode.id);
+    assert.strictEqual(updated.height, h, `Node height must be ${h}`);
+    assert.strictEqual(updated.y, 32, 'Node y must remain 32% (center anchor preserved)');
+
+    const fullSvg = window.DiagramNodes.injectIntoSVG(rBaseSvg, rState);
+    const expectedHh = h / 2;
+    assert.ok(
+      fullSvg.includes(`height="${h}"`),
+      `SVG markup must include height="${h}" for size ${h}`
+    );
+    assert.ok(
+      fullSvg.includes(`y="-${expectedHh}"`),
+      `SVG markup must include centered y="-${expectedHh}" for size ${h}`
+    );
+  }
+
+  // Test Right-Click (contextmenu) does NOT activate the gear
+  window.FloatingPropertiesEditor.close();
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false);
+  const cmenuEvt = { type: 'contextmenu', defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  contextBtnEl.dispatchEvent(cmenuEvt);
+  assert.strictEqual(cmenuEvt.defaultPrevented, true, 'Right click on gear must prevent default browser menu');
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Right click on gear must NOT open contextual editor');
+
+  // Test Left-Click opens editor
+  contextBtnEl.click();
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Left click on gear must open editor');
+  window.FloatingPropertiesEditor.close();
+
+  // Test Undo/Redo of dimensions
+  window.HistoryManager.recordImmediate();
+  window.DiagramNodes.updateActive('width', 300);
+  window.HistoryManager.recordImmediate();
+  assert.strictEqual(window.DiagramNodes.getNode(resizeNode.id).width, 300);
+  window.HistoryManager.undo();
+  assert.strictEqual(window.DiagramNodes.getNode(resizeNode.id).width, 350, 'Undo must restore previous width');
+  window.HistoryManager.redo();
+  assert.strictEqual(window.DiagramNodes.getNode(resizeNode.id).width, 300, 'Redo must restore updated width');
+
+  window.DiagramNodes.deleteNode(resizeNode.id);
 
   console.log('[HARNESS] REG-03 PASS: Stage 3 & 4 selection, history(50), schema 1.2.0, SVG compilation, export payload builders, and Stage 3.1 & 3.2 workspace foundation & refinement verified.');
 }
