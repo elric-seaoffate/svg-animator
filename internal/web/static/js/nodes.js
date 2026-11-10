@@ -428,6 +428,8 @@ window.DiagramNodes = {
     const activeNode = this.getNode(this.activeId);
     if (activeNode) {
       this.updateActiveDimBadge(activeNode);
+      const lbl = document.getElementById('editingNodeLabel');
+      if (lbl) lbl.innerText = 'Editing Shape ' + activeNode.id + (activeNode.name ? ' (' + activeNode.name + ')' : '');
     }
     this.renderList();
     this.triggerAppRender();

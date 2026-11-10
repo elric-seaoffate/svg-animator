@@ -394,6 +394,8 @@ window.Ripples = {
     if (this.activeId === null) return;
     const rp = this.updateRipple(this.activeId, { [key]: value });
     if (rp) {
+      const lbl = document.getElementById('editingRippleLabel');
+      if (lbl) lbl.innerText = 'Editing Ripple ' + rp.id + (rp.name ? ' (' + rp.name + ')' : '');
       this.renderList();
       this.triggerAppRender();
       if (key === 'color') this.updateUIOverlay(rp);

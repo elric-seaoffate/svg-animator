@@ -1805,3 +1805,71 @@ body.editing-flow #flightLine {
     width: 68px;
   }
 }
+
+/* =========================================================================
+   Studio Notification / Toast System
+   ========================================================================= */
+.studio-notification-container {
+  position: fixed;
+  bottom: 3.5rem;
+  right: 1.5rem;
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+  max-width: 420px;
+}
+
+.studio-notification {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #161b22;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  animation: studioNoticeFadeIn 0.2s ease-out;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.studio-notification.notice-info {
+  border-left: 4px solid #58a6ff;
+}
+
+.studio-notification.notice-success {
+  border-left: 4px solid #3fb950;
+}
+
+.studio-notification.notice-warning {
+  border-left: 4px solid #d29922;
+}
+
+.studio-notification.notice-error {
+  border-left: 4px solid #f85149;
+}
+
+.studio-notification-close {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 1rem;
+  margin-left: auto;
+  line-height: 1;
+}
+
+.studio-notification-close:hover {
+  color: #f0f6fc;
+}
+
+@keyframes studioNoticeFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

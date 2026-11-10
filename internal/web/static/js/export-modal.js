@@ -335,7 +335,11 @@
 
   function matchVideoToAudioDuration() {
     if (loadedAudioTrueDuration <= 0) {
-      alert('Attach an audio file first so its true duration can be measured.');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Attach an audio file first so its true duration can be measured.', 'warning');
+      } else {
+        alert('Attach an audio file first so its true duration can be measured.');
+      }
       return;
     }
     const rounded = Math.max(0.5, Number(loadedAudioTrueDuration.toFixed(1)));
@@ -366,7 +370,11 @@
     if (!loadedAudioB64) return;
     const data = await probeLoadedAudioOnServer(true);
     if (!data || !data.fixedAudioB64) {
-      alert('Failed to repair audio header.');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Failed to repair audio header.', 'error');
+      } else {
+        alert('Failed to repair audio header.');
+      }
       return;
     }
 
@@ -431,7 +439,11 @@
     }
 
     if (!window.currentRenderState || !window.currentRenderState.image) {
-      alert('Please initialize a canvas or load an image first.');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Please initialize a canvas or load an image first.', 'warning');
+      } else {
+        alert('Please initialize a canvas or load an image first.');
+      }
       return;
     }
 
@@ -918,7 +930,11 @@
           placeholder.style.display = 'block';
         }
       } else {
-        alert('Export failed: ' + err.message);
+        if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+          window.AppCoordinator.showNotification('Export failed: ' + err.message, 'error');
+        } else {
+          alert('Export failed: ' + err.message);
+        }
       }
     } finally {
       activeAbortController = null;

@@ -267,7 +267,11 @@ window.NodePresets = {
 
   applyToActiveNode() {
     if (!window.DiagramNodes || window.DiagramNodes.activeId === null) {
-      alert('Select a shape on the canvas or in the list first.');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Select a shape on the canvas or in the list first.', 'warning');
+      } else {
+        alert('Select a shape on the canvas or in the list first.');
+      }
       return;
     }
     const node = window.DiagramNodes.getNode(window.DiagramNodes.activeId);

@@ -539,6 +539,8 @@ window.Glows = {
     if (this.activeId === null) return;
     const glow = this.updateGlow(this.activeId, { [key]: value });
     if (glow) {
+      const lbl = document.getElementById('editingGlowLabel');
+      if (lbl) lbl.innerText = 'Editing Glow ' + glow.id + (glow.name ? ' (' + glow.name + ')' : '');
       this.renderList();
       this.triggerAppRender();
       if (key === 'color' || key === 'shape') this.updateUIOverlay(glow);

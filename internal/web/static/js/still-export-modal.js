@@ -475,7 +475,11 @@ window.StillExportStudio = {
       window.triggerAppRender();
     }
     if (!window.currentRenderState || !window.currentRenderState.image) {
-      alert('Please initialize a canvas or load an image first.');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Please initialize a canvas or load an image first.', 'warning');
+      } else {
+        alert('Please initialize a canvas or load an image first.');
+      }
       return;
     }
 
@@ -744,7 +748,11 @@ window.StillExportStudio = {
         setTimeout(() => URL.revokeObjectURL(url), 4000);
       }
     } catch (err) {
-      alert('Still image export failed: ' + err.message);
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Still image export failed: ' + err.message, 'error');
+      } else {
+        alert('Still image export failed: ' + err.message);
+      }
     } finally {
       this.setGeneratingState(false);
     }

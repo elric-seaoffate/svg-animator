@@ -4190,7 +4190,72 @@ async function runHarness() {
   assert.ok(photoMarkup.includes('<image href="data:image/png;base64,'), 'Photo markup must contain valid data:image/png;base64 href');
   assert.ok(!photoMarkup.includes('data:image/png;base64,data:'), 'Photo markup must NEVER contain double data: prefix');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8 & 9 selection, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // =========================================================================
+  // Stage 11 Quality & Usability Verification:
+  // 1. Non-blocking Studio Notification / Toast System
+  // 2. Undo / Redo Selection Retention
+  // 3. Object Naming & Header Synchronization
+  // =========================================================================
+  console.log('[HARNESS] Testing Stage 11 Quality & Usability Improvements...');
+
+  // 1. Studio Notification System
+  assert.strictEqual(typeof window.AppCoordinator.showNotification, 'function', 'AppCoordinator.showNotification must exist');
+  assert.strictEqual(typeof window.showStudioNotification, 'function', 'window.showStudioNotification must exist');
+
+  const toastInfo = window.AppCoordinator.showNotification('Test Info Message', 'info', 0);
+  assert.ok(toastInfo, 'showNotification must return toast element');
+  assert.ok(toastInfo.className.includes('notice-info'), 'Toast must have notice-info class');
+  const msgChild = toastInfo.children && toastInfo.children.find((c) => c.textContent && c.textContent.includes('Test Info Message'));
+  assert.ok(msgChild, 'Toast must contain message text');
+
+  const toastWarn = window.showStudioNotification('Warning: 2 waypoints minimum', 'warning', 0);
+  assert.ok(toastWarn && toastWarn.className.includes('notice-warning'), 'showStudioNotification must support warning toasts');
+
+  // 2. Undo / Redo Selection Retention
+  window.DiagramNodes.list = [];
+  window.DiagramNodes.counter = 0;
+  const n1 = window.DiagramNodes.createNode({ text: 'Alpha' });
+  window.AppCoordinator.selectObject('node', n1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, n1.id);
+
+  // When post restore is triggered with restoredSelection of existing node, selection must be retained
+  window.AppCoordinator.coordinatePostRestore({
+    source: 'undo',
+    restoredSelection: { type: 'node', id: n1.id }
+  });
+  const selAfterUndo = window.AppCoordinator.getActiveSelection();
+  assert.strictEqual(selAfterUndo.type, 'node', 'Selection type after undo must be preserved for existing object');
+  assert.strictEqual(selAfterUndo.id, n1.id, 'Selection ID after undo must be preserved for existing object');
+
+  // When post restore is triggered without restoredSelection (e.g. project reset or non-existent object), selection is cleared
+  window.AppCoordinator.coordinatePostRestore({
+    source: 'undo',
+    restoredSelection: { type: 'node', id: 9999 } // does not exist
+  });
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null, 'Selection must be null if restored object no longer exists');
+
+  // 3. Object Naming & Header Synchronization
+  const n2 = window.DiagramNodes.createNode({ text: 'Beta' });
+  window.DiagramNodes.activeId = n2.id;
+  window.DiagramNodes.updateActive('name', 'Custom Gate');
+  assert.strictEqual(n2.name, 'Custom Gate', 'updateActive("name") must update node.name');
+
+  const nodeHeaderLbl = document.getElementById('editingNodeLabel');
+  if (nodeHeaderLbl) {
+    assert.ok(nodeHeaderLbl.innerText.includes('Custom Gate'), 'editingNodeLabel must include the object name');
+  }
+
+  const f1 = window.DataFlows.createFlow({ name: 'Initial Flow' });
+  window.DataFlows.activeId = f1.id;
+  window.DataFlows.updateActive('name', 'Telemetry Bus');
+  assert.strictEqual(f1.name, 'Telemetry Bus', 'updateActive("name") must update flow.name');
+
+  const flowHeaderLbl = document.getElementById('editingFlowLabel');
+  if (flowHeaderLbl) {
+    assert.ok(flowHeaderLbl.innerText.includes('Telemetry Bus'), 'editingFlowLabel must include the flow name');
+  }
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9 & 11 selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

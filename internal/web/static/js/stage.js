@@ -590,7 +590,11 @@ window.Stage = {
   loadFile(file, callback) {
     if (!file) return;
     if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp)$/i.test(file.name)) {
-      alert('Please choose a valid image file (JPEG, PNG, WEBP).');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Please choose a valid image file (JPEG, PNG, WEBP).', 'error');
+      } else {
+        alert('Please choose a valid image file (JPEG, PNG, WEBP).');
+      }
       return;
     }
     const reader = new FileReader();
@@ -598,17 +602,25 @@ window.Stage = {
       const dataUrl = e.target.result;
       const img = new Image();
       img.onload = () => {
+        const nw = (img.naturalWidth && img.naturalWidth > 0) ? img.naturalWidth : (img.width > 0 ? img.width : 1280);
+        const nh = (img.naturalHeight && img.naturalHeight > 0) ? img.naturalHeight : (img.height > 0 ? img.height : 720);
         callback({
           filename: file.name.replace(/\.[^/.]+$/, ''),
           mime: file.type || 'image/jpeg',
           b64: dataUrl.split(',')[1],
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-          naturalWidth: img.naturalWidth,
-          naturalHeight: img.naturalHeight
+          width: nw,
+          height: nh,
+          naturalWidth: nw,
+          naturalHeight: nh
         });
       };
-      img.onerror = () => alert('Failed to decode image data.');
+      img.onerror = () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+          window.AppCoordinator.showNotification('Failed to decode image data.', 'error');
+        } else {
+          alert('Failed to decode image data.');
+        }
+      };
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);

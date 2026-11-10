@@ -439,7 +439,11 @@ window.ProjectManager = {
       }
     } catch (err) {
       if (silentQuickSave) {
-        alert('Quick save failed: ' + err.message);
+        if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+          window.AppCoordinator.showNotification('Quick save failed: ' + err.message, 'error');
+        } else {
+          alert('Quick save failed: ' + err.message);
+        }
       } else {
         this.setStatusMessage('Save error: ' + err.message, true);
       }

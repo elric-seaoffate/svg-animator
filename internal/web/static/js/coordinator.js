@@ -223,26 +223,47 @@
      * @param {Object} [options] - Context info ({ source: 'undo'|'redo'|'project'|'new_project'|'direct_apply', projectId })
      */
     coordinatePostRestore(options = {}) {
-      if (window.DiagramNodes && typeof window.DiagramNodes.deselectNode === 'function') {
-        window.DiagramNodes.deselectNode();
+      let selectionRestored = false;
+      const rSel = options && options.restoredSelection;
+      if (rSel && rSel.type && rSel.id !== null && rSel.id !== undefined) {
+        const idStr = String(rSel.id);
+        if (rSel.type === 'node' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list) && window.DiagramNodes.list.some((n) => String(n.id) === idStr)) {
+          selectionRestored = true;
+          this.selectObject('node', rSel.id);
+        } else if (rSel.type === 'flow' && window.DataFlows && Array.isArray(window.DataFlows.list) && window.DataFlows.list.some((f) => String(f.id) === idStr)) {
+          selectionRestored = true;
+          this.selectObject('flow', rSel.id);
+        } else if (rSel.type === 'glow' && window.Glows && Array.isArray(window.Glows.list) && window.Glows.list.some((g) => String(g.id) === idStr)) {
+          selectionRestored = true;
+          this.selectObject('glow', rSel.id);
+        } else if (rSel.type === 'ripple' && window.Ripples && Array.isArray(window.Ripples.list) && window.Ripples.list.some((r) => String(r.id) === idStr)) {
+          selectionRestored = true;
+          this.selectObject('ripple', rSel.id);
+        }
       }
-      if (window.DataFlows && typeof window.DataFlows.deselectFlow === 'function') {
-        window.DataFlows.deselectFlow();
+
+      if (!selectionRestored) {
+        if (window.DiagramNodes && typeof window.DiagramNodes.deselectNode === 'function') {
+          window.DiagramNodes.deselectNode();
+        }
+        if (window.DataFlows && typeof window.DataFlows.deselectFlow === 'function') {
+          window.DataFlows.deselectFlow();
+        }
+        if (window.Glows && typeof window.Glows.deselectGlow === 'function') {
+          window.Glows.deselectGlow();
+        }
+        if (window.Ripples && typeof window.Ripples.deselectRipple === 'function') {
+          window.Ripples.deselectRipple();
+        }
+        if (window.Stage && typeof window.Stage.clearActive === 'function') {
+          window.Stage.clearActive();
+        }
+        this.activeSelection = { type: null, id: null };
+        if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+          window.EngineBridge.clearSelection();
+        }
+        this.emit('selection:changed', this.getActiveSelection());
       }
-      if (window.Glows && typeof window.Glows.deselectGlow === 'function') {
-        window.Glows.deselectGlow();
-      }
-      if (window.Ripples && typeof window.Ripples.deselectRipple === 'function') {
-        window.Ripples.deselectRipple();
-      }
-      if (window.Stage && typeof window.Stage.clearActive === 'function') {
-        window.Stage.clearActive();
-      }
-      this.activeSelection = { type: null, id: null };
-      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.clearSelection();
-      }
-      this.emit('selection:changed', this.getActiveSelection());
 
       if (window.NodePresets && typeof window.NodePresets.syncAllRowsUI === 'function') {
         window.NodePresets.syncAllRowsUI();
@@ -345,6 +366,34 @@
         x: Number(((snappedPxX / w) * 100).toFixed(3)),
         y: Number(((snappedPxY / h) * 100).toFixed(3))
       };
+    },
+
+    /**
+     * Dispatches a non-blocking studio notification event.
+     * Layer 1 UI presentation (app.js) handles DOM rendering in #studioNotificationContainer.
+     *
+     * @param {string} message - Notification text
+     * @param {string} [type='info'] - 'info' | 'success' | 'warning' | 'error'
+     * @param {number} [durationMs=3500] - Duration in ms before auto-dismiss
+     */
+    showNotification(message, type = 'info', durationMs = 3500) {
+      if (typeof window !== 'undefined' && window.StudioNotification && typeof window.StudioNotification.show === 'function') {
+        return window.StudioNotification.show(message, type, durationMs);
+      }
+      this.emit('notification:show', { message, type, durationMs });
+      return null;
     }
   };
+
+  if (typeof window !== 'undefined') {
+    window.showStudioNotification = function(msg, type, duration) {
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        return window.AppCoordinator.showNotification(msg, type, duration);
+      }
+      if (window.StudioNotification && typeof window.StudioNotification.show === 'function') {
+        return window.StudioNotification.show(msg, type, duration);
+      }
+      return null;
+    };
+  }
 })();

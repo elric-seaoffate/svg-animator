@@ -629,7 +629,11 @@ window.DataFlows = {
   dropNodeFromActive() {
     const f = this.getFlow(this.activeId);
     if (!f || f.nodes.length <= 2) {
-      alert('A flow must have at least 2 waypoints (Start and End).');
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('A flow must have at least 2 waypoints (Start and End).', 'warning');
+      } else {
+        alert('A flow must have at least 2 waypoints (Start and End).');
+      }
       return;
     }
     const res = this.removeWaypoint(this.activeId, this.activeNodeIdx);
@@ -750,6 +754,8 @@ window.DataFlows = {
     if (this.activeId === null) return;
     const f = this.updateFlow(this.activeId, { [key]: value });
     if (f) {
+      const lbl = document.getElementById('editingFlowLabel');
+      if (lbl) lbl.innerText = 'Editing Connector / Flow ' + f.id + (f.name ? ' (' + f.name + ')' : '');
       this.renderList();
       this.triggerAppRender();
       this.updateUIOverlay();
