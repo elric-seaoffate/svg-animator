@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"path"
 	"strings"
 	"testing"
 
@@ -198,8 +200,20 @@ func TestEncodeDecodeRoundtrip(t *testing.T) {
 		t.Fatal("Restored state missing loadedPhoto")
 	}
 	restoredB64, _ := photoObj["b64"].(string)
-	if !strings.HasPrefix(restoredB64, "data:image/png;base64,") {
-		t.Errorf("Restored photo data URI invalid: %s", restoredB64[:min(30, len(restoredB64))])
+	if strings.HasPrefix(restoredB64, "data:") {
+		t.Errorf("Restored photo b64 should be raw base64 without data URI scheme, got: %s", restoredB64[:min(30, len(restoredB64))])
+	}
+	decodedBytes, err := base64.StdEncoding.DecodeString(restoredB64)
+	if err != nil {
+		t.Fatalf("Restored photo b64 failed to decode: %v", err)
+	}
+	if !bytes.Equal(decodedBytes, fakePhotoBytes) {
+		t.Errorf("Restored photo bytes do not match original")
+	}
+
+	controls, _ := restoredState["controls"].(map[string]any)
+	if controls == nil || controls["canvasPatternSelect"] != "photo" {
+		t.Errorf("Restored state controls should have canvasPatternSelect='photo', got %v", controls["canvasPatternSelect"])
 	}
 }
 
@@ -324,5 +338,284 @@ func TestInvalidSignature(t *testing.T) {
 	_, err := Validate(buf.Bytes())
 	if err != ErrInvalidSignature {
 		t.Fatalf("Expected ErrInvalidSignature, got: %v", err)
+	}
+}
+
+func TestGeneratedImageBackgroundPackaging(t *testing.T) {
+	// Realistic generated-image(15) 1024x1024 PNG test case
+	fakePngBytes := append([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"), make([]byte, 100)...)
+	rawB64 := base64.StdEncoding.EncodeToString(fakePngBytes)
+
+	// Simulate formatted base64 with newlines/whitespace and data URI prefix
+	formattedB64 := fmt.Sprintf("data:image/png;base64,\n%s\r\n", rawB64)
+
+	schemaJSON := fmt.Sprintf(`{
+		"version": "1.2.0",
+		"controls": {
+			"canvasWidthInput": 1024,
+			"canvasHeightInput": 1024,
+			"canvasPatternSelect": "photo",
+			"photoFitSelect": "match",
+			"cameraMotionSelect": "ken-burns",
+			"effectSelect": "focus-pull"
+		},
+		"loadedPhoto": {
+			"filename": "generated-image(15)",
+			"mime": "image/png",
+			"b64": %q,
+			"naturalWidth": 1024,
+			"naturalHeight": 1024
+		},
+		"nodes": [],
+		"nodesCounter": 0,
+		"flows": [],
+		"flowsCounter": 0,
+		"glows": [],
+		"glowsCounter": 0,
+		"ripples": [],
+		"ripplesCounter": 0
+	}`, formattedB64)
+
+	// 1. Build Project from Studio state (export)
+	proj, err := BuildProjectFromStudioState("Generated SVA Test", "Testing background image packaging", []byte(schemaJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed: %v", err)
+	}
+
+	if proj.Scene.Photo == nil {
+		t.Fatal("Expected proj.Scene.Photo to be populated")
+	}
+	if proj.Scene.Photo.Filename != "generated-image(15)" {
+		t.Errorf("Photo filename mismatch: got %q, want 'generated-image(15)'", proj.Scene.Photo.Filename)
+	}
+	if proj.Scene.Photo.NaturalWidth != 1024 || proj.Scene.Photo.NaturalHeight != 1024 {
+		t.Errorf("Photo dimensions mismatch: got %dx%d, want 1024x1024", proj.Scene.Photo.NaturalWidth, proj.Scene.Photo.NaturalHeight)
+	}
+
+	// Verify asset exists in map with nonzero size
+	cleanAssetPath := path.Clean(proj.Scene.Photo.AssetPath)
+	assetBytes, ok := proj.Assets[cleanAssetPath]
+	if !ok || len(assetBytes) == 0 {
+		t.Fatalf("Asset not found in proj.Assets: %s (total assets: %d)", cleanAssetPath, len(proj.Assets))
+	}
+	if !bytes.Equal(assetBytes, fakePngBytes) {
+		t.Fatalf("Asset bytes mismatch with original fake PNG bytes")
+	}
+
+	// 2. Encode to ZIP
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	// 3. Inspect ZIP contents directly
+	zr, err := zip.NewReader(bytes.NewReader(svaBytes), int64(len(svaBytes)))
+	if err != nil {
+		t.Fatalf("zip.NewReader failed: %v", err)
+	}
+	var foundAssetZipFile *zip.File
+	for _, f := range zr.File {
+		if strings.HasPrefix(f.Name, "assets/") && strings.Contains(f.Name, "generated-image") {
+			foundAssetZipFile = f
+			break
+		}
+	}
+	if foundAssetZipFile == nil {
+		t.Fatal("ZIP archive does not contain generated-image asset in assets/ directory")
+	}
+	if foundAssetZipFile.UncompressedSize64 != uint64(len(fakePngBytes)) {
+		t.Errorf("ZIP asset size mismatch: got %d, want %d", foundAssetZipFile.UncompressedSize64, len(fakePngBytes))
+	}
+
+	// 4. Decode SVA bytes back
+	decodedProj, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+	if decodedProj.Scene.Photo == nil {
+		t.Fatal("Decoded project missing Photo metadata")
+	}
+
+	// 5. Extract to Studio state
+	restoredStateJSON, err := ExtractStudioState(decodedProj)
+	if err != nil {
+		t.Fatalf("ExtractStudioState failed: %v", err)
+	}
+
+	var restoredState map[string]any
+	if err := json.Unmarshal(restoredStateJSON, &restoredState); err != nil {
+		t.Fatalf("Unmarshal restored state failed: %v", err)
+	}
+
+	photoObj, ok := restoredState["loadedPhoto"].(map[string]any)
+	if !ok || photoObj == nil {
+		t.Fatal("Restored state missing loadedPhoto")
+	}
+
+	// Crucial check: b64 must NOT be double-prefixed with data:
+	restoredB64, _ := photoObj["b64"].(string)
+	if strings.HasPrefix(restoredB64, "data:") {
+		t.Fatalf("Restored photo b64 must be raw base64 string, but got data: prefix: %s", restoredB64[:min(30, len(restoredB64))])
+	}
+	if restoredB64 != rawB64 {
+		t.Fatalf("Restored photo b64 mismatch with original raw base64")
+	}
+
+	controls, _ := restoredState["controls"].(map[string]any)
+	if controls == nil || controls["canvasPatternSelect"] != "photo" {
+		t.Errorf("Expected controls.canvasPatternSelect='photo', got %v", controls["canvasPatternSelect"])
+	}
+}
+
+func TestMissingPhotoAssetExportFailure(t *testing.T) {
+	// If loadedPhoto contains metadata indicating a photo is intended, but b64 is empty, export must fail
+	schemaJSON := `{
+		"version": "1.2.0",
+		"controls": {},
+		"loadedPhoto": {
+			"filename": "generated-image(15)",
+			"mime": "image/png",
+			"b64": "",
+			"naturalWidth": 1024,
+			"naturalHeight": 1024
+		}
+	}`
+
+	_, err := BuildProjectFromStudioState("Invalid Export", "Should fail", []byte(schemaJSON))
+	if err == nil {
+		t.Fatal("Expected BuildProjectFromStudioState to fail when photo data is missing, but it succeeded")
+	}
+	if !strings.Contains(err.Error(), "no image data to bundle") {
+		t.Errorf("Error should mention missing image data, got: %v", err)
+	}
+}
+
+func TestCorruptOrMissingArchivePhotoAsset(t *testing.T) {
+	// Construct an SVA zip where scene.json points to a photo, but the asset file is missing from the zip
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	mw, _ := zw.Create("manifest.json")
+	mw.Write([]byte(`{
+		"format": "sva",
+		"version": "1.0.0",
+		"minReaderVersion": "1.0.0",
+		"name": "Missing Asset Test",
+		"scene": "scene.json"
+	}`))
+
+	sw, _ := zw.Create("scene.json")
+	sw.Write([]byte(`{
+		"schemaVersion": "1.0.0",
+		"photo": {
+			"assetId": "asset-photo-bg",
+			"assetPath": "assets/missing_photo.png",
+			"filename": "missing_photo.png",
+			"mime": "image/png"
+		}
+	}`))
+
+	zw.Close()
+
+	_, err := Decode(buf.Bytes())
+	if err == nil {
+		t.Fatal("Expected Decode to fail when referenced photo asset is missing from zip, but it succeeded")
+	}
+	if !strings.Contains(err.Error(), "missing from archive") {
+		t.Errorf("Expected error to mention asset missing from archive, got: %v", err)
+	}
+}
+
+func TestManifestMissingAssetFailure(t *testing.T) {
+	// Construct an SVA zip where manifest.json declares an asset that is missing from the zip
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	mw, _ := zw.Create("manifest.json")
+	mw.Write([]byte(`{
+		"format": "sva",
+		"version": "1.0.0",
+		"minReaderVersion": "1.0.0",
+		"name": "Missing Manifest Asset Test",
+		"scene": "scene.json",
+		"assets": [
+			{"id": "asset1", "path": "assets/phantom.png", "mime": "image/png", "size": 100}
+		]
+	}`))
+
+	sw, _ := zw.Create("scene.json")
+	sw.Write([]byte(`{"schemaVersion": "1.0.0"}`))
+
+	zw.Close()
+
+	_, err := Decode(buf.Bytes())
+	if err == nil {
+		t.Fatal("Expected Decode to fail when manifest declares asset missing from archive")
+	}
+	if !strings.Contains(err.Error(), "missing from archive") {
+		t.Errorf("Expected error to mention missing asset, got: %v", err)
+	}
+}
+
+func TestSVARoundtripReExportParity(t *testing.T) {
+	// Verify that exporting, importing, and re-exporting does not corrupt paths (e.g. assets/assets/...)
+	imgBytes := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR1234567890")
+	b64 := base64.StdEncoding.EncodeToString(imgBytes)
+
+	schema1 := fmt.Sprintf(`{
+		"version": "1.2.0",
+		"loadedPhoto": {
+			"filename": "test-bg",
+			"mime": "image/png",
+			"b64": %q,
+			"naturalWidth": 800,
+			"naturalHeight": 600
+		}
+	}`, b64)
+
+	// Round 1
+	proj1, err := BuildProjectFromStudioState("P1", "", []byte(schema1))
+	if err != nil {
+		t.Fatalf("Build 1 failed: %v", err)
+	}
+	svaBytes1, err := Encode(proj1)
+	if err != nil {
+		t.Fatalf("Encode 1 failed: %v", err)
+	}
+
+	// Decode 1
+	dec1, err := Decode(svaBytes1)
+	if err != nil {
+		t.Fatalf("Decode 1 failed: %v", err)
+	}
+	stateJSON1, err := ExtractStudioState(dec1)
+	if err != nil {
+		t.Fatalf("Extract 1 failed: %v", err)
+	}
+
+	// Round 2 (Re-export from extracted state)
+	proj2, err := BuildProjectFromStudioState("P2", "", stateJSON1)
+	if err != nil {
+		t.Fatalf("Build 2 failed: %v", err)
+	}
+	svaBytes2, err := Encode(proj2)
+	if err != nil {
+		t.Fatalf("Encode 2 failed: %v", err)
+	}
+
+	dec2, err := Decode(svaBytes2)
+	if err != nil {
+		t.Fatalf("Decode 2 failed: %v", err)
+	}
+
+	// Verify photo asset path is clean and not double-prefixed
+	if strings.Contains(dec2.Scene.Photo.AssetPath, "assets/assets") {
+		t.Fatalf("Photo asset path has double prefix: %s", dec2.Scene.Photo.AssetPath)
+	}
+
+	// Asset bytes in round 2 must match original
+	cleanPath := path.Clean(dec2.Scene.Photo.AssetPath)
+	if !bytes.Equal(dec2.Assets[cleanPath], imgBytes) {
+		t.Fatalf("Asset bytes in round 2 do not match original image bytes")
 	}
 }

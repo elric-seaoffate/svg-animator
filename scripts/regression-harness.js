@@ -4132,7 +4132,65 @@ async function runHarness() {
   assert.strictEqual(typeof window.ProjectManager.exportSVA, 'function', 'ProjectManager.exportSVA must exist');
   assert.strictEqual(typeof window.ProjectManager.importSVA, 'function', 'ProjectManager.importSVA must exist');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8 & 9 selection, history(50), schema 1.2.0, .sva packaging, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // 5. Stage 9 Regression: Background Image (generated-image(15) 1024x1024) Packaging & Restoration
+  console.log('[HARNESS] Testing Stage 9 Regression: Background Photo Packaging & Restoration...');
+  const fakePngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  const photoState = {
+    version: '1.2.0',
+    controls: {
+      canvasWidthInput: '1024',
+      canvasHeightInput: '1024',
+      canvasPatternSelect: 'photo',
+      photoFitSelect: 'match'
+    },
+    loadedPhoto: {
+      filename: 'generated-image(15)',
+      mime: 'image/png',
+      b64: fakePngB64,
+      naturalWidth: 1024,
+      naturalHeight: 1024
+    },
+    nodes: [],
+    nodesCounter: 0,
+    flows: [],
+    flowsCounter: 0,
+    glows: [],
+    glowsCounter: 0,
+    ripples: [],
+    ripplesCounter: 0
+  };
+
+  const photoEnc = window.EngineBridge.encodeSVA('Photo Project', 'Testing background restoration', photoState);
+  assert.ok(photoEnc && photoEnc.success, 'Photo SVA encode must succeed');
+
+  const photoDec = window.EngineBridge.decodeSVA(photoEnc.dataB64);
+  assert.ok(photoDec && photoDec.success, 'Photo SVA decode must succeed');
+
+  const decodedPhotoState = (typeof photoDec.state === 'string') ? JSON.parse(photoDec.state) : photoDec.state;
+  assert.ok(decodedPhotoState.loadedPhoto, 'Decoded state must have loadedPhoto');
+  assert.strictEqual(decodedPhotoState.loadedPhoto.filename, 'generated-image(15)');
+  assert.strictEqual(decodedPhotoState.loadedPhoto.naturalWidth, 1024);
+  assert.strictEqual(decodedPhotoState.loadedPhoto.naturalHeight, 1024);
+  assert.ok(!decodedPhotoState.loadedPhoto.b64.startsWith('data:'), 'Decoded loadedPhoto.b64 must be raw base64 string, not data URI');
+  assert.strictEqual(decodedPhotoState.loadedPhoto.b64, fakePngB64, 'Decoded b64 must match original base64');
+  assert.strictEqual(decodedPhotoState.controls.canvasPatternSelect, 'photo', 'Controls must have canvasPatternSelect=photo');
+
+  // Apply to studio and verify DOM / Effects rendering
+  window.ProjectManager.applyStudioState(decodedPhotoState);
+  const currentPhoto = window.SceneState.getLoadedPhoto();
+  assert.ok(currentPhoto, 'SceneState must have loaded photo');
+  assert.strictEqual(currentPhoto.filename, 'generated-image(15)');
+
+  const patternEl = document.getElementById('canvasPatternSelect');
+  assert.ok(patternEl, 'canvasPatternSelect element must exist');
+  assert.strictEqual(patternEl.value, 'photo', 'canvasPatternSelect must be set to photo');
+
+  const canvasState = window.SceneState.buildCurrentCanvasState();
+  const photoMarkup = window.Effects.buildPhotoElement(canvasState, 1024, 1024);
+  assert.ok(photoMarkup.includes('<image href="data:image/png;base64,'), 'Photo markup must contain valid data:image/png;base64 href');
+  assert.ok(!photoMarkup.includes('data:image/png;base64,data:'), 'Photo markup must NEVER contain double data: prefix');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8 & 9 selection, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

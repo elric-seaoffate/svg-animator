@@ -109,6 +109,12 @@ window.ProjectManager = {
       window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
     }
 
+    if (data.loadedPhoto) {
+      if (!data.controls) data.controls = {};
+      data.controls.canvasPatternSelect = 'photo';
+      if (!data.controls.photoFitSelect) data.controls.photoFitSelect = 'match';
+    }
+
     if (data.controls && window.ControlStateAdaptor) {
       window.ControlStateAdaptor.syncToDOM(data.controls);
     }
@@ -549,6 +555,29 @@ window.ProjectManager = {
       let stateObj = null;
       try { stateObj = JSON.parse(stateStr); } catch (_) {}
 
+      // Resolve any blob: or remote photo URLs to base64 before bundling
+      if (stateObj && stateObj.loadedPhoto) {
+        const photo = stateObj.loadedPhoto;
+        const photoUrl = photo.src || photo.dataUrl || photo.dataURL || photo.url;
+        if (!photo.b64 && photoUrl && (photoUrl.startsWith('blob:') || photoUrl.startsWith('http:') || photoUrl.startsWith('https:'))) {
+          try {
+            const resp = await fetch(photoUrl);
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            const dataUrl = await new Promise((resolve, reject) => {
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            if (dataUrl && typeof dataUrl === 'string' && dataUrl.includes(',')) {
+              photo.b64 = dataUrl.split(',')[1];
+            }
+          } catch (e) {
+            console.warn('Failed to resolve photo URL to base64 for SVA export:', e);
+          }
+        }
+      }
+
       let b64 = null;
       let filename = (name || 'project').replace(/[^a-zA-Z0-9_\-]/g, '_') + '.sva';
 
@@ -557,6 +586,8 @@ window.ProjectManager = {
         if (wasmRes && wasmRes.success && wasmRes.dataB64) {
           b64 = wasmRes.dataB64;
           if (wasmRes.filename) filename = wasmRes.filename;
+        } else if (wasmRes && wasmRes.error) {
+          throw new Error(wasmRes.error);
         }
       }
 

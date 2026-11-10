@@ -1,8 +1,13 @@
 window.Effects = {
   buildPhotoElement(imgInfo, w, h, extraAttrs = '') {
-    const imgSrc = imgInfo.b64
-      ? `data:${imgInfo.mime || 'image/jpeg'};base64,${imgInfo.b64}`
-      : (imgInfo.src || imgInfo.dataUrl || imgInfo.dataURL || imgInfo.data || '');
+    let imgSrc = '';
+    if (imgInfo.b64) {
+      imgSrc = imgInfo.b64.startsWith('data:')
+        ? imgInfo.b64
+        : `data:${imgInfo.mime || 'image/jpeg'};base64,${imgInfo.b64}`;
+    } else {
+      imgSrc = imgInfo.src || imgInfo.dataUrl || imgInfo.dataURL || imgInfo.data || '';
+    }
 
     const fitMode = imgInfo.photoFit || 'match';
     const natW = imgInfo.naturalWidth || w;

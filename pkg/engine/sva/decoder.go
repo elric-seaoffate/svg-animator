@@ -183,12 +183,27 @@ func Decode(data []byte) (*Project, error) {
 			// Check if path was stored without assets/ prefix
 			assetBytes, ok = assets[AssetsDirPrefix+cleanEntryPath]
 		}
-		if ok && entry.SHA256 != "" {
+		if !ok {
+			return nil, fmt.Errorf("sva: manifest declares asset %s, but file is missing from archive", entry.Path)
+		}
+		if entry.SHA256 != "" {
 			h := sha256.Sum256(assetBytes)
 			hashStr := hex.EncodeToString(h[:])
 			if !strings.EqualFold(hashStr, entry.SHA256) {
 				return nil, fmt.Errorf("%w for asset %s", ErrAssetChecksumMismatch, entry.Path)
 			}
+		}
+	}
+
+	// 4. Verify referenced photo asset exists in package if present
+	if sceneData.Photo != nil && sceneData.Photo.AssetPath != "" {
+		cleanPhotoPath := path.Clean(sceneData.Photo.AssetPath)
+		photoBytes, ok := assets[cleanPhotoPath]
+		if !ok {
+			photoBytes, ok = assets[AssetsDirPrefix+cleanPhotoPath]
+		}
+		if !ok || len(photoBytes) == 0 {
+			return nil, fmt.Errorf("sva: scene references background photo %s, but asset is missing from archive", sceneData.Photo.AssetPath)
 		}
 	}
 
@@ -200,7 +215,7 @@ func Decode(data []byte) (*Project, error) {
 }
 
 // ExtractStudioState reconstructs a Schema 1.2.0 JSON payload from an SVA Project.
-// It bundles binary assets back into base64 data URIs so the web editor and
+// It bundles binary assets back into base64 strings so the web editor and
 // SQLite project persistence can restore them without architectural friction.
 func ExtractStudioState(proj *Project) ([]byte, error) {
 	if proj == nil {
@@ -216,21 +231,21 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		if !ok {
 			assetBytes, ok = proj.Assets[AssetsDirPrefix+path.Clean(s.Photo.AssetPath)]
 		}
-		if ok && len(assetBytes) > 0 {
-			mime := s.Photo.MIME
-			if mime == "" {
-				mime = detectMIMEType(s.Photo.AssetPath, assetBytes)
-			}
-			b64 := base64.StdEncoding.EncodeToString(assetBytes)
-			dataURI := fmt.Sprintf("data:%s;base64,%s", mime, b64)
+		if !ok || len(assetBytes) == 0 {
+			return nil, fmt.Errorf("sva: referenced background photo %q missing or empty in package", s.Photo.AssetPath)
+		}
+		mime := s.Photo.MIME
+		if mime == "" {
+			mime = detectMIMEType(s.Photo.AssetPath, assetBytes)
+		}
+		b64 := base64.StdEncoding.EncodeToString(assetBytes)
 
-			loadedPhoto = map[string]any{
-				"filename":      s.Photo.Filename,
-				"mime":          mime,
-				"b64":           dataURI,
-				"naturalWidth":  s.Photo.NaturalWidth,
-				"naturalHeight": s.Photo.NaturalHeight,
-			}
+		loadedPhoto = map[string]any{
+			"filename":      s.Photo.Filename,
+			"mime":          mime,
+			"b64":           b64, // Raw base64 string matching Studio state convention
+			"naturalWidth":  s.Photo.NaturalWidth,
+			"naturalHeight": s.Photo.NaturalHeight,
 		}
 	}
 
@@ -280,9 +295,22 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		}
 	}
 
+	controls := make(map[string]any)
+	if s.Controls != nil {
+		for k, v := range s.Controls {
+			controls[k] = v
+		}
+	}
+	if loadedPhoto != nil {
+		controls["canvasPatternSelect"] = "photo"
+		if _, ok := controls["photoFitSelect"]; !ok {
+			controls["photoFitSelect"] = "match"
+		}
+	}
+
 	payload := map[string]any{
 		"version":         "1.2.0",
-		"controls":        s.Controls,
+		"controls":        controls,
 		"loadedPhoto":     loadedPhoto,
 		"presets":         s.Presets,
 		"autoApplyPreset": s.AutoApplyPreset,

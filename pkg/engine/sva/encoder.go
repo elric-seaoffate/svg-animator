@@ -72,10 +72,16 @@ func Encode(proj *Project) ([]byte, error) {
 	for _, p := range assetKeys {
 		data := proj.Assets[p]
 		cleanPath := path.Clean(p)
+		if !strings.HasPrefix(cleanPath, AssetsDirPrefix) {
+			cleanPath = AssetsDirPrefix + cleanPath
+		}
 		h := sha256.Sum256(data)
 		hashStr := hex.EncodeToString(h[:])
 
 		entry := existingMeta[p]
+		if entry.Path == "" {
+			entry = existingMeta[cleanPath]
+		}
 		entry.Path = cleanPath
 		entry.Size = int64(len(data))
 		entry.SHA256 = hashStr
@@ -195,31 +201,50 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 	var photoInfo *PhotoAssetInfo
 
 	// 1. Process Background Image (LoadedPhoto)
-	if raw.LoadedPhoto != nil {
+	if raw.LoadedPhoto != nil && len(raw.LoadedPhoto) > 0 {
 		b64Val, _ := raw.LoadedPhoto["b64"].(string)
+		if b64Val == "" {
+			if s, ok := raw.LoadedPhoto["dataUrl"].(string); ok && s != "" {
+				b64Val = s
+			} else if s, ok := raw.LoadedPhoto["dataURL"].(string); ok && s != "" {
+				b64Val = s
+			} else if s, ok := raw.LoadedPhoto["src"].(string); ok && s != "" {
+				b64Val = s
+			} else if s, ok := raw.LoadedPhoto["data"].(string); ok && s != "" {
+				b64Val = s
+			}
+		}
 		mimeVal, _ := raw.LoadedPhoto["mime"].(string)
 		filenameVal, _ := raw.LoadedPhoto["filename"].(string)
-		if filenameVal == "" {
-			filenameVal = "background_photo"
-		}
 		w, _ := raw.LoadedPhoto["naturalWidth"].(float64)
 		h, _ := raw.LoadedPhoto["naturalHeight"].(float64)
 
-		if b64Val != "" {
+		if b64Val != "" || filenameVal != "" || mimeVal != "" || w > 0 || h > 0 {
+			if filenameVal == "" {
+				filenameVal = "background_photo"
+			}
+			if b64Val == "" {
+				return nil, fmt.Errorf("sva: background photo %q has no image data to bundle", filenameVal)
+			}
 			data, cleanMime, err := decodeBase64DataURI(b64Val, mimeVal)
-			if err == nil && len(data) > 0 {
-				ext := extensionForMIME(cleanMime)
-				assetPath := AssetsDirPrefix + sanitizeFilename(filenameVal) + ext
-				assets[assetPath] = data
+			if err != nil {
+				return nil, fmt.Errorf("sva: decoding background photo %q: %w", filenameVal, err)
+			}
+			if len(data) == 0 {
+				return nil, fmt.Errorf("sva: background photo %q decoded to 0 bytes", filenameVal)
+			}
 
-				photoInfo = &PhotoAssetInfo{
-					AssetID:       "asset-photo-bg",
-					AssetPath:     assetPath,
-					Filename:      filenameVal,
-					MIME:          cleanMime,
-					NaturalWidth:  int(w),
-					NaturalHeight: int(h),
-				}
+			ext := extensionForMIME(cleanMime)
+			assetPath := AssetsDirPrefix + sanitizeFilename(filenameVal) + ext
+			assets[assetPath] = data
+
+			photoInfo = &PhotoAssetInfo{
+				AssetID:       "asset-photo-bg",
+				AssetPath:     assetPath,
+				Filename:      filenameVal,
+				MIME:          cleanMime,
+				NaturalWidth:  int(w),
+				NaturalHeight: int(h),
 			}
 		}
 	}
@@ -229,18 +254,22 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 		g := &raw.Glows[i]
 		if g.Shape == "custom" && g.CustomB64 != "" {
 			data, cleanMime, err := decodeBase64DataURI(g.CustomB64, g.CustomMime)
-			if err == nil && len(data) > 0 {
-				ext := extensionForMIME(cleanMime)
-				assetPath := fmt.Sprintf("%sglow_%s_custom%s", AssetsDirPrefix, g.ID, ext)
-				assets[assetPath] = data
-				g.CustomMime = cleanMime
-				// In SVA scene.json, customB64 can be cleared or preserved as asset reference
-				g.CustomB64 = ""
-				if g.Metadata == nil {
-					g.Metadata = make(map[string]any)
-				}
-				g.Metadata["assetPath"] = assetPath
+			if err != nil {
+				return nil, fmt.Errorf("sva: decoding custom glow graphic %s: %w", g.ID, err)
 			}
+			if len(data) == 0 {
+				return nil, fmt.Errorf("sva: custom glow graphic %s decoded to 0 bytes", g.ID)
+			}
+			ext := extensionForMIME(cleanMime)
+			assetPath := fmt.Sprintf("%sglow_%s_custom%s", AssetsDirPrefix, g.ID, ext)
+			assets[assetPath] = data
+			g.CustomMime = cleanMime
+			// In SVA scene.json, customB64 is cleared and referenced via assetPath
+			g.CustomB64 = ""
+			if g.Metadata == nil {
+				g.Metadata = make(map[string]any)
+			}
+			g.Metadata["assetPath"] = assetPath
 		}
 	}
 
@@ -249,17 +278,21 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 		f := &raw.Flows[i]
 		if f.CustomB64 != "" {
 			data, cleanMime, err := decodeBase64DataURI(f.CustomB64, f.CustomMime)
-			if err == nil && len(data) > 0 {
-				ext := extensionForMIME(cleanMime)
-				assetPath := fmt.Sprintf("%sflow_%s_custom%s", AssetsDirPrefix, f.ID, ext)
-				assets[assetPath] = data
-				f.CustomMime = cleanMime
-				f.CustomB64 = ""
-				if f.Metadata == nil {
-					f.Metadata = make(map[string]any)
-				}
-				f.Metadata["assetPath"] = assetPath
+			if err != nil {
+				return nil, fmt.Errorf("sva: decoding custom flow graphic %s: %w", f.ID, err)
 			}
+			if len(data) == 0 {
+				return nil, fmt.Errorf("sva: custom flow graphic %s decoded to 0 bytes", f.ID)
+			}
+			ext := extensionForMIME(cleanMime)
+			assetPath := fmt.Sprintf("%sflow_%s_custom%s", AssetsDirPrefix, f.ID, ext)
+			assets[assetPath] = data
+			f.CustomMime = cleanMime
+			f.CustomB64 = ""
+			if f.Metadata == nil {
+				f.Metadata = make(map[string]any)
+			}
+			f.Metadata["assetPath"] = assetPath
 		}
 	}
 
@@ -327,7 +360,30 @@ func decodeBase64DataURI(b64Str string, fallbackMime string) ([]byte, string, er
 			}
 		}
 	}
-	data, err := base64.StdEncoding.DecodeString(b64Str)
+
+	// Strip all interior whitespace characters (\r, \n, space, tab) from base64 string
+	var sb strings.Builder
+	sb.Grow(len(b64Str))
+	for _, r := range b64Str {
+		if r != ' ' && r != '\t' && r != '\n' && r != '\r' {
+			sb.WriteRune(r)
+		}
+	}
+	cleanB64 := sb.String()
+
+	data, err := base64.StdEncoding.DecodeString(cleanB64)
+	if err != nil {
+		// Fallback 1: RawStdEncoding (unpadded)
+		data, err = base64.RawStdEncoding.DecodeString(cleanB64)
+	}
+	if err != nil {
+		// Fallback 2: URLEncoding
+		data, err = base64.URLEncoding.DecodeString(cleanB64)
+	}
+	if err != nil {
+		// Fallback 3: RawURLEncoding
+		data, err = base64.RawURLEncoding.DecodeString(cleanB64)
+	}
 	if err != nil {
 		return nil, mime, err
 	}
