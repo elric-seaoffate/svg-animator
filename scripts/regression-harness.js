@@ -4344,6 +4344,26 @@ async function runHarness() {
   const hexFromRgb = window.CustomColorPicker.rgbToHex(255, 128, 0);
   assert.strictEqual(hexFromRgb, '#ff8000');
 
+  // Test HSV <-> RGB conversions
+  const hsv = window.CustomColorPicker.rgbToHsv(255, 0, 0);
+  assert.strictEqual(hsv.h, 0);
+  assert.strictEqual(hsv.s, 1);
+  assert.strictEqual(hsv.v, 1);
+  const rgbRoundTrip = window.CustomColorPicker.hsvToRgb(hsv.h, hsv.s, hsv.v);
+  assert.strictEqual(rgbRoundTrip.r, 255);
+  assert.strictEqual(rgbRoundTrip.g, 0);
+  assert.strictEqual(rgbRoundTrip.b, 0);
+
+  // Test Cyan
+  const hsvCyan = window.CustomColorPicker.rgbToHsv(0, 255, 255);
+  assert.strictEqual(hsvCyan.h, 180);
+  assert.strictEqual(hsvCyan.s, 1);
+  assert.strictEqual(hsvCyan.v, 1);
+  const rgbCyanTrip = window.CustomColorPicker.hsvToRgb(180, 1, 1);
+  assert.strictEqual(rgbCyanTrip.r, 0);
+  assert.strictEqual(rgbCyanTrip.g, 255);
+  assert.strictEqual(rgbCyanTrip.b, 255);
+
   // Swatch management
   window.CustomColorPicker.recentColors = [];
   window.CustomColorPicker.favColors = [];
@@ -4351,6 +4371,62 @@ async function runHarness() {
   assert.ok(window.CustomColorPicker.favColors.includes('#00ffcc'), 'Favourite colour must be saved');
   window.CustomColorPicker.removeFavourite(0);
   assert.strictEqual(window.CustomColorPicker.favColors.length, 0, 'Favourite colour must be removed');
+
+  // Test UI initialization, 3 distinct palette rows, and popover interaction
+  assert.ok(htmlSource.includes('id="customColorPickerModal"'), 'customColorPickerModal must exist in index.html');
+  assert.ok(htmlSource.includes('role="dialog"'), 'customColorPickerModal must have role="dialog"');
+  assert.ok(htmlSource.includes('aria-modal="false"'), 'Must be non-modal popover with aria-modal="false"');
+  assert.ok(htmlSource.includes('class="custom-color-picker-popover"'), 'Must have custom-color-picker-popover class');
+
+  // Verify all 3 horizontal palette containers exist in HTML
+  assert.ok(htmlSource.includes('id="colorPickerQuickPalette"'), 'Standard palette container must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerRecentSwatches"'), 'Recent swatches container must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerFavSwatches"'), 'Favourites swatches container must exist in index.html');
+
+  // Verify RGB slider and numeric inputs exist in DOM
+  ['R', 'G', 'B'].forEach((ch) => {
+    assert.ok(htmlSource.includes(`id="colorPicker${ch}Slider"`), `colorPicker${ch}Slider must exist in index.html`);
+    assert.ok(htmlSource.includes(`id="colorPicker${ch}Num"`), `colorPicker${ch}Num must exist in index.html`);
+  });
+
+  // Verify SV square and Hue slider exist
+  assert.ok(htmlSource.includes('id="colorPickerSvSquare"'), 'colorPickerSvSquare must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerSvHandle"'), 'colorPickerSvHandle must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerHueSlider"'), 'colorPickerHueSlider must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerCurrentSwatch"'), 'colorPickerCurrentSwatch must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerPendingSwatch"'), 'colorPickerPendingSwatch must exist in index.html');
+  assert.ok(htmlSource.includes('id="colorPickerHexInput"'), 'colorPickerHexInput must exist in index.html');
+
+  // Test openFor, live preview, cancel and apply transactions
+  const mockColorInput = {
+    value: '#112233',
+    tagName: 'INPUT',
+    type: 'color',
+    getBoundingClientRect: () => ({ left: 100, top: 100, right: 150, bottom: 130, width: 50, height: 30 }),
+    dispatchEvent: () => {}
+  };
+
+  window.CustomColorPicker.openFor(mockColorInput);
+  assert.strictEqual(window.CustomColorPicker.isOpen, true, 'Picker must be open');
+  assert.strictEqual(window.CustomColorPicker.initialColor, '#112233');
+
+  // Change color via setColor
+  window.CustomColorPicker.setColor('#ff9900');
+  assert.strictEqual(mockColorInput.value, '#ff9900', 'Live preview must immediately update active input');
+  assert.strictEqual(window.CustomColorPicker.currentColor, '#ff9900');
+
+  // Cancel reverts to initial
+  window.CustomColorPicker.cancel();
+  assert.strictEqual(mockColorInput.value, '#112233', 'Cancel must revert active input to initialColor');
+  assert.strictEqual(window.CustomColorPicker.isOpen, false, 'Picker must close on cancel');
+
+  // Re-open and apply commits
+  window.CustomColorPicker.openFor(mockColorInput);
+  window.CustomColorPicker.setColor('#33cc66');
+  window.CustomColorPicker.apply();
+  assert.strictEqual(mockColorInput.value, '#33cc66', 'Apply must commit new color');
+  assert.strictEqual(window.CustomColorPicker.isOpen, false, 'Picker must close on apply');
+  assert.ok(window.CustomColorPicker.recentColors.includes('#33cc66'), 'Recent colors must include applied color');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11 & 12 multi-selection, group move, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
