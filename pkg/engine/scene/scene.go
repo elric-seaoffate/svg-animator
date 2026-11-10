@@ -464,6 +464,7 @@ func (s *Scene) RemoveNode(id StringID) bool {
 		}
 	}
 
+	s.pruneSelectionLocked(SelectionNode, id)
 	s.revision++
 	return true
 }
@@ -501,6 +502,7 @@ func (s *Scene) RemoveFlow(id StringID) bool {
 		}
 	}
 	s.flowIDs = newIDs
+	s.pruneSelectionLocked(SelectionFlow, id)
 	s.revision++
 	return true
 }

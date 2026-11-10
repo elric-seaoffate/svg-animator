@@ -888,6 +888,11 @@ header h1 {
   box-shadow: inset 0 0 0 1px rgba(88, 166, 255, 0.4);
 }
 
+.flow-list-item.compact-instance-row.primary-selected {
+  border-color: #a371f7;
+  box-shadow: inset 0 0 0 1px rgba(163, 113, 247, 0.6);
+}
+
 .compact-instance-row .instance-icon {
   font-size: 0.8rem;
   line-height: 1;
@@ -1872,4 +1877,86 @@ body.editing-flow #flightLine {
 @keyframes studioNoticeFadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Multi-Selection & Alignment / Distribution Toolbar */
+.node-multi-toolbar {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.tool-btn-compact {
+  background: var(--bg-surface, #161b22);
+  color: var(--text-main, #c9d1d9);
+  border: 1px solid var(--border-color, #30363d);
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.tool-btn-compact:hover:not(:disabled) {
+  background: #30363d;
+  color: #fff;
+  border-color: #58a6ff;
+}
+
+.tool-btn-compact:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Custom Colour Picker Dialog */
+.custom-color-picker-dialog .color-swatch-display {
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+
+.custom-color-picker-dialog .color-swatch-display:hover {
+  transform: scale(1.02);
+}
+
+.color-swatch-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.color-swatch-item {
+  position: relative;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.color-swatch-item:hover {
+  transform: scale(1.12);
+  z-index: 2;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+  border-color: #fff;
+}
+
+.color-swatch-item .swatch-delete-btn {
+  display: none;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  background: #f85149;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-swatch-item:hover .swatch-delete-btn {
+  display: block;
 }

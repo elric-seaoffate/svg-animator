@@ -2180,6 +2180,301 @@ window.TimelinePlayer = {
   }
 };
 
+window.CustomColorPicker = {
+  isOpen: false,
+  activeInput: null,
+  initialColor: '#58a6ff',
+  currentColor: '#58a6ff',
+  recentColors: [],
+  favColors: [],
+  quickPalette: [
+    '#ffffff', '#e6edf3', '#8b949e', '#30363d',
+    '#161b22', '#0d1117', '#58a6ff', '#1f6feb',
+    '#238636', '#3fb950', '#d29922', '#f0883e',
+    '#f85149', '#ff7b72', '#a371f7', '#bc8cff'
+  ],
+
+  init() {
+    this.loadSwatches();
+
+    const modal = document.getElementById('customColorPickerModal');
+    const btnClose = document.getElementById('btnColorPickerClose');
+    const btnCancel = document.getElementById('btnColorPickerCancel');
+    const btnApply = document.getElementById('btnColorPickerApply');
+    const btnAddFav = document.getElementById('btnColorPickerAddFav');
+    const curSwatch = document.getElementById('colorPickerCurrentSwatch');
+    const hexInput = document.getElementById('colorPickerHexInput');
+
+    if (btnClose) btnClose.addEventListener('click', () => this.cancel());
+    if (btnCancel) btnCancel.addEventListener('click', () => this.cancel());
+    if (btnApply) btnApply.addEventListener('click', () => this.apply());
+    if (curSwatch) curSwatch.addEventListener('click', () => this.setColor(this.initialColor));
+    if (btnAddFav) btnAddFav.addEventListener('click', () => this.addFavourite(this.currentColor));
+
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) this.cancel();
+      });
+    }
+
+    ['R', 'G', 'B'].forEach((channel) => {
+      const slider = document.getElementById('colorPicker' + channel + 'Slider');
+      const num = document.getElementById('colorPicker' + channel + 'Num');
+      if (slider && num) {
+        const onValChange = (val) => {
+          slider.value = val;
+          num.value = val;
+          this.syncFromRgbSliders();
+        };
+        slider.addEventListener('input', (e) => onValChange(parseInt(e.target.value, 10)));
+        num.addEventListener('input', (e) => onValChange(Math.max(0, Math.min(255, parseInt(e.target.value, 10) || 0))));
+      }
+    });
+
+    if (hexInput) {
+      hexInput.addEventListener('input', (e) => {
+        let val = e.target.value.trim();
+        if (!val.startsWith('#')) val = '#' + val;
+        if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+          this.setColor(val, { skipHexInput: true });
+        }
+      });
+    }
+
+    // Event delegation for opening custom colour picker on any input[type="color"]
+    document.addEventListener('click', (e) => {
+      const colorInput = e.target.closest ? e.target.closest('input[type="color"]') : null;
+      if (colorInput) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.openFor(colorInput);
+      }
+    });
+  },
+
+  loadSwatches() {
+    try {
+      const rec = JSON.parse(localStorage.getItem('svg_animator_recent_colors') || '[]');
+      this.recentColors = Array.isArray(rec) ? rec : [];
+    } catch (_) {
+      this.recentColors = [];
+    }
+    try {
+      const fav = JSON.parse(localStorage.getItem('svg_animator_fav_colors') || '[]');
+      this.favColors = Array.isArray(fav) ? fav : [];
+    } catch (_) {
+      this.favColors = [];
+    }
+  },
+
+  saveSwatches() {
+    try {
+      localStorage.setItem('svg_animator_recent_colors', JSON.stringify(this.recentColors.slice(0, 12)));
+      localStorage.setItem('svg_animator_fav_colors', JSON.stringify(this.favColors));
+    } catch (_) {}
+  },
+
+  normalizeHex(colorStr) {
+    if (!colorStr) return '#58a6ff';
+    let c = String(colorStr).trim();
+    if (!c.startsWith('#')) c = '#' + c;
+    if (c.length === 4) {
+      c = '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+    }
+    return c.toLowerCase();
+  },
+
+  hexToRgb(hex) {
+    const norm = this.normalizeHex(hex).slice(1);
+    const num = parseInt(norm, 16);
+    return {
+      r: (num >> 16) & 255,
+      g: (num >> 8) & 255,
+      b: num & 255
+    };
+  },
+
+  rgbToHex(r, g, b) {
+    const h = ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1);
+    return '#' + h.toLowerCase();
+  },
+
+  syncFromRgbSliders() {
+    const r = parseInt(document.getElementById('colorPickerRSlider')?.value || 0, 10);
+    const g = parseInt(document.getElementById('colorPickerGSlider')?.value || 0, 10);
+    const b = parseInt(document.getElementById('colorPickerBSlider')?.value || 0, 10);
+    const hex = this.rgbToHex(r, g, b);
+    this.setColor(hex, { skipRgbSliders: true });
+  },
+
+  openFor(inputEl) {
+    if (!inputEl) return;
+    this.activeInput = inputEl;
+    this.initialColor = this.normalizeHex(inputEl.value || '#58a6ff');
+    this.currentColor = this.initialColor;
+    this.isOpen = true;
+
+    // Update Current swatch
+    const curSwatch = document.getElementById('colorPickerCurrentSwatch');
+    const curHex = document.getElementById('colorPickerCurrentHex');
+    if (curSwatch) curSwatch.style.background = this.initialColor;
+    if (curHex) curHex.innerText = this.initialColor.toUpperCase();
+
+    this.setColor(this.currentColor);
+    this.renderQuickPalette();
+    this.renderRecentSwatches();
+    this.renderFavSwatches();
+
+    const modal = document.getElementById('customColorPickerModal');
+    if (modal) modal.style.display = 'flex';
+  },
+
+  setColor(hex, options = {}) {
+    const norm = this.normalizeHex(hex);
+    this.currentColor = norm;
+
+    // Update pending swatch
+    const pendSwatch = document.getElementById('colorPickerPendingSwatch');
+    const pendHex = document.getElementById('colorPickerPendingHex');
+    if (pendSwatch) pendSwatch.style.background = norm;
+    if (pendHex) pendHex.innerText = norm.toUpperCase();
+
+    // Update hex input
+    if (!options.skipHexInput) {
+      const hexIn = document.getElementById('colorPickerHexInput');
+      if (hexIn) hexIn.value = norm.toUpperCase();
+    }
+
+    // Update RGB sliders
+    if (!options.skipRgbSliders) {
+      const rgb = this.hexToRgb(norm);
+      ['R', 'G', 'B'].forEach((channel) => {
+        const val = rgb[channel.toLowerCase()];
+        const slider = document.getElementById('colorPicker' + channel + 'Slider');
+        const num = document.getElementById('colorPicker' + channel + 'Num');
+        if (slider) slider.value = val;
+        if (num) num.value = val;
+      });
+    }
+
+    // Live transactional preview on active input
+    if (this.activeInput) {
+      this.activeInput.value = norm;
+      this.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  },
+
+  renderQuickPalette() {
+    const grid = document.getElementById('colorPickerQuickPalette');
+    if (!grid) return;
+    grid.innerHTML = '';
+    this.quickPalette.forEach((hex) => {
+      const item = document.createElement('div');
+      item.className = 'color-swatch-item';
+      item.style.background = hex;
+      item.title = hex.toUpperCase();
+      item.onclick = () => this.setColor(hex);
+      grid.appendChild(item);
+    });
+  },
+
+  renderRecentSwatches() {
+    const grid = document.getElementById('colorPickerRecentSwatches');
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (this.recentColors.length === 0) {
+      grid.innerHTML = '<span style="font-size:0.68rem; color:#8b949e; grid-column:1/-1;">No recent colours yet.</span>';
+      return;
+    }
+    this.recentColors.forEach((hex) => {
+      const item = document.createElement('div');
+      item.className = 'color-swatch-item';
+      item.style.background = hex;
+      item.title = hex.toUpperCase();
+      item.onclick = () => this.setColor(hex);
+      grid.appendChild(item);
+    });
+  },
+
+  renderFavSwatches() {
+    const grid = document.getElementById('colorPickerFavSwatches');
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (this.favColors.length === 0) {
+      grid.innerHTML = '<span style="font-size:0.68rem; color:#8b949e; grid-column:1/-1;">No favourite colours saved yet.</span>';
+      return;
+    }
+    this.favColors.forEach((hex, idx) => {
+      const item = document.createElement('div');
+      item.className = 'color-swatch-item';
+      item.style.background = hex;
+      item.title = hex.toUpperCase();
+      item.onclick = () => this.setColor(hex);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'swatch-delete-btn';
+      delBtn.innerHTML = '&times;';
+      delBtn.title = 'Remove favourite';
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.removeFavourite(idx);
+      };
+      item.appendChild(delBtn);
+      grid.appendChild(item);
+    });
+  },
+
+  addFavourite(hex) {
+    const norm = this.normalizeHex(hex);
+    if (!this.favColors.map((c) => c.toLowerCase()).includes(norm)) {
+      this.favColors.push(norm);
+      this.saveSwatches();
+      this.renderFavSwatches();
+      if (window.AppCoordinator) window.AppCoordinator.showNotification('Added ' + norm.toUpperCase() + ' to favourites', 'info', 1500);
+    }
+  },
+
+  removeFavourite(idx) {
+    if (idx >= 0 && idx < this.favColors.length) {
+      this.favColors.splice(idx, 1);
+      this.saveSwatches();
+      this.renderFavSwatches();
+    }
+  },
+
+  apply() {
+    const finalColor = this.currentColor;
+    if (this.activeInput) {
+      this.activeInput.value = finalColor;
+      this.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      this.activeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    this.recentColors = [finalColor, ...this.recentColors.filter((c) => c.toLowerCase() !== finalColor.toLowerCase())].slice(0, 12);
+    this.saveSwatches();
+    this.close();
+    if (window.AppCoordinator) {
+      window.AppCoordinator.recordHistoryImmediate();
+    }
+  },
+
+  cancel() {
+    if (this.activeInput) {
+      this.activeInput.value = this.initialColor;
+      this.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      this.activeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    this.close();
+  },
+
+  close() {
+    this.isOpen = false;
+    this.activeInput = null;
+    const modal = document.getElementById('customColorPickerModal');
+    if (modal) modal.style.display = 'none';
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   let currentImage = null;
   window.currentRenderState = null;
@@ -2250,8 +2545,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Workspace keyboard shortcuts: T (Left Drawer), N (Right Drawer), Shift+Space (Maximize Stage), Esc
   window.addEventListener('keydown', (e) => {
+    if (window.CustomColorPicker && window.CustomColorPicker.isOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        window.CustomColorPicker.cancel();
+        return;
+      }
+      if (e.key === 'Enter' && e.target && e.target.id === 'colorPickerHexInput') {
+        e.preventDefault();
+        window.CustomColorPicker.apply();
+        return;
+      }
+    }
+
     if (window.WorkspaceController && typeof window.WorkspaceController.handleKeydown === 'function') {
       window.WorkspaceController.handleKeydown(e);
+    }
+
+    const isEditable = e.target && (
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) ||
+      e.target.isContentEditable
+    );
+    if (!isEditable) {
+      // 1. Ctrl/Cmd+A: Select all shapes
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        const allNodes = window.DiagramNodes ? window.DiagramNodes.getAllNodes() : [];
+        if (allNodes.length > 0 && window.AppCoordinator) {
+          const items = allNodes.map((n) => ({ type: 'node', id: n.id }));
+          window.AppCoordinator.setMultiSelection(items, allNodes[0].id);
+        }
+        return;
+      }
+
+      // 2. Delete / Backspace: Delete selected objects
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (window.AppCoordinator && window.AppCoordinator.getSelectedItems().length > 0) {
+          e.preventDefault();
+          window.AppCoordinator.deleteSelectedObjects();
+        }
+        return;
+      }
+
+      // 3. Arrow keys: Nudge selected shapes
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        if (window.AppCoordinator && window.AppCoordinator.getSelectedNodeIds().length > 0) {
+          e.preventDefault();
+          const step = e.shiftKey ? 2 : 0.5;
+          let dx = 0, dy = 0;
+          if (e.key === 'ArrowLeft') dx = -step;
+          else if (e.key === 'ArrowRight') dx = step;
+          else if (e.key === 'ArrowUp') dy = -step;
+          else if (e.key === 'ArrowDown') dy = step;
+          window.AppCoordinator.moveSelectedNodes(dx, dy);
+          window.AppCoordinator.recordHistoryDebounced();
+        }
+        return;
+      }
     }
   });
 
@@ -2933,6 +3283,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.DataFlows) window.DataFlows.init();
   if (window.Glows) window.Glows.init();
   if (window.Ripples) window.Ripples.init();
+  if (window.CustomColorPicker) window.CustomColorPicker.init();
   if (window.TimelinePlayer && typeof window.TimelinePlayer.init === 'function') {
     window.TimelinePlayer.init();
   }

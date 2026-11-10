@@ -326,17 +326,52 @@ type FrameDescribeRequest struct {
 	Frame   *scene.FrameConfig `json:"frame,omitempty"`
 }
 
-// SelectionSetRequest is the payload for "Selection.Set".
+// SelectionSetRequest is the payload for "Selection.Set", "Selection.Add", "Selection.Toggle", "Selection.Remove".
 type SelectionSetRequest struct {
-	Type string         `json:"type"`
-	ID   scene.StringID `json:"id"`
+	Type  string                `json:"type"`
+	ID    scene.StringID        `json:"id"`
+	Items []scene.SelectionItem `json:"items,omitempty"`
 }
 
-// SelectionResponse is the payload for "Selection.Get", "Selection.Set", "Selection.Clear".
+// SelectionResponse is the payload for "Selection.Get", "Selection.Set", "Selection.Add", "Selection.Toggle", "Selection.Remove", "Selection.Clear".
 type SelectionResponse struct {
-	Type    string         `json:"type"`
-	ID      scene.StringID `json:"id"`
-	Success bool           `json:"success"`
+	Type    string                `json:"type"`
+	ID      scene.StringID        `json:"id"`
+	Items   []scene.SelectionItem `json:"items,omitempty"`
+	Count   int                   `json:"count"`
+	Success bool                  `json:"success"`
+	Error   string                `json:"error,omitempty"`
+}
+
+// NodesMoveGroupRequest is the payload for "Nodes.MoveGroup".
+type NodesMoveGroupRequest struct {
+	IDs []scene.StringID `json:"ids"`
+	DX  float64          `json:"dx"`
+	DY  float64          `json:"dy"`
+}
+
+// NodesAlignRequest is the payload for "Nodes.Align".
+type NodesAlignRequest struct {
+	IDs     []scene.StringID `json:"ids"`
+	Mode    string           `json:"mode"`
+	CanvasW float64          `json:"canvasW"`
+	CanvasH float64          `json:"canvasH"`
+}
+
+// NodesDistributeRequest is the payload for "Nodes.Distribute".
+type NodesDistributeRequest struct {
+	IDs     []scene.StringID `json:"ids"`
+	Mode    string           `json:"mode"`
+	CanvasW float64          `json:"canvasW"`
+	CanvasH float64          `json:"canvasH"`
+}
+
+// NodesTransformResponse is the response payload for "Nodes.MoveGroup", "Nodes.Align", "Nodes.Distribute".
+type NodesTransformResponse struct {
+	Success bool         `json:"success"`
+	Nodes   []scene.Node `json:"nodes,omitempty"`
+	Count   int          `json:"count"`
+	Error   string       `json:"error,omitempty"`
 }
 
 // HistoryRecordRequest is the payload for "History.Record".
@@ -714,6 +749,60 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 				"width":  desc.Bounds.Width,
 				"height": desc.Bounds.Height,
 			},
+		})
+
+	case "Node.MoveGroup", "Nodes.MoveGroup":
+		var req NodesMoveGroupRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding NodesMoveGroupRequest: %w", err)
+		}
+		updated, err := activeScene.MoveNodes(req.IDs, req.DX, req.DY)
+		if err != nil {
+			return json.Marshal(NodesTransformResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		return json.Marshal(NodesTransformResponse{
+			Success: true,
+			Nodes:   updated,
+			Count:   len(updated),
+		})
+
+	case "Node.Align", "Nodes.Align":
+		var req NodesAlignRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding NodesAlignRequest: %w", err)
+		}
+		updated, err := activeScene.AlignNodes(req.IDs, req.Mode, req.CanvasW, req.CanvasH)
+		if err != nil {
+			return json.Marshal(NodesTransformResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		return json.Marshal(NodesTransformResponse{
+			Success: true,
+			Nodes:   updated,
+			Count:   len(updated),
+		})
+
+	case "Node.Distribute", "Nodes.Distribute":
+		var req NodesDistributeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding NodesDistributeRequest: %w", err)
+		}
+		updated, err := activeScene.DistributeNodes(req.IDs, req.Mode, req.CanvasW, req.CanvasH)
+		if err != nil {
+			return json.Marshal(NodesTransformResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		return json.Marshal(NodesTransformResponse{
+			Success: true,
+			Nodes:   updated,
+			Count:   len(updated),
 		})
 
 	case "Flow.Create":
@@ -1334,6 +1423,8 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		return json.Marshal(SelectionResponse{
 			Type:    string(sel.Type),
 			ID:      sel.ID,
+			Items:   sel.Items,
+			Count:   len(sel.Items),
 			Success: true,
 		})
 
@@ -1342,17 +1433,104 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding SelectionSetRequest: %w", err)
 		}
-		sel, err := activeScene.SetSelection(scene.SelectionType(req.Type), req.ID)
+		var sel scene.SelectionState
+		var err error
+		if len(req.Items) > 0 {
+			var primary *scene.SelectionItem
+			if req.Type != "" && req.ID != "" {
+				primary = &scene.SelectionItem{Type: scene.SelectionType(req.Type), ID: req.ID}
+			}
+			sel, err = activeScene.SetMultiSelection(req.Items, primary)
+		} else {
+			sel, err = activeScene.SetSelection(scene.SelectionType(req.Type), req.ID)
+		}
 		if err != nil {
 			return json.Marshal(SelectionResponse{
 				Type:    string(sel.Type),
 				ID:      sel.ID,
+				Items:   sel.Items,
+				Count:   len(sel.Items),
 				Success: false,
+				Error:   err.Error(),
 			})
 		}
 		return json.Marshal(SelectionResponse{
 			Type:    string(sel.Type),
 			ID:      sel.ID,
+			Items:   sel.Items,
+			Count:   len(sel.Items),
+			Success: true,
+		})
+
+	case "Selection.Add":
+		var req SelectionSetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding SelectionSetRequest: %w", err)
+		}
+		sel, err := activeScene.AddToSelection(scene.SelectionItem{Type: scene.SelectionType(req.Type), ID: req.ID})
+		if err != nil {
+			return json.Marshal(SelectionResponse{
+				Type:    string(sel.Type),
+				ID:      sel.ID,
+				Items:   sel.Items,
+				Count:   len(sel.Items),
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		return json.Marshal(SelectionResponse{
+			Type:    string(sel.Type),
+			ID:      sel.ID,
+			Items:   sel.Items,
+			Count:   len(sel.Items),
+			Success: true,
+		})
+
+	case "Selection.Toggle":
+		var req SelectionSetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding SelectionSetRequest: %w", err)
+		}
+		sel, err := activeScene.ToggleSelection(scene.SelectionItem{Type: scene.SelectionType(req.Type), ID: req.ID})
+		if err != nil {
+			return json.Marshal(SelectionResponse{
+				Type:    string(sel.Type),
+				ID:      sel.ID,
+				Items:   sel.Items,
+				Count:   len(sel.Items),
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		return json.Marshal(SelectionResponse{
+			Type:    string(sel.Type),
+			ID:      sel.ID,
+			Items:   sel.Items,
+			Count:   len(sel.Items),
+			Success: true,
+		})
+
+	case "Selection.Remove":
+		var req SelectionSetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding SelectionSetRequest: %w", err)
+		}
+		sel, err := activeScene.RemoveFromSelection(scene.SelectionItem{Type: scene.SelectionType(req.Type), ID: req.ID})
+		if err != nil {
+			return json.Marshal(SelectionResponse{
+				Type:    string(sel.Type),
+				ID:      sel.ID,
+				Items:   sel.Items,
+				Count:   len(sel.Items),
+				Success: false,
+				Error:   err.Error(),
+			})
+		}
+		return json.Marshal(SelectionResponse{
+			Type:    string(sel.Type),
+			ID:      sel.ID,
+			Items:   sel.Items,
+			Count:   len(sel.Items),
 			Success: true,
 		})
 
@@ -1361,6 +1539,8 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		return json.Marshal(SelectionResponse{
 			Type:    string(sel.Type),
 			ID:      sel.ID,
+			Items:   sel.Items,
+			Count:   0,
 			Success: true,
 		})
 

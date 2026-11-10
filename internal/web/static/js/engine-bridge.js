@@ -862,11 +862,51 @@
       return null;
     },
 
-    setSelection(type, id) {
+    setSelection(type, id, items = null) {
       if (this.isReady()) {
-        const res = this.dispatch('Selection.Set', {
+        const payload = {
           type: String(type || 'none'),
           id: id != null ? String(id) : ''
+        };
+        if (Array.isArray(items) && items.length > 0) {
+          payload.items = items.map((it) => ({
+            type: String(it.type || 'none'),
+            id: String(it.id != null ? it.id : '')
+          }));
+        }
+        const res = this.dispatch('Selection.Set', payload);
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    addToSelection(type, id) {
+      if (this.isReady() && type && id != null) {
+        const res = this.dispatch('Selection.Add', {
+          type: String(type),
+          id: String(id)
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    toggleSelection(type, id) {
+      if (this.isReady() && type && id != null) {
+        const res = this.dispatch('Selection.Toggle', {
+          type: String(type),
+          id: String(id)
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    removeFromSelection(type, id) {
+      if (this.isReady() && type && id != null) {
+        const res = this.dispatch('Selection.Remove', {
+          type: String(type),
+          id: String(id)
         });
         if (res && res.success) return res;
       }
@@ -877,6 +917,152 @@
       if (this.isReady()) {
         const res = this.dispatch('Selection.Clear', {});
         if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    moveNodesGroup(ids, dx, dy) {
+      if (this.isReady() && Array.isArray(ids) && ids.length > 0) {
+        const res = this.dispatch('Nodes.MoveGroup', {
+          ids: ids.map(String),
+          dx: Number(dx) || 0,
+          dy: Number(dy) || 0
+        });
+        if (res && res.success) return res;
+      }
+      if (window.DiagramNodes && Array.isArray(ids)) {
+        const updated = [];
+        ids.forEach((id) => {
+          const n = window.DiagramNodes.getNode(id);
+          if (n) {
+            n.x = Math.max(-50, Math.min(150, n.x + (Number(dx) || 0)));
+            n.y = Math.max(-50, Math.min(150, n.y + (Number(dy) || 0)));
+            window.DiagramNodes.updateNode(id, { x: n.x, y: n.y });
+            updated.push(n);
+          }
+        });
+        return { success: true, nodes: updated, count: updated.length };
+      }
+      return null;
+    },
+
+    alignNodes(ids, mode, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && Array.isArray(ids) && ids.length >= 2) {
+        const res = this.dispatch('Nodes.Align', {
+          ids: ids.map(String),
+          mode: String(mode),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.success) return res;
+      }
+      if (window.DiagramNodes && Array.isArray(ids) && ids.length >= 2) {
+        const nodes = ids.map((id) => window.DiagramNodes.getNode(id)).filter(Boolean);
+        if (nodes.length >= 2) {
+          const wCanvas = Number(canvasW) || 1280;
+          const hCanvas = Number(canvasH) || 720;
+          let minL = Infinity, maxR = -Infinity, minT = Infinity, maxB = -Infinity;
+          nodes.forEach((n) => {
+            const eff = window.DiagramNodes.getNodeEffectiveProps(n);
+            const cx = (n.x / 100) * wCanvas;
+            const cy = (n.y / 100) * hCanvas;
+            const l = cx - eff.width / 2;
+            const r = cx + eff.width / 2;
+            const t = cy - eff.height / 2;
+            const b = cy + eff.height / 2;
+            if (l < minL) minL = l;
+            if (r > maxR) maxR = r;
+            if (t < minT) minT = t;
+            if (b > maxB) maxB = b;
+          });
+          const midX = (minL + maxR) / 2;
+          const midY = (minT + maxB) / 2;
+          const updated = [];
+          nodes.forEach((n) => {
+            const eff = window.DiagramNodes.getNodeEffectiveProps(n);
+            let cx = (n.x / 100) * wCanvas;
+            let cy = (n.y / 100) * hCanvas;
+            switch (mode) {
+              case 'align-left': case 'left': cx = minL + eff.width / 2; break;
+              case 'align-hcenter': case 'hcenter': cx = midX; break;
+              case 'align-right': case 'right': cx = maxR - eff.width / 2; break;
+              case 'align-top': case 'top': cy = minT + eff.height / 2; break;
+              case 'align-vcenter': case 'vcenter': cy = midY; break;
+              case 'align-bottom': case 'bottom': cy = maxB - eff.height / 2; break;
+            }
+            n.x = Math.round(((cx / wCanvas) * 100) * 1000) / 1000;
+            n.y = Math.round(((cy / hCanvas) * 100) * 1000) / 1000;
+            window.DiagramNodes.updateNode(n.id, { x: n.x, y: n.y });
+            updated.push(n);
+          });
+          return { success: true, nodes: updated, count: updated.length };
+        }
+      }
+      return null;
+    },
+
+    distributeNodes(ids, mode, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && Array.isArray(ids) && ids.length >= 3) {
+        const res = this.dispatch('Nodes.Distribute', {
+          ids: ids.map(String),
+          mode: String(mode),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.success) return res;
+      }
+      if (window.DiagramNodes && Array.isArray(ids) && ids.length >= 3) {
+        const nodes = ids.map((id) => window.DiagramNodes.getNode(id)).filter(Boolean);
+        if (nodes.length >= 3) {
+          const wCanvas = Number(canvasW) || 1280;
+          const hCanvas = Number(canvasH) || 720;
+          const updated = [];
+          if (mode === 'distribute-horizontal' || mode === 'horizontal') {
+            nodes.sort((a, b) => a.x - b.x);
+            const eff0 = window.DiagramNodes.getNodeEffectiveProps(nodes[0]);
+            const effN = window.DiagramNodes.getNodeEffectiveProps(nodes[nodes.length - 1]);
+            const leftBound = (nodes[0].x / 100) * wCanvas - eff0.width / 2;
+            const rightBound = (nodes[nodes.length - 1].x / 100) * wCanvas + effN.width / 2;
+            const totalSpan = rightBound - leftBound;
+            let sumW = 0;
+            nodes.forEach((n) => { sumW += window.DiagramNodes.getNodeEffectiveProps(n).width; });
+            const gap = (totalSpan - sumW) / (nodes.length - 1);
+            let currL = leftBound;
+            nodes.forEach((n, idx) => {
+              const eff = window.DiagramNodes.getNodeEffectiveProps(n);
+              const cx = currL + eff.width / 2;
+              currL += eff.width + gap;
+              if (idx > 0 && idx < nodes.length - 1) {
+                n.x = Math.round(((cx / wCanvas) * 100) * 1000) / 1000;
+                window.DiagramNodes.updateNode(n.id, { x: n.x, y: n.y });
+              }
+              updated.push(n);
+            });
+            return { success: true, nodes: updated, count: updated.length };
+          } else {
+            nodes.sort((a, b) => a.y - b.y);
+            const eff0 = window.DiagramNodes.getNodeEffectiveProps(nodes[0]);
+            const effN = window.DiagramNodes.getNodeEffectiveProps(nodes[nodes.length - 1]);
+            const topBound = (nodes[0].y / 100) * hCanvas - eff0.height / 2;
+            const btmBound = (nodes[nodes.length - 1].y / 100) * hCanvas + effN.height / 2;
+            const totalSpan = btmBound - topBound;
+            let sumH = 0;
+            nodes.forEach((n) => { sumH += window.DiagramNodes.getNodeEffectiveProps(n).height; });
+            const gap = (totalSpan - sumH) / (nodes.length - 1);
+            let currT = topBound;
+            nodes.forEach((n, idx) => {
+              const eff = window.DiagramNodes.getNodeEffectiveProps(n);
+              const cy = currT + eff.height / 2;
+              currT += eff.height + gap;
+              if (idx > 0 && idx < nodes.length - 1) {
+                n.y = Math.round(((cy / hCanvas) * 100) * 1000) / 1000;
+                window.DiagramNodes.updateNode(n.id, { x: n.x, y: n.y });
+              }
+              updated.push(n);
+            });
+            return { success: true, nodes: updated, count: updated.length };
+          }
+        }
       }
       return null;
     },

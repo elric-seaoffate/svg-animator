@@ -240,6 +240,29 @@
                 <span class="inspector-column-title">SELECTED PROPERTIES</span>
                 <span id="activeNodeDimBadge" class="inspector-dim-badge">170 &times; 80 px</span>
               </div>
+
+              <!-- Multi-Selection Alignment & Distribution Toolbar -->
+              <div id="nodeMultiSelectToolbar" class="node-multi-toolbar" style="display: none; margin-bottom: 0.5rem; padding: 0.45rem; background: var(--bg-surface-secondary, #21262d); border-radius: 6px; border: 1px solid var(--border-color, #30363d);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span id="multiSelectionBadge" style="font-size: 0.75rem; font-weight: 600; color: #58a6ff;">2 Shapes Selected</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectAllNodes" title="Deselect All Shapes">Deselect</button>
+                </div>
+                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Align</div>
+                <div class="align-btn-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; margin-bottom: 0.4rem;">
+                  <button type="button" class="tool-btn-compact" id="btnAlignLeft" title="Align Left">⇤</button>
+                  <button type="button" class="tool-btn-compact" id="btnAlignHCenter" title="Align Center (Horizontal)">⇥⇤</button>
+                  <button type="button" class="tool-btn-compact" id="btnAlignRight" title="Align Right">⇥</button>
+                  <button type="button" class="tool-btn-compact" id="btnAlignTop" title="Align Top">⤒</button>
+                  <button type="button" class="tool-btn-compact" id="btnAlignVCenter" title="Align Middle (Vertical)">⤓⤒</button>
+                  <button type="button" class="tool-btn-compact" id="btnAlignBottom" title="Align Bottom">⤓</button>
+                </div>
+                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Distribute (3+ Shapes)</div>
+                <div class="distribute-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                  <button type="button" class="tool-btn-compact" id="btnDistributeH" title="Distribute Horizontally">↔ Horizontal</button>
+                  <button type="button" class="tool-btn-compact" id="btnDistributeV" title="Distribute Vertically">↕ Vertical</button>
+                </div>
+              </div>
+
               <div id="emptyNodeSelection" class="inspector-empty-state">
                 Select a shape to view and edit its properties, or click <strong>+ Add</strong> above.
               </div>
@@ -937,7 +960,9 @@
           <svg class="trajectory-overlay" id="trajectorySvg" viewBox="0 0 1280 720" preserveAspectRatio="none">
             <line id="flightLine" x1="0%" y1="0%" x2="0%" y2="0%" stroke="rgba(88, 166, 255, 0.75)" stroke-width="2.5" stroke-dasharray="5,4" vector-effect="non-scaling-stroke" />
             <path id="flowCurvePath" d="" stroke="#00ffcc" stroke-width="2.5" stroke-dasharray="5,4" fill="none" style="display:none;" vector-effect="non-scaling-stroke" />
+            <g id="multiSelectionGroup"></g>
             <rect id="nodeSelectionBox" x="0" y="0" width="0" height="0" rx="8" fill="none" stroke="#a371f7" stroke-width="2" stroke-dasharray="6,4" style="display:none;" vector-effect="non-scaling-stroke" />
+            <rect id="marqueeSelectionBox" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.15)" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,3" style="display:none;" vector-effect="non-scaling-stroke" />
           </svg>
           <div class="reticle reticle-start active-reticle" id="reticleStart">IN</div>
           <div class="reticle reticle-end" id="reticleEnd">OUT</div>
@@ -2076,6 +2101,84 @@
           <button type="button" class="btn-secondary" id="btnCloseModal" onclick="window.closeExportModal()">Close</button>
           <button type="button" class="btn-primary" id="btnDownloadFinal" onclick="window.downloadFinal()">Download Final MP4</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOM COLOUR PICKER MODAL -->
+  <div id="customColorPickerModal" class="modal-overlay" style="display: none;" role="dialog" aria-labelledby="customColorPickerTitle" aria-modal="true">
+    <div class="modal-content custom-color-picker-dialog" style="width: 440px; max-width: 92vw; background: #161b22; border-radius: 10px; border: 1px solid #30363d; box-shadow: 0 20px 40px rgba(0,0,0,0.85);">
+      <div class="modal-header" style="padding: 0.8rem 1.1rem; border-bottom: 1px solid #30363d;">
+        <h2 id="customColorPickerTitle" style="font-size: 1.05rem; margin: 0; color: #e6edf3; display: flex; align-items: center; gap: 0.5rem;">
+          <span>🎨</span> Colour Picker
+        </h2>
+        <button type="button" class="close-btn" id="btnColorPickerClose" title="Cancel & Close">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.1rem; flex-direction: column; gap: 1rem; background: #0d1117;">
+        <!-- Swatch Comparison -->
+        <div class="color-comparison-row" style="display: flex; gap: 0.75rem; align-items: center;">
+          <div class="color-preview-box" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+            <span style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase;">Current</span>
+            <div id="colorPickerCurrentSwatch" class="color-swatch-display" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid #30363d; background: #161b22; cursor: pointer;" title="Click to revert to original colour"></div>
+            <span id="colorPickerCurrentHex" style="font-family: monospace; font-size: 0.75rem; color: #8b949e;">#161b22</span>
+          </div>
+          <div style="font-size: 1.1rem; color: #8b949e;">➔</div>
+          <div class="color-preview-box" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;">
+            <span style="font-size: 0.68rem; color: #58a6ff; font-weight: 600; text-transform: uppercase;">New</span>
+            <div id="colorPickerPendingSwatch" class="color-swatch-display" style="width: 100%; height: 38px; border-radius: 6px; border: 1px solid #58a6ff; background: #58a6ff; box-shadow: 0 0 8px rgba(88,166,255,0.3);"></div>
+            <span id="colorPickerPendingHex" style="font-family: monospace; font-size: 0.75rem; color: #58a6ff; font-weight: bold;">#58a6ff</span>
+          </div>
+        </div>
+
+        <!-- Hex input -->
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <label for="colorPickerHexInput" style="font-size: 0.75rem; color: #8b949e; font-weight: 600; width: 45px;">HEX:</label>
+          <input type="text" id="colorPickerHexInput" class="text-field-input" value="#58a6ff" maxlength="7" style="flex: 1; font-family: monospace; font-size: 0.9rem; text-transform: uppercase; padding: 0.35rem 0.5rem; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #f0f6fc;">
+        </div>
+
+        <!-- RGB Sliders -->
+        <div class="color-rgb-controls" style="display: flex; flex-direction: column; gap: 0.4rem; background: #161b22; padding: 0.6rem; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 18px; font-size: 0.72rem; font-weight: bold; color: #ff7b72;">R</span>
+            <input type="range" id="colorPickerRSlider" min="0" max="255" value="88" style="flex: 1; accent-color: #ff7b72;">
+            <input type="number" id="colorPickerRNum" min="0" max="255" value="88" class="num-input" style="width: 52px; font-size: 0.75rem; text-align: center;">
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 18px; font-size: 0.72rem; font-weight: bold; color: #7ee787;">G</span>
+            <input type="range" id="colorPickerGSlider" min="0" max="255" value="166" style="flex: 1; accent-color: #7ee787;">
+            <input type="number" id="colorPickerGNum" min="0" max="255" value="166" class="num-input" style="width: 52px; font-size: 0.75rem; text-align: center;">
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 18px; font-size: 0.72rem; font-weight: bold; color: #79c0ff;">B</span>
+            <input type="range" id="colorPickerBSlider" min="0" max="255" value="255" style="flex: 1; accent-color: #79c0ff;">
+            <input type="number" id="colorPickerBNum" min="0" max="255" value="255" class="num-input" style="width: 52px; font-size: 0.75rem; text-align: center;">
+          </div>
+        </div>
+
+        <!-- Quick Palette -->
+        <div>
+          <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.35rem;">Standard Palette</div>
+          <div id="colorPickerQuickPalette" class="color-swatch-grid" style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;"></div>
+        </div>
+
+        <!-- Recent Colours -->
+        <div>
+          <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.35rem;">Recent Colours</div>
+          <div id="colorPickerRecentSwatches" class="color-swatch-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; min-height: 28px;"></div>
+        </div>
+
+        <!-- Favourite Colours -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <span style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600;">Favourite Colours</span>
+            <button type="button" id="btnColorPickerAddFav" class="tool-btn-compact" style="font-size: 0.68rem; padding: 0.15rem 0.4rem; color: #e3b341;" title="Save current colour to favourites">★ Add Current</button>
+          </div>
+          <div id="colorPickerFavSwatches" class="color-swatch-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; min-height: 28px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 0.75rem 1.1rem; border-top: 1px solid #30363d; display: flex; justify-content: flex-end; gap: 0.6rem;">
+        <button type="button" class="secondary" id="btnColorPickerCancel" style="padding: 0.4rem 0.9rem; font-size: 0.8rem;">Cancel</button>
+        <button type="button" class="primary" id="btnColorPickerApply" style="padding: 0.4rem 1.1rem; font-size: 0.8rem; background: #238636; border-color: #2ea043;">Done / Apply</button>
       </div>
     </div>
   </div>

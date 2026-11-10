@@ -9,7 +9,7 @@
  */
 (function() {
   window.AppCoordinator = {
-    activeSelection: { type: null, id: null },
+    activeSelection: { type: null, id: null, items: [] },
     _listeners: {},
     _renderHandler: null,
     _isCoordinatingSelection: false,
@@ -79,17 +79,36 @@
     getActiveSelection() {
       return {
         type: this.activeSelection.type,
-        id: this.activeSelection.id
+        id: this.activeSelection.id,
+        items: Array.isArray(this.activeSelection.items) ? [...this.activeSelection.items] : []
       };
     },
 
+    getSelectedItems() {
+      return Array.isArray(this.activeSelection.items) ? [...this.activeSelection.items] : [];
+    },
+
+    getSelectedNodeIds() {
+      if (!Array.isArray(this.activeSelection.items)) return [];
+      return this.activeSelection.items
+        .filter((it) => it && it.type === 'node' && it.id != null)
+        .map((it) => it.id);
+    },
+
+    isObjectSelected(type, id) {
+      if (!Array.isArray(this.activeSelection.items)) return false;
+      const strId = String(id);
+      return this.activeSelection.items.some((it) => it.type === type && String(it.id) === strId);
+    },
+
     /**
-     * Coordinates single-active-object selection across DiagramNodes, DataFlows,
+     * Coordinates active object selection across DiagramNodes, DataFlows,
      * Glows, Ripples, and Stage camera reticles without modules mutating each other directly.
+     * Supports single-click selection replacement, Shift-click additive selection, and toggle selection.
      *
      * @param {string|null} type - 'node' | 'flow' | 'glow' | 'ripple' | 'camera' | null
      * @param {number|string|null} id - Object ID or camera placement ('start' | 'end')
-     * @param {Object} [options] - Optional flags ({ openAccordionId, skipStageClear, skipModuleSelect })
+     * @param {Object} [options] - Optional flags ({ openAccordionId, skipStageClear, skipModuleSelect, additive, toggle, items, primaryId })
      */
     selectObject(type, id, options = {}) {
       if (this._isCoordinatingSelection) return;
@@ -98,6 +117,22 @@
         const normalizedType = (id !== null && id !== undefined) ? type : null;
         const normalizedId = (id !== null && id !== undefined) ? id : null;
 
+        if (options.toggle && normalizedType && normalizedId !== null) {
+          this._toggleObjectSelectionInternal(normalizedType, normalizedId, options);
+          return;
+        }
+
+        if (options.additive && normalizedType === 'node' && normalizedId !== null) {
+          this._addToSelectionInternal(normalizedType, normalizedId, options);
+          return;
+        }
+
+        if (Array.isArray(options.items) && options.items.length > 0) {
+          this._setMultiSelectionInternal(options.items, options.primaryId || normalizedId, options);
+          return;
+        }
+
+        // Single selection replacement
         if (normalizedType !== 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
           window.DiagramNodes.deselectNode();
         }
@@ -129,14 +164,19 @@
           }
         }
 
+        const items = (normalizedType && normalizedId !== null)
+          ? [{ type: normalizedType, id: normalizedId }]
+          : [];
+
         this.activeSelection = {
           type: normalizedType,
-          id: normalizedId
+          id: normalizedId,
+          items: items
         };
 
         if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
           if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple'].includes(normalizedType)) {
-            window.EngineBridge.setSelection(normalizedType, normalizedId);
+            window.EngineBridge.setSelection(normalizedType, normalizedId, items);
           } else {
             window.EngineBridge.clearSelection();
           }
@@ -150,6 +190,235 @@
       } finally {
         this._isCoordinatingSelection = false;
       }
+    },
+
+    _addToSelectionInternal(type, id, options = {}) {
+      const items = Array.isArray(this.activeSelection.items) ? [...this.activeSelection.items] : [];
+      const strId = String(id);
+      const existing = items.find((it) => it.type === type && String(it.id) === strId);
+      if (!existing) {
+        items.push({ type, id });
+      }
+
+      this.activeSelection = {
+        type: type,
+        id: id,
+        items: items
+      };
+
+      if (type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
+        window.DiagramNodes.selectNode(id, false, { multi: true });
+      }
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.setSelection(type, id, items);
+      }
+
+      this.updateActiveOverlays();
+      this.emit('selection:changed', this.getActiveSelection());
+    },
+
+    _toggleObjectSelectionInternal(type, id, options = {}) {
+      const items = Array.isArray(this.activeSelection.items) ? [...this.activeSelection.items] : [];
+      const strId = String(id);
+      const idx = items.findIndex((it) => it.type === type && String(it.id) === strId);
+
+      if (idx >= 0) {
+        items.splice(idx, 1);
+        if (items.length === 0) {
+          this._isCoordinatingSelection = false;
+          this.clearSelection();
+          return;
+        }
+        const last = items[items.length - 1];
+        this.activeSelection = {
+          type: last.type,
+          id: last.id,
+          items: items
+        };
+        if (last.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
+          window.DiagramNodes.selectNode(last.id, false, { multi: true });
+        }
+      } else {
+        items.push({ type, id });
+        this.activeSelection = {
+          type: type,
+          id: id,
+          items: items
+        };
+        if (type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
+          window.DiagramNodes.selectNode(id, false, { multi: true });
+        }
+      }
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.setSelection(this.activeSelection.type, this.activeSelection.id, items);
+      }
+
+      this.updateActiveOverlays();
+      this.emit('selection:changed', this.getActiveSelection());
+    },
+
+    _setMultiSelectionInternal(items, primaryId = null, options = {}) {
+      if (!Array.isArray(items) || items.length === 0) {
+        this._isCoordinatingSelection = false;
+        this.clearSelection();
+        return;
+      }
+
+      const validItems = items.filter((it) => it && it.type && it.id != null);
+      if (validItems.length === 0) {
+        this._isCoordinatingSelection = false;
+        this.clearSelection();
+        return;
+      }
+
+      let primary = validItems.find((it) => String(it.id) === String(primaryId));
+      if (!primary) primary = validItems[validItems.length - 1];
+
+      this.activeSelection = {
+        type: primary.type,
+        id: primary.id,
+        items: validItems
+      };
+
+      if (primary.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
+        window.DiagramNodes.selectNode(primary.id, false, { multi: true });
+      }
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.setSelection(primary.type, primary.id, validItems);
+      }
+
+      this.updateActiveOverlays();
+      this.emit('selection:changed', this.getActiveSelection());
+    },
+
+    addToSelection(type, id, options = {}) {
+      this.selectObject(type, id, Object.assign({}, options, { additive: true }));
+    },
+
+    toggleObjectSelection(type, id, options = {}) {
+      this.selectObject(type, id, Object.assign({}, options, { toggle: true }));
+    },
+
+    setMultiSelection(items, primaryId = null, options = {}) {
+      this.selectObject(null, null, Object.assign({}, options, { items, primaryId }));
+    },
+
+    moveSelectedNodes(deltaX, deltaY) {
+      const ids = this.getSelectedNodeIds();
+      if (ids.length === 0) return false;
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.moveNodesGroup === 'function') {
+        res = window.EngineBridge.moveNodesGroup(ids, deltaX, deltaY);
+      }
+      if (res && res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        res.nodes.forEach((un) => {
+          const existing = window.DiagramNodes.getNode(un.id);
+          if (existing) {
+            existing.x = un.x;
+            existing.y = un.y;
+          }
+        });
+      }
+      if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+        window.DiagramNodes.refreshAfterChange();
+      }
+      this.updateActiveOverlays();
+      return true;
+    },
+
+    alignSelectedNodes(mode) {
+      const ids = this.getSelectedNodeIds();
+      if (ids.length < 2) {
+        this.showNotification('Select at least 2 shapes to align.', 'warning');
+        return false;
+      }
+      const dims = this.getCanvasDimensions();
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.alignNodes === 'function') {
+        res = window.EngineBridge.alignNodes(ids, mode, dims.width, dims.height);
+      }
+      if (!res || !res.success) {
+        this.showNotification((res && res.error) ? res.error : 'Alignment failed.', 'error');
+        return false;
+      }
+      if (res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        res.nodes.forEach((un) => {
+          const existing = window.DiagramNodes.getNode(un.id);
+          if (existing) {
+            existing.x = un.x;
+            existing.y = un.y;
+          }
+        });
+      }
+      if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+        window.DiagramNodes.refreshAfterChange();
+      }
+      this.requestRender();
+      this.recordHistoryImmediate();
+      this.updateActiveOverlays();
+      this.showNotification(`Aligned ${ids.length} shapes.`, 'info', 2000);
+      return true;
+    },
+
+    distributeSelectedNodes(mode) {
+      const ids = this.getSelectedNodeIds();
+      if (ids.length < 3) {
+        this.showNotification('Select at least 3 shapes to distribute.', 'warning');
+        return false;
+      }
+      const dims = this.getCanvasDimensions();
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.distributeNodes === 'function') {
+        res = window.EngineBridge.distributeNodes(ids, mode, dims.width, dims.height);
+      }
+      if (!res || !res.success) {
+        this.showNotification((res && res.error) ? res.error : 'Distribution failed.', 'error');
+        return false;
+      }
+      if (res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        res.nodes.forEach((un) => {
+          const existing = window.DiagramNodes.getNode(un.id);
+          if (existing) {
+            existing.x = un.x;
+            existing.y = un.y;
+          }
+        });
+      }
+      if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+        window.DiagramNodes.refreshAfterChange();
+      }
+      this.requestRender();
+      this.recordHistoryImmediate();
+      this.updateActiveOverlays();
+      this.showNotification(`Distributed ${ids.length} shapes.`, 'info', 2000);
+      return true;
+    },
+
+    deleteSelectedObjects() {
+      const items = this.getSelectedItems();
+      if (items.length === 0) return false;
+      items.forEach((it) => {
+        if (it.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.deleteNode === 'function') {
+          window.DiagramNodes.deleteNode(it.id);
+        } else if (it.type === 'flow' && window.DataFlows && typeof window.DataFlows.deleteFlow === 'function') {
+          window.DataFlows.deleteFlow(it.id);
+        } else if (it.type === 'glow' && window.Glows && typeof window.Glows.deleteGlow === 'function') {
+          window.Glows.deleteGlow(it.id);
+        } else if (it.type === 'ripple' && window.Ripples && typeof window.Ripples.deleteRipple === 'function') {
+          window.Ripples.deleteRipple(it.id);
+        }
+      });
+      if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
+        window.DiagramNodes.renderList();
+      }
+      this.clearSelection();
+      this.requestRender();
+      this.recordHistoryImmediate();
+      this.showNotification(`Deleted ${items.length} object(s).`, 'info', 2000);
+      return true;
     },
 
     /**

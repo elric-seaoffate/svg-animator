@@ -166,6 +166,7 @@ func (s *Scene) RemoveGlow(id StringID) bool {
 		}
 	}
 	s.glowIDs = newIDs
+	s.pruneSelectionLocked(SelectionGlow, id)
 	s.revision++
 	return true
 }

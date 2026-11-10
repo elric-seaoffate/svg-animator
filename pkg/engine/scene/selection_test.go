@@ -65,3 +65,63 @@ func TestSceneSelectionAndValidation(t *testing.T) {
 		t.Errorf("expected cleared selection none, got %+v", cleared)
 	}
 }
+
+func TestMultiSelectionAndPruning(t *testing.T) {
+	s := NewScene()
+
+	n1 := s.CreateNode(Node{Shape: "rounded", Text: "Node 1"}, nil, false)
+	n2 := s.CreateNode(Node{Shape: "rounded", Text: "Node 2"}, nil, false)
+	n3 := s.CreateNode(Node{Shape: "rounded", Text: "Node 3"}, nil, false)
+
+	// Set multi-selection with n1 and n2
+	items := []SelectionItem{
+		{Type: SelectionNode, ID: n1.ID},
+		{Type: SelectionNode, ID: n2.ID},
+	}
+	sel, err := s.SetMultiSelection(items, &items[0])
+	if err != nil {
+		t.Fatalf("SetMultiSelection failed: %v", err)
+	}
+	if len(sel.Items) != 2 || sel.ID != n1.ID {
+		t.Fatalf("expected 2 items, primary n1, got %+v", sel)
+	}
+
+	// AddToSelection with n3
+	sel, err = s.AddToSelection(SelectionItem{Type: SelectionNode, ID: n3.ID})
+	if err != nil {
+		t.Fatalf("AddToSelection failed: %v", err)
+	}
+	if len(sel.Items) != 3 || sel.ID != n3.ID {
+		t.Fatalf("expected 3 items, primary n3, got %+v", sel)
+	}
+
+	// ToggleSelection on n2 (should remove n2)
+	sel, err = s.ToggleSelection(SelectionItem{Type: SelectionNode, ID: n2.ID})
+	if err != nil {
+		t.Fatalf("ToggleSelection failed: %v", err)
+	}
+	if len(sel.Items) != 2 {
+		t.Fatalf("expected 2 items after toggle, got %+v", sel)
+	}
+
+	// ToggleSelection on n2 again (should re-add n2)
+	sel, err = s.ToggleSelection(SelectionItem{Type: SelectionNode, ID: n2.ID})
+	if err != nil {
+		t.Fatalf("ToggleSelection failed: %v", err)
+	}
+	if len(sel.Items) != 3 {
+		t.Fatalf("expected 3 items after re-toggle, got %+v", sel)
+	}
+
+	// Pruning on delete: remove n3
+	s.RemoveNode(n3.ID)
+	curSel := s.GetSelection()
+	if len(curSel.Items) != 2 {
+		t.Fatalf("expected 2 items after n3 deletion, got %+v", curSel)
+	}
+	for _, it := range curSel.Items {
+		if it.ID == n3.ID {
+			t.Fatalf("deleted node n3 still present in selection: %+v", curSel)
+		}
+	}
+}

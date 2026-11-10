@@ -412,6 +412,55 @@ window.DiagramNodes = {
         });
       }
     });
+
+    // Alignment and distribution tool buttons
+    const alignModes = [
+      { id: 'btnAlignLeft', mode: 'left' },
+      { id: 'btnAlignHCenter', mode: 'hcenter' },
+      { id: 'btnAlignRight', mode: 'right' },
+      { id: 'btnAlignTop', mode: 'top' },
+      { id: 'btnAlignVCenter', mode: 'vcenter' },
+      { id: 'btnAlignBottom', mode: 'bottom' }
+    ];
+    alignModes.forEach(({ id, mode }) => {
+      const btn = document.getElementById(id);
+      if (btn) {
+        btn.addEventListener('click', () => {
+          if (window.AppCoordinator && typeof window.AppCoordinator.alignSelectedNodes === 'function') {
+            window.AppCoordinator.alignSelectedNodes(mode);
+          }
+        });
+      }
+    });
+
+    const btnDistH = document.getElementById('btnDistributeH');
+    if (btnDistH) {
+      btnDistH.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.distributeSelectedNodes === 'function') {
+          window.AppCoordinator.distributeSelectedNodes('horizontal');
+        }
+      });
+    }
+
+    const btnDistV = document.getElementById('btnDistributeV');
+    if (btnDistV) {
+      btnDistV.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.distributeSelectedNodes === 'function') {
+          window.AppCoordinator.distributeSelectedNodes('vertical');
+        }
+      });
+    }
+
+    const btnDeselectAll = document.getElementById('btnDeselectAllNodes');
+    if (btnDeselectAll) {
+      btnDeselectAll.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'multi_toolbar_deselect' });
+        } else {
+          this.deselectNode();
+        }
+      });
+    }
   },
 
   applyPresetToActive() {
@@ -498,10 +547,10 @@ window.DiagramNodes = {
     });
   },
 
-  selectNode(id, openAccordion = false) {
-    if (window.AppCoordinator) {
+  selectNode(id, openAccordion = false, options = {}) {
+    if (!options.multi && window.AppCoordinator) {
       window.AppCoordinator.selectObject('node', id, { skipStageClear: true, skipModuleSelect: true });
-    } else {
+    } else if (!options.multi) {
       if (window.DataFlows) window.DataFlows.deselectFlow();
       if (window.Glows) window.Glows.deselectGlow();
       if (window.Ripples) window.Ripples.deselectRipple();
@@ -536,6 +585,9 @@ window.DiagramNodes = {
     if (empty) empty.style.display = 'block';
     const selBox = document.getElementById('nodeSelectionBox');
     if (selBox) selBox.style.display = 'none';
+    const multiGroup = document.getElementById('multiSelectionGroup');
+    if (multiGroup) multiGroup.innerHTML = '';
+    this.updateMultiSelectToolbar([]);
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'node' && !window.AppCoordinator._isCoordinatingSelection) {
       window.AppCoordinator.clearSelection();
     }
@@ -573,24 +625,87 @@ window.DiagramNodes = {
 
   updateUIOverlay(node) {
     const selBox = document.getElementById('nodeSelectionBox');
-    if (!selBox || !node) return;
+    const multiGroup = document.getElementById('multiSelectionGroup');
+    const targetNode = node || (this.activeId !== null ? this.getNode(this.activeId) : null);
+    const selectedIds = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
+      ? window.AppCoordinator.getSelectedNodeIds()
+      : (targetNode ? [targetNode.id] : []);
 
-    const eff = this.getNodeEffectiveProps(node);
     const dims = window.AppCoordinator
       ? window.AppCoordinator.getCanvasDimensions()
       : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 };
-    const cx = (node.x / 100) * dims.width;
-    const cy = (node.y / 100) * dims.height;
     const pad = 10;
-    const w = eff.width + pad * 2;
-    const h = eff.height + pad * 2;
 
-    selBox.setAttribute('x', (cx - w / 2).toFixed(1));
-    selBox.setAttribute('y', (cy - h / 2).toFixed(1));
-    selBox.setAttribute('width', w.toFixed(1));
-    selBox.setAttribute('height', h.toFixed(1));
-    selBox.setAttribute('stroke', eff.strokeColor || '#a371f7');
-    selBox.style.display = 'block';
+    // 1. Primary selection outline
+    if (selBox) {
+      if (targetNode && (selectedIds.length === 0 || selectedIds.includes(targetNode.id))) {
+        const eff = this.getNodeEffectiveProps(targetNode);
+        const cx = (targetNode.x / 100) * dims.width;
+        const cy = (targetNode.y / 100) * dims.height;
+        const w = eff.width + pad * 2;
+        const h = eff.height + pad * 2;
+
+        selBox.setAttribute('x', (cx - w / 2).toFixed(1));
+        selBox.setAttribute('y', (cy - h / 2).toFixed(1));
+        selBox.setAttribute('width', w.toFixed(1));
+        selBox.setAttribute('height', h.toFixed(1));
+        selBox.setAttribute('stroke', '#a371f7');
+        selBox.style.display = 'block';
+      } else {
+        selBox.style.display = 'none';
+      }
+    }
+
+    // 2. Secondary multi-selection outlines
+    if (multiGroup) {
+      multiGroup.innerHTML = '';
+      if (selectedIds.length > 1) {
+        selectedIds.forEach((id) => {
+          if (targetNode && String(id) === String(targetNode.id)) return; // primary already drawn
+          const n = this.getNode(id);
+          if (!n) return;
+          const eff = this.getNodeEffectiveProps(n);
+          const cx = (n.x / 100) * dims.width;
+          const cy = (n.y / 100) * dims.height;
+          const w = eff.width + pad * 2;
+          const h = eff.height + pad * 2;
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', (cx - w / 2).toFixed(1));
+          rect.setAttribute('y', (cy - h / 2).toFixed(1));
+          rect.setAttribute('width', w.toFixed(1));
+          rect.setAttribute('height', h.toFixed(1));
+          rect.setAttribute('rx', '8');
+          rect.setAttribute('fill', 'rgba(88, 166, 255, 0.08)');
+          rect.setAttribute('stroke', '#58a6ff');
+          rect.setAttribute('stroke-width', '2');
+          rect.setAttribute('stroke-dasharray', '5,3');
+          rect.setAttribute('vector-effect', 'non-scaling-stroke');
+          multiGroup.appendChild(rect);
+        });
+      }
+    }
+
+    // 3. Update multi-selection toolbar
+    this.updateMultiSelectToolbar(selectedIds);
+  },
+
+  updateMultiSelectToolbar(selectedIds) {
+    const ids = selectedIds || ((window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
+      ? window.AppCoordinator.getSelectedNodeIds()
+      : (this.activeId !== null ? [this.activeId] : []));
+    const toolbar = document.getElementById('nodeMultiSelectToolbar');
+    const badge = document.getElementById('multiSelectionBadge');
+    if (!toolbar) return;
+    if (ids.length >= 2) {
+      toolbar.style.display = 'block';
+      if (badge) badge.innerText = ids.length + ' Shapes Selected';
+      const btnDistH = document.getElementById('btnDistributeH');
+      const btnDistV = document.getElementById('btnDistributeV');
+      if (btnDistH) btnDistH.disabled = ids.length < 3;
+      if (btnDistV) btnDistV.disabled = ids.length < 3;
+    } else {
+      toolbar.style.display = 'none';
+    }
   },
 
   removeNode(id) {
@@ -632,9 +747,12 @@ window.DiagramNodes = {
     };
     this.list.forEach((node) => {
       const eff = this.getNodeEffectiveProps(node);
-      const isSel = (this.activeId !== null && String(this.activeId) === String(node.id));
+      const isSel = (window.AppCoordinator && typeof window.AppCoordinator.isObjectSelected === 'function')
+        ? window.AppCoordinator.isObjectSelected('node', node.id)
+        : (this.activeId !== null && String(this.activeId) === String(node.id));
+      const isPrimary = (this.activeId !== null && String(this.activeId) === String(node.id));
       const div = document.createElement('div');
-      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
       div.style.borderLeftColor = eff.strokeColor || '#58a6ff';
       const icon = shapeIcons[node.shape] || '▢';
       const labelText = node.name || (node.text || ('Node ' + node.id)).split('|')[0];
@@ -648,8 +766,14 @@ window.DiagramNodes = {
         '<button type="button" class="btn-row-action btn-row-preset" title="Snap this shape to active Preset settings" onclick="window.DiagramNodes.selectNode(\'' + node.id + '\'); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡</button>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete shape" onclick="window.DiagramNodes.removeNode(\'' + node.id + '\'); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => {
-        if (this.activeId !== null && String(this.activeId) === String(node.id)) {
+      div.onclick = (e) => {
+        if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+            window.AppCoordinator.toggleObjectSelection('node', node.id);
+            return;
+          }
+        }
+        if (this.activeId !== null && String(this.activeId) === String(node.id) && (!window.AppCoordinator || window.AppCoordinator.getSelectedNodeIds().length === 1)) {
           if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
             window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_node' });
           } else {

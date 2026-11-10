@@ -256,11 +256,54 @@ window.Stage = {
         }
 
         if (clickedNode) {
+          const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+          const currentSelectedNodeIds = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
+            ? window.AppCoordinator.getSelectedNodeIds()
+            : [];
+
+          if (isModifier) {
+            if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+              window.AppCoordinator.toggleObjectSelection('node', clickedNode.id);
+            }
+            this.isDragging = false;
+            return;
+          }
+
+          if (currentSelectedNodeIds.length > 1 && currentSelectedNodeIds.map(String).includes(String(clickedNode.id))) {
+            // Node is part of existing multi-selection -> prepare group drag
+            this.isGroupDragging = true;
+            this.potentialSingleSelectId = clickedNode.id;
+            this.dragAnchorNode = clickedNode;
+            this.dragInitialAnchorPct = { x: clickedNode.x, y: clickedNode.y };
+            this.groupDragInitialPositions = {};
+            currentSelectedNodeIds.forEach((id) => {
+              const n = window.DiagramNodes ? window.DiagramNodes.getNode(id) : null;
+              if (n) {
+                this.groupDragInitialPositions[id] = { x: n.x, y: n.y };
+              }
+            });
+            this.nodeGrabOffsetX = clickedNode.x - coords.x;
+            this.nodeGrabOffsetY = clickedNode.y - coords.y;
+            this.dragStartClientX = e.clientX;
+            this.dragStartClientY = e.clientY;
+            this.hasMovedDrag = false;
+            this.isDragging = true;
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          }
+
+          // Single selection
+          this.isGroupDragging = false;
+          this.potentialSingleSelectId = null;
+          this.groupDragInitialPositions = null;
           if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
             window.AppCoordinator.selectObject('node', clickedNode.id, { openAccordionId: 'acc-nodes' });
           }
           this.nodeGrabOffsetX = clickedNode.x - coords.x;
           this.nodeGrabOffsetY = clickedNode.y - coords.y;
+          this.dragStartClientX = e.clientX;
+          this.dragStartClientY = e.clientY;
+          this.hasMovedDrag = false;
           this.isDragging = true;
           try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
           return;
@@ -329,13 +372,19 @@ window.Stage = {
           }
         }
 
-        // 7. Blank Canvas Click in normal Select mode -> Clear Selection (Select None)
+        // 7. Blank Canvas Click in normal Select mode -> Clear Selection & Marquee selection
         this.nodeGrabOffsetX = 0;
         this.nodeGrabOffsetY = 0;
         this.isDragging = false;
-        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+        this.isMarqueeSelecting = true;
+        this.marqueeAdditive = (e.shiftKey || e.ctrlKey || e.metaKey);
+        this.marqueeStartPct = { x: coords.x, y: coords.y };
+        this.marqueeStartClient = { x: e.clientX, y: e.clientY };
+        this.marqueeBox = document.getElementById('marqueeSelectionBox');
+        if (!this.marqueeAdditive && window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
           window.AppCoordinator.clearSelection({ reason: 'blank_canvas_click' });
         }
+        try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
       });
 
       this.previewBox.addEventListener('pointermove', (e) => {
@@ -355,7 +404,60 @@ window.Stage = {
           return;
         }
 
+        if (this.isMarqueeSelecting) {
+          const dist = Math.hypot(e.clientX - this.marqueeStartClient.x, e.clientY - this.marqueeStartClient.y);
+          if (dist > 3) {
+            const curCoords = this.clientToCanvasPct(e.clientX, e.clientY);
+            const x1 = (Math.min(this.marqueeStartPct.x, curCoords.x) / 100) * this.canvasWidth;
+            const x2 = (Math.max(this.marqueeStartPct.x, curCoords.x) / 100) * this.canvasWidth;
+            const y1 = (Math.min(this.marqueeStartPct.y, curCoords.y) / 100) * this.canvasHeight;
+            const y2 = (Math.max(this.marqueeStartPct.y, curCoords.y) / 100) * this.canvasHeight;
+            const w = x2 - x1;
+            const h = y2 - y1;
+            if (this.marqueeBox) {
+              this.marqueeBox.setAttribute('x', x1.toFixed(1));
+              this.marqueeBox.setAttribute('y', y1.toFixed(1));
+              this.marqueeBox.setAttribute('width', w.toFixed(1));
+              this.marqueeBox.setAttribute('height', h.toFixed(1));
+              this.marqueeBox.style.display = 'block';
+            }
+          }
+          return;
+        }
+
         if (!this.isDragging) return;
+        if (Math.hypot(e.clientX - (this.dragStartClientX || e.clientX), e.clientY - (this.dragStartClientY || e.clientY)) > 2) {
+          this.hasMovedDrag = true;
+        }
+
+        if (this.isGroupDragging && this.groupDragInitialPositions) {
+          const coords = this.clientToCanvasPct(e.clientX, e.clientY);
+          const rawTargetX = coords.x + this.nodeGrabOffsetX;
+          const rawTargetY = coords.y + this.nodeGrabOffsetY;
+          const snapped = this.snapPctToGrid(rawTargetX, rawTargetY);
+          const deltaX = snapped.x - this.dragInitialAnchorPct.x;
+          const deltaY = snapped.y - this.dragInitialAnchorPct.y;
+
+          Object.keys(this.groupDragInitialPositions).forEach((id) => {
+            const initPos = this.groupDragInitialPositions[id];
+            const n = window.DiagramNodes ? window.DiagramNodes.getNode(id) : null;
+            if (n) {
+              n.x = Math.max(-50, Math.min(150, initPos.x + deltaX));
+              n.y = Math.max(-50, Math.min(150, initPos.y + deltaY));
+              const liveGroup = document.querySelector('#svgContainer [data-node-id="' + n.id + '"]');
+              if (liveGroup) {
+                const cx = (n.x / 100) * this.canvasWidth;
+                const cy = (n.y / 100) * this.canvasHeight;
+                liveGroup.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+              }
+            }
+          });
+          if (window.DiagramNodes && typeof window.DiagramNodes.updateUIOverlay === 'function') {
+            window.DiagramNodes.updateUIOverlay();
+          }
+          return;
+        }
+
         const coords = this.clientToCanvasPct(e.clientX, e.clientY);
         const rawTargetX = Math.min(100, Math.max(0, coords.x + this.nodeGrabOffsetX));
         const rawTargetY = Math.min(100, Math.max(0, coords.y + this.nodeGrabOffsetY));
@@ -370,6 +472,91 @@ window.Stage = {
             this.previewBox.classList.remove('panning-stage');
           }
         }
+
+        if (this.isMarqueeSelecting) {
+          this.isMarqueeSelecting = false;
+          if (this.marqueeBox) this.marqueeBox.style.display = 'none';
+          const dist = Math.hypot(e.clientX - this.marqueeStartClient.x, e.clientY - this.marqueeStartClient.y);
+          if (dist > 4) {
+            const curCoords = this.clientToCanvasPct(e.clientX, e.clientY);
+            const minX = Math.min(this.marqueeStartPct.x, curCoords.x);
+            const maxX = Math.max(this.marqueeStartPct.x, curCoords.x);
+            const minY = Math.min(this.marqueeStartPct.y, curCoords.y);
+            const maxY = Math.max(this.marqueeStartPct.y, curCoords.y);
+
+            const allNodes = window.DiagramNodes ? window.DiagramNodes.getAllNodes() : [];
+            const hits = [];
+            allNodes.forEach((n) => {
+              const eff = window.DiagramNodes.getNodeEffectiveProps(n);
+              const hwPct = ((eff.width || 170) / this.canvasWidth) * 50;
+              const hhPct = ((eff.height || 80) / this.canvasHeight) * 50;
+              const nMinX = n.x - hwPct;
+              const nMaxX = n.x + hwPct;
+              const nMinY = n.y - hhPct;
+              const nMaxY = n.y + hhPct;
+              const intersects = !(nMaxX < minX || nMinX > maxX || nMaxY < minY || nMinY > maxY);
+              if (intersects) hits.push(n.id);
+            });
+
+            if (this.marqueeAdditive && window.AppCoordinator) {
+              const existingIds = window.AppCoordinator.getSelectedNodeIds();
+              const combined = Array.from(new Set([...existingIds, ...hits]));
+              if (combined.length > 0) {
+                const items = combined.map((id) => ({ type: 'node', id }));
+                window.AppCoordinator.setMultiSelection(items, combined[0]);
+              }
+            } else if (hits.length > 0 && window.AppCoordinator) {
+              const items = hits.map((id) => ({ type: 'node', id }));
+              window.AppCoordinator.setMultiSelection(items, hits[0]);
+            } else if (window.AppCoordinator) {
+              window.AppCoordinator.clearSelection({ reason: 'marquee_empty' });
+            }
+          } else {
+            // Simple blank click
+            if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+              window.AppCoordinator.clearSelection({ reason: 'blank_canvas_click' });
+            }
+          }
+          try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
+
+        if (this.isGroupDragging) {
+          const wasMoved = this.hasMovedDrag;
+          const groupPositions = this.groupDragInitialPositions;
+          const potentialId = this.potentialSingleSelectId;
+          this.isGroupDragging = false;
+          this.potentialSingleSelectId = null;
+          this.groupDragInitialPositions = null;
+          this.isDragging = false;
+          this.nodeGrabOffsetX = 0;
+          this.nodeGrabOffsetY = 0;
+          try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
+
+          if (wasMoved && groupPositions) {
+            // Commit moved coordinates to Go Engine
+            if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+              Object.keys(groupPositions).forEach((id) => {
+                const n = window.DiagramNodes ? window.DiagramNodes.getNode(id) : null;
+                if (n) window.EngineBridge.updateNode(n.id, { x: n.x, y: n.y });
+              });
+            }
+            if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+              window.DiagramNodes.refreshAfterChange();
+            }
+            if (window.AppCoordinator) {
+              window.AppCoordinator.requestRender();
+              window.AppCoordinator.recordHistoryImmediate();
+            }
+          } else if (potentialId) {
+            // Click without drag on multi-selected item -> narrow selection to single clicked item
+            if (window.AppCoordinator) {
+              window.AppCoordinator.selectObject('node', potentialId, { openAccordionId: 'acc-nodes' });
+            }
+          }
+          return;
+        }
+
         const wasDragging = this.isDragging || this.isDraggingPhotoCrop;
         this.isDraggingPhotoCrop = false;
         this.isDragging = false;

@@ -4255,7 +4255,104 @@ async function runHarness() {
     assert.ok(flowHeaderLbl.innerText.includes('Telemetry Bus'), 'editingFlowLabel must include the flow name');
   }
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9 & 11 selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // ---------------------------------------------------------------------------
+  // 4. Stage 12: Multi-Selection, Group Movement, Alignment, Distribution & Colour Tool
+  // ---------------------------------------------------------------------------
+  console.log('[HARNESS] Testing Stage 12 Multi-Selection, Group Move, Alignment, Distribution & Colour Tool...');
+
+  window.DiagramNodes.list = [];
+  window.DiagramNodes.counter = 0;
+  const sn1 = window.DiagramNodes.createNode({ text: 'Node 1', x: 20, y: 30, width: 100, height: 60, snap: false });
+  const sn2 = window.DiagramNodes.createNode({ text: 'Node 2', x: 50, y: 30, width: 120, height: 80, snap: false });
+  const sn3 = window.DiagramNodes.createNode({ text: 'Node 3', x: 80, y: 70, width: 100, height: 60, snap: false });
+
+  // 4.1 Multi-Selection
+  window.AppCoordinator.selectObject('node', sn1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, sn1.id);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', sn1.id), true);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', sn2.id), false);
+
+  window.AppCoordinator.addToSelection('node', sn2.id);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', sn1.id), true);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', sn2.id), true);
+  const selectedNodeIds = window.AppCoordinator.getSelectedNodeIds();
+  assert.strictEqual(selectedNodeIds.length, 2);
+  assert.ok(selectedNodeIds.includes(sn1.id) && selectedNodeIds.includes(sn2.id));
+
+  // Toggle selection
+  window.AppCoordinator.toggleObjectSelection('node', sn1.id);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', sn1.id), false);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', sn2.id), true);
+
+  // Set multi-selection explicitly
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: sn1.id },
+    { type: 'node', id: sn2.id },
+    { type: 'node', id: sn3.id }
+  ], sn1.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedNodeIds().length, 3);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, sn1.id);
+
+  // 4.2 Group Movement
+  const initX1 = sn1.x, initY1 = sn1.y;
+  const initX2 = sn2.x, initY2 = sn2.y;
+  const initX3 = sn3.x, initY3 = sn3.y;
+
+  window.AppCoordinator.moveSelectedNodes(5, -4);
+  assert.strictEqual(sn1.x, initX1 + 5);
+  assert.strictEqual(sn1.y, initY1 - 4);
+  assert.strictEqual(sn2.x, initX2 + 5);
+  assert.strictEqual(sn2.y, initY2 - 4);
+  assert.strictEqual(sn3.x, initX3 + 5);
+  assert.strictEqual(sn3.y, initY3 - 4);
+
+  // 4.3 Alignment
+  // Align top: all selected nodes align to the top edge of collective bounding box
+  const dims = window.AppCoordinator.getCanvasDimensions();
+  window.AppCoordinator.alignSelectedNodes('top');
+  // Check that all top bounds match
+  const top1 = sn1.y - ((sn1.height || 60) / dims.height) * 50;
+  const top2 = sn2.y - ((sn2.height || 80) / dims.height) * 50;
+  const top3 = sn3.y - ((sn3.height || 60) / dims.height) * 50;
+  assert.ok(Math.abs(top1 - top2) < 0.01, 'Top alignment should match top edges between node 1 and 2');
+  assert.ok(Math.abs(top2 - top3) < 0.01, 'Top alignment should match top edges between node 2 and 3');
+
+  // Align horizontal center
+  window.AppCoordinator.alignSelectedNodes('hcenter');
+  assert.ok(Math.abs(sn1.x - sn2.x) < 0.01, 'HCenter alignment should match x centers');
+  assert.ok(Math.abs(sn2.x - sn3.x) < 0.01, 'HCenter alignment should match x centers');
+
+  // 4.4 Distribution
+  // Reset positions horizontally
+  window.DiagramNodes.updateNode(sn1.id, { x: 10, y: 50 });
+  window.DiagramNodes.updateNode(sn2.id, { x: 30, y: 50 });
+  window.DiagramNodes.updateNode(sn3.id, { x: 90, y: 50 });
+  window.AppCoordinator.distributeSelectedNodes('horizontal');
+  // Between outer nodes sn1 (x=10) and sn3 (x=90), middle node sn2 should be evenly spaced
+  assert.ok(sn2.x > sn1.x && sn2.x < sn3.x, 'Distributed middle node must lie between outer anchor nodes');
+
+  // 4.5 Custom Colour Picker Logic
+  assert.ok(window.CustomColorPicker, 'CustomColorPicker must be defined');
+  assert.strictEqual(window.CustomColorPicker.normalizeHex('#f00'), '#ff0000');
+  assert.strictEqual(window.CustomColorPicker.normalizeHex('58a6ff'), '#58a6ff');
+
+  const rgb = window.CustomColorPicker.hexToRgb('#ff8000');
+  assert.strictEqual(rgb.r, 255);
+  assert.strictEqual(rgb.g, 128);
+  assert.strictEqual(rgb.b, 0);
+
+  const hexFromRgb = window.CustomColorPicker.rgbToHex(255, 128, 0);
+  assert.strictEqual(hexFromRgb, '#ff8000');
+
+  // Swatch management
+  window.CustomColorPicker.recentColors = [];
+  window.CustomColorPicker.favColors = [];
+  window.CustomColorPicker.addFavourite('#00ffcc');
+  assert.ok(window.CustomColorPicker.favColors.includes('#00ffcc'), 'Favourite colour must be saved');
+  window.CustomColorPicker.removeFavourite(0);
+  assert.strictEqual(window.CustomColorPicker.favColors.length, 0, 'Favourite colour must be removed');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11 & 12 multi-selection, group move, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

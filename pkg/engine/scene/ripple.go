@@ -151,6 +151,7 @@ func (s *Scene) RemoveRipple(id StringID) bool {
 		}
 	}
 	s.rippleIDs = newIDs
+	s.pruneSelectionLocked(SelectionRipple, id)
 	s.revision++
 	return true
 }

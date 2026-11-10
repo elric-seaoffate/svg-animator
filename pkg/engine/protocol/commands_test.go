@@ -939,6 +939,71 @@ func TestDispatchSelectionCommands(t *testing.T) {
 	if err := json.Unmarshal(clrBytes, &clrRes); err != nil || clrRes.Type != "none" {
 		t.Fatalf("Selection.Clear mismatch: %+v", clrRes)
 	}
+
+	// 5. Multi-selection commands: Selection.Add, Selection.Toggle, Selection.Remove
+	node2Req, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "hexagon", Text: "Node 2", Width: 100, Height: 80, X: 40, Y: 50},
+	})
+	n2Bytes, _ := Dispatch("Node.Create", node2Req)
+	var n2Created struct {
+		Node scene.Node `json:"node"`
+	}
+	json.Unmarshal(n2Bytes, &n2Created)
+	node2 := n2Created.Node
+
+	// Selection.Add node 1 and node 2
+	Dispatch("Selection.Set", []byte(`{"type":"node","id":"`+node.ID+`"}`))
+	addBytes, err := Dispatch("Selection.Add", []byte(`{"type":"node","id":"`+node2.ID+`"}`))
+	if err != nil {
+		t.Fatalf("Selection.Add failed: %v", err)
+	}
+	var addRes SelectionResponse
+	json.Unmarshal(addBytes, &addRes)
+	if len(addRes.Items) != 2 || addRes.Count != 2 {
+		t.Fatalf("expected 2 items after Selection.Add, got %+v", addRes)
+	}
+
+	// Selection.Toggle node 2 (should remove)
+	togBytes, err := Dispatch("Selection.Toggle", []byte(`{"type":"node","id":"`+node2.ID+`"}`))
+	if err != nil {
+		t.Fatalf("Selection.Toggle failed: %v", err)
+	}
+	var togRes SelectionResponse
+	json.Unmarshal(togBytes, &togRes)
+	if len(togRes.Items) != 1 {
+		t.Fatalf("expected 1 item after Selection.Toggle, got %+v", togRes)
+	}
+
+	// Nodes.MoveGroup
+	moveReq, _ := json.Marshal(NodesMoveGroupRequest{
+		IDs: []scene.StringID{node.ID, node2.ID},
+		DX:  10,
+		DY:  -5,
+	})
+	mBytes, err := Dispatch("Nodes.MoveGroup", moveReq)
+	if err != nil {
+		t.Fatalf("Nodes.MoveGroup failed: %v", err)
+	}
+	var mRes NodesTransformResponse
+	if err := json.Unmarshal(mBytes, &mRes); err != nil || !mRes.Success || mRes.Count != 2 {
+		t.Fatalf("Nodes.MoveGroup response mismatch: %+v", mRes)
+	}
+
+	// Nodes.Align
+	alignReq, _ := json.Marshal(NodesAlignRequest{
+		IDs:     []scene.StringID{node.ID, node2.ID},
+		Mode:    "align-left",
+		CanvasW: 1000,
+		CanvasH: 1000,
+	})
+	aBytes, err := Dispatch("Nodes.Align", alignReq)
+	if err != nil {
+		t.Fatalf("Nodes.Align failed: %v", err)
+	}
+	var aRes NodesTransformResponse
+	if err := json.Unmarshal(aBytes, &aRes); err != nil || !aRes.Success || aRes.Count != 2 {
+		t.Fatalf("Nodes.Align response mismatch: %+v", aRes)
+	}
 }
 
 func TestDispatchHistoryCommands(t *testing.T) {
