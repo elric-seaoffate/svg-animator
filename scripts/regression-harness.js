@@ -4588,6 +4588,355 @@ async function runHarness() {
     window.HistoryManager.redo();
   }
 
+  // ===========================================================================
+  // Section 6: Stage 13 Mixed-Type Selection and Persistent Grouping Verification
+  //            (Scenarios 1 through 15)
+  // ===========================================================================
+  console.log('[HARNESS] Testing Stage 13 Mixed-Type Selection and Persistent Grouping (Scenarios 1-15)...');
+
+  // Reset scene state cleanly
+  if (window.EngineBridge && typeof window.EngineBridge.dispatch === 'function' && window.EngineBridge.isReady()) {
+    window.EngineBridge.dispatch('Scene.SetState', JSON.stringify({ revision: 20000 }));
+  }
+  window.DiagramNodes.list = [];
+  window.DiagramNodes.counter = 0;
+  window.DataFlows.list = [];
+  window.DataFlows.counter = 0;
+  window.Glows.list = [];
+  window.Glows.counter = 0;
+  window.Ripples.list = [];
+  window.Ripples.counter = 0;
+  if (window.ObjectGroups) {
+    window.ObjectGroups.list = [];
+    window.ObjectGroups.counter = 0;
+  }
+  window.AppCoordinator.clearSelection();
+
+  // Create one object of each of the 4 types
+  const mNode = window.DiagramNodes.createNode({ text: 'Main Controller', x: 20, y: 30, width: 120, height: 60, snap: false });
+  const mGlow = window.Glows.createGlow({ name: 'Status Indicator', x: 40, y: 30, size: 25, color: '#ff3366' });
+  const mRipple = window.Ripples.createRipple({ name: 'Pulse Beacon', x: 60, y: 30, outerR: 120, color: '#33ccff' });
+  const mFlow = window.DataFlows.createFlow({ name: 'Telemetry Line', fromNodeId: mNode.id, toNodeId: null, x1: 20, y1: 30, x2: 80, y2: 30, label: 'Data' });
+
+  // SCENARIO 1: Mixed-type selection via additive clicks & toggle selection
+  window.AppCoordinator.clearSelection();
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 0, 'Scenario 1: selection begins empty');
+
+  // Select node, then add glow, ripple, flow
+  window.AppCoordinator.selectObject('node', mNode.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 1);
+
+  window.AppCoordinator.addToSelection('glow', mGlow.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 2);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', mNode.id), true);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('glow', mGlow.id), true);
+
+  window.AppCoordinator.addToSelection('ripple', mRipple.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 3);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('ripple', mRipple.id), true);
+
+  window.AppCoordinator.addToSelection('flow', mFlow.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 4);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('flow', mFlow.id), true);
+
+  // Toggle ripple off and on
+  window.AppCoordinator.toggleObjectSelection('ripple', mRipple.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 3);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('ripple', mRipple.id), false);
+
+  window.AppCoordinator.toggleObjectSelection('ripple', mRipple.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 4);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('ripple', mRipple.id), true);
+
+  // SCENARIO 2: Mixed-type selection in instance lists
+  window.DiagramNodes.renderList();
+  window.Glows.renderList();
+  window.Ripples.renderList();
+  window.DataFlows.renderList();
+
+  const nListEl = document.getElementById('nodesList');
+  const gListEl = document.getElementById('glowsList');
+  const rListEl = document.getElementById('ripplesList');
+  const fListEl = document.getElementById('flowList');
+
+  if (nListEl && nListEl.innerHTML) {
+    assert.ok(nListEl.innerHTML.includes('selected'), 'Scenario 2: nodesList renders selected highlight');
+  }
+  if (gListEl && gListEl.innerHTML) {
+    assert.ok(gListEl.innerHTML.includes('selected'), 'Scenario 2: glowsList renders selected highlight');
+  }
+  if (rListEl && rListEl.innerHTML) {
+    assert.ok(rListEl.innerHTML.includes('selected'), 'Scenario 2: ripplesList renders selected highlight');
+  }
+  if (fListEl && fListEl.innerHTML) {
+    assert.ok(fListEl.innerHTML.includes('selected'), 'Scenario 2: flowList renders selected highlight');
+  }
+
+  // SCENARIO 3: Mixed-type group creation across all permutations
+  // Permutation A: Shape + Glow
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mNode.id },
+    { type: 'glow', id: mGlow.id }
+  ]);
+  const grpShapeGlow = window.AppCoordinator.createGroupFromSelection('Shape-Glow Pair');
+  assert.ok(grpShapeGlow, 'Scenario 3A: Shape-Glow group created');
+  assert.strictEqual(grpShapeGlow.members.length, 2);
+  assert.ok(grpShapeGlow.members.some((m) => m.type === 'node' && String(m.id) === String(mNode.id)));
+  assert.ok(grpShapeGlow.members.some((m) => m.type === 'glow' && String(m.id) === String(mGlow.id)));
+  window.AppCoordinator.ungroupSelectedGroup();
+
+  // Permutation B: Shape + Flow
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mNode.id },
+    { type: 'flow', id: mFlow.id }
+  ]);
+  const grpShapeFlow = window.AppCoordinator.createGroupFromSelection('Shape-Flow Pair');
+  assert.ok(grpShapeFlow, 'Scenario 3B: Shape-Flow group created');
+  assert.strictEqual(grpShapeFlow.members.length, 2);
+  assert.ok(grpShapeFlow.members.some((m) => m.type === 'node' && String(m.id) === String(mNode.id)));
+  assert.ok(grpShapeFlow.members.some((m) => m.type === 'flow' && String(m.id) === String(mFlow.id)));
+  window.AppCoordinator.ungroupSelectedGroup();
+
+  // Permutation C: Glow + Ripple
+  window.AppCoordinator.setMultiSelection([
+    { type: 'glow', id: mGlow.id },
+    { type: 'ripple', id: mRipple.id }
+  ]);
+  const grpGlowRipple = window.AppCoordinator.createGroupFromSelection('Glow-Ripple Pair');
+  assert.ok(grpGlowRipple, 'Scenario 3C: Glow-Ripple group created');
+  assert.strictEqual(grpGlowRipple.members.length, 2);
+  assert.ok(grpGlowRipple.members.some((m) => m.type === 'glow' && String(m.id) === String(mGlow.id)));
+  assert.ok(grpGlowRipple.members.some((m) => m.type === 'ripple' && String(m.id) === String(mRipple.id)));
+  window.AppCoordinator.ungroupSelectedGroup();
+
+  // Permutation D: All 4 types (Shape + Glow + Ripple + Flow)
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mNode.id },
+    { type: 'glow', id: mGlow.id },
+    { type: 'ripple', id: mRipple.id },
+    { type: 'flow', id: mFlow.id }
+  ]);
+  const grpQuad = window.AppCoordinator.createGroupFromSelection('Integrated Substation');
+  assert.ok(grpQuad, 'Scenario 3D: 4-type quad group created');
+  assert.strictEqual(grpQuad.members.length, 4);
+  assert.ok(grpQuad.members.some((m) => m.type === 'node'));
+  assert.ok(grpQuad.members.some((m) => m.type === 'glow'));
+  assert.ok(grpQuad.members.some((m) => m.type === 'ripple'));
+  assert.ok(grpQuad.members.some((m) => m.type === 'flow'));
+
+  // SCENARIO 4: Multi-selection toolbars & Floating Context Editor UI state
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mNode.id },
+    { type: 'glow', id: mGlow.id }
+  ]);
+  window.DiagramNodes.updateMultiSelectToolbar();
+
+  const multiToolbar = document.getElementById('nodeMultiSelectToolbar');
+  const multiCount = document.getElementById('multiSelectionBadge');
+  if (multiToolbar && multiCount) {
+    assert.strictEqual(multiToolbar.style.display, 'block');
+    const badgeText = multiCount.innerText || multiCount.textContent;
+    assert.strictEqual(badgeText, '2 Objects Selected', 'Scenario 4: Mixed selection uses Objects badge');
+  }
+
+  // Also check flow, glow, ripple auxiliary toolbars
+  const flowToolbar = document.getElementById('flowMultiSelectToolbar');
+  const flowCount = document.getElementById('flowMultiSelectionBadge');
+  if (flowToolbar && flowCount) {
+    assert.strictEqual(flowToolbar.style.display, 'block');
+    const text = flowCount.innerText || flowCount.textContent;
+    assert.strictEqual(text, '2 Objects Selected', 'Scenario 4: Flow toolbar shows 2 Objects Selected');
+  }
+
+  if (window.FloatingPropertiesEditor) {
+    window.FloatingPropertiesEditor.openFor('node', mNode.id, { resetPosition: true });
+    const fctxMultiBar = document.getElementById('fctx-multiBar');
+    const fctxMultiCount = document.getElementById('fctx-multiCount');
+    if (fctxMultiBar && fctxMultiCount) {
+      assert.strictEqual(fctxMultiBar.style.display, 'flex');
+      assert.strictEqual(fctxMultiCount.textContent, '2 Objects Selected', 'Scenario 4: Floating editor displays 2 Objects Selected');
+    }
+    window.FloatingPropertiesEditor.close(false);
+  }
+
+  // SCENARIO 5: Canvas mixed group dragging
+  window.AppCoordinator.selectGroup(grpQuad.id);
+  const nOrigX = mNode.x;
+  const nOrigY = mNode.y;
+  const gOrigX = mGlow.x;
+  const gOrigY = mGlow.y;
+  const rOrigX = mRipple.x;
+  const rOrigY = mRipple.y;
+
+  window.AppCoordinator.moveSelectedNodes(12, 8);
+
+  const nAfter = window.DiagramNodes.getNode(mNode.id);
+  const gAfter = window.Glows.getGlow(mGlow.id);
+  const rAfter = window.Ripples.getRipple(mRipple.id);
+
+  assert.strictEqual(nAfter.x, nOrigX + 12, 'Scenario 5: Node x translated');
+  assert.strictEqual(nAfter.y, nOrigY + 8, 'Scenario 5: Node y translated');
+  assert.strictEqual(gAfter.x, gOrigX + 12, 'Scenario 5: Glow x translated');
+  assert.strictEqual(gAfter.y, gOrigY + 8, 'Scenario 5: Glow y translated');
+  assert.strictEqual(rAfter.x, rOrigX + 12, 'Scenario 5: Ripple x translated');
+  assert.strictEqual(rAfter.y, rOrigY + 8, 'Scenario 5: Ripple y translated');
+
+  // SCENARIO 6: Instance list visual synchronization
+  window.AppCoordinator.selectGroup(grpQuad.id);
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('node', mNode.id), true, 'Scenario 6: Node marked selected');
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('glow', mGlow.id), true, 'Scenario 6: Glow marked selected');
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('ripple', mRipple.id), true, 'Scenario 6: Ripple marked selected');
+  assert.strictEqual(window.AppCoordinator.isObjectSelected('flow', mFlow.id), true, 'Scenario 6: Flow marked selected');
+
+  // SCENARIO 7: Floating contextual properties editor right-click retention
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mNode.id },
+    { type: 'glow', id: mGlow.id },
+    { type: 'ripple', id: mRipple.id }
+  ]);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 3);
+
+  if (window.FloatingPropertiesEditor) {
+    window.FloatingPropertiesEditor.openFor('glow', mGlow.id, { resetPosition: false });
+    assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 3, 'Scenario 7: Multi-selection retained when opening properties');
+    const fctxMultiBar = document.getElementById('fctx-multiBar');
+    if (fctxMultiBar) {
+      assert.strictEqual(fctxMultiBar.style.display, 'flex');
+    }
+    window.FloatingPropertiesEditor.close(false);
+  }
+
+  // SCENARIO 8: Group lookup and selection from non-node members
+  window.AppCoordinator.clearSelection();
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null);
+
+  window.AppCoordinator.selectObject('glow', mGlow.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'group', 'Scenario 8: Selecting member glow selects group');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, grpQuad.id);
+
+  window.AppCoordinator.clearSelection();
+  window.AppCoordinator.selectObject('ripple', mRipple.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'group', 'Scenario 8: Selecting member ripple selects group');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, grpQuad.id);
+
+  window.AppCoordinator.clearSelection();
+  window.AppCoordinator.selectObject('flow', mFlow.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'group', 'Scenario 8: Selecting member flow selects group');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, grpQuad.id);
+
+  // SCENARIO 9: Group-edit mode on non-node members
+  window.AppCoordinator.enterGroupEditMode(grpQuad.id);
+  assert.strictEqual(window.AppCoordinator.isInGroupEditMode(), true, 'Scenario 9: In group-edit mode');
+
+  window.AppCoordinator.selectObject('glow', mGlow.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'glow', 'Scenario 9: Selecting glow in edit mode selects glow directly');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, mGlow.id);
+
+  window.AppCoordinator.selectObject('ripple', mRipple.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'ripple', 'Scenario 9: Selecting ripple in edit mode selects ripple directly');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, mRipple.id);
+
+  window.AppCoordinator.exitGroupEditMode();
+  assert.strictEqual(window.AppCoordinator.isInGroupEditMode(), false, 'Scenario 9: Exited group-edit mode');
+
+  // SCENARIO 10: Group movement preserves geometry coherence
+  window.AppCoordinator.selectGroup(grpQuad.id);
+  const preMoveNode = window.DiagramNodes.getNode(mNode.id).x;
+  const preMoveGlow = window.Glows.getGlow(mGlow.id).x;
+  const preMoveRipple = window.Ripples.getRipple(mRipple.id).x;
+
+  window.AppCoordinator.moveSelectedNodes(-10, -5);
+
+  assert.strictEqual(window.DiagramNodes.getNode(mNode.id).x, preMoveNode - 10, 'Scenario 10: Node coherent translate');
+  assert.strictEqual(window.Glows.getGlow(mGlow.id).x, preMoveGlow - 10, 'Scenario 10: Glow coherent translate');
+  assert.strictEqual(window.Ripples.getRipple(mRipple.id).x, preMoveRipple - 10, 'Scenario 10: Ripple coherent translate');
+
+  // SCENARIO 11: Group renaming
+  window.AppCoordinator.selectGroup(grpQuad.id);
+  window.AppCoordinator.renameSelectedGroup('Substation Beta');
+  const renamedGrp = window.AppCoordinator.getGroup(grpQuad.id);
+  assert.strictEqual(renamedGrp.name, 'Substation Beta', 'Scenario 11: Renamed group reflected in coordinator');
+
+  // SCENARIO 12: Member deletion & auto-dissolution
+  assert.strictEqual(renamedGrp.members.length, 4);
+
+  // Delete glow: 4 -> 3
+  window.Glows.deleteGlow(mGlow.id);
+  let grpAfter1 = window.AppCoordinator.getGroup(grpQuad.id);
+  assert.ok(grpAfter1);
+  assert.strictEqual(grpAfter1.members.length, 3, 'Scenario 12: Group pruned to 3 members');
+
+  // Delete ripple: 3 -> 2
+  window.Ripples.deleteRipple(mRipple.id);
+  let grpAfter2 = window.AppCoordinator.getGroup(grpQuad.id);
+  assert.ok(grpAfter2);
+  assert.strictEqual(grpAfter2.members.length, 2, 'Scenario 12: Group pruned to 2 members');
+
+  // Delete flow: 2 -> 1 -> dissolved!
+  window.DataFlows.removeFlow(mFlow.id);
+  let grpAfter3 = window.AppCoordinator.getGroup(grpQuad.id);
+  assert.strictEqual(grpAfter3, null, 'Scenario 12: Group automatically dissolved when < 2 members remain');
+
+  // SCENARIO 13: Mixed group duplication
+  const dNode = window.DiagramNodes.createNode({ text: 'Generator', x: 15, y: 25, width: 90, height: 50, snap: false });
+  const dGlow = window.Glows.createGlow({ name: 'Gen Light', x: 25, y: 25, size: 20 });
+  const dRipple = window.Ripples.createRipple({ name: 'Gen Pulse', x: 35, y: 25, outerR: 50 });
+  const dFlow = window.DataFlows.createFlow({ name: 'Power Line', fromNodeId: dNode.id, toNodeId: null, x1: 15, y1: 25, x2: 70, y2: 25 });
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: dNode.id },
+    { type: 'glow', id: dGlow.id },
+    { type: 'ripple', id: dRipple.id },
+    { type: 'flow', id: dFlow.id }
+  ]);
+  const grpToDup = window.AppCoordinator.createGroupFromSelection('Generator Assembly');
+  assert.ok(grpToDup);
+
+  const prevNodeCount = window.DiagramNodes.getAllNodes().length;
+  const prevGlowCount = window.Glows.getAllGlows().length;
+  const prevRippleCount = window.Ripples.getAllRipples().length;
+  const prevFlowCount = window.DataFlows.getAllFlows().length;
+
+  window.AppCoordinator.selectGroup(grpToDup.id);
+  const dupSuccess = window.AppCoordinator.duplicateSelection();
+  assert.strictEqual(dupSuccess, true, 'Scenario 13: duplicateSelection must succeed on mixed group');
+
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, prevNodeCount + 1, 'Scenario 13: Duplicated node created');
+  assert.strictEqual(window.Glows.getAllGlows().length, prevGlowCount + 1, 'Scenario 13: Duplicated glow created');
+  assert.strictEqual(window.Ripples.getAllRipples().length, prevRippleCount + 1, 'Scenario 13: Duplicated ripple created');
+  assert.strictEqual(window.DataFlows.getAllFlows().length, prevFlowCount + 1, 'Scenario 13: Duplicated flow created');
+
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'group', 'Scenario 13: Duplicated group selected');
+  assert.notStrictEqual(window.AppCoordinator.getActiveSelection().id, grpToDup.id);
+
+  // SCENARIO 14: Mixed group copy/paste
+  const copyOk = window.AppCoordinator.copySelection();
+  assert.strictEqual(copyOk, true, 'Scenario 14: copySelection must succeed on mixed group');
+
+  const pasteOk = window.AppCoordinator.pasteClipboard();
+  assert.strictEqual(pasteOk, true, 'Scenario 14: pasteClipboard must succeed');
+
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, prevNodeCount + 2, 'Scenario 14: Pasted node created');
+  assert.strictEqual(window.Glows.getAllGlows().length, prevGlowCount + 2, 'Scenario 14: Pasted glow created');
+  assert.strictEqual(window.Ripples.getAllRipples().length, prevRippleCount + 2, 'Scenario 14: Pasted ripple created');
+  assert.strictEqual(window.DataFlows.getAllFlows().length, prevFlowCount + 2, 'Scenario 14: Pasted flow created');
+
+  // SCENARIO 15: Native .sva / snapshot persistence
+  const snapStr = window.HistoryManager.captureSnapshot();
+  const snapObj = JSON.parse(snapStr);
+  assert.ok(Array.isArray(snapObj.groups), 'Scenario 15: Snapshot contains groups');
+  assert.ok(snapObj.groups.length >= 2, 'Scenario 15: Snapshot contains at least 2 groups');
+
+  const hasMixedSnapshot = snapObj.groups.some((g) => {
+    const types = new Set(g.members.map((m) => m.type));
+    return types.has('node') && types.has('glow');
+  });
+  assert.strictEqual(hasMixedSnapshot, true, 'Scenario 15: Snapshot must contain mixed-type group');
+
+  window.HistoryManager.applySnapshot(snapStr);
+  const restoredGroups = window.AppCoordinator.getAllGroups();
+  assert.ok(restoredGroups.length >= 2, 'Scenario 15: Restored groups match snapshot');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12 & 13 persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

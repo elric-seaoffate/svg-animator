@@ -124,7 +124,7 @@
           return;
         }
 
-        if (options.additive && normalizedType === 'node' && normalizedId !== null) {
+        if (options.additive && normalizedType && normalizedId !== null && ['node', 'flow', 'glow', 'ripple'].includes(normalizedType)) {
           this._addToSelectionInternal(normalizedType, normalizedId, options);
           return;
         }
@@ -232,13 +232,20 @@
       };
 
       if (type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
-        window.DiagramNodes.selectNode(id, false, { multi: true });
+        window.DiagramNodes.selectNode(id, false, { multi: true, skipCoordinator: true });
+      } else if (type === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
+        window.DataFlows.selectFlow(id, { multi: true, skipCoordinator: true });
+      } else if (type === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
+        window.Glows.selectGlow(id, { multi: true, skipCoordinator: true });
+      } else if (type === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
+        window.Ripples.selectRipple(id, { multi: true, skipCoordinator: true });
       }
 
       if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
         window.EngineBridge.setSelection(type, id, items);
       }
 
+      this._refreshAllInstanceLists();
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
     },
@@ -262,7 +269,13 @@
           items: items
         };
         if (last.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
-          window.DiagramNodes.selectNode(last.id, false, { multi: true });
+          window.DiagramNodes.selectNode(last.id, false, { multi: true, skipCoordinator: true });
+        } else if (last.type === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
+          window.DataFlows.selectFlow(last.id, { multi: true, skipCoordinator: true });
+        } else if (last.type === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
+          window.Glows.selectGlow(last.id, { multi: true, skipCoordinator: true });
+        } else if (last.type === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
+          window.Ripples.selectRipple(last.id, { multi: true, skipCoordinator: true });
         }
       } else {
         items.push({ type, id });
@@ -272,7 +285,13 @@
           items: items
         };
         if (type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
-          window.DiagramNodes.selectNode(id, false, { multi: true });
+          window.DiagramNodes.selectNode(id, false, { multi: true, skipCoordinator: true });
+        } else if (type === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
+          window.DataFlows.selectFlow(id, { multi: true, skipCoordinator: true });
+        } else if (type === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
+          window.Glows.selectGlow(id, { multi: true, skipCoordinator: true });
+        } else if (type === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
+          window.Ripples.selectRipple(id, { multi: true, skipCoordinator: true });
         }
       }
 
@@ -280,6 +299,7 @@
         window.EngineBridge.setSelection(this.activeSelection.type, this.activeSelection.id, items);
       }
 
+      this._refreshAllInstanceLists();
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
     },
@@ -308,15 +328,37 @@
       };
 
       if (primary.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
-        window.DiagramNodes.selectNode(primary.id, false, { multi: true });
+        window.DiagramNodes.selectNode(primary.id, false, { multi: true, skipCoordinator: true });
+      } else if (primary.type === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
+        window.DataFlows.selectFlow(primary.id, { multi: true, skipCoordinator: true });
+      } else if (primary.type === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
+        window.Glows.selectGlow(primary.id, { multi: true, skipCoordinator: true });
+      } else if (primary.type === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
+        window.Ripples.selectRipple(primary.id, { multi: true, skipCoordinator: true });
       }
 
       if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
         window.EngineBridge.setSelection(primary.type, primary.id, validItems);
       }
 
+      this._refreshAllInstanceLists();
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
+    },
+
+    _refreshAllInstanceLists() {
+      if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
+        window.DiagramNodes.renderList();
+      }
+      if (window.DataFlows && typeof window.DataFlows.renderList === 'function') {
+        window.DataFlows.renderList();
+      }
+      if (window.Glows && typeof window.Glows.renderList === 'function') {
+        window.Glows.renderList();
+      }
+      if (window.Ripples && typeof window.Ripples.renderList === 'function') {
+        window.Ripples.renderList();
+      }
     },
 
     addToSelection(type, id, options = {}) {
@@ -530,9 +572,7 @@
         res = window.ObjectGroups.duplicateSelection(items, groupId, 5.0, 5.0);
       }
       if (res && res.success) {
-        if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
-          window.DiagramNodes.renderList();
-        }
+        this._refreshAllInstanceLists();
         if (res.newGroupId) {
           this.selectGroup(res.newGroupId);
         } else if (Array.isArray(res.newItems) && res.newItems.length > 0) {
@@ -590,9 +630,7 @@
         res = window.ObjectGroups.pastePayload(this._clipboardPayload, 5.0, 5.0);
       }
       if (res && res.success) {
-        if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
-          window.DiagramNodes.renderList();
-        }
+        this._refreshAllInstanceLists();
         if (res.newGroupId) {
           this.selectGroup(res.newGroupId);
         } else if (Array.isArray(res.newItems) && res.newItems.length > 0) {
@@ -737,9 +775,7 @@
         } else if (window.ObjectGroups && typeof window.ObjectGroups.deleteGroup === 'function') {
           window.ObjectGroups.deleteGroup(grpId, true);
         }
-        if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
-          window.DiagramNodes.renderList();
-        }
+        this._refreshAllInstanceLists();
         this.clearSelection();
         this.requestRender();
         this.recordHistoryImmediate();
@@ -759,9 +795,7 @@
           window.Ripples.deleteRipple(it.id);
         }
       });
-      if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
-        window.DiagramNodes.renderList();
-      }
+      this._refreshAllInstanceLists();
       this.clearSelection();
       this.requestRender();
       this.recordHistoryImmediate();
@@ -797,12 +831,16 @@
         }
       }
 
-      if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
-        const activeNode = typeof window.DiagramNodes.getNode === 'function'
-          ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
-          : (window.DiagramNodes.list && window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId));
-        if (activeNode && typeof window.DiagramNodes.updateUIOverlay === 'function') {
-          window.DiagramNodes.updateUIOverlay(activeNode);
+      if (window.DiagramNodes) {
+        if (window.DiagramNodes.activeId !== null) {
+          const activeNode = typeof window.DiagramNodes.getNode === 'function'
+            ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
+            : (window.DiagramNodes.list && window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId));
+          if (activeNode && typeof window.DiagramNodes.updateUIOverlay === 'function') {
+            window.DiagramNodes.updateUIOverlay(activeNode);
+          }
+        } else if (this.getSelectedItems().length > 0 && typeof window.DiagramNodes.updateUIOverlay === 'function') {
+          window.DiagramNodes.updateUIOverlay(null);
         }
       }
       if (window.DataFlows && window.DataFlows.activeId !== null) {
@@ -844,6 +882,7 @@
       if (window.DiagramNodes && typeof window.DiagramNodes.hideGroupOverlay === 'function') {
         window.DiagramNodes.hideGroupOverlay();
       }
+      this._refreshAllInstanceLists();
     },
 
     /**

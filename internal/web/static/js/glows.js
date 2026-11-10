@@ -140,8 +140,8 @@ window.Glows = {
     }
 
     const before = this.list.length;
-    this.list = this.list.filter((g) => g.id !== id);
-    if (this.activeId === id) {
+    this.list = this.list.filter((g) => String(g.id) !== String(id));
+    if (this.activeId !== null && String(this.activeId) === String(id)) {
       this.activeId = null;
     }
     if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
@@ -365,6 +365,35 @@ window.Glows = {
       });
     }
 
+    const btnGroup = document.getElementById('btnGroupGlowSelection');
+    if (btnGroup) {
+      btnGroup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+          window.AppCoordinator.createGroupFromSelection();
+        }
+      });
+    }
+
+    const btnDup = document.getElementById('btnDuplicateGlowSelection');
+    if (btnDup) {
+      btnDup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.duplicateSelection === 'function') {
+          window.AppCoordinator.duplicateSelection();
+        }
+      });
+    }
+
+    const btnDeselectAll = document.getElementById('btnDeselectAllGlows');
+    if (btnDeselectAll) {
+      btnDeselectAll.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'glow_multi_toolbar_deselect' });
+        } else {
+          this.deselectGlow();
+        }
+      });
+    }
+
     const nameIn = document.getElementById('glowNameInput');
     if (nameIn) {
       nameIn.addEventListener('input', (e) => {
@@ -502,10 +531,10 @@ window.Glows = {
     });
   },
 
-  selectGlow(id) {
-    if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('glow', id, { skipStageClear: true, skipModuleSelect: true });
-    } else {
+  selectGlow(id, options = {}) {
+    if (window.AppCoordinator && !options.skipCoordinator) {
+      window.AppCoordinator.selectObject('glow', id, { skipStageClear: true, skipModuleSelect: true, ...options });
+    } else if (!options.multi) {
       if (window.DiagramNodes) window.DiagramNodes.deselectNode();
       if (window.DataFlows) window.DataFlows.deselectFlow();
       if (window.Ripples) window.Ripples.deselectRipple();
@@ -603,9 +632,12 @@ window.Glows = {
       custom: '🖼'
     };
     this.list.forEach((glow) => {
-      const isSel = (this.activeId === glow.id);
+      const isSel = (window.AppCoordinator && typeof window.AppCoordinator.isObjectSelected === 'function')
+        ? window.AppCoordinator.isObjectSelected('glow', glow.id)
+        : (this.activeId === glow.id);
+      const isPrimary = (this.activeId === glow.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
       div.style.borderLeftColor = glow.color || '#ff0044';
       const icon = glowIcons[glow.shape] || '✨';
       const labelText = glow.name || ('Glow ' + glow.id);
@@ -618,8 +650,14 @@ window.Glows = {
         '<span class="compact-meta">' + glow.shape + '</span>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete glow" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => {
-        if (this.activeId === glow.id) {
+      div.onclick = (e) => {
+        if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+            window.AppCoordinator.toggleObjectSelection('glow', glow.id);
+            return;
+          }
+        }
+        if (this.activeId === glow.id && (!window.AppCoordinator || window.AppCoordinator.getSelectedItems().length <= 1)) {
           if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
             window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_glow' });
           } else {

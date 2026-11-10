@@ -172,8 +172,8 @@ window.DataFlows = {
     }
 
     const before = this.list.length;
-    this.list = this.list.filter((f) => f.id !== id);
-    if (this.activeId === id) {
+    this.list = this.list.filter((f) => String(f.id) !== String(id));
+    if (this.activeId !== null && String(this.activeId) === String(id)) {
       this.activeId = null;
       this.activeNodeIdx = 0;
     }
@@ -510,6 +510,35 @@ window.DataFlows = {
       });
     }
 
+    const btnGroup = document.getElementById('btnGroupFlowSelection');
+    if (btnGroup) {
+      btnGroup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+          window.AppCoordinator.createGroupFromSelection();
+        }
+      });
+    }
+
+    const btnDup = document.getElementById('btnDuplicateFlowSelection');
+    if (btnDup) {
+      btnDup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.duplicateSelection === 'function') {
+          window.AppCoordinator.duplicateSelection();
+        }
+      });
+    }
+
+    const btnDeselectAll = document.getElementById('btnDeselectAllFlows');
+    if (btnDeselectAll) {
+      btnDeselectAll.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'flow_multi_toolbar_deselect' });
+        } else {
+          this.deselectFlow();
+        }
+      });
+    }
+
     const btnAddNode = document.getElementById('btnFlowAddNode');
     if (btnAddNode) btnAddNode.addEventListener('click', () => this.addNodeToActive());
 
@@ -703,10 +732,10 @@ window.DataFlows = {
     });
   },
 
-  selectFlow(id) {
-    if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('flow', id, { skipStageClear: true, skipModuleSelect: true });
-    } else {
+  selectFlow(id, options = {}) {
+    if (window.AppCoordinator && !options.skipCoordinator) {
+      window.AppCoordinator.selectObject('flow', id, { skipStageClear: true, skipModuleSelect: true, ...options });
+    } else if (!options.multi) {
       if (window.DiagramNodes) window.DiagramNodes.deselectNode();
       if (window.Glows) window.Glows.deselectGlow();
       if (window.Ripples) window.Ripples.deselectRipple();
@@ -859,9 +888,12 @@ window.DataFlows = {
     }
     container.innerHTML = '';
     this.list.forEach((f) => {
-      const isSel = (this.activeId === f.id);
+      const isSel = (window.AppCoordinator && typeof window.AppCoordinator.isObjectSelected === 'function')
+        ? window.AppCoordinator.isObjectSelected('flow', f.id)
+        : (this.activeId === f.id);
+      const isPrimary = (this.activeId === f.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
       div.style.borderLeftColor = f.color || '#00ffcc';
       const labelText = f.name || (f.label ? f.label : ('Flow ' + f.id));
       const safeLabel = this.escapeXML(labelText);
@@ -874,8 +906,14 @@ window.DataFlows = {
         '<span class="compact-meta">' + nodeCount + ' pts</span>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete connector" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => {
-        if (this.activeId === f.id) {
+      div.onclick = (e) => {
+        if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+            window.AppCoordinator.toggleObjectSelection('flow', f.id);
+            return;
+          }
+        }
+        if (this.activeId === f.id && (!window.AppCoordinator || window.AppCoordinator.getSelectedItems().length <= 1)) {
           if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
             window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_flow' });
           } else {

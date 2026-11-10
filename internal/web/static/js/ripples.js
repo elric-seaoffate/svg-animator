@@ -131,8 +131,8 @@ window.Ripples = {
     }
 
     const before = this.list.length;
-    this.list = this.list.filter((r) => r.id !== id);
-    if (this.activeId === id) {
+    this.list = this.list.filter((r) => String(r.id) !== String(id));
+    if (this.activeId !== null && String(this.activeId) === String(id)) {
       this.activeId = null;
     }
     if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
@@ -284,6 +284,35 @@ window.Ripples = {
       });
     }
 
+    const btnGroup = document.getElementById('btnGroupRippleSelection');
+    if (btnGroup) {
+      btnGroup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+          window.AppCoordinator.createGroupFromSelection();
+        }
+      });
+    }
+
+    const btnDup = document.getElementById('btnDuplicateRippleSelection');
+    if (btnDup) {
+      btnDup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.duplicateSelection === 'function') {
+          window.AppCoordinator.duplicateSelection();
+        }
+      });
+    }
+
+    const btnDeselectAll = document.getElementById('btnDeselectAllRipples');
+    if (btnDeselectAll) {
+      btnDeselectAll.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
+          window.AppCoordinator.clearSelection({ reason: 'ripple_multi_toolbar_deselect' });
+        } else {
+          this.deselectRipple();
+        }
+      });
+    }
+
     const nameIn = document.getElementById('rippleNameInput');
     if (nameIn) {
       nameIn.addEventListener('input', (e) => {
@@ -357,10 +386,10 @@ window.Ripples = {
     });
   },
 
-  selectRipple(id) {
-    if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('ripple', id, { skipStageClear: true, skipModuleSelect: true });
-    } else {
+  selectRipple(id, options = {}) {
+    if (window.AppCoordinator && !options.skipCoordinator) {
+      window.AppCoordinator.selectObject('ripple', id, { skipStageClear: true, skipModuleSelect: true, ...options });
+    } else if (!options.multi) {
       if (window.DataFlows) window.DataFlows.deselectFlow();
       if (window.Glows) window.Glows.deselectGlow();
       if (window.DiagramNodes) window.DiagramNodes.deselectNode();
@@ -451,9 +480,12 @@ window.Ripples = {
     }
     container.innerHTML = '';
     this.list.forEach((rp) => {
-      const isSel = (this.activeId === rp.id);
+      const isSel = (window.AppCoordinator && typeof window.AppCoordinator.isObjectSelected === 'function')
+        ? window.AppCoordinator.isObjectSelected('ripple', rp.id)
+        : (this.activeId === rp.id);
+      const isPrimary = (this.activeId === rp.id);
       const div = document.createElement('div');
-      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '');
+      div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
       div.style.borderLeftColor = '#58a6ff';
       const labelText = rp.name || ('Ripple ' + rp.id);
       const safeLabel = this.escapeXML(labelText);
@@ -465,8 +497,14 @@ window.Ripples = {
         '<span class="compact-meta">' + (rp.rings || 3) + ' rings</span>' +
         '<button type="button" class="btn-row-action btn-row-delete" title="Delete ripple" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">&times;</button>';
 
-      div.onclick = () => {
-        if (this.activeId === rp.id) {
+      div.onclick = (e) => {
+        if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+          if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+            window.AppCoordinator.toggleObjectSelection('ripple', rp.id);
+            return;
+          }
+        }
+        if (this.activeId === rp.id && (!window.AppCoordinator || window.AppCoordinator.getSelectedItems().length <= 1)) {
           if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
             window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_ripple' });
           } else {

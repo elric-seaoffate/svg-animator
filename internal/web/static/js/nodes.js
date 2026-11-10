@@ -680,53 +680,133 @@ window.DiagramNodes = {
     // 2. Secondary multi-selection outlines
     if (multiGroup) {
       multiGroup.innerHTML = '';
-      if (selectedIds.length > 1) {
-        selectedIds.forEach((id) => {
-          if (targetNode && String(id) === String(targetNode.id)) return; // primary already drawn
-          const n = this.getNode(id);
-          if (!n) return;
-          const eff = this.getNodeEffectiveProps(n);
-          const cx = (n.x / 100) * dims.width;
-          const cy = (n.y / 100) * dims.height;
-          const w = eff.width + pad * 2;
-          const h = eff.height + pad * 2;
-          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-          rect.setAttribute('x', (cx - w / 2).toFixed(1));
-          rect.setAttribute('y', (cy - h / 2).toFixed(1));
-          rect.setAttribute('width', w.toFixed(1));
-          rect.setAttribute('height', h.toFixed(1));
-          rect.setAttribute('rx', '8');
-          rect.setAttribute('fill', 'rgba(88, 166, 255, 0.08)');
-          rect.setAttribute('stroke', '#58a6ff');
-          rect.setAttribute('stroke-width', '2');
-          rect.setAttribute('stroke-dasharray', '5,3');
-          rect.setAttribute('vector-effect', 'non-scaling-stroke');
-          multiGroup.appendChild(rect);
+      const allSelectedItems = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+        ? window.AppCoordinator.getSelectedItems()
+        : (selectedIds.map((id) => ({ type: 'node', id })));
+
+      if (allSelectedItems.length > 1) {
+        allSelectedItems.forEach((it) => {
+          if (!it || it.id == null) return;
+          if (it.type === 'node') {
+            if (targetNode && String(it.id) === String(targetNode.id)) return; // primary already drawn
+            const n = this.getNode(it.id);
+            if (!n) return;
+            const eff = this.getNodeEffectiveProps(n);
+            const cx = (n.x / 100) * dims.width;
+            const cy = (n.y / 100) * dims.height;
+            const w = eff.width + pad * 2;
+            const h = eff.height + pad * 2;
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', (cx - w / 2).toFixed(1));
+            rect.setAttribute('y', (cy - h / 2).toFixed(1));
+            rect.setAttribute('width', w.toFixed(1));
+            rect.setAttribute('height', h.toFixed(1));
+            rect.setAttribute('rx', '8');
+            rect.setAttribute('fill', 'rgba(88, 166, 255, 0.08)');
+            rect.setAttribute('stroke', '#58a6ff');
+            rect.setAttribute('stroke-width', '2');
+            rect.setAttribute('stroke-dasharray', '5,3');
+            rect.setAttribute('vector-effect', 'non-scaling-stroke');
+            multiGroup.appendChild(rect);
+          } else if (it.type === 'glow' && window.Glows) {
+            const g = window.Glows.getGlow(it.id);
+            if (!g) return;
+            const cx = (g.x / 100) * dims.width;
+            const cy = (g.y / 100) * dims.height;
+            const rad = Math.max(16, (((g.size || 25) / 2) / 100) * Math.min(dims.width, dims.height) + 6);
+            const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circ.setAttribute('cx', cx.toFixed(1));
+            circ.setAttribute('cy', cy.toFixed(1));
+            circ.setAttribute('r', rad.toFixed(1));
+            circ.setAttribute('fill', 'rgba(255, 0, 68, 0.08)');
+            circ.setAttribute('stroke', '#ff7b72');
+            circ.setAttribute('stroke-width', '2');
+            circ.setAttribute('stroke-dasharray', '5,3');
+            circ.setAttribute('vector-effect', 'non-scaling-stroke');
+            multiGroup.appendChild(circ);
+          } else if (it.type === 'ripple' && window.Ripples) {
+            const rp = window.Ripples.getRipple(it.id);
+            if (!rp) return;
+            const cx = (rp.x / 100) * dims.width;
+            const cy = (rp.y / 100) * dims.height;
+            const rad = Math.max(18, ((rp.outerR || 150) / 100 / 2) * Math.min(dims.width, dims.height) + 6);
+            const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circ.setAttribute('cx', cx.toFixed(1));
+            circ.setAttribute('cy', cy.toFixed(1));
+            circ.setAttribute('r', rad.toFixed(1));
+            circ.setAttribute('fill', 'rgba(0, 229, 255, 0.08)');
+            circ.setAttribute('stroke', '#00e5ff');
+            circ.setAttribute('stroke-width', '2');
+            circ.setAttribute('stroke-dasharray', '5,3');
+            circ.setAttribute('vector-effect', 'non-scaling-stroke');
+            multiGroup.appendChild(circ);
+          } else if (it.type === 'flow' && window.DataFlows) {
+            const livePath = document.getElementById('flowPath-' + it.id);
+            if (livePath && livePath.getAttribute('d')) {
+              const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              highlight.setAttribute('d', livePath.getAttribute('d'));
+              highlight.setAttribute('fill', 'none');
+              highlight.setAttribute('stroke', '#58a6ff');
+              highlight.setAttribute('stroke-width', '4');
+              highlight.setAttribute('stroke-dasharray', '6,4');
+              highlight.setAttribute('vector-effect', 'non-scaling-stroke');
+              multiGroup.appendChild(highlight);
+            }
+          }
         });
       }
     }
 
     // 3. Update multi-selection toolbar
-    this.updateMultiSelectToolbar(selectedIds);
+    this.updateMultiSelectToolbar();
   },
 
-  updateMultiSelectToolbar(selectedIds) {
-    const ids = selectedIds || ((window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
+  updateMultiSelectToolbar() {
+    const items = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+      ? window.AppCoordinator.getSelectedItems()
+      : (this.activeId !== null ? [{ type: 'node', id: this.activeId }] : []);
+    const nodeIds = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
       ? window.AppCoordinator.getSelectedNodeIds()
-      : (this.activeId !== null ? [this.activeId] : []));
+      : (this.activeId !== null ? [this.activeId] : []);
+
     const toolbar = document.getElementById('nodeMultiSelectToolbar');
     const badge = document.getElementById('multiSelectionBadge');
-    if (!toolbar) return;
-    if (ids.length >= 2) {
-      toolbar.style.display = 'block';
-      if (badge) badge.innerText = ids.length + ' Shapes Selected';
-      const btnDistH = document.getElementById('btnDistributeH');
-      const btnDistV = document.getElementById('btnDistributeV');
-      if (btnDistH) btnDistH.disabled = ids.length < 3;
-      if (btnDistV) btnDistV.disabled = ids.length < 3;
-    } else {
-      toolbar.style.display = 'none';
+    if (toolbar) {
+      if (items.length >= 2) {
+        toolbar.style.display = 'block';
+        if (badge) {
+          badge.innerText = (nodeIds.length === items.length)
+            ? (items.length + ' Shapes Selected')
+            : (items.length + ' Objects Selected');
+        }
+        const canAlign = nodeIds.length >= 2;
+        const canDist = nodeIds.length >= 3;
+        ['btnAlignLeft', 'btnAlignHCenter', 'btnAlignRight', 'btnAlignTop', 'btnAlignVCenter', 'btnAlignBottom'].forEach((btnId) => {
+          const btn = document.getElementById(btnId);
+          if (btn) btn.disabled = !canAlign;
+        });
+        const btnDistH = document.getElementById('btnDistributeH');
+        const btnDistV = document.getElementById('btnDistributeV');
+        if (btnDistH) btnDistH.disabled = !canDist;
+        if (btnDistV) btnDistV.disabled = !canDist;
+      } else {
+        toolbar.style.display = 'none';
+      }
     }
+
+    // Also update flow, glow, ripple toolbars if present
+    ['flow', 'glow', 'ripple'].forEach((typ) => {
+      const tb = document.getElementById(typ + 'MultiSelectToolbar');
+      const bg = document.getElementById(typ + 'MultiSelectionBadge');
+      if (tb) {
+        if (items.length >= 2) {
+          tb.style.display = 'block';
+          if (bg) bg.innerText = items.length + ' Objects Selected';
+        } else {
+          tb.style.display = 'none';
+        }
+      }
+    });
   },
 
   updateGroupOverlay(groupId) {
@@ -848,7 +928,7 @@ window.DiagramNodes = {
             return;
           }
         }
-        if (this.activeId !== null && String(this.activeId) === String(node.id) && (!window.AppCoordinator || window.AppCoordinator.getSelectedNodeIds().length === 1)) {
+        if (this.activeId !== null && String(this.activeId) === String(node.id) && (!window.AppCoordinator || window.AppCoordinator.getSelectedItems().length <= 1)) {
           if (window.AppCoordinator && typeof window.AppCoordinator.clearSelection === 'function') {
             window.AppCoordinator.clearSelection({ reason: 'sidebar_toggle_node' });
           } else {

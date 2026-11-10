@@ -92,7 +92,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | SVA Background Asset Packaging & Restoration Repair | **Implemented (v1.2.0)** | `pkg/engine/sva/decoder.go`, `encoder.go`, `effects.js`, `projects.js` |
 | Post-Migration Consolidation & Stable Release | **Implemented (v1.2.0)** | `cmd/svg-animator/`, `docs/`, `scripts/`, release packaging |
 | Multi-Selection, Alignment, Distribution & Colour Tool | **Implemented (Stage 12)** | `pkg/engine/scene/transform.go`, `selection.go`, `protocol/`, `coordinator.js`, `app.js` |
-| Persistent Object Groups, Integrated Duplication & Copy/Paste | **Implemented (Stage 13)** | `pkg/engine/scene/group.go`, `clipboard.go`, `sva/`, `protocol/`, `coordinator.js`, `engine-bridge.js`, `app.js` |
+| Persistent Object Groups, Integrated Duplication & Copy/Paste | **Implemented (Stage 13 & Repair)** | `pkg/engine/scene/group.go`, `clipboard.go`, `sva/`, `protocol/`, `coordinator.js`, `engine-bridge.js`, `stage.js`, `nodes.js`, `flows.js`, `glows.js`, `ripples.js`, `app.js` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |

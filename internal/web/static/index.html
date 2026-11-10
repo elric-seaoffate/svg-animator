@@ -582,6 +582,17 @@
               <div class="inspector-column-header">
                 <span class="inspector-column-title">SELECTED PROPERTIES</span>
               </div>
+              <!-- Flow Multi-Selection Toolbar -->
+              <div id="flowMultiSelectToolbar" class="node-multi-toolbar" style="display: none; margin-bottom: 0.5rem; padding: 0.45rem; background: var(--bg-surface-secondary, #21262d); border-radius: 6px; border: 1px solid var(--border-color, #30363d);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span id="flowMultiSelectionBadge" style="font-size: 0.75rem; font-weight: 600; color: #58a6ff;">2 Objects Selected</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectAllFlows" title="Deselect All">Deselect</button>
+                </div>
+                <div class="group-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                  <button type="button" class="tool-btn-compact" id="btnGroupFlowSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
+                  <button type="button" class="tool-btn-compact" id="btnDuplicateFlowSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+                </div>
+              </div>
               <div id="emptyFlowSelection" class="inspector-empty-state">
                 Select a connector flow to edit waypoints and styles, or click <strong>+ Add</strong> above.
               </div>
@@ -751,6 +762,17 @@
               <div class="inspector-column-header">
                 <span class="inspector-column-title">SELECTED PROPERTIES</span>
               </div>
+              <!-- Glow Multi-Selection Toolbar -->
+              <div id="glowMultiSelectToolbar" class="node-multi-toolbar" style="display: none; margin-bottom: 0.5rem; padding: 0.45rem; background: var(--bg-surface-secondary, #21262d); border-radius: 6px; border: 1px solid var(--border-color, #30363d);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span id="glowMultiSelectionBadge" style="font-size: 0.75rem; font-weight: 600; color: #58a6ff;">2 Objects Selected</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectAllGlows" title="Deselect All">Deselect</button>
+                </div>
+                <div class="group-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                  <button type="button" class="tool-btn-compact" id="btnGroupGlowSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
+                  <button type="button" class="tool-btn-compact" id="btnDuplicateGlowSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+                </div>
+              </div>
               <div id="emptyGlowSelection" class="inspector-empty-state">
                 Select a hotspot glow to edit pulse, color and radar attributes, or click <strong>+ Add</strong> above.
               </div>
@@ -882,6 +904,17 @@
             <div class="inspector-detail-column">
               <div class="inspector-column-header">
                 <span class="inspector-column-title">SELECTED PROPERTIES</span>
+              </div>
+              <!-- Ripple Multi-Selection Toolbar -->
+              <div id="rippleMultiSelectToolbar" class="node-multi-toolbar" style="display: none; margin-bottom: 0.5rem; padding: 0.45rem; background: var(--bg-surface-secondary, #21262d); border-radius: 6px; border: 1px solid var(--border-color, #30363d);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span id="rippleMultiSelectionBadge" style="font-size: 0.75rem; font-weight: 600; color: #58a6ff;">2 Objects Selected</span>
+                  <button type="button" class="btn-deselect-sidebar" id="btnDeselectAllRipples" title="Deselect All">Deselect</button>
+                </div>
+                <div class="group-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                  <button type="button" class="tool-btn-compact" id="btnGroupRippleSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
+                  <button type="button" class="tool-btn-compact" id="btnDuplicateRippleSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+                </div>
               </div>
               <div id="emptyRippleSelection" class="inspector-empty-state">
                 Select a liquid ripple to edit refraction and wave parameters, or click <strong>+ Add</strong> above.
@@ -1424,6 +1457,15 @@
               <input type="range" id="fctx-rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0">
               <input type="number" class="num-input" id="fctx-rippleEndDelayNum" value="1.0">
             </div>
+          </div>
+        </div>
+
+        <!-- MULTI-SELECTION BAR (When 2+ items selected) -->
+        <div id="fctx-multiBar" style="display: none; padding: 0.35rem 0.5rem; margin-bottom: 0.45rem; background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); border-radius: 6px; justify-content: space-between; align-items: center;">
+          <span id="fctx-multiBarText" style="font-size: 0.75rem; color: #58a6ff; font-weight: 600;">2 Objects Selected</span>
+          <div style="display: flex; gap: 4px;">
+            <button type="button" class="btn-floating-action" id="fctx-btnGroupMulti" style="padding: 0.18rem 0.45rem; font-size: 0.72rem; background: #1f6feb; color: #fff;" title="Group selected objects (Ctrl+G)">👥 Group</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnDuplicateMulti" style="padding: 0.18rem 0.45rem; font-size: 0.72rem;" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
           </div>
         </div>
 

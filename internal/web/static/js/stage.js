@@ -123,6 +123,68 @@ window.Stage = {
     });
   },
 
+  _startMixedDrag(items, anchorPct, coords, e, potentialSingleType = null, potentialSingleId = null) {
+    this.isGroupDragging = true;
+    this.potentialSingleSelectType = potentialSingleType;
+    this.potentialSingleSelectId = potentialSingleId;
+    this.dragAnchorNode = { x: anchorPct.x, y: anchorPct.y };
+    this.dragInitialAnchorPct = { x: anchorPct.x, y: anchorPct.y };
+    this.groupDragInitialPositions = { items: [] };
+
+    (items || []).forEach((it) => {
+      if (it.type === 'node' && window.DiagramNodes) {
+        const n = window.DiagramNodes.getNode(it.id);
+        if (n) {
+          this.groupDragInitialPositions.items.push({
+            type: 'node',
+            id: n.id,
+            initX: n.x,
+            initY: n.y
+          });
+        }
+      } else if (it.type === 'glow' && window.Glows) {
+        const g = window.Glows.getGlow(it.id);
+        if (g) {
+          this.groupDragInitialPositions.items.push({
+            type: 'glow',
+            id: g.id,
+            initX: g.x,
+            initY: g.y
+          });
+        }
+      } else if (it.type === 'ripple' && window.Ripples) {
+        const rp = window.Ripples.getRipple(it.id);
+        if (rp) {
+          this.groupDragInitialPositions.items.push({
+            type: 'ripple',
+            id: rp.id,
+            initX: rp.x,
+            initY: rp.y
+          });
+        }
+      } else if (it.type === 'flow' && window.DataFlows) {
+        const f = window.DataFlows.getFlow(it.id);
+        if (f && Array.isArray(f.nodes)) {
+          this.groupDragInitialPositions.items.push({
+            type: 'flow',
+            id: f.id,
+            fromNodeId: f.fromNodeId,
+            toNodeId: f.toNodeId,
+            initNodes: f.nodes.map((p) => ({ x: p.x, y: p.y }))
+          });
+        }
+      }
+    });
+
+    this.nodeGrabOffsetX = anchorPct.x - coords.x;
+    this.nodeGrabOffsetY = anchorPct.y - coords.y;
+    this.dragStartClientX = e.clientX;
+    this.dragStartClientY = e.clientY;
+    this.hasMovedDrag = false;
+    this.isDragging = true;
+    try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+  },
+
   init(onPlaceCallback, onFileLoadedCallback) {
     this.previewBox = document.getElementById('previewBox');
     this.svgContainer = document.getElementById('svgContainer');
@@ -257,9 +319,10 @@ window.Stage = {
 
         if (clickedNode) {
           const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
-          const currentSelectedNodeIds = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
-            ? window.AppCoordinator.getSelectedNodeIds()
+          const currentSelectedItems = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+            ? window.AppCoordinator.getSelectedItems()
             : [];
+          const isNodeSelected = currentSelectedItems.some((it) => it.type === 'node' && String(it.id) === String(clickedNode.id));
 
           if (isModifier) {
             if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
@@ -275,52 +338,19 @@ window.Stage = {
 
           if (memberGroup) {
             window.AppCoordinator.selectGroup(memberGroup.id);
-            this.isGroupDragging = true;
-            this.potentialSingleSelectId = null;
-            this.dragAnchorNode = clickedNode;
-            this.dragInitialAnchorPct = { x: clickedNode.x, y: clickedNode.y };
-            this.groupDragInitialPositions = {};
-            (memberGroup.members || []).forEach((m) => {
-              if (m.type === 'node') {
-                const n = window.DiagramNodes ? window.DiagramNodes.getNode(m.id) : null;
-                if (n) this.groupDragInitialPositions[m.id] = { x: n.x, y: n.y };
-              }
-            });
-            this.nodeGrabOffsetX = clickedNode.x - coords.x;
-            this.nodeGrabOffsetY = clickedNode.y - coords.y;
-            this.dragStartClientX = e.clientX;
-            this.dragStartClientY = e.clientY;
-            this.hasMovedDrag = false;
-            this.isDragging = true;
-            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            this._startMixedDrag(memberGroup.members, { x: clickedNode.x, y: clickedNode.y }, coords, e);
             return;
           }
 
-          if (currentSelectedNodeIds.length > 1 && currentSelectedNodeIds.map(String).includes(String(clickedNode.id))) {
+          if (currentSelectedItems.length > 1 && isNodeSelected) {
             // Node is part of existing multi-selection -> prepare group drag
-            this.isGroupDragging = true;
-            this.potentialSingleSelectId = clickedNode.id;
-            this.dragAnchorNode = clickedNode;
-            this.dragInitialAnchorPct = { x: clickedNode.x, y: clickedNode.y };
-            this.groupDragInitialPositions = {};
-            currentSelectedNodeIds.forEach((id) => {
-              const n = window.DiagramNodes ? window.DiagramNodes.getNode(id) : null;
-              if (n) {
-                this.groupDragInitialPositions[id] = { x: n.x, y: n.y };
-              }
-            });
-            this.nodeGrabOffsetX = clickedNode.x - coords.x;
-            this.nodeGrabOffsetY = clickedNode.y - coords.y;
-            this.dragStartClientX = e.clientX;
-            this.dragStartClientY = e.clientY;
-            this.hasMovedDrag = false;
-            this.isDragging = true;
-            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            this._startMixedDrag(currentSelectedItems, { x: clickedNode.x, y: clickedNode.y }, coords, e, 'node', clickedNode.id);
             return;
           }
 
           // Single selection
           this.isGroupDragging = false;
+          this.potentialSingleSelectType = null;
           this.potentialSingleSelectId = null;
           this.groupDragInitialPositions = null;
           if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
@@ -346,6 +376,40 @@ window.Stage = {
             glowId = window.Glows.activeId;
           }
           if (glowId !== null && !isNaN(glowId)) {
+            const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+            if (isModifier) {
+              if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+                window.AppCoordinator.toggleObjectSelection('glow', glowId);
+              }
+              this.isDragging = false;
+              return;
+            }
+
+            const memberGroup = (window.AppCoordinator && !window.AppCoordinator.isInGroupEditMode())
+              ? window.AppCoordinator.findGroupByMember('glow', glowId)
+              : null;
+            if (memberGroup) {
+              window.AppCoordinator.selectGroup(memberGroup.id);
+              const g = window.Glows.getGlow(glowId);
+              this._startMixedDrag(memberGroup.members, { x: g ? g.x : coords.x, y: g ? g.y : coords.y }, coords, e);
+              return;
+            }
+
+            const currentSelectedItems = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+              ? window.AppCoordinator.getSelectedItems()
+              : [];
+            const isGlowSelected = currentSelectedItems.some((it) => it.type === 'glow' && String(it.id) === String(glowId));
+            if (currentSelectedItems.length > 1 && isGlowSelected) {
+              const g = window.Glows.getGlow(glowId);
+              this._startMixedDrag(currentSelectedItems, { x: g ? g.x : coords.x, y: g ? g.y : coords.y }, coords, e, 'glow', glowId);
+              return;
+            }
+
+            // Single selection
+            this.isGroupDragging = false;
+            this.potentialSingleSelectType = null;
+            this.potentialSingleSelectId = null;
+            this.groupDragInitialPositions = null;
             if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
               window.AppCoordinator.selectObject('glow', glowId, { openAccordionId: 'acc-glows' });
             }
@@ -368,6 +432,40 @@ window.Stage = {
             rippleId = window.Ripples.activeId;
           }
           if (rippleId !== null && !isNaN(rippleId)) {
+            const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+            if (isModifier) {
+              if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+                window.AppCoordinator.toggleObjectSelection('ripple', rippleId);
+              }
+              this.isDragging = false;
+              return;
+            }
+
+            const memberGroup = (window.AppCoordinator && !window.AppCoordinator.isInGroupEditMode())
+              ? window.AppCoordinator.findGroupByMember('ripple', rippleId)
+              : null;
+            if (memberGroup) {
+              window.AppCoordinator.selectGroup(memberGroup.id);
+              const rp = window.Ripples.getRipple(rippleId);
+              this._startMixedDrag(memberGroup.members, { x: rp ? rp.x : coords.x, y: rp ? rp.y : coords.y }, coords, e);
+              return;
+            }
+
+            const currentSelectedItems = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+              ? window.AppCoordinator.getSelectedItems()
+              : [];
+            const isRippleSelected = currentSelectedItems.some((it) => it.type === 'ripple' && String(it.id) === String(rippleId));
+            if (currentSelectedItems.length > 1 && isRippleSelected) {
+              const rp = window.Ripples.getRipple(rippleId);
+              this._startMixedDrag(currentSelectedItems, { x: rp ? rp.x : coords.x, y: rp ? rp.y : coords.y }, coords, e, 'ripple', rippleId);
+              return;
+            }
+
+            // Single selection
+            this.isGroupDragging = false;
+            this.potentialSingleSelectType = null;
+            this.potentialSingleSelectId = null;
+            this.groupDragInitialPositions = null;
             if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
               window.AppCoordinator.selectObject('ripple', rippleId, { openAccordionId: 'acc-ripples' });
             }
@@ -391,6 +489,23 @@ window.Stage = {
             if (m) flowId = parseInt(m[1], 10);
           }
           if (flowId !== null && !isNaN(flowId)) {
+            const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+            if (isModifier) {
+              if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+                window.AppCoordinator.toggleObjectSelection('flow', flowId);
+              }
+              this.isDragging = false;
+              return;
+            }
+
+            const memberGroup = (window.AppCoordinator && !window.AppCoordinator.isInGroupEditMode())
+              ? window.AppCoordinator.findGroupByMember('flow', flowId)
+              : null;
+            if (memberGroup) {
+              window.AppCoordinator.selectGroup(memberGroup.id);
+              return;
+            }
+
             if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
               window.AppCoordinator.selectObject('flow', flowId, { openAccordionId: 'acc-flows' });
             }
@@ -457,7 +572,7 @@ window.Stage = {
           this.hasMovedDrag = true;
         }
 
-        if (this.isGroupDragging && this.groupDragInitialPositions) {
+        if (this.isGroupDragging && this.groupDragInitialPositions && Array.isArray(this.groupDragInitialPositions.items)) {
           const coords = this.clientToCanvasPct(e.clientX, e.clientY);
           const rawTargetX = coords.x + this.nodeGrabOffsetX;
           const rawTargetY = coords.y + this.nodeGrabOffsetY;
@@ -465,22 +580,57 @@ window.Stage = {
           const deltaX = snapped.x - this.dragInitialAnchorPct.x;
           const deltaY = snapped.y - this.dragInitialAnchorPct.y;
 
-          Object.keys(this.groupDragInitialPositions).forEach((id) => {
-            const initPos = this.groupDragInitialPositions[id];
-            const n = window.DiagramNodes ? window.DiagramNodes.getNode(id) : null;
-            if (n) {
-              n.x = Math.max(-50, Math.min(150, initPos.x + deltaX));
-              n.y = Math.max(-50, Math.min(150, initPos.y + deltaY));
-              const liveGroup = document.querySelector('#svgContainer [data-node-id="' + n.id + '"]');
-              if (liveGroup) {
-                const cx = (n.x / 100) * this.canvasWidth;
-                const cy = (n.y / 100) * this.canvasHeight;
-                liveGroup.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+          this.groupDragInitialPositions.items.forEach((item) => {
+            if (item.type === 'node') {
+              const n = window.DiagramNodes ? window.DiagramNodes.getNode(item.id) : null;
+              if (n) {
+                n.x = Math.max(-50, Math.min(150, item.initX + deltaX));
+                n.y = Math.max(-50, Math.min(150, item.initY + deltaY));
+                const liveGroup = document.querySelector('#svgContainer [data-node-id="' + n.id + '"]');
+                if (liveGroup) {
+                  const cx = (n.x / 100) * this.canvasWidth;
+                  const cy = (n.y / 100) * this.canvasHeight;
+                  liveGroup.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+                }
+              }
+            } else if (item.type === 'glow') {
+              const g = window.Glows ? window.Glows.getGlow(item.id) : null;
+              if (g) {
+                g.x = Math.max(-50, Math.min(150, item.initX + deltaX));
+                g.y = Math.max(-50, Math.min(150, item.initY + deltaY));
+                const liveGlow = document.querySelector('#svgContainer [data-glow-id="' + g.id + '"]');
+                if (liveGlow) {
+                  const cx = (g.x / 100) * this.canvasWidth;
+                  const cy = (g.y / 100) * this.canvasHeight;
+                  liveGlow.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+                }
+              }
+            } else if (item.type === 'ripple') {
+              const rp = window.Ripples ? window.Ripples.getRipple(item.id) : null;
+              if (rp) {
+                rp.x = Math.max(-50, Math.min(150, item.initX + deltaX));
+                rp.y = Math.max(-50, Math.min(150, item.initY + deltaY));
+                const liveRipple = document.querySelector('#svgContainer [data-ripple-id="' + rp.id + '"]');
+                if (liveRipple) {
+                  const cx = (rp.x / 100) * this.canvasWidth;
+                  const cy = (rp.y / 100) * this.canvasHeight;
+                  liveRipple.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+                }
+              }
+            } else if (item.type === 'flow') {
+              const f = window.DataFlows ? window.DataFlows.getFlow(item.id) : null;
+              if (f && Array.isArray(f.nodes) && item.initNodes && (!f.fromNodeId || !f.toNodeId)) {
+                f.nodes.forEach((pt, idx) => {
+                  if (item.initNodes[idx]) {
+                    pt.x = Math.round((item.initNodes[idx].x + deltaX) * 1000) / 1000;
+                    pt.y = Math.round((item.initNodes[idx].y + deltaY) * 1000) / 1000;
+                  }
+                });
               }
             }
           });
-          if (window.DiagramNodes && typeof window.DiagramNodes.updateUIOverlay === 'function') {
-            window.DiagramNodes.updateUIOverlay();
+          if (window.AppCoordinator) {
+            window.AppCoordinator.updateActiveOverlays();
           }
           return;
         }
@@ -511,8 +661,10 @@ window.Stage = {
             const minY = Math.min(this.marqueeStartPct.y, curCoords.y);
             const maxY = Math.max(this.marqueeStartPct.y, curCoords.y);
 
-            const allNodes = window.DiagramNodes ? window.DiagramNodes.getAllNodes() : [];
             const hits = [];
+
+            // 1. Nodes
+            const allNodes = window.DiagramNodes ? window.DiagramNodes.getAllNodes() : [];
             allNodes.forEach((n) => {
               const eff = window.DiagramNodes.getNodeEffectiveProps(n);
               const hwPct = ((eff.width || 170) / this.canvasWidth) * 50;
@@ -522,19 +674,55 @@ window.Stage = {
               const nMinY = n.y - hhPct;
               const nMaxY = n.y + hhPct;
               const intersects = !(nMaxX < minX || nMinX > maxX || nMaxY < minY || nMinY > maxY);
-              if (intersects) hits.push(n.id);
+              if (intersects) hits.push({ type: 'node', id: n.id });
+            });
+
+            // 2. Glows
+            const allGlows = window.Glows ? window.Glows.getAllGlows() : [];
+            allGlows.forEach((g) => {
+              const rPct = (((g.size || 25) / 2) / Math.min(this.canvasWidth, this.canvasHeight)) * 100;
+              const gMinX = g.x - rPct;
+              const gMaxX = g.x + rPct;
+              const gMinY = g.y - rPct;
+              const gMaxY = g.y + rPct;
+              const intersects = !(gMaxX < minX || gMinX > maxX || gMaxY < minY || gMinY > maxY);
+              if (intersects) hits.push({ type: 'glow', id: g.id });
+            });
+
+            // 3. Ripples
+            const allRipples = window.Ripples ? window.Ripples.getAllRipples() : [];
+            allRipples.forEach((rp) => {
+              const rPct = ((rp.outerR || 150) / Math.min(this.canvasWidth, this.canvasHeight)) * 100;
+              const rMinX = rp.x - rPct;
+              const rMaxX = rp.x + rPct;
+              const rMinY = rp.y - rPct;
+              const rMaxY = rp.y + rPct;
+              const intersects = !(rMaxX < minX || rMinX > maxX || rMaxY < minY || rMinY > maxY);
+              if (intersects) hits.push({ type: 'ripple', id: rp.id });
+            });
+
+            // 4. Flows
+            const allFlows = window.DataFlows && Array.isArray(window.DataFlows.list) ? window.DataFlows.list : [];
+            allFlows.forEach((f) => {
+              if (Array.isArray(f.nodes)) {
+                const hasPtInBox = f.nodes.some((p) => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY);
+                if (hasPtInBox) hits.push({ type: 'flow', id: f.id });
+              }
             });
 
             if (this.marqueeAdditive && window.AppCoordinator) {
-              const existingIds = window.AppCoordinator.getSelectedNodeIds();
-              const combined = Array.from(new Set([...existingIds, ...hits]));
+              const existingItems = window.AppCoordinator.getSelectedItems();
+              const combined = [...existingItems];
+              hits.forEach((h) => {
+                if (!combined.some((it) => it.type === h.type && String(it.id) === String(h.id))) {
+                  combined.push(h);
+                }
+              });
               if (combined.length > 0) {
-                const items = combined.map((id) => ({ type: 'node', id }));
-                window.AppCoordinator.setMultiSelection(items, combined[0]);
+                window.AppCoordinator.setMultiSelection(combined, combined[0].id);
               }
             } else if (hits.length > 0 && window.AppCoordinator) {
-              const items = hits.map((id) => ({ type: 'node', id }));
-              window.AppCoordinator.setMultiSelection(items, hits[0]);
+              window.AppCoordinator.setMultiSelection(hits, hits[0].id);
             } else if (window.AppCoordinator) {
               window.AppCoordinator.clearSelection({ reason: 'marquee_empty' });
             }
@@ -551,8 +739,10 @@ window.Stage = {
         if (this.isGroupDragging) {
           const wasMoved = this.hasMovedDrag;
           const groupPositions = this.groupDragInitialPositions;
+          const potentialType = this.potentialSingleSelectType;
           const potentialId = this.potentialSingleSelectId;
           this.isGroupDragging = false;
+          this.potentialSingleSelectType = null;
           this.potentialSingleSelectId = null;
           this.groupDragInitialPositions = null;
           this.isDragging = false;
@@ -560,25 +750,45 @@ window.Stage = {
           this.nodeGrabOffsetY = 0;
           try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
 
-          if (wasMoved && groupPositions) {
-            // Commit moved coordinates to Go Engine
-            if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-              Object.keys(groupPositions).forEach((id) => {
-                const n = window.DiagramNodes ? window.DiagramNodes.getNode(id) : null;
-                if (n) window.EngineBridge.updateNode(n.id, { x: n.x, y: n.y });
-              });
-            }
+          if (wasMoved && groupPositions && Array.isArray(groupPositions.items)) {
+            // Commit moved coordinates to Go Engine / modules
+            groupPositions.items.forEach((item) => {
+              if (item.type === 'node') {
+                const n = window.DiagramNodes ? window.DiagramNodes.getNode(item.id) : null;
+                if (n && window.EngineBridge && typeof window.EngineBridge.updateNode === 'function') {
+                  window.EngineBridge.updateNode(n.id, { x: n.x, y: n.y });
+                }
+              } else if (item.type === 'glow') {
+                const g = window.Glows ? window.Glows.getGlow(item.id) : null;
+                if (g && window.EngineBridge && typeof window.EngineBridge.updateGlow === 'function') {
+                  window.EngineBridge.updateGlow(g.id, { x: g.x, y: g.y });
+                }
+              } else if (item.type === 'ripple') {
+                const rp = window.Ripples ? window.Ripples.getRipple(item.id) : null;
+                if (rp && window.EngineBridge && typeof window.EngineBridge.updateRipple === 'function') {
+                  window.EngineBridge.updateRipple(rp.id, { x: rp.x, y: rp.y });
+                }
+              } else if (item.type === 'flow') {
+                const f = window.DataFlows ? window.DataFlows.getFlow(item.id) : null;
+                if (f && window.EngineBridge && typeof window.EngineBridge.updateFlow === 'function') {
+                  window.EngineBridge.updateFlow(f.id, { nodes: f.nodes });
+                }
+              }
+            });
+
             if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
               window.DiagramNodes.refreshAfterChange();
             }
             if (window.AppCoordinator) {
               window.AppCoordinator.requestRender();
               window.AppCoordinator.recordHistoryImmediate();
+              window.AppCoordinator.updateActiveOverlays();
             }
-          } else if (potentialId) {
+          } else if (potentialType && potentialId) {
             // Click without drag on multi-selected item -> narrow selection to single clicked item
+            const accMap = { node: 'acc-nodes', glow: 'acc-glows', ripple: 'acc-ripples', flow: 'acc-flows' };
             if (window.AppCoordinator) {
-              window.AppCoordinator.selectObject('node', potentialId, { openAccordionId: 'acc-nodes' });
+              window.AppCoordinator.selectObject(potentialType, potentialId, { openAccordionId: accMap[potentialType] });
             }
           }
           return;

@@ -821,8 +821,27 @@ window.FloatingPropertiesEditor = {
 
     editor.style.display = 'flex';
 
+    this._syncMultiBar();
     this.syncFromActiveObject();
     this.updatePosition(options.resetPosition);
+  },
+
+  _syncMultiBar() {
+    const multiBar = document.getElementById('fctx-multiBar');
+    if (!multiBar) return;
+    const items = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+      ? window.AppCoordinator.getSelectedItems()
+      : [];
+    if (items.length >= 2) {
+      multiBar.style.display = 'flex';
+      const countEl = document.getElementById('fctx-multiCount');
+      if (countEl) {
+        const allNodes = items.every(it => (it.type || '').toLowerCase() === 'node');
+        countEl.textContent = `${items.length} ${allNodes ? 'Shapes' : 'Objects'} Selected`;
+      }
+    } else {
+      multiBar.style.display = 'none';
+    }
   },
 
   close(clearSelection = true) {
@@ -1017,6 +1036,7 @@ window.FloatingPropertiesEditor = {
 
   syncFromActiveObject() {
     if (!this.isOpen || this._isSyncing) return;
+    this._syncMultiBar();
     this._isSyncing = true;
     try {
       const titleEl = document.getElementById('floatingEditorTitle');
@@ -1796,6 +1816,25 @@ window.FloatingPropertiesEditor = {
         }
       });
     }
+
+    // Multi-Selection Floating Controls
+    const btnGroupMulti = document.getElementById('fctx-btnGroupMulti');
+    if (btnGroupMulti) {
+      btnGroupMulti.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+          window.AppCoordinator.createGroupFromSelection();
+        }
+      });
+    }
+
+    const btnDupMulti = document.getElementById('fctx-btnDuplicateMulti');
+    if (btnDupMulti) {
+      btnDupMulti.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.duplicateSelection === 'function') {
+          window.AppCoordinator.duplicateSelection();
+        }
+      });
+    }
   },
 
   _resolveTargetObject(target) {
@@ -1933,9 +1972,17 @@ window.FloatingPropertiesEditor = {
 
         const obj = this._resolveTargetObject(e.target);
         if (obj) {
-          const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
-          if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
-            window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });
+          const isAlreadyMultiSelected = window.AppCoordinator &&
+            typeof window.AppCoordinator.isObjectSelected === 'function' &&
+            window.AppCoordinator.isObjectSelected(obj.type, obj.id) &&
+            typeof window.AppCoordinator.getSelectedItems === 'function' &&
+            window.AppCoordinator.getSelectedItems().length >= 2;
+
+          if (!isAlreadyMultiSelected) {
+            const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
+            if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+              window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });
+            }
           }
 
           this.openFor(obj.type, obj.id, {
