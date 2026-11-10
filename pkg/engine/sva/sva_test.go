@@ -696,3 +696,170 @@ func TestSVAGroupPackagingAndRestoration(t *testing.T) {
 		t.Fatalf("extracted state groups mismatch: %+v", stateMap["groups"])
 	}
 }
+
+func TestSVAMixedTypeAndOpticalGroups(t *testing.T) {
+	studioJSON := `{
+		"version": "1.2.0",
+		"nodes": [
+			{"id": "node-1", "shape": "rect", "text": "Station", "x": 100, "y": 100, "width": 80, "height": 40}
+		],
+		"nodesCounter": 1,
+		"flows": [
+			{"id": "flow-1", "name": "Pipe", "fromNodeId": "node-1", "toNodeId": "node-1", "nodes": [{"x": 100, "y": 100}, {"x": 200, "y": 100}]}
+		],
+		"flowsCounter": 1,
+		"glows": [
+			{"id": "glow-1", "name": "Indicator", "x": 120, "y": 120, "size": 15},
+			{"id": "glow-2", "name": "Optical Indicator", "x": 300, "y": 300, "size": 25}
+		],
+		"glowsCounter": 2,
+		"ripples": [
+			{"id": "ripple-1", "name": "Wave", "x": 140, "y": 140, "innerRadius": 10, "outerRadius": 40},
+			{"id": "ripple-2", "name": "Optical Wave", "x": 320, "y": 320, "innerRadius": 5, "outerRadius": 50}
+		],
+		"ripplesCounter": 2,
+		"groups": [
+			{
+				"id": "group-1",
+				"name": "Mixed Station Assembly",
+				"members": [
+					{"type": "node", "id": "node-1"},
+					{"type": "flow", "id": "flow-1"},
+					{"type": "glow", "id": "glow-1"},
+					{"type": "ripple", "id": "ripple-1"}
+				]
+			},
+			{
+				"id": "group-2",
+				"name": "Optical Only Assembly",
+				"members": [
+					{"type": "glow", "id": "glow-2"},
+					{"type": "ripple", "id": "ripple-2"}
+				]
+			}
+		],
+		"groupsCounter": 2
+	}`
+
+	proj, err := BuildProjectFromStudioState("Complex Groups Project", "Mixed and optical groups", []byte(studioJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed: %v", err)
+	}
+
+	if len(proj.Scene.Groups) != 2 {
+		t.Fatalf("expected 2 groups in proj.Scene, got %d", len(proj.Scene.Groups))
+	}
+	if proj.Scene.GroupsCounter != 2 {
+		t.Errorf("expected GroupsCounter 2, got %d", proj.Scene.GroupsCounter)
+	}
+
+	// Verify mixed group members
+	mixedGrp := proj.Scene.Groups[0]
+	if len(mixedGrp.Members) != 4 {
+		t.Fatalf("expected 4 members in mixed group, got %d", len(mixedGrp.Members))
+	}
+
+	// Verify optical-only group members
+	optGrp := proj.Scene.Groups[1]
+	if len(optGrp.Members) != 2 {
+		t.Fatalf("expected 2 members in optical group, got %d", len(optGrp.Members))
+	}
+
+	// Encode to SVA
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	// Decode from SVA
+	dec, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if len(dec.Scene.Groups) != 2 {
+		t.Fatalf("expected 2 groups in decoded project, got %d", len(dec.Scene.Groups))
+	}
+	if dec.Scene.GroupsCounter != 2 {
+		t.Errorf("expected decoded GroupsCounter 2, got %d", dec.Scene.GroupsCounter)
+	}
+
+	// Extract back to Studio State
+	extractedBytes, err := ExtractStudioState(dec)
+	if err != nil {
+		t.Fatalf("ExtractStudioState failed: %v", err)
+	}
+
+	var stateMap map[string]any
+	if err := json.Unmarshal(extractedBytes, &stateMap); err != nil {
+		t.Fatalf("Unmarshal extracted state failed: %v", err)
+	}
+
+	rawGrps, ok := stateMap["groups"].([]any)
+	if !ok || len(rawGrps) != 2 {
+		t.Fatalf("expected 2 groups in extracted studio state, got %v", stateMap["groups"])
+	}
+	gc, ok := stateMap["groupsCounter"].(float64)
+	if !ok || int64(gc) != 2 {
+		t.Errorf("expected groupsCounter 2 in extracted studio state, got %v", stateMap["groupsCounter"])
+	}
+}
+
+func TestSVABackwardCompatibilityNoGroups(t *testing.T) {
+	legacyJSON := `{
+		"version": "1.2.0",
+		"nodes": [
+			{"id": "node-1", "shape": "rect", "text": "Legacy Node", "x": 10, "y": 10, "width": 50, "height": 30}
+		],
+		"nodesCounter": 1,
+		"flows": [],
+		"flowsCounter": 0,
+		"glows": [],
+		"glowsCounter": 0,
+		"ripples": [],
+		"ripplesCounter": 0
+	}`
+
+	proj, err := BuildProjectFromStudioState("Legacy Project", "No groups defined", []byte(legacyJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed on legacy schema: %v", err)
+	}
+
+	if proj.Scene.Groups == nil {
+		t.Fatalf("proj.Scene.Groups should be non-nil slice")
+	}
+	if len(proj.Scene.Groups) != 0 {
+		t.Errorf("expected 0 groups, got %d", len(proj.Scene.Groups))
+	}
+	if proj.Scene.GroupsCounter != 0 {
+		t.Errorf("expected GroupsCounter 0, got %d", proj.Scene.GroupsCounter)
+	}
+
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode legacy project failed: %v", err)
+	}
+
+	dec, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode legacy project failed: %v", err)
+	}
+
+	if len(dec.Scene.Groups) != 0 {
+		t.Errorf("expected 0 groups in decoded legacy project, got %d", len(dec.Scene.Groups))
+	}
+
+	extractedBytes, err := ExtractStudioState(dec)
+	if err != nil {
+		t.Fatalf("ExtractStudioState legacy project failed: %v", err)
+	}
+
+	var stateMap map[string]any
+	if err := json.Unmarshal(extractedBytes, &stateMap); err != nil {
+		t.Fatalf("Unmarshal legacy extracted state failed: %v", err)
+	}
+	rawGrps, ok := stateMap["groups"].([]any)
+	if !ok || len(rawGrps) != 0 {
+		t.Fatalf("expected empty groups slice in legacy extracted state, got %v", stateMap["groups"])
+	}
+}

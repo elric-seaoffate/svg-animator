@@ -452,8 +452,9 @@ type GroupGetResponse struct {
 
 // GroupListResponse response for "Group.List".
 type GroupListResponse struct {
-	Groups []scene.Group `json:"groups"`
-	Count  int           `json:"count"`
+	Groups        []scene.Group `json:"groups"`
+	Count         int           `json:"count"`
+	GroupsCounter int64         `json:"groupsCounter"`
 }
 
 // GroupMoveRequest payload for "Group.Move".
@@ -1973,7 +1974,11 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 
 	case "Group.List":
 		grps := activeScene.GetAllGroups()
-		return json.Marshal(GroupListResponse{Groups: grps, Count: len(grps)})
+		return json.Marshal(GroupListResponse{
+			Groups:        grps,
+			Count:         len(grps),
+			GroupsCounter: activeScene.GroupsCounter(),
+		})
 
 	case "Group.Move":
 		var req GroupMoveRequest

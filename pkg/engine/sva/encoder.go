@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -310,6 +311,24 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 
 	nowISO := time.Now().UTC().Format(time.RFC3339)
 
+	groupsCounter := raw.GroupsCounter
+	groups := raw.Groups
+	if groups == nil {
+		groups = []scene.Group{}
+	}
+	if groupsCounter == 0 && len(groups) > 0 {
+		for _, g := range groups {
+			rawID := string(g.ID)
+			if strings.HasPrefix(rawID, "group-") {
+				if num, err := strconv.Atoi(strings.TrimPrefix(rawID, "group-")); err == nil && num > groupsCounter {
+					groupsCounter = num
+				}
+			} else if num, err := strconv.Atoi(rawID); err == nil && num > groupsCounter {
+				groupsCounter = num
+			}
+		}
+	}
+
 	proj := &Project{
 		Manifest: Manifest{
 			Format:           FormatSignature,
@@ -337,8 +356,8 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 			GlowsCounter:    raw.GlowsCounter,
 			Ripples:         raw.Ripples,
 			RipplesCounter:  raw.RipplesCounter,
-			Groups:          raw.Groups,
-			GroupsCounter:   raw.GroupsCounter,
+			Groups:          groups,
+			GroupsCounter:   groupsCounter,
 			Metadata:        raw.Metadata,
 		},
 		Assets: assets,

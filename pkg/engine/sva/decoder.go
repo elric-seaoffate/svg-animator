@@ -308,6 +308,25 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		}
 	}
 
+	groupsCounter := s.GroupsCounter
+	if groupsCounter == 0 && len(s.Groups) > 0 {
+		for _, g := range s.Groups {
+			rawID := string(g.ID)
+			if strings.HasPrefix(rawID, "group-") {
+				if num, err := strconv.Atoi(strings.TrimPrefix(rawID, "group-")); err == nil && num > groupsCounter {
+					groupsCounter = num
+				}
+			} else if num, err := strconv.Atoi(rawID); err == nil && num > groupsCounter {
+				groupsCounter = num
+			}
+		}
+	}
+
+	resolvedGroups := s.Groups
+	if resolvedGroups == nil {
+		resolvedGroups = []scene.Group{}
+	}
+
 	payload := map[string]any{
 		"version":         "1.2.0",
 		"controls":        controls,
@@ -322,8 +341,8 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		"glowsCounter":    s.GlowsCounter,
 		"ripples":         s.Ripples,
 		"ripplesCounter":  s.RipplesCounter,
-		"groups":          s.Groups,
-		"groupsCounter":   s.GroupsCounter,
+		"groups":          resolvedGroups,
+		"groupsCounter":   groupsCounter,
 		"metadata":        s.Metadata,
 	}
 

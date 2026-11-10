@@ -251,6 +251,7 @@ type Snapshot struct {
 	Nodes    []Node        `json:"nodes"`
 	Flows    []Flow        `json:"flows"`
 	Glows    []Glow        `json:"glows"`
-	Ripples  []Ripple      `json:"ripples"`
-	Groups   []Group       `json:"groups,omitempty"`
+	Ripples       []Ripple      `json:"ripples"`
+	Groups        []Group       `json:"groups,omitempty"`
+	GroupsCounter int64         `json:"groupsCounter,omitempty"`
 }

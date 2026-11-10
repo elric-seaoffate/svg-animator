@@ -169,13 +169,28 @@ window.HistoryManager = {
     let groupsCounter = 0;
     if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.listGroups === 'function') {
       groupsList = window.EngineBridge.listGroups() || [];
-    } else if (window.ObjectGroups && typeof window.ObjectGroups.getState === 'function') {
-      const gs = window.ObjectGroups.getState();
-      groupsList = gs.groups || [];
-      groupsCounter = gs.groupsCounter || 0;
-    } else if (window.ObjectGroups) {
-      groupsList = window.ObjectGroups.list || [];
-      groupsCounter = window.ObjectGroups.counter || 0;
+      if (typeof window.EngineBridge.getGroupsCounter === 'function') {
+        groupsCounter = window.EngineBridge.getGroupsCounter() || 0;
+      }
+    }
+    if ((!groupsList || groupsList.length === 0) && window.ObjectGroups) {
+      if (typeof window.ObjectGroups.getState === 'function') {
+        const gs = window.ObjectGroups.getState();
+        groupsList = gs.groups || [];
+        groupsCounter = gs.groupsCounter || 0;
+      } else {
+        groupsList = window.ObjectGroups.list || [];
+        groupsCounter = window.ObjectGroups.counter || 0;
+      }
+    }
+    if (groupsCounter === 0 && Array.isArray(groupsList) && groupsList.length > 0) {
+      groupsList.forEach((g) => {
+        const m = String(g.id).match(/group-(\d+)/);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (num > groupsCounter) groupsCounter = num;
+        }
+      });
     }
 
     return JSON.stringify({

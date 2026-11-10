@@ -736,19 +736,27 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		s.rippleIDs = append(s.rippleIDs, r.ID)
 	}
 
-	s.groups = make(map[StringID]Group, len(snap.Groups))
-	s.groupIDs = make([]StringID, 0, len(snap.Groups))
-	for _, g := range snap.Groups {
-		rawID := string(g.ID)
-		if strings.HasPrefix(rawID, "group-") {
-			if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "group-"), 10, 64); err == nil && idNum > s.groupsCounter {
+	if snap.Groups != nil {
+		s.groups = make(map[StringID]Group, len(snap.Groups))
+		s.groupIDs = make([]StringID, 0, len(snap.Groups))
+		if len(snap.Groups) == 0 {
+			s.groupsCounter = snap.GroupsCounter
+		}
+		for _, g := range snap.Groups {
+			rawID := string(g.ID)
+			if strings.HasPrefix(rawID, "group-") {
+				if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "group-"), 10, 64); err == nil && idNum > s.groupsCounter {
+					s.groupsCounter = idNum
+				}
+			} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.groupsCounter {
 				s.groupsCounter = idNum
 			}
-		} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.groupsCounter {
-			s.groupsCounter = idNum
+			s.groups[g.ID] = g
+			s.groupIDs = append(s.groupIDs, g.ID)
 		}
-		s.groups[g.ID] = g
-		s.groupIDs = append(s.groupIDs, g.ID)
+		if snap.GroupsCounter > s.groupsCounter {
+			s.groupsCounter = snap.GroupsCounter
+		}
 	}
 
 	if snap.Revision > 0 {
@@ -789,16 +797,17 @@ func (s *Scene) GetSnapshot() Snapshot {
 	}
 
 	return Snapshot{
-		Revision: s.revision,
-		Canvas:   s.canvas,
-		Camera:   s.camera,
-		Optical:  s.optical,
-		Frame:    s.frame,
-		Overlays: s.frame,
-		Nodes:    nodes,
-		Flows:    flows,
-		Glows:    glows,
-		Ripples:  ripples,
-		Groups:   groups,
+		Revision:      s.revision,
+		Canvas:        s.canvas,
+		Camera:        s.camera,
+		Optical:       s.optical,
+		Frame:         s.frame,
+		Overlays:      s.frame,
+		Nodes:         nodes,
+		Flows:         flows,
+		Glows:         glows,
+		Ripples:       ripples,
+		Groups:        groups,
+		GroupsCounter: s.groupsCounter,
 	}
 }

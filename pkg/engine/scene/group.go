@@ -77,6 +77,13 @@ func (s *Scene) GetAllGroups() []Group {
 	return out
 }
 
+// GroupsCounter returns the current group ID counter.
+func (s *Scene) GroupsCounter() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.groupsCounter
+}
+
 // CreateGroup forms a new persistent group from 2 or more eligible scene objects.
 func (s *Scene) CreateGroup(name string, members []GroupMember) (Group, error) {
 	s.mu.Lock()

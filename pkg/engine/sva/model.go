@@ -1,6 +1,9 @@
 package sva
 
 import (
+	"strconv"
+	"strings"
+
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene"
 )
 
@@ -76,16 +79,31 @@ type Project struct {
 
 // ToSnapshot converts SceneData into a canonical scene.Snapshot.
 func (s *SceneData) ToSnapshot() scene.Snapshot {
+	groupsCounter := s.GroupsCounter
+	if groupsCounter == 0 && len(s.Groups) > 0 {
+		for _, g := range s.Groups {
+			rawID := string(g.ID)
+			if strings.HasPrefix(rawID, "group-") {
+				if num, err := strconv.Atoi(strings.TrimPrefix(rawID, "group-")); err == nil && num > groupsCounter {
+					groupsCounter = num
+				}
+			} else if num, err := strconv.Atoi(rawID); err == nil && num > groupsCounter {
+				groupsCounter = num
+			}
+		}
+	}
+
 	return scene.Snapshot{
-		Canvas:   s.Canvas,
-		Camera:   s.Camera,
-		Optical:  s.Optical,
-		Frame:    s.Frame,
-		Overlays: s.Frame,
-		Nodes:    s.Nodes,
-		Flows:    s.Flows,
-		Glows:    s.Glows,
-		Ripples:  s.Ripples,
-		Groups:   s.Groups,
+		Canvas:        s.Canvas,
+		Camera:        s.Camera,
+		Optical:       s.Optical,
+		Frame:         s.Frame,
+		Overlays:      s.Frame,
+		Nodes:         s.Nodes,
+		Flows:         s.Flows,
+		Glows:         s.Glows,
+		Ripples:       s.Ripples,
+		Groups:        s.Groups,
+		GroupsCounter: int64(groupsCounter),
 	}
 }

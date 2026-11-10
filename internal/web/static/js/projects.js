@@ -86,13 +86,28 @@ window.ProjectManager = {
     let groupsCounter = 0;
     if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.listGroups === 'function') {
       groupsList = window.EngineBridge.listGroups() || [];
-    } else if (window.ObjectGroups && typeof window.ObjectGroups.getState === 'function') {
-      const gs = window.ObjectGroups.getState();
-      groupsList = gs.groups || [];
-      groupsCounter = gs.groupsCounter || 0;
-    } else if (window.ObjectGroups) {
-      groupsList = window.ObjectGroups.list || [];
-      groupsCounter = window.ObjectGroups.counter || 0;
+      if (typeof window.EngineBridge.getGroupsCounter === 'function') {
+        groupsCounter = window.EngineBridge.getGroupsCounter() || 0;
+      }
+    }
+    if ((!groupsList || groupsList.length === 0) && window.ObjectGroups) {
+      if (typeof window.ObjectGroups.getState === 'function') {
+        const gs = window.ObjectGroups.getState();
+        groupsList = gs.groups || [];
+        groupsCounter = gs.groupsCounter || 0;
+      } else {
+        groupsList = window.ObjectGroups.list || [];
+        groupsCounter = window.ObjectGroups.counter || 0;
+      }
+    }
+    if (groupsCounter === 0 && Array.isArray(groupsList) && groupsList.length > 0) {
+      groupsList.forEach((g) => {
+        const m = String(g.id).match(/group-(\d+)/);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (num > groupsCounter) groupsCounter = num;
+        }
+      });
     }
 
     return JSON.stringify({
@@ -213,6 +228,10 @@ window.ProjectManager = {
       window.HistoryManager.undoStack = [];
       window.HistoryManager.redoStack = [];
       window.HistoryManager.recordImmediate();
+    }
+
+    if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.syncScene();
     }
 
     if (options && options.coordinate !== false && window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
@@ -555,6 +574,14 @@ window.ProjectManager = {
     if (window.Ripples) {
       if (typeof window.Ripples.setState === 'function') window.Ripples.setState({ ripples: [], ripplesCounter: 0 });
     }
+    if (window.ObjectGroups) {
+      if (typeof window.ObjectGroups.setState === 'function') {
+        window.ObjectGroups.setState({ groups: [], groupsCounter: 0 });
+      } else {
+        window.ObjectGroups.list = [];
+        window.ObjectGroups.counter = 0;
+      }
+    }
     if (window.NodePresets) {
       if (typeof window.NodePresets.resetToDefaults === 'function') {
         window.NodePresets.resetToDefaults();
@@ -569,6 +596,10 @@ window.ProjectManager = {
 
     this.updateHeaderBadge();
     this.renderProjectsList();
+
+    if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.syncScene();
+    }
 
     if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
       window.AppCoordinator.coordinatePostRestore({ source: 'new_project' });

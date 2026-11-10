@@ -5358,6 +5358,379 @@ async function runHarness() {
   assert.ok(fullSVG.includes('glows-layer'), 'Scenario 28: Glows layer preserved in SVG export');
   assert.ok(fullSVG.includes('animate'), 'Scenario 28: Declarative animations preserved in SVG export');
 
+  // ===========================================================================
+  // SCENARIO 29: Full SVA Export/Import Round-Trip with Mixed-Type Group
+  // (Shape + Flow + Glow + Ripple)
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 29: Full SVA Export/Import Round-Trip of Mixed-Type Group...');
+  window.ProjectManager.resetToNewProject();
+
+  const s29Node = window.DiagramNodes.createNode({ shape: 'rect', text: 'Turbine Node', x: 50, y: 50, width: 100, height: 60 });
+  const s29Flow = window.DataFlows.createFlow({ name: 'Steam Line', nodes: [{ x: 50, y: 50 }, { x: 150, y: 50 }], color: '#00ffcc' });
+  const s29Glow = window.Glows.createGlow({ name: 'Turbine Core Glow', x: 75, y: 60, size: 25, color: '#ff3366' });
+  const s29Ripple = window.Ripples.createRipple({ name: 'Turbine Vibration', x: 80, y: 70, innerRadius: 10, outerRadius: 40 });
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: s29Node.id },
+    { type: 'flow', id: s29Flow.id },
+    { type: 'glow', id: s29Glow.id },
+    { type: 'ripple', id: s29Ripple.id }
+  ]);
+
+  const s29Grp = window.AppCoordinator.createGroupFromSelection('Turbine Power Assembly');
+  assert.ok(s29Grp && s29Grp.id, 'Scenario 29: Mixed-type group must be created');
+  assert.strictEqual(s29Grp.name, 'Turbine Power Assembly');
+  assert.strictEqual(s29Grp.members.length, 4, 'Scenario 29: Group must have 4 members');
+
+  // Verify group is in Go and ObjectGroups
+  assert.strictEqual(window.EngineBridge.listGroups().length, 1, 'Scenario 29: Go engine must have 1 group');
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 29: ObjectGroups must have 1 group');
+
+  // Export SVA through ProjectManager.exportSVA
+  let capturedExportBlob = null;
+  let capturedExportFilename = null;
+  const origDownloadBlob = window.ProjectManager._downloadBlob;
+  window.ProjectManager._downloadBlob = (blob, fn) => {
+    capturedExportBlob = blob;
+    capturedExportFilename = fn;
+  };
+
+  await window.ProjectManager.exportSVA();
+  assert.ok(capturedExportBlob, 'Scenario 29: exportSVA must yield an archive blob');
+  assert.ok(capturedExportFilename.endsWith('.sva'), 'Scenario 29: Export filename must have .sva extension');
+
+  // Inspect the archive via decodeSVA
+  const s29Buf = await capturedExportBlob.arrayBuffer();
+  const s29Bytes = new Uint8Array(s29Buf);
+  let s29Binary = '';
+  for (let i = 0; i < s29Bytes.length; i += 8192) {
+    s29Binary += String.fromCharCode.apply(null, s29Bytes.subarray(i, i + 8192));
+  }
+  const s29B64 = btoa(s29Binary);
+
+  const s29Val = window.EngineBridge.validateSVA(s29B64);
+  assert.ok(s29Val && s29Val.success, 'Scenario 29: Exported archive must pass validateSVA');
+  assert.strictEqual(s29Val.manifest.format, 'sva', 'Scenario 29: Format signature must be sva');
+
+  const s29Dec = window.EngineBridge.decodeSVA(s29B64);
+  assert.ok(s29Dec && s29Dec.success, 'Scenario 29: Exported archive must decode successfully');
+  const s29DecState = typeof s29Dec.state === 'string' ? JSON.parse(s29Dec.state) : s29Dec.state;
+  assert.ok(Array.isArray(s29DecState.groups), 'Scenario 29: Decoded state must have groups array');
+  assert.strictEqual(s29DecState.groups.length, 1, 'Scenario 29: Decoded state must contain exactly 1 group');
+  assert.strictEqual(s29DecState.groups[0].name, 'Turbine Power Assembly', 'Scenario 29: Group name must survive in archive');
+  assert.strictEqual(s29DecState.groups[0].members.length, 4, 'Scenario 29: Group in archive must have 4 members');
+  assert.ok(s29DecState.groupsCounter >= 1, 'Scenario 29: groupsCounter in archive must be >= 1');
+
+  // Clear scene
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.DiagramNodes.list.length, 0, 'Scenario 29: resetToNewProject must clear nodes');
+  assert.strictEqual(window.DataFlows.list.length, 0, 'Scenario 29: resetToNewProject must clear flows');
+  assert.strictEqual(window.Glows.list.length, 0, 'Scenario 29: resetToNewProject must clear glows');
+  assert.strictEqual(window.Ripples.list.length, 0, 'Scenario 29: resetToNewProject must clear ripples');
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Scenario 29: resetToNewProject must clear ObjectGroups');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 0, 'Scenario 29: resetToNewProject must clear Go groups');
+
+  // Import SVA file through ProjectManager.importSVA
+  const fakeFile = {
+    name: 'Turbine Power Assembly.sva',
+    arrayBuffer: async () => s29Buf
+  };
+  await window.ProjectManager.importSVA(fakeFile);
+
+  // Restore _downloadBlob
+  window.ProjectManager._downloadBlob = origDownloadBlob;
+
+  // Assert restored scene objects
+  assert.strictEqual(window.DiagramNodes.list.length, 1, 'Scenario 29: Restored scene must have 1 node');
+  assert.strictEqual(window.DataFlows.list.length, 1, 'Scenario 29: Restored scene must have 1 flow');
+  assert.strictEqual(window.Glows.list.length, 1, 'Scenario 29: Restored scene must have 1 glow');
+  assert.strictEqual(window.Ripples.list.length, 1, 'Scenario 29: Restored scene must have 1 ripple');
+
+  // Assert restored groups
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 29: Restored ObjectGroups must have 1 group');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 1, 'Scenario 29: Restored Go engine must have 1 group');
+  const restoredGrp = window.ObjectGroups.list[0];
+  assert.strictEqual(restoredGrp.name, 'Turbine Power Assembly');
+  assert.strictEqual(restoredGrp.members.length, 4);
+
+  // Verify findGroupByMember across all 4 types
+  const rNode = window.DiagramNodes.list[0];
+  const rFlow = window.DataFlows.list[0];
+  const rGlow = window.Glows.list[0];
+  const rRipple = window.Ripples.list[0];
+
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('node', rNode.id)?.id, restoredGrp.id, 'Scenario 29: findGroupByMember must locate group by node');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('flow', rFlow.id)?.id, restoredGrp.id, 'Scenario 29: findGroupByMember must locate group by flow');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('glow', rGlow.id)?.id, restoredGrp.id, 'Scenario 29: findGroupByMember must locate group by glow');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('ripple', rRipple.id)?.id, restoredGrp.id, 'Scenario 29: findGroupByMember must locate group by ripple');
+
+  // Assert syncScene / render does not wipe groups
+  if (typeof window.render === 'function') {
+    window.render();
+  }
+  assert.strictEqual(window.EngineBridge.listGroups().length, 1, 'Scenario 29: syncScene must NOT wipe Go groups on render');
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 29: ObjectGroups must remain intact after render');
+  console.log('[HARNESS] Scenario 29 PASS: Full SVA round-trip of mixed-type group verified.');
+
+  // ===========================================================================
+  // SCENARIO 30: Post-Import Group Selection, Group Edit Mode Member Removal,
+  // and Group Dissolution Check
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 30: Group Selection, Member Removal & Dissolution...');
+  // 1. Selecting the group
+  window.AppCoordinator.clearSelection();
+  window.AppCoordinator.selectGroup(restoredGrp.id);
+  const selAfterClick = window.AppCoordinator.getSelectedItems();
+  assert.strictEqual(selAfterClick.length, 4, 'Scenario 30: Group selection contains all 4 members');
+
+  // 2. Enter Group Edit Mode
+  assert.ok(typeof window.AppCoordinator.enterGroupEditMode === 'function', 'enterGroupEditMode exists');
+  window.AppCoordinator.enterGroupEditMode(restoredGrp.id);
+  assert.strictEqual(window.AppCoordinator.getGroupEditModeGroupId(), restoredGrp.id, 'Scenario 30: Active group edit mode must be set');
+
+  // 3. Remove 1 member (Flow) from group
+  const remRes1 = window.AppCoordinator.removeSelectedMembersFromGroup([{ type: 'flow', id: rFlow.id }], restoredGrp.id);
+  assert.strictEqual(remRes1, true, 'Scenario 30: Flow removal succeeded');
+  const grpAfterRemoval = window.AppCoordinator.getGroup(restoredGrp.id);
+  assert.strictEqual(grpAfterRemoval.members.length, 3, 'Scenario 30: Group should now have 3 members');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('flow', rFlow.id), null, 'Scenario 30: Removed flow should no longer belong to group');
+  assert.ok(window.AppCoordinator.findGroupByMember('node', rNode.id), 'Scenario 30: Node still belongs to group');
+
+  // 4. Remove Glow from group
+  const remRes2 = window.AppCoordinator.removeSelectedMembersFromGroup([{ type: 'glow', id: rGlow.id }], restoredGrp.id);
+  assert.strictEqual(remRes2, true, 'Scenario 30: Glow removal succeeded');
+  const grpAfter2Removals = window.AppCoordinator.getGroup(restoredGrp.id);
+  assert.strictEqual(grpAfter2Removals.members.length, 2, 'Scenario 30: Group should now have 2 members (node and ripple)');
+
+  // 5. Remove Ripple from group -> should dissolve group (less than 2 members)
+  const remRes3 = window.AppCoordinator.removeSelectedMembersFromGroup([{ type: 'ripple', id: rRipple.id }], restoredGrp.id);
+  assert.strictEqual(remRes3, true, 'Scenario 30: Ripple removal succeeded');
+  const dissolvedGrp = window.AppCoordinator.getGroup(restoredGrp.id);
+  assert.strictEqual(dissolvedGrp, null, 'Scenario 30: Group should dissolve when fewer than 2 members remain');
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Scenario 30: ObjectGroups list empty after dissolution');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 0, 'Scenario 30: Go listGroups empty after dissolution');
+  assert.strictEqual(window.DiagramNodes.list.length, 1, 'Scenario 30: Remaining node must not be deleted');
+  console.log('[HARNESS] Scenario 30 PASS: Group selection, member removal, and dissolution verified.');
+
+  // ===========================================================================
+  // SCENARIO 31: Undo / Redo of Member Removal and Ungroup on Imported Group
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 31: Undo/Redo of Member Removal and Ungroup...');
+  // Undo the last removal (which dissolved the group)
+  window.HistoryManager.undo();
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 31: Undo must restore dissolved group');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 1, 'Scenario 31: Undo must restore group in Go engine');
+  let restoredAfterUndo = window.ObjectGroups.list[0];
+  assert.strictEqual(restoredAfterUndo.members.length, 2, 'Scenario 31: Restored group must have 2 members');
+
+  // Redo dissolution
+  window.HistoryManager.redo();
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Scenario 31: Redo must dissolve group again');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 0, 'Scenario 31: Redo must dissolve group in Go engine');
+
+  // Undo back to restore it
+  window.HistoryManager.undo();
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 31: Undo must restore group again');
+
+  // Test ungroup and its undo/redo
+  const s31GrpToUngroup = window.ObjectGroups.list[0];
+  window.AppCoordinator.selectGroup(s31GrpToUngroup.id);
+  const s31UngroupRes = window.AppCoordinator.ungroupSelectedGroup();
+  assert.strictEqual(s31UngroupRes, true, 'Scenario 31: ungroup must succeed');
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Scenario 31: ungroup must remove group definition');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 0, 'Scenario 31: ungroup must remove group in Go');
+  assert.strictEqual(window.DiagramNodes.list.length, 1, 'Scenario 31: ungroup must retain objects on canvas');
+
+  // Undo ungroup
+  window.HistoryManager.undo();
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 31: Undo ungroup must restore group');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 1, 'Scenario 31: Undo ungroup must restore group in Go');
+
+  // Redo ungroup
+  window.HistoryManager.redo();
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Scenario 31: Redo ungroup must re-ungroup');
+  console.log('[HARNESS] Scenario 31 PASS: Undo/Redo of member removal and ungroup verified.');
+
+  // ===========================================================================
+  // SCENARIO 32: Optical-Only Group (Glow + Ripple) SVA Round-Trip
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 32: Optical-Only Group SVA Round-Trip...');
+  window.ProjectManager.resetToNewProject();
+
+  const optGlow1 = window.Glows.createGlow({ name: 'Radar Glow 1', x: 100, y: 100, size: 30, color: '#ffaa00' });
+  const optGlow2 = window.Glows.createGlow({ name: 'Radar Glow 2', x: 200, y: 200, size: 40, color: '#ff00aa' });
+  const optRipple1 = window.Ripples.createRipple({ name: 'Sonar Pulse 1', x: 100, y: 100, innerRadius: 10, outerRadius: 60 });
+  const optRipple2 = window.Ripples.createRipple({ name: 'Sonar Pulse 2', x: 200, y: 200, innerRadius: 15, outerRadius: 75 });
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'glow', id: optGlow1.id },
+    { type: 'glow', id: optGlow2.id },
+    { type: 'ripple', id: optRipple1.id },
+    { type: 'ripple', id: optRipple2.id }
+  ]);
+
+  const optGroup = window.AppCoordinator.createGroupFromSelection('Pure Optics Cluster');
+  assert.ok(optGroup, 'Scenario 32: Optical group created');
+  assert.strictEqual(optGroup.members.length, 4, 'Scenario 32: Optical group has 4 optical members');
+
+  // Export SVA
+  let optBlob = null;
+  window.ProjectManager._downloadBlob = (blob) => { optBlob = blob; };
+  await window.ProjectManager.exportSVA();
+  assert.ok(optBlob, 'Scenario 32: exportSVA succeeded for optical group');
+
+  // Reset and Import
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.Glows.list.length, 0);
+  assert.strictEqual(window.Ripples.list.length, 0);
+  assert.strictEqual(window.ObjectGroups.list.length, 0);
+
+  const optBuf = await optBlob.arrayBuffer();
+  await window.ProjectManager.importSVA({ name: 'Pure Optics Cluster.sva', arrayBuffer: async () => optBuf });
+
+  assert.strictEqual(window.Glows.list.length, 2, 'Scenario 32: 2 Glows restored');
+  assert.strictEqual(window.Ripples.list.length, 2, 'Scenario 32: 2 Ripples restored');
+  assert.strictEqual(window.DiagramNodes.list.length, 0, 'Scenario 32: 0 Nodes restored');
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 32: 1 Group restored');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 1, 'Scenario 32: 1 Go group restored');
+
+  const restoredOptGrp = window.ObjectGroups.list[0];
+  assert.strictEqual(restoredOptGrp.name, 'Pure Optics Cluster');
+  assert.strictEqual(restoredOptGrp.members.length, 4);
+  assert.ok(restoredOptGrp.members.every(m => m.type === 'glow' || m.type === 'ripple'), 'Scenario 32: All members are optical');
+  console.log('[HARNESS] Scenario 32 PASS: Optical-only group SVA round-trip verified.');
+
+  // ===========================================================================
+  // SCENARIO 33: Double SVA Round-Trip (Import -> Duplicate Group -> Re-Export -> Re-Import)
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 33: Double SVA Round-Trip with Group Duplication...');
+  // Add a node and a flow to the current scene so the duplicated group has mixed types and remapped flows
+  const s33Node1 = window.DiagramNodes.createNode({ shape: 'rect', text: 'Inlet', x: 20, y: 20 });
+  const s33Node2 = window.DiagramNodes.createNode({ shape: 'rect', text: 'Outlet', x: 80, y: 20 });
+  const s33Flow = window.DataFlows.createFlow({ name: 'Connecting Pipe', fromNodeId: s33Node1.id, toNodeId: s33Node2.id, color: '#00ff99' });
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: s33Node1.id },
+    { type: 'node', id: s33Node2.id },
+    { type: 'flow', id: s33Flow.id }
+  ]);
+  const pipingGroup = window.AppCoordinator.createGroupFromSelection('Piping Assembly');
+  assert.ok(pipingGroup, 'Scenario 33: Piping group created');
+
+  // Total groups now: 'Pure Optics Cluster' + 'Piping Assembly' = 2
+  assert.strictEqual(window.ObjectGroups.list.length, 2, 'Scenario 33: 2 groups before duplication');
+
+  // Duplicate piping group
+  window.AppCoordinator.selectGroup(pipingGroup.id);
+  const s33DupSuccess = window.AppCoordinator.duplicateSelection();
+  assert.strictEqual(s33DupSuccess, true, 'Scenario 33: Duplication must succeed');
+  assert.strictEqual(window.ObjectGroups.list.length, 3, 'Scenario 33: 3 groups after duplication');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 3, 'Scenario 33: 3 Go groups after duplication');
+
+  // Re-export SVA
+  let doubleRoundBlob = null;
+  window.ProjectManager._downloadBlob = (blob) => { doubleRoundBlob = blob; };
+  await window.ProjectManager.exportSVA();
+  assert.ok(doubleRoundBlob, 'Scenario 33: Second SVA export succeeded');
+
+  // Clear scene
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.ObjectGroups.list.length, 0);
+  assert.strictEqual(window.EngineBridge.listGroups().length, 0);
+
+  // Re-import SVA
+  const doubleRoundBuf = await doubleRoundBlob.arrayBuffer();
+  await window.ProjectManager.importSVA({ name: 'DoubleRoundTrip.sva', arrayBuffer: async () => doubleRoundBuf });
+
+  assert.strictEqual(window.ObjectGroups.list.length, 3, 'Scenario 33: 3 groups restored after double round trip');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 3, 'Scenario 33: 3 Go groups restored after double round trip');
+
+  // Verify group names and unique IDs
+  const groupIds = new Set(window.ObjectGroups.list.map(g => g.id));
+  assert.strictEqual(groupIds.size, 3, 'Scenario 33: All 3 group IDs must be unique');
+  console.log('[HARNESS] Scenario 33 PASS: Double SVA round-trip with group duplication verified.');
+
+  // ===========================================================================
+  // SCENARIO 34: Backward Compatibility, Malformed IDs & SQLite State Integration
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 34: Backward Compatibility, Malformed IDs & SQLite State Integration...');
+  // 1. Backward compatibility: Schema without groups or groups: null
+  const legacySchema = {
+    version: '1.2.0',
+    controls: { canvasWidthInput: '1280', canvasHeightInput: '720' },
+    nodes: [{ id: 'legacy-1', shape: 'rect', text: 'Legacy Valve', x: 50, y: 50, width: 60, height: 40 }],
+    nodesCounter: 1,
+    flows: [],
+    flowsCounter: 0,
+    glows: [],
+    glowsCounter: 0,
+    ripples: [],
+    ripplesCounter: 0
+    // groups and groupsCounter intentionally omitted
+  };
+
+  const legacyEnc = window.EngineBridge.encodeSVA('Legacy Archive', 'Testing missing groups field', legacySchema);
+  assert.ok(legacyEnc && legacyEnc.success, 'Scenario 34: Encode legacy archive without groups must succeed');
+
+  const legacyDec = window.EngineBridge.decodeSVA(legacyEnc.dataB64);
+  assert.ok(legacyDec && legacyDec.success, 'Scenario 34: Decode legacy archive must succeed');
+  const legacyState = typeof legacyDec.state === 'string' ? JSON.parse(legacyDec.state) : legacyDec.state;
+  assert.ok(Array.isArray(legacyState.groups), 'Scenario 34: Decoded legacy state must default groups to empty array');
+  assert.strictEqual(legacyState.groups.length, 0, 'Scenario 34: Decoded legacy groups must be empty');
+
+  // Apply legacy state and coordinate post restore
+  window.ProjectManager.applyStudioState(legacyState);
+  window.AppCoordinator.coordinatePostRestore({ source: 'sva_import' });
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Scenario 34: ObjectGroups empty on legacy import');
+  assert.strictEqual(window.EngineBridge.listGroups().length, 0, 'Scenario 34: EngineBridge groups empty on legacy import');
+
+  // 2. Malformed member handling: Group references an object ID that doesn't exist
+  const stateWithMalformedGroup = {
+    version: '1.2.0',
+    controls: { canvasWidthInput: '1280', canvasHeightInput: '720' },
+    nodes: [{ id: 'valid-node', shape: 'rect', text: 'Valid Node', x: 10, y: 10, width: 50, height: 50 }],
+    nodesCounter: 1,
+    flows: [],
+    flowsCounter: 0,
+    glows: [],
+    glowsCounter: 0,
+    ripples: [],
+    ripplesCounter: 0,
+    groups: [
+      {
+        id: 'group-bad',
+        name: 'Group With Ghost Member',
+        members: [
+          { type: 'node', id: 'valid-node' },
+          { type: 'node', id: 'ghost-node-999' } // does not exist
+        ]
+      }
+    ],
+    groupsCounter: 1
+  };
+
+  window.ProjectManager.applyStudioState(stateWithMalformedGroup);
+  window.AppCoordinator.coordinatePostRestore({ source: 'sva_import' });
+  // Engine and Coordinator should safely load the group without crashing
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 34: Malformed group loaded gracefully');
+  // findGroupByMember for valid node works
+  assert.ok(window.AppCoordinator.findGroupByMember('node', 'valid-node'), 'Scenario 34: Valid member found in group');
+  // findGroupByMember for ghost node returns null or doesn't crash
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('node', 'ghost-node-999')?.id, 'group-bad');
+
+  // 3. SQLite persistence serialization verification
+  // Verify serializeStudioState outputs valid groups and groupsCounter
+  const studioSerialized = window.ProjectManager.serializeStudioState();
+  const parsedStudio = JSON.parse(studioSerialized);
+  assert.ok(Array.isArray(parsedStudio.groups), 'Scenario 34: serializeStudioState must produce groups array');
+  assert.strictEqual(parsedStudio.groups.length, 1, 'Scenario 34: serializeStudioState groups count matches');
+  assert.strictEqual(parsedStudio.groups[0].id, 'group-bad');
+  assert.strictEqual(parsedStudio.groupsCounter, 1, 'Scenario 34: groupsCounter preserved in studio serialization');
+
+  // Reset _downloadBlob to original
+  window.ProjectManager._downloadBlob = origDownloadBlob;
+  console.log('[HARNESS] Scenario 34 PASS: Backward compatibility, malformed IDs and SQLite serialization verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12 & 13 persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

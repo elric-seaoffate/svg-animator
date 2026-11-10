@@ -1172,12 +1172,32 @@
     listGroups() {
       if (this.isReady()) {
         const res = this.dispatch('Group.List', {});
-        if (res && Array.isArray(res.groups)) return res.groups;
+        if (res && Array.isArray(res.groups)) {
+          if (res.groupsCounter !== undefined) this._groupsCounter = res.groupsCounter;
+          return res.groups;
+        }
       }
       if (window.ObjectGroups) {
         return window.ObjectGroups.list;
       }
       return [];
+    },
+
+    getGroupsCounter() {
+      if (this.isReady()) {
+        if (this._groupsCounter !== undefined && this._groupsCounter !== null && this._groupsCounter > 0) {
+          return this._groupsCounter;
+        }
+        const res = this.dispatch('Group.List', {});
+        if (res && res.groupsCounter !== undefined) {
+          this._groupsCounter = res.groupsCounter;
+          return this._groupsCounter;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.counter || 0;
+      }
+      return 0;
     },
 
     syncFromEngineSnapshot(snap) {
@@ -1553,6 +1573,26 @@
         frameFillet: frameRaw.frameFillet != null ? !!frameRaw.frameFillet : (frameRaw.fillet != null ? !!frameRaw.fillet : true)
       };
 
+      const rawGroups = Array.isArray(raw.groups) ? raw.groups : [];
+      const groups = rawGroups.map((g) => ({
+        id: String(g.id || ''),
+        name: String(g.name || ''),
+        members: Array.isArray(g.members)
+          ? g.members.map((m) => ({ type: String(m.type || ''), id: String(m.id || '') }))
+          : [],
+        metadata: (g.metadata && typeof g.metadata === 'object') ? g.metadata : undefined
+      }));
+      let groupsCounter = Number(raw.groupsCounter) || 0;
+      if (groupsCounter === 0 && groups.length > 0) {
+        groups.forEach((g) => {
+          const m = String(g.id).match(/group-(\d+)/);
+          if (m) {
+            const num = parseInt(m[1], 10);
+            if (num > groupsCounter) groupsCounter = num;
+          }
+        });
+      }
+
       return {
         revision: Number(raw.revision) || Date.now(),
         canvas: {
@@ -1588,7 +1628,9 @@
         nodes: nodes,
         flows: flows,
         glows: glows,
-        ripples: ripples
+        ripples: ripples,
+        groups: groups,
+        groupsCounter: groupsCounter
       };
     },
 
@@ -1617,6 +1659,16 @@
         ? window.Ripples.list
         : [];
 
+      let groups = [];
+      let groupsCounter = 0;
+      if (typeof window !== 'undefined' && window.ObjectGroups && Array.isArray(window.ObjectGroups.list)) {
+        groups = window.ObjectGroups.list;
+        groupsCounter = window.ObjectGroups.counter || 0;
+      } else if (this.isReady()) {
+        groups = this.listGroups() || [];
+        groupsCounter = this.getGroupsCounter() || 0;
+      }
+
       return this.normalizeSceneSnapshot({
         revision: Date.now(),
         canvas: {
@@ -1632,7 +1684,9 @@
         nodes: nodes,
         flows: flows,
         glows: glows,
-        ripples: ripples
+        ripples: ripples,
+        groups: groups,
+        groupsCounter: groupsCounter
       });
     },
 
@@ -2087,6 +2141,10 @@
   const ObjectGroups = {
     list: [],
     counter: 0,
+
+    getAllGroups() {
+      return this.list;
+    },
 
     getState() {
       return {
