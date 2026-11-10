@@ -680,11 +680,19 @@ window.Stage = {
             // 2. Glows
             const allGlows = window.Glows ? window.Glows.getAllGlows() : [];
             allGlows.forEach((g) => {
-              const rPct = (((g.size || 25) / 2) / Math.min(this.canvasWidth, this.canvasHeight)) * 100;
-              const gMinX = g.x - rPct;
-              const gMaxX = g.x + rPct;
-              const gMinY = g.y - rPct;
-              const gMaxY = g.y + rPct;
+              let hw = Math.max(16, g.size || 25);
+              let hh = hw;
+              if (g.shape === 'custom' && g.customW && g.customH) {
+                const scale = g.scale || 1.0;
+                hw = (g.customW * scale) / 2;
+                hh = (g.customH * scale) / 2;
+              }
+              const hwPct = (hw / this.canvasWidth) * 100;
+              const hhPct = (hh / this.canvasHeight) * 100;
+              const gMinX = g.x - hwPct;
+              const gMaxX = g.x + hwPct;
+              const gMinY = g.y - hhPct;
+              const gMaxY = g.y + hhPct;
               const intersects = !(gMaxX < minX || gMinX > maxX || gMaxY < minY || gMinY > maxY);
               if (intersects) hits.push({ type: 'glow', id: g.id });
             });
@@ -692,11 +700,13 @@ window.Stage = {
             // 3. Ripples
             const allRipples = window.Ripples ? window.Ripples.getAllRipples() : [];
             allRipples.forEach((rp) => {
-              const rPct = ((rp.outerR || 150) / Math.min(this.canvasWidth, this.canvasHeight)) * 100;
-              const rMinX = rp.x - rPct;
-              const rMaxX = rp.x + rPct;
-              const rMinY = rp.y - rPct;
-              const rMaxY = rp.y + rPct;
+              const hitR = Math.max(20, rp.outerR || 100);
+              const rxPct = (hitR / this.canvasWidth) * 100;
+              const ryPct = (hitR / this.canvasHeight) * 100;
+              const rMinX = rp.x - rxPct;
+              const rMaxX = rp.x + rxPct;
+              const rMinY = rp.y - ryPct;
+              const rMaxY = rp.y + ryPct;
               const intersects = !(rMaxX < minX || rMinX > maxX || rMaxY < minY || rMinY > maxY);
               if (intersects) hits.push({ type: 'ripple', id: rp.id });
             });

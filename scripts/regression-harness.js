@@ -5105,6 +5105,259 @@ async function runHarness() {
     assert.strictEqual(window.AppCoordinator.getGroup(undoGrp.id), null, 'Scenario 22: Group re-ungrouped after redo');
   }
 
+  // ===========================================================================
+  // STAGE 13 FINAL UI REPAIR: Rectangular Marquee Selection & Selection Overlay Geometry
+  // ===========================================================================
+  console.log('[HARNESS] Testing Stage 13 Final UI Repair: Marquee & Overlay Geometry (Scenarios 23-28)...');
+
+  // SCENARIO 23: Marquee selection of multiple types (Shapes, Shape+Flow, Glow+Ripple, All 4)
+  const mqNodeA = window.DiagramNodes.createNode({ text: 'MQ_NodeA', x: 20, y: 30, width: 80, height: 40 });
+  const mqNodeB = window.DiagramNodes.createNode({ text: 'MQ_NodeB', x: 35, y: 30, width: 80, height: 40 });
+  const mqFlow = window.DataFlows.createFlow({ name: 'MQ_Flow', nodes: [{ x: 25, y: 30 }, { x: 35, y: 30 }] });
+  const mqGlow = window.Glows.createGlow({ name: 'MQ_Glow', x: 60, y: 40, size: 25 });
+  const mqRipple = window.Ripples.createRipple({ name: 'MQ_Ripple', x: 75, y: 40, outerR: 120 });
+
+  // Simulate marquee covering mqNodeA and mqNodeB (x: 2..45, y: 20..40)
+  const previewEl = document.getElementById('previewBox');
+  assert.ok(previewEl, 'Scenario 23: previewBox exists');
+
+  // Pointerdown on blank canvas (x: 2%, y: 20%) -> client coords
+  const canvasW = window.Stage.canvasWidth || 1280;
+  const canvasH = window.Stage.canvasHeight || 720;
+  const rectPreview = previewEl.getBoundingClientRect();
+
+  // Test pointer events sequence for marquee:
+  previewEl.dispatchEvent({
+    type: 'pointerdown',
+    button: 0,
+    clientX: rectPreview.left + (2 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (20 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  assert.strictEqual(window.Stage.isMarqueeSelecting, true, 'Scenario 23: Marquee selecting started');
+
+  // Move to (45%, 40%)
+  previewEl.dispatchEvent({
+    type: 'pointermove',
+    clientX: rectPreview.left + (45 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (40 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  const marqueeBoxEl = document.getElementById('marqueeSelectionBox');
+  assert.ok(marqueeBoxEl, 'Scenario 23: marqueeBox exists');
+  assert.strictEqual(marqueeBoxEl.style.display, 'block', 'Scenario 23: Marquee box displayed during drag');
+  assert.ok(marqueeBoxEl.getAttribute('width') !== null, 'Scenario 23: Marquee box has width attribute');
+  assert.ok(marqueeBoxEl.getAttribute('height') !== null, 'Scenario 23: Marquee box has height attribute');
+
+  // Pointerup -> triggers hit detection
+  previewEl.dispatchEvent({
+    type: 'pointerup',
+    clientX: rectPreview.left + (45 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (40 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  assert.strictEqual(window.Stage.isMarqueeSelecting, false, 'Scenario 23: Marquee ended');
+  assert.strictEqual(marqueeBoxEl.style.display, 'none', 'Scenario 23: Marquee box hidden after release');
+
+  const selItemsShapes = window.AppCoordinator.getSelectedItems();
+  assert.ok(selItemsShapes.some((it) => it.type === 'node' && it.id === mqNodeA.id), 'Scenario 23: mqNodeA selected');
+  assert.ok(selItemsShapes.some((it) => it.type === 'node' && it.id === mqNodeB.id), 'Scenario 23: mqNodeB selected');
+
+  // Marquee over Glow + Ripple (x: 55..85, y: 30..55)
+  previewEl.dispatchEvent({
+    type: 'pointerdown',
+    button: 0,
+    clientX: rectPreview.left + (55 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (30 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  previewEl.dispatchEvent({
+    type: 'pointermove',
+    clientX: rectPreview.left + (85 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (55 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  previewEl.dispatchEvent({
+    type: 'pointerup',
+    clientX: rectPreview.left + (85 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (55 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  const selItemsOptics = window.AppCoordinator.getSelectedItems();
+  assert.ok(selItemsOptics.some((it) => it.type === 'glow' && it.id === mqGlow.id), 'Scenario 23: mqGlow selected');
+  assert.ok(selItemsOptics.some((it) => it.type === 'ripple' && it.id === mqRipple.id), 'Scenario 23: mqRipple selected');
+
+  // Marquee encompassing all four (x: 2..95, y: 20..60)
+  previewEl.dispatchEvent({
+    type: 'pointerdown',
+    button: 0,
+    clientX: rectPreview.left + (2 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (20 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  previewEl.dispatchEvent({
+    type: 'pointermove',
+    clientX: rectPreview.left + (95 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (60 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  previewEl.dispatchEvent({
+    type: 'pointerup',
+    clientX: rectPreview.left + (95 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (60 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  const selAll4 = window.AppCoordinator.getSelectedItems();
+  assert.ok(selAll4.some((it) => it.type === 'node'), 'Scenario 23: Quad includes node');
+  assert.ok(selAll4.some((it) => it.type === 'flow'), 'Scenario 23: Quad includes flow');
+  assert.ok(selAll4.some((it) => it.type === 'glow'), 'Scenario 23: Quad includes glow');
+  assert.ok(selAll4.some((it) => it.type === 'ripple'), 'Scenario 23: Quad includes ripple');
+
+  // SCENARIO 24: Marquee under Zoom and Pan
+  window.Stage.zoomMode = 'manual';
+  window.Stage.zoomScale = 1.5;
+  window.Stage.panX = 40;
+  window.Stage.panY = 25;
+  window.Stage.syncOverlayBounds(1280, 720);
+
+  // Convert coords through clientToCanvasPct with pan/zoom active
+  const testClientX = rectPreview.left + 200;
+  const testClientY = rectPreview.top + 150;
+  const converted = window.Stage.clientToCanvasPct(testClientX, testClientY);
+  assert.ok(converted.x >= 0 && converted.x <= 100, 'Scenario 24: Zoom/pan X within canvas percentage');
+  assert.ok(converted.y >= 0 && converted.y <= 100, 'Scenario 24: Zoom/pan Y within canvas percentage');
+
+  // Reset zoom & pan
+  window.Stage.zoomMode = 'fit';
+  window.Stage.zoomScale = 1.0;
+  window.Stage.panX = 0;
+  window.Stage.panY = 0;
+  window.Stage.syncOverlayBounds(1280, 720);
+
+  // SCENARIO 25: Additive marquee selection (Shift-drag)
+  window.AppCoordinator.selectObject('node', mqNodeA.id);
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 1);
+
+  previewEl.dispatchEvent({
+    type: 'pointerdown',
+    button: 0,
+    shiftKey: true,
+    clientX: rectPreview.left + (55 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (30 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  assert.strictEqual(window.Stage.marqueeAdditive, true, 'Scenario 25: Marquee additive mode active');
+  previewEl.dispatchEvent({
+    type: 'pointermove',
+    shiftKey: true,
+    clientX: rectPreview.left + (85 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (55 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  previewEl.dispatchEvent({
+    type: 'pointerup',
+    shiftKey: true,
+    clientX: rectPreview.left + (85 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (55 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  const additiveItems = window.AppCoordinator.getSelectedItems();
+  assert.ok(additiveItems.some((it) => it.type === 'node' && it.id === mqNodeA.id), 'Scenario 25: Prior node preserved in additive marquee');
+  assert.ok(additiveItems.some((it) => it.type === 'glow' && it.id === mqGlow.id), 'Scenario 25: Added glow in additive marquee');
+  assert.ok(additiveItems.some((it) => it.type === 'ripple' && it.id === mqRipple.id), 'Scenario 25: Added ripple in additive marquee');
+
+  // SCENARIO 26: Blank canvas click clears selection
+  previewEl.dispatchEvent({
+    type: 'pointerdown',
+    button: 0,
+    clientX: rectPreview.left + (2 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (90 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  previewEl.dispatchEvent({
+    type: 'pointerup',
+    clientX: rectPreview.left + (2 / 100) * rectPreview.width,
+    clientY: rectPreview.top + (90 / 100) * rectPreview.height,
+    pointerId: 1
+  });
+  assert.strictEqual(window.AppCoordinator.getSelectedItems().length, 0, 'Scenario 26: Blank click cleared selection');
+
+  // SCENARIO 27: Geometric bounds of selection indicators in multiSelectionGroup
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mqNodeA.id },
+    { type: 'glow', id: mqGlow.id },
+    { type: 'ripple', id: mqRipple.id }
+  ]);
+  const multiGroupEl = document.getElementById('multiSelectionGroup');
+  assert.ok(multiGroupEl);
+
+  // Inspect generated overlay circles and rects in multiGroup
+  const circles = multiGroupEl.children.filter((c) => c.tagName === 'CIRCLE');
+  assert.ok(circles.length >= 1, 'Scenario 27: Circle indicators rendered for optical items');
+
+  // Verify ripple indicator radius is properly bounded to effect size (~124px), NOT the bugged 546px
+  const rippleCirc = circles.find((c) => (c.stroke || c.getAttribute('stroke')) === '#00e5ff');
+  assert.ok(rippleCirc, 'Scenario 27: Ripple selection circle present');
+  const rippleR = parseFloat(rippleCirc.r || rippleCirc.getAttribute('r'));
+  assert.ok(rippleR < 200, `Scenario 27: Ripple circle radius must be bounded to effect size, got ${rippleR}px (expected ~124px, NOT 546px)`);
+  assert.ok(rippleR >= 120, `Scenario 27: Ripple circle radius corresponds to outerR=120, got ${rippleR}px`);
+
+  // Verify glow indicator radius is properly bounded to effect size (~29px), NOT 96px+
+  const glowCirc = circles.find((c) => (c.stroke || c.getAttribute('stroke')) === '#ff7b72');
+  assert.ok(glowCirc, 'Scenario 27: Glow selection circle present');
+  const glowR = parseFloat(glowCirc.r || glowCirc.getAttribute('r'));
+  assert.ok(glowR < 50, `Scenario 27: Glow circle radius must be bounded to effect size, got ${glowR}px (expected ~29px, NOT 96px+)`);
+  assert.ok(glowR >= 25, `Scenario 27: Glow circle radius corresponds to size=25, got ${glowR}px`);
+
+  // Verify square glow renders rect instead of circle
+  const sqGlow = window.Glows.createGlow({ name: 'Square Glow', shape: 'square', x: 50, y: 50, size: 30 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mqNodeA.id },
+    { type: 'glow', id: sqGlow.id }
+  ]);
+  const rects = multiGroupEl.children.filter((c) => c.tagName === 'RECT' && (c.stroke || c.getAttribute('stroke')) === '#ff7b72');
+  assert.strictEqual(rects.length, 1, 'Scenario 27: Square glow renders rectangular selection indicator');
+
+  // SCENARIO 28: Group selection rectangular bounding box & absence of obscuring circle
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: mqNodeA.id },
+    { type: 'ripple', id: mqRipple.id }
+  ]);
+  const mixedGroup = window.AppCoordinator.createGroupFromSelection('Mixed Clean Group');
+  assert.ok(mixedGroup, 'Scenario 28: Mixed group created');
+
+  window.AppCoordinator.selectGroup(mixedGroup.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'group');
+
+  // groupSelectionBox must be rectangular
+  const grpBoxEl = document.getElementById('groupSelectionBox');
+  assert.ok(grpBoxEl);
+  assert.ok(grpBoxEl.getAttribute('width') !== null, 'Scenario 28: Group selection overlay has width attribute');
+  assert.ok(grpBoxEl.getAttribute('height') !== null, 'Scenario 28: Group selection overlay has height attribute');
+
+  // multiSelectionGroup must be empty when group is selected (no obscuring circular indicators over group box)
+  assert.strictEqual(multiGroupEl.children.length, 0, 'Scenario 28: No circular indicators obscuring group rectangular bounds');
+
+  // Ungroup and verify objects remain selected WITHOUT oversized circles
+  const ungroupSuccess = window.AppCoordinator.ungroupSelectedGroup();
+  assert.strictEqual(ungroupSuccess, true, 'Scenario 28: Ungroup succeeded');
+  const releasedItems = window.AppCoordinator.getSelectedItems();
+  assert.strictEqual(releasedItems.length, 2, 'Scenario 28: Released members retained in multi-selection');
+
+  // Circles after ungroup must remain properly bounded (< 200px)
+  const afterUngroupCircles = multiGroupEl.children.filter((c) => c.tagName === 'CIRCLE');
+  afterUngroupCircles.forEach((c) => {
+    const r = parseFloat(c.r || c.getAttribute('r'));
+    assert.ok(r < 200, `Scenario 28: Circle after ungroup must not be oversized, got ${r}px`);
+  });
+
+  // Verify independent Flow/Glow/Ripple animation export integrity
+  const exportState = window.SceneState ? window.SceneState.buildRenderState() : {};
+  const fullSVG = window.SceneState ? window.SceneState.buildFullSVG(exportState) : '';
+  assert.ok(fullSVG.includes('ripples-layer'), 'Scenario 28: Ripples layer preserved in SVG export');
+  assert.ok(fullSVG.includes('glows-layer'), 'Scenario 28: Glows layer preserved in SVG export');
+  assert.ok(fullSVG.includes('animate'), 'Scenario 28: Declarative animations preserved in SVG export');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12 & 13 persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

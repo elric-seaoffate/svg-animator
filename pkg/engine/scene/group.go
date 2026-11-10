@@ -446,20 +446,33 @@ func (s *Scene) ComputeGroupBounds(groupID StringID, canvasW, canvasH float64) (
 			}
 		case SelectionGlow:
 			if g, exists := s.glows[m.ID]; exists {
-				rPct := (g.Size / 2.0 / math.Min(canvasW, canvasH)) * 100.0
-				minX = math.Min(minX, g.X-rPct)
-				maxX = math.Max(maxX, g.X+rPct)
-				minY = math.Min(minY, g.Y-rPct)
-				maxY = math.Max(maxY, g.Y+rPct)
+				hw := math.Max(16.0, g.Size)
+				hh := hw
+				if g.Shape == "custom" && g.CustomW > 0 && g.CustomH > 0 {
+					scale := g.Scale
+					if scale <= 0 {
+						scale = 1.0
+					}
+					hw = (g.CustomW * scale) / 2.0
+					hh = (g.CustomH * scale) / 2.0
+				}
+				hwPct := (hw / canvasW) * 100.0
+				hhPct := (hh / canvasH) * 100.0
+				minX = math.Min(minX, g.X-hwPct)
+				maxX = math.Max(maxX, g.X+hwPct)
+				minY = math.Min(minY, g.Y-hhPct)
+				maxY = math.Max(maxY, g.Y+hhPct)
 				count++
 			}
 		case SelectionRipple:
 			if r, exists := s.ripples[m.ID]; exists {
-				rPct := (r.OuterR / math.Min(canvasW, canvasH)) * 100.0
-				minX = math.Min(minX, r.X-rPct)
-				maxX = math.Max(maxX, r.X+rPct)
-				minY = math.Min(minY, r.Y-rPct)
-				maxY = math.Max(maxY, r.Y+rPct)
+				hitR := math.Max(20.0, r.OuterR)
+				rxPct := (hitR / canvasW) * 100.0
+				ryPct := (hitR / canvasH) * 100.0
+				minX = math.Min(minX, r.X-rxPct)
+				maxX = math.Max(maxX, r.X+rxPct)
+				minY = math.Min(minY, r.Y-ryPct)
+				maxY = math.Max(maxY, r.Y+ryPct)
 				count++
 			}
 		case SelectionFlow:

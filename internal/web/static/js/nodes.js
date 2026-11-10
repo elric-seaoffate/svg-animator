@@ -652,6 +652,19 @@ window.DiagramNodes = {
   updateUIOverlay(node) {
     const selBox = document.getElementById('nodeSelectionBox');
     const multiGroup = document.getElementById('multiSelectionGroup');
+
+    const isGroupActive = window.AppCoordinator &&
+      window.AppCoordinator.activeSelection &&
+      window.AppCoordinator.activeSelection.type === 'group' &&
+      !(typeof window.AppCoordinator.isInGroupEditMode === 'function' && window.AppCoordinator.isInGroupEditMode());
+
+    if (isGroupActive) {
+      if (multiGroup) multiGroup.innerHTML = '';
+      if (selBox) selBox.style.display = 'none';
+      this.updateMultiSelectToolbar();
+      return;
+    }
+
     const targetNode = node || (this.activeId !== null ? this.getNode(this.activeId) : null);
     const selectedIds = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
       ? window.AppCoordinator.getSelectedNodeIds()
@@ -718,23 +731,55 @@ window.DiagramNodes = {
             if (!g) return;
             const cx = (g.x / 100) * dims.width;
             const cy = (g.y / 100) * dims.height;
-            const rad = Math.max(16, (((g.size || 25) / 2) / 100) * Math.min(dims.width, dims.height) + 6);
-            const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circ.setAttribute('cx', cx.toFixed(1));
-            circ.setAttribute('cy', cy.toFixed(1));
-            circ.setAttribute('r', rad.toFixed(1));
-            circ.setAttribute('fill', 'rgba(255, 0, 68, 0.08)');
-            circ.setAttribute('stroke', '#ff7b72');
-            circ.setAttribute('stroke-width', '2');
-            circ.setAttribute('stroke-dasharray', '5,3');
-            circ.setAttribute('vector-effect', 'non-scaling-stroke');
-            multiGroup.appendChild(circ);
+            const size = Math.max(16, g.size || 25);
+            if (g.shape === 'square') {
+              const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              rect.setAttribute('x', (cx - size - 4).toFixed(1));
+              rect.setAttribute('y', (cy - size - 4).toFixed(1));
+              rect.setAttribute('width', ((size + 4) * 2).toFixed(1));
+              rect.setAttribute('height', ((size + 4) * 2).toFixed(1));
+              rect.setAttribute('rx', '4');
+              rect.setAttribute('fill', 'rgba(255, 0, 68, 0.08)');
+              rect.setAttribute('stroke', '#ff7b72');
+              rect.setAttribute('stroke-width', '2');
+              rect.setAttribute('stroke-dasharray', '5,3');
+              rect.setAttribute('vector-effect', 'non-scaling-stroke');
+              multiGroup.appendChild(rect);
+            } else if (g.shape === 'custom' && g.customW && g.customH) {
+              const scale = g.scale || 1.0;
+              const hw = (g.customW * scale) / 2 + 4;
+              const hh = (g.customH * scale) / 2 + 4;
+              const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              rect.setAttribute('x', (cx - hw).toFixed(1));
+              rect.setAttribute('y', (cy - hh).toFixed(1));
+              rect.setAttribute('width', (hw * 2).toFixed(1));
+              rect.setAttribute('height', (hh * 2).toFixed(1));
+              rect.setAttribute('rx', '4');
+              rect.setAttribute('fill', 'rgba(255, 0, 68, 0.08)');
+              rect.setAttribute('stroke', '#ff7b72');
+              rect.setAttribute('stroke-width', '2');
+              rect.setAttribute('stroke-dasharray', '5,3');
+              rect.setAttribute('vector-effect', 'non-scaling-stroke');
+              multiGroup.appendChild(rect);
+            } else {
+              const rad = size + 4;
+              const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              circ.setAttribute('cx', cx.toFixed(1));
+              circ.setAttribute('cy', cy.toFixed(1));
+              circ.setAttribute('r', rad.toFixed(1));
+              circ.setAttribute('fill', 'rgba(255, 0, 68, 0.08)');
+              circ.setAttribute('stroke', '#ff7b72');
+              circ.setAttribute('stroke-width', '2');
+              circ.setAttribute('stroke-dasharray', '5,3');
+              circ.setAttribute('vector-effect', 'non-scaling-stroke');
+              multiGroup.appendChild(circ);
+            }
           } else if (it.type === 'ripple' && window.Ripples) {
             const rp = window.Ripples.getRipple(it.id);
             if (!rp) return;
             const cx = (rp.x / 100) * dims.width;
             const cy = (rp.y / 100) * dims.height;
-            const rad = Math.max(18, ((rp.outerR || 150) / 100 / 2) * Math.min(dims.width, dims.height) + 6);
+            const rad = Math.max(20, Math.min(300, rp.outerR || 100)) + 4;
             const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circ.setAttribute('cx', cx.toFixed(1));
             circ.setAttribute('cy', cy.toFixed(1));

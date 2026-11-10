@@ -2266,21 +2266,31 @@
         } else if (m.type === 'glow' && window.Glows) {
           const g = window.Glows.getGlow(m.id);
           if (g) {
-            const rPct = (g.size / 2 / Math.min(canvasW, canvasH)) * 100;
-            minX = Math.min(minX, g.x - rPct);
-            maxX = Math.max(maxX, g.x + rPct);
-            minY = Math.min(minY, g.y - rPct);
-            maxY = Math.max(maxY, g.y + rPct);
+            let hw = Math.max(16, g.size || 25);
+            let hh = hw;
+            if (g.shape === 'custom' && g.customW && g.customH) {
+              const scale = g.scale || 1.0;
+              hw = (g.customW * scale) / 2;
+              hh = (g.customH * scale) / 2;
+            }
+            const hwPct = (hw / canvasW) * 100;
+            const hhPct = (hh / canvasH) * 100;
+            minX = Math.min(minX, g.x - hwPct);
+            maxX = Math.max(maxX, g.x + hwPct);
+            minY = Math.min(minY, g.y - hhPct);
+            maxY = Math.max(maxY, g.y + hhPct);
             count++;
           }
         } else if (m.type === 'ripple' && window.Ripples) {
           const r = window.Ripples.getRipple(m.id);
           if (r) {
-            const rPct = (r.outerR / Math.min(canvasW, canvasH)) * 100;
-            minX = Math.min(minX, r.x - rPct);
-            maxX = Math.max(maxX, r.x + rPct);
-            minY = Math.min(minY, r.y - rPct);
-            maxY = Math.max(maxY, r.y + rPct);
+            const hitR = Math.max(20, r.outerR || 100);
+            const rxPct = (hitR / canvasW) * 100;
+            const ryPct = (hitR / canvasH) * 100;
+            minX = Math.min(minX, r.x - rxPct);
+            maxX = Math.max(maxX, r.x + rxPct);
+            minY = Math.min(minY, r.y - ryPct);
+            maxY = Math.max(maxY, r.y + ryPct);
             count++;
           }
         }
