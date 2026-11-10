@@ -1,4 +1,49 @@
-# SVG Animator Studio v1.1.0
+# SVG Animator Studio — Release Notes
+
+## Release v1.2.0 (Stable Release & Architecture Consolidation)
+
+**SVG Animator Studio v1.2.0** represents a major architectural milestone, completing the transition from a JavaScript-heavy browser studio to an authoritative **Go-first application powered by an embedded WebAssembly execution engine**.
+
+### What's New in v1.2.0
+
+1. **Go-First WebAssembly Architecture (`pkg/engine/` & `cmd/wasm/`):**
+   - The Go engine is now authoritative for scene data models, object mutations, geometry math, flow path routing, grid snapping, preset application, and deterministic timeline evaluation.
+   - Compiled to WebAssembly (`internal/web/static/wasm/engine.wasm`), running seamlessly in the browser with transparent JavaScript fallbacks.
+   - Stable, versioned command dispatch protocol (`pkg/engine/protocol`, version `1.0.0`).
+
+2. **Native `.sva` Project Format (`pkg/engine/sva/`):**
+   - Self-contained, portable ZIP-based archive format (`format: sva`, version `1.0.0`).
+   - Manifest with SHA-256 asset checksums, canonical scene data (`scene.json`), and bundled binary image assets (`assets/`).
+   - Transactional import/export with Zip-Slip path traversal defense and resource limit enforcement.
+   - Fully repaired and verified background image asset packaging and restoration.
+
+3. **Go-Owned Scene State, History, Selection & Naming:**
+   - Canonical selection identity and validation in Go.
+   - Authoritative 50-step undo/redo command stack with discrete immediate capture and continuous slider debouncing.
+   - User-editable object names for Nodes, Flows, Glows, and Ripples, cleanly separated from visual diagram labels and badge text.
+
+4. **Responsive Blender-Style Workspace:**
+   - Dual vertical icon rails (`.icon-rail-left`, `.icon-rail-right`) for rapid drawer navigation.
+   - Collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`) with memory and maximized canvas mode.
+   - Context-sensitive floating property inspector (`#floatingContextEditor`) with draggable header and live synchronization.
+   - User-approved interaction patterns: right-click properties, blank canvas click deselect, escape priority, and 35/65 inspector proportions.
+
+5. **Operational Shape Registry:**
+   - Single source of truth for 12 parametric SVG node shapes implemented in Go (`pkg/engine/geometry/shapes.go`) and JS (`shape-registry.js`).
+   - Dynamic shape dropdown population and centralized SVG builder functions.
+
+6. **Animation Architecture Separation:**
+   - **Independent Object Animations:** Connectors (Flows), Hotspots (Glows), and Liquid Ripples animate continuously and independently of the global transport.
+   - **Global Scene Playback:** Camera motion (Ken Burns, Perspective Tilt, Handheld Drift) and Optical effects (Focus Pull, Tilt-Shift, Motion Blur) follow the transport controls (`Play`, `Pause`, `Stop`, `Seek`).
+   - Standalone SVG exports remain 100% self-contained using declarative SMIL and CSS `@keyframes` with zero runtime dependencies.
+
+7. **Binary Self-Containment & Version Reporting:**
+   - Embedded HTML, CSS, JavaScript, and WebAssembly engine compiled directly into the binary via `//go:embed`.
+   - New `-version` CLI flag reporting application version, Git commit, build date, protocol version, and SVA format version.
+
+---
+
+## Release v1.1.0
 
 SVG Animator Studio is a powerful, self-hosted web application and CLI tool designed for creating interactive vector diagrams, animated network topologies, and dynamic photo effects. It combines a Go-based backend rasterization engine with a pure HTML/JS/CSS frontend, allowing users to build complex, animated architectures that can be exported as lightweight standalone HTML/SVG files or fully rendered Animated WebP/APNG bitmaps.
 

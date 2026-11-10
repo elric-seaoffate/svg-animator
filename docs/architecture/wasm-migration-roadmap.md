@@ -106,10 +106,10 @@ flowchart TD
     S4 --> S5["Stage 5: Hotspots & Glow Effects (Complete)"]
     S5 --> S6["Stage 6: Refractive Liquid Ripples (Complete)"]
     S6 --> S7["Stage 7: Optical Filters, Camera & 3D Frames (Complete)"]
-    S7 --> S8["Stage 8: Authoritative Scene State & Selection"]
-    S8 --> S9["Stage 9: Undo/Redo & Command Processing"]
-    S9 --> S10["Stage 10: Serialization & Future .sva Format"]
-    S10 --> S11["Stage 11: Unified Export Engine (CLI, Web, Desktop)"]
+    S7 --> S8["Stage 8: Authoritative Scene State, Selection, History & Naming (Complete)"]
+    S8 --> S9["Stage 9: Native .sva Project Format & Asset Packaging (Complete)"]
+    S9 --> S10["Release v1.2.0: Post-Migration Consolidation & SVA Asset Repair (Complete)"]
+    S10 --> S11["Future Roadmap: Standalone Export Unification & Digital Twin Extensions"]
 ```
 
 ### Stage 1: Shared Geometry & Path Routing (Implemented)
@@ -179,7 +179,7 @@ flowchart TD
 - **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol ./pkg/engine/timeline` + `node scripts/regression-harness.js` (Section 16.4).
 - **JS Retirement Plan**: `ripples.js` delegates operational CRUD, bounds, and hit-testing to `window.EngineBridge` with JS fallback.
 
-### Stage 7: Optical Filters, Camera Transforms & 3D Frames (Complete)
+### Stage 7: Optical Filters, Camera Transforms & 3D Frames (Implemented)
 - **Go Owner**: `pkg/engine/scene/camera.go`, `pkg/engine/scene/optics.go`, `pkg/engine/scene/frame.go`, `pkg/engine/timeline/evaluator.go`
 - **Legacy JS Owner**: `effects.js`
 - **Boundary Contract**:
@@ -190,37 +190,40 @@ flowchart TD
 - **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol ./pkg/engine/timeline` + `node scripts/regression-harness.js` (Section 16.5).
 - **JS Retirement Plan**: `effects.js` delegates frame markup generation and camera transform evaluation to `window.EngineBridge` with robust fallback.
 
-### Stage 8: Authoritative Scene State & Selection
-- **Go Owner**: `pkg/engine/model/scene.go`
-- **Legacy JS Owner**: `scene-state.js` (`SceneState`), `coordinator.js`
-- **Boundary Contract**: `Scene.SetState`, `Scene.GetState`, `Scene.SelectObject`, `Scene.ClearSelection`
-- **Parity Criteria**: Scene state object matches SQLite `schema_json` v1.2.0.
-- **Integration Tests**: Full scene load/export test cycle.
-- **JS Retirement Plan**: `SceneState` in JS delegates authoritative storage to Go.
+### Stage 8: Authoritative Scene State, Selection, History & Object Naming (Implemented)
+- **Go Owner**: `pkg/engine/scene/` (`selection.go`, `history.go`, `model.go`), `pkg/engine/protocol/`
+- **Legacy JS Owner**: `scene-state.js` (`SceneState`), `history.js` (`HistoryManager`), `coordinator.js`
+- **Boundary Contract**:
+  - `Scene.SetState`, `Scene.GetState`
+  - `Selection.Get`, `Selection.Set`, `Selection.Clear`
+  - `History.Record`, `History.Undo`, `History.Redo`, `History.GetState`, `History.Clear`
+  - `Object.Rename` (Nodes, Flows, Glows, Ripples)
+- **Parity Criteria**: Canonical selection validation, 50-entry undo/redo stack, and distinct object naming across all scene objects match SQLite `schema_json` v1.2.0.
+- **Integration Tests**: `go test ./pkg/engine/scene ./pkg/engine/protocol` + `node scripts/regression-harness.js`.
+- **JS Retirement Plan**: JS history and selection modules delegate directly to `window.EngineBridge`.
 
-### Stage 9: Undo/Redo & Command Processing
-- **Go Owner**: `pkg/engine/commands/`
-- **Legacy JS Owner**: `history.js` (`HistoryManager`)
-- **Boundary Contract**: `Command.Execute`, `Command.Undo`, `Command.Redo`, `Command.GetHistoryStack`
-- **Parity Criteria**: 50-step undo/redo stack reproduces state snapshots with zero memory leaks.
-- **Integration Tests**: Deep undo/redo tree tests in Go.
-- **JS Retirement Plan**: `history.js` acts solely as a UI listener for history stack transitions.
+### Stage 9: Native `.sva` Project Format & Asset Packaging (Implemented)
+- **Go Owner**: `pkg/engine/sva/` (`encoder.go`, `decoder.go`, `validator.go`, `model.go`, `limits.go`), `internal/web/server.go`
+- **Legacy JS Owner**: `projects.js` (`exportSVA`, `importSVA`)
+- **Boundary Contract**:
+  - `Project.EncodeSVA`, `Project.DecodeSVA`, `Project.ValidateSVA`
+  - REST endpoints: `GET /api/projects/export-sva`, `POST /api/projects/export-sva`, `POST /api/projects/import-sva`
+- **Parity Criteria**: ZIP container (`PK\x03\x04`), `manifest.json` (Format: `sva`, Version: `1.0.0`), `scene.json` (canonical scene), bundled binary assets under `assets/` with SHA-256 verification and Zip-Slip traversal defense.
+- **Integration Tests**: `go test ./pkg/engine/sva ./internal/web` + `node scripts/regression-harness.js`.
+- **JS Retirement Plan**: Browser `ProjectManager` handles blob downloads/uploads while Go/WASM engine owns all package parsing, asset bundling, and validation.
 
-### Stage 10: Serialization & Future Native `.sva` Format
-- **Go Owner**: `pkg/engine/model/serialization.go`
-- **Legacy JS Owner**: `projects.js` (`ProjectManager.serializeStudioState`)
-- **Boundary Contract**: `Scene.ToJSON()`, `Scene.FromJSON()`, `Scene.ToSVA()`, `Scene.FromSVA()`
-- **Parity Criteria**: Backward compatibility with all existing schema `1.2.0` projects.
-- **Integration Tests**: Bidirectional conversion tests between legacy SQLite schema and native `.sva` format.
-- **JS Retirement Plan**: `projects.js` retains only file picker and HTTP REST client code.
+### Stage 10 (Release v1.2.0): Post-Migration Consolidation & SVA Asset Repair (Implemented)
+- **Go Owner**: `pkg/engine/sva/`, `cmd/svg-animator/main.go`
+- **Scope**:
+  - Defect repair: resolved background image data URI double-prefixing on SVA extraction.
+  - Fail-fast asset verification: guaranteed that missing or empty asset bytes fail export/import with clear diagnostic errors.
+  - Application release versioning (`-version` CLI flag reporting application version, commit, protocol, and format specifications).
+  - Codebase cleanup, documentation consolidation, and release packaging.
 
-### Stage 11: Unified Export Engine (CLI, Web, Desktop)
-- **Go Owner**: `pkg/engine/export/`
-- **Legacy JS Owner**: `export-modal.js`, `still-export-modal.js`
-- **Boundary Contract**: `Export.GenerateStaticSVG(timestampMs)`, `Export.BuildRenderManifest()`
-- **Parity Criteria**: Frame rendering produces byte-identical SVG outputs whether run inside browser WASM or backend CLI `svg-animator`.
-- **Integration Tests**: Visual regression diffing on rendered frames.
-- **JS Retirement Plan**: All export payload construction logic in JS is retired.
+### Future Roadmap (Planned / Deferred)
+- **Standalone Export Unification**: Frame evaluation parity across CLI, Web, and Desktop.
+- **Digital Twin Extensions**: External telemetry bindings, OPC-UA/MQTT live data ingestion, and interactive presenter mode.
+- **Web Widget Components**: Self-contained HTML/SVG embeds with optional audio.
 
 ---
 

@@ -53,7 +53,7 @@ At the beginning of each new task or session:
 
 **SVG Animator Studio** is an SVG-based diagram creation, network topology, and photo animation studio. It is built as a self-hosted **Go** backend and CLI tool (`cmd/svg-animator/`, `internal/`) that embeds a vanilla **HTML/CSS/JavaScript** frontend (`internal/web/static/`) via `//go:embed`.
 
-### Current implemented baseline (as of v1.1.x)
+### Current implemented baseline (as of v1.2.0)
 
 The application currently consists of:
 
@@ -62,44 +62,31 @@ The application currently consists of:
   - Local SQLite persistence via `modernc.org/sqlite` (`internal/db/sqlite.go`, `studio_library.db`) storing `projects` (with `schema_json` version `1.2.0`) and `assets`.
   - Backend SVG/HTML template generation and optical/camera effect pipelines (`internal/generator/`, `internal/effects/`).
   - Headless Chromium (`chromedp`) and FFmpeg multi-frame bitmap/video rasterization (`internal/rasterizer/rasterizer.go`).
+  - Self-contained CLI and version reporting (`-version`).
+- **Go Engine (`pkg/engine/`) & WebAssembly Runtime (`cmd/wasm/`)**:
+  - Authoritative scene models, geometry math, flow path routing, snapping, shape catalog (`pkg/engine/geometry/`), glows, ripples, camera, optics, frame, scene selection, history stack (`maxDepth: 50`), object renaming (`pkg/engine/scene/`), and deterministic timeline evaluation (`pkg/engine/timeline/`).
+  - Typed versioned protocol (`1.0.0`) dispatch across the WebAssembly boundary (`pkg/engine/protocol/`).
+  - Native `.sva` project package encoder, decoder, and validator (`pkg/engine/sva/`).
 - **Frontend Web Studio** (`internal/web/static/`):
-  - Single-page 3-column studio layout (`index.html`, `css/style.css`, `css/export-modal.css`).
-  - Vanilla JavaScript modules attached to `window`:
-    - `app.js` — Main initialization, UI accordions, form bindings, keyboard shortcuts, and master SVG preview compilation (`window.triggerRender`).
-    - `stage.js` (`window.Stage`) — Interactive stage viewport, zoom/pan, grid snapping, reticle placement, and drag handling.
-    - `nodes.js` (`window.DiagramNodes`) — Diagram shapes, text, selection, and SVG node rendering.
-    - `presets.js` (`window.NodePresets`) — Shape preset attributes and batch application.
-    - `flows.js` (`window.DataFlows`) — Connectors, Bezier/orthogonal routing, and animated payloads.
-    - `glows.js` (`window.Glows`) — Pulsating hotspots, custom graphics, and radar pings.
-    - `ripples.js` (`window.Ripples`) — Refractive water ripple displacement effects.
-    - `effects.js` (`window.Effects`) — Client-side SVG filter, camera rig, and 3D mitered frame builders.
-    - `history.js` (`window.HistoryManager`) — Snapshot-based undo/redo stack (`maxDepth: 50`).
-    - `projects.js` (`window.ProjectManager`) — Project serialization/deserialization and `/api/projects` integration.
-    - `export-modal.js` & `still-export-modal.js` (`window.StillExportStudio`) — Animated (WebP, APNG, MP4 with audio) and still/print (PNG, WebP, JPEG, SVG, HTML) export studios.
+  - Responsive workspace layout (`index.html`, `css/style.css`, `css/export-modal.css`) featuring dual vertical icon rails, collapsible sliding drawers (`#leftDrawer`, `#rightDrawer`), maximized stage mode, and context-sensitive floating property inspector (`#floatingContextEditor`).
+  - WebAssembly engine bridge (`js/engine-bridge.js`) orchestrating Go runtime instantiation and versioned command dispatch with built-in JavaScript fallbacks.
+  - Centralized application coordination (`js/coordinator.js` / `window.AppCoordinator`) managing selection, history, and rendering across presentation modules.
+  - Central operational Shape Registry (`js/shape-registry.js` / `window.ShapeRegistry`) defining available node shapes, default geometries, and SVG builders.
+  - Native `.sva` project format and SQLite library persistence integration (`js/projects.js` / `window.ProjectManager`).
+  - Animated (WebP, APNG, MP4 with audio) and still/print (PNG, WebP, JPEG, SVG, HTML) export studios (`js/export-modal.js`, `js/still-export-modal.js`).
 
-In the current baseline, frontend modules combine UI event listeners, direct DOM queries (`document.getElementById`), state mutation, and SVG generation within the same objects.
+### Development roadmap and architectural maturity
 
-### Intended long-term objectives and development roadmap
+The major foundational phases of SVG Animator Studio are complete:
 
-The long-term objective is to evolve SVG Animator Studio into a well-structured, modular application with a clear separation between its user interface and its underlying operational functionality, while maintaining accurate documentation (`AI_GUIDE.md`, `docs/`, and BookStack logs) so future AI assistants and human developers can understand and extend the project reliably.
+- **Phase 1 — Architectural separation:** Three clearly separated layers established (`UI presentation → Application coordination → Operational functionality`).
+- **Phase 2 — Component APIs & Shape Registry:** Standardized Layer 3 operational APIs and immutable central Shape Registry implemented in both Go and JS.
+- **Phase 3 — Workspace redesign:** Blender-inspired responsive layout with vertical icon rails, configurable sliding drawers, and maximized canvas stage implemented and verified.
+- **Phase 4 — Contextual property inspectors:** Context-sensitive floating property editor (`#floatingContextEditor`), optical hit testing, and Select None behaviour implemented.
+- **Go/WASM Migration (Stages 1–9):** Go engine established as authoritative owner of geometry, timeline, shapes, flows, glows, ripples, camera, optics, frame, scene state, history, selection, object naming, and native `.sva` packaging.
+- **Stable Release & Consolidation (v1.2.0):** Codebase cleanup, self-contained background asset packaging repair, version reporting, and documentation alignment.
 
-The modernisation roadmap is structured into strict phases:
-
-- **Phase 1 — Architectural separation**
-  - Separate UI presentation from application coordination and operational functionality.
-  - Keep the existing UI visually and behaviourally unchanged.
-  - Preserve existing functionality, DOM input IDs, history, persistence, and compatibility.
-  - Do not introduce the redesigned workspace or new UI layouts.
-- **Phase 2 — Component APIs and Shape Registry**
-  - Convert operational component functionality into complete, consistent, well-defined public APIs.
-  - Introduce the central operational **Shape Registry** and reusable SVG shape/component definitions.
-  - Keep UI concerns strictly out of operational modules.
-- **Phase 3 — Workspace redesign**
-  - Introduce the **Blender-style workspace layout** (vertical icon rails, configurable sliding side drawers, and a maximized central stage).
-- **Phase 4 — Contextual property inspectors**
-  - Introduce **context-sensitive floating property popups and inspectors** connected to the established component APIs.
-- **Phase 5 — Integration and regression testing**
-  - Verify the integrated architecture and all existing functionality end-to-end (rendering, animations, presets, undo/redo, project save/load, SQLite persistence, keyboard shortcuts, and still/video exports).
+Future roadmap items (e.g. Digital Twin presenter, external telemetry bindings, or standalone HTML widgets) are planned extensions and must not be implemented until their specific phases are approved.
 
 ### Strict phase boundaries
 
@@ -436,83 +423,47 @@ When changing animation or effects, verify that the change does not unintentiona
 
 ## 9. Shape Registry
 
-The **Shape Registry** is a central part of the intended architecture (planned for Phase 2).
+The **Shape Registry** is a central operational component implemented in both Go (`pkg/engine/geometry/shapes.go`) and JavaScript (`internal/web/static/js/shape-registry.js`).
 
-Note: At present, node shapes (`rounded`, `rect`, `pill`, `cylinder`, `diamond`, `hexagon`, `cloud`, `actor`, `note`, `callout`) are hardcoded inside `DiagramNodes` (`internal/web/static/js/nodes.js`) and `<select id="nodeShapeSelect">` in `index.html`.
-
-When implemented in its approved phase, the Shape Registry will be an operational capability that provides a consistent way to discover and work with available shapes and their capabilities, including:
+It provides the authoritative definition for:
 
 - Shape identifier and display name.
-- Category and description.
-- Default properties and available property definitions.
-- Preview information.
-- Creation or SVG builder functionality.
-- Relevant metadata.
+- Category (Basic, Flowchart, Data, Cloud & Network, Annotation) and description.
+- Default properties, aspect ratios, and minimum dimensions.
+- Preview markup generators.
+- Parametric SVG element builder functions (`buildShapeSVG`).
+- Relevant metadata and shape aliases.
 
-The UI should consume Registry information rather than maintain a separate, duplicated definition of available shapes.
+The UI (`<select id="nodeShapeSelect">`, Shape Presets, and Property Inspectors) consumes Registry definitions dynamically rather than maintaining independent, duplicated lists of available shapes.
 
-**Do not implement or redesign the Shape Registry unless it is within the current approved task or development phase.**
+Any new shape must be added first to `pkg/engine/geometry/shapes.go` (and mirrored in `shape-registry.js` for offline compatibility) along with unit tests.
 
 ---
 
 ## 10. User interface principles
 
-The current UI is a 3-column studio layout with collapsible accordion panels (`leftPanel`, central stage, `rightPanel`) and modal dialogs for Project Library, Animated Export, and Still Export.
+The UI is a **Blender-inspired responsive workspace** featuring:
 
-The future UI direction (planned for Phases 3 and 4) is a **Blender-inspired workspace** featuring:
+- A maximized central working stage with pan, zoom, grid snapping, and bounding overlays.
+- Dual vertical icon rails (`.icon-rail-left`, `.icon-rail-right`) for rapid tool and drawer switching.
+- Configurable sliding side drawers (`#leftDrawer`, `#rightDrawer`) with memory and drawer width tuning (420px/460px).
+- A context-sensitive floating property inspector (`#floatingContextEditor`) with draggable header, 35/65 inspector proportions, and live synchronization.
+- Modal dialogs for Project Library (`#projectModal`), Animated Export (`#exportModal`), and Still/Print Export (`#stillExportModal`).
 
-- A maximized central working stage.
-- Vertical icon rails and tool/object panels.
-- Configurable sliding side drawers.
-- Context-sensitive floating property inspectors.
-- A consistent visual hierarchy and efficient access to frequently used tools.
+### User-approved interaction rules
 
-The interface should be modular and consume application functionality through defined interfaces.
+The following UI interaction patterns have been validated and approved:
 
-### Preserve existing functionality
+1. **Right-click Properties:** Right-clicking any Node, Flow, Glow, or Ripple opens the floating Contextual Properties inspector anchored to the object.
+2. **Right-click blank canvas:** Deselects active objects and closes floating property inspectors.
+3. **Select None behaviour:** Clicking blank canvas, pressing `Escape`, or clicking sidebar "Select None" deselects without destroying object state.
+4. **Left-click placement and dragging:** Left-click creates or places shapes/reticles; drag tracks continuous movement with history coalescing.
+5. **Double-click editing:** Double-clicking text enables in-place editing.
+6. **Floating Properties editor:** 35/65 inspector label-to-input proportions and compact layout must be preserved.
+7. **Node resize clipping fix:** SVG node containers must not clip resize handles or drop shadows.
+8. **Animation separation:** Flows, Glows, and Ripples animate independently in the live editor; Camera, Ken Burns, and Focus Pull follow the global transport controls (`Play`, `Pause`, `Stop`, `Seek`).
 
-Do not assume that architectural refactoring or a UI task permits the removal of existing functionality.
-
-Before moving or replacing any control:
-
-1. Identify what it does.
-2. Identify its associated events and behaviour.
-3. Identify its existing DOM input IDs.
-4. Identify its relationship with `HistoryManager` and `ProjectManager`.
-5. Ensure equivalent functionality remains available.
-
-**Existing form input IDs must be preserved during architectural refactoring (Phase 1)** unless an approved change explicitly requires otherwise.
-
-Do not redesign the interface or introduce visual changes during a task that is only intended to separate UI from operational functionality.
-
-## Strict Go/WASM and JavaScript responsibility boundary
-
-SVG Animator Studio is a Go-first application.
-
-**All application state, object behavior, geometry, animation calculations, effect algorithms, validation, command handling and scene evaluation belong in portable Go packages.**
-
-JavaScript is restricted to browser integration:
-
-- DOM and SVG presentation.
-- Pointer and keyboard event forwarding.
-- Browser animation-frame scheduling.
-- Browser file and platform APIs.
-- WASM initialization and communication.
-- Applying Go-generated presentation updates.
-
-JavaScript must not implement new animation algorithms, maintain competing authoritative scene state, or duplicate Go business logic.
-
-Existing JavaScript operational code is temporary migration debt and must be progressively retired as each Go subsystem becomes authoritative.
-
-Temporary compatibility fallbacks require an explicit retirement plan. They must not become permanent parallel implementations by default.
-
-**Priority:** Establish correctness and complete the ordered Go/WASM transition before undertaking performance optimisation.
-
-Do not optimise large background images or refactor rendering performance during the current migration unless a measured issue prevents correct operation.
-
-Maintain the existing browser UI and standalone SVG export compatibility.
-
-Update the persistent Antigravity architecture instructions to enforce these rules in future feature development.
+Do not redesign the interface or introduce visual disruptions unless specifically approved.
 
 ---
 
@@ -601,20 +552,25 @@ When working with BookStack:
 
 Never assume code works simply because it has been written or compiles.
 
-Note: The repository currently has no automated `_test.go` or JavaScript unit test files. Building and verification rely on Go build checks (`go build ./...`, `go vet ./...`), running the server, and functional verification. Where practical, introduce targeted automated tests as modules are refactored.
+A multi-layer automated test and verification suite is established across the repository:
 
-Where relevant to the change, verify:
+1. **Go Unit and Integration Tests (`go test -v -count=1 ./...`):**
+   - Covers `pkg/engine/geometry/` (shapes, anchors, snapping, flow paths, bounds).
+   - Covers `pkg/engine/protocol/` (command dispatch, requests, serialization).
+   - Covers `pkg/engine/scene/` (CRUD, selection, history stack, object naming, camera, optics, frame).
+   - Covers `pkg/engine/sva/` (native SVA ZIP encoding, decoding, validation, checksums, asset round-trips).
+   - Covers `pkg/engine/timeline/` (Cubic Bezier solver, frame interpolation, cycle progress).
+   - Covers `internal/db/` (SQLite project and asset persistence).
+   - Covers `internal/web/` (HTTP server routes, REST endpoints, SVA export/import).
+2. **End-to-End Regression Harness (`node scripts/regression-harness.js`):**
+   - Runs automated headless DOM tests across `window.*` presentation modules, WASM engine bridge, presets, object selection, history undo/redo, timeline playback state machine, optical effects, SVA packaging, and background photo restoration.
+3. **Static Architecture Verification (`bash scripts/verify-architecture.sh`):**
+   - Enforces layer boundary rules (ARCH-01 through ARCH-10), verifying that operational modules have no unauthorized direct DOM manipulation and that script order matches dependencies.
+4. **Code Quality and Formatting Checks:**
+   - `go vet ./...`
+   - `git diff --check`
 
-- Go compilation (`go build ./cmd/svg-animator` or `./build_and_run.sh` with `BUILD_ONLY=1`).
-- Module functionality and API behaviour.
-- Integration with other modules.
-- UI interaction and browser console error checks.
-- Object creation, selection, modification, and deletion (nodes, flows, glows, ripples).
-- Presets (`NodePresets`).
-- Undo and redo (`HistoryManager`).
-- Project saving, loading, and SQLite persistence (`ProjectManager` / `studio_library.db`).
-- Live SVG output and animation playback.
-- Still-image exports (`StillExportStudio`) and animated video/bitmap exports (noting whether headless Chrome and FFmpeg are available in the environment).
+Always run these suites before completing a development task. Do not claim that tests passed unless they were actually executed.
 
 Do not claim that tests passed unless they were actually executed.
 

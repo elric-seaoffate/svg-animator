@@ -80,6 +80,8 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Go Camera, Optics & 3D Frame Effect Engines | **Implemented (WASM Stage 7)** | `pkg/engine/scene/camera.go`, `optics.go`, `frame.go`, `pkg/engine/timeline/evaluator.go`, `effects.js` |
 | Go Authoritative Scene State, Selection, History & Object Naming | **Implemented (WASM Stage 8)** | `pkg/engine/scene/selection.go`, `history.go`, `model.go`, `protocol/`, `engine-bridge.js`, `coordinator.js`, `index.html` |
 | Native .sva Project Format & Asset Packaging | **Implemented (WASM Stage 9)** | `pkg/engine/sva/`, `pkg/engine/protocol/`, `internal/web/server.go`, `js/engine-bridge.js`, `js/projects.js`, `index.html` |
+| SVA Background Asset Packaging & Restoration Repair | **Implemented (v1.2.0)** | `pkg/engine/sva/decoder.go`, `encoder.go`, `effects.js`, `projects.js` |
+| Post-Migration Consolidation & Stable Release | **Implemented (v1.2.0)** | `cmd/svg-animator/`, `docs/`, `scripts/`, release packaging |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |
@@ -103,7 +105,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 5. **Respect history semantics:** Record discrete operations immediately (`recordHistoryImmediate`) and continuous slider/text edits with debounce (`recordHistoryDebounced`), and never record while `HistoryManager.isRestoring` is `true`.
 6. **Never touch production DB during tests:** Never run CLI queries or tests directly against `./studio_library.db`; always use `t.TempDir()` in Go tests.
 7. **Maintain embedded build compatibility:** Any new frontend asset under `internal/web/static/` must be tested with `BUILD_ONLY=1 ./build_and_run.sh` and `go test ./...`.
-8. **Respect phase boundaries:** Do not introduce Phase 2 (Shape Registry), Phase 3 (Blender layout), or Phase 4 (floating inspectors) changes unless explicitly instructed.
+8. **Respect architectural scope:** Core migration phases (Phases 1–4, WASM Stages 1–9, and native `.sva` packaging) are fully implemented. Do not introduce speculative Digital Twin, telemetry, or unapproved UI changes without explicit instructions.
 9. **Keep documentation accurate:** Update `docs/modules/` and `docs/architecture/` whenever module APIs or responsibilities change. Never document planned features as implemented.
 10. **Maintain BookStack logs:** Record major checkpoints and architectural milestones in BookStack Book ID `353` (`svg-animator-project-log`) using credentials from `/root/.config/svg-animator/bookstack.env` without ever exposing tokens.
 11. **Protect Git remotes:** Treat `gitea` (`https://127.0.0.1:3000/nigel/svg-animator.git`) as authoritative; do not push or merge without user instruction.

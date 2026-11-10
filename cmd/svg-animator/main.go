@@ -12,6 +12,17 @@ import (
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/generator"
 	"gitea.seaoffate.net/blackgrape/svg-animator/internal/web"
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/protocol"
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/sva"
+)
+
+var (
+	// Version is the application release version.
+	Version = "1.2.0"
+	// GitCommit is populated at build time via -ldflags "-X main.GitCommit=...".
+	GitCommit = "63b4c91"
+	// BuildDate is populated at build time via -ldflags "-X main.BuildDate=...".
+	BuildDate = "2026-11-10"
 )
 
 // AppConfig defines the JSON configuration file schema.
@@ -184,8 +195,17 @@ func main() {
 	frameShadow := flag.Float64("frame-shadow", 0.55, "Inner aperture drop shadow intensity (0.0 to 1.0)")
 	frameSlice := flag.String("frame-slice", "", "Path to custom moulding cross-section slice image (JPEG/PNG)")
 	frameSliceWidth := flag.Float64("frame-slice-width", 120.0, "Tiled pattern repeat width in pixels")
+	versionFlag := flag.Bool("version", false, "Print application version, protocol, format specifications and exit")
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("SVG Animator Studio v%s (commit: %s, built: %s)\n", Version, GitCommit, BuildDate)
+		fmt.Printf("  Protocol Version:   %s\n", protocol.ProtocolVersion)
+		fmt.Printf("  SVA Format Version: %s\n", sva.CurrentFormatVersion)
+		fmt.Printf("  Project Schema:     1.2.0\n")
+		os.Exit(0)
+	}
 
 	// Track which flags were explicitly set by the user on the command line
 	explicitFlags := make(map[string]bool)
