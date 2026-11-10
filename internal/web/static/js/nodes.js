@@ -104,6 +104,9 @@ window.DiagramNodes = {
           }
         });
         this.list.push(localNode);
+        if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+          window.LayerManager.addEntry('node', localNode.id);
+        }
         return localNode;
       }
     }
@@ -158,6 +161,9 @@ window.DiagramNodes = {
     }
 
     this.list.push(newNode);
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+      window.LayerManager.addEntry('node', newNode.id);
+    }
     return newNode;
   },
 
@@ -216,6 +222,9 @@ window.DiagramNodes = {
     if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
       window.ObjectGroups.pruneMember('node', id);
     }
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.removeEntry === 'function') {
+      window.LayerManager.removeEntry('node', id);
+    }
     return this.list.length < before;
   },
 
@@ -224,7 +233,13 @@ window.DiagramNodes = {
       const wasmFound = window.EngineBridge.findNodeAt(xPct, yPct, canvasW, canvasH);
       if (wasmFound && wasmFound.id !== undefined) {
         const local = this.getNode(Number(wasmFound.id) || wasmFound.id);
-        if (local) return local;
+        if (local) {
+          if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+            const effL = window.LayerManager.getEffective('node', local.id);
+            if (effL && !effL.visible) return null;
+          }
+          return local;
+        }
       }
     }
 
@@ -237,6 +252,10 @@ window.DiagramNodes = {
 
     for (let i = this.list.length - 1; i >= 0; i--) {
       const n = this.list[i];
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('node', n.id);
+        if (effL && !effL.visible) continue;
+      }
       const eff = this.getNodeEffectiveProps(n);
       const cx = (n.x / 100) * dims.width;
       const cy = (n.y / 100) * dims.height;
@@ -261,6 +280,10 @@ window.DiagramNodes = {
     let elements = '';
 
     this.list.forEach((n) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('node', n.id);
+        if (effL && !effL.visible) return;
+      }
       const eff = this.getNodeEffectiveProps(n);
       const cx = (n.x / 100) * canvasW;
       const cy = (n.y / 100) * canvasH;
@@ -690,6 +713,22 @@ window.DiagramNodes = {
         selBox.setAttribute('height', h.toFixed(1));
         selBox.setAttribute('stroke', '#a371f7');
         selBox.style.display = 'block';
+      } else if (!targetNode && window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'image' && window.ImageObjects) {
+        const img = window.ImageObjects.getImage(window.AppCoordinator.activeSelection.id);
+        if (img) {
+          const cx = (img.x / 100) * dims.width;
+          const cy = (img.y / 100) * dims.height;
+          const w = (img.width || 200) + pad * 2;
+          const h = (img.height || 150) + pad * 2;
+          selBox.setAttribute('x', (cx - w / 2).toFixed(1));
+          selBox.setAttribute('y', (cy - h / 2).toFixed(1));
+          selBox.setAttribute('width', w.toFixed(1));
+          selBox.setAttribute('height', h.toFixed(1));
+          selBox.setAttribute('stroke', '#a371f7');
+          selBox.style.display = 'block';
+        } else {
+          selBox.style.display = 'none';
+        }
       } else {
         selBox.style.display = 'none';
       }
@@ -790,6 +829,25 @@ window.DiagramNodes = {
             circ.setAttribute('stroke-dasharray', '5,3');
             circ.setAttribute('vector-effect', 'non-scaling-stroke');
             multiGroup.appendChild(circ);
+          } else if (it.type === 'image' && window.ImageObjects) {
+            const img = window.ImageObjects.getImage(it.id);
+            if (!img) return;
+            const cx = (img.x / 100) * dims.width;
+            const cy = (img.y / 100) * dims.height;
+            const w = (img.width || 200) + pad * 2;
+            const h = (img.height || 150) + pad * 2;
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', (cx - w / 2).toFixed(1));
+            rect.setAttribute('y', (cy - h / 2).toFixed(1));
+            rect.setAttribute('width', w.toFixed(1));
+            rect.setAttribute('height', h.toFixed(1));
+            rect.setAttribute('rx', '4');
+            rect.setAttribute('fill', 'rgba(163, 113, 247, 0.08)');
+            rect.setAttribute('stroke', '#a371f7');
+            rect.setAttribute('stroke-width', '2');
+            rect.setAttribute('stroke-dasharray', '5,3');
+            rect.setAttribute('vector-effect', 'non-scaling-stroke');
+            multiGroup.appendChild(rect);
           } else if (it.type === 'flow' && window.DataFlows) {
             const livePath = document.getElementById('flowPath-' + it.id);
             if (livePath && livePath.getAttribute('d')) {

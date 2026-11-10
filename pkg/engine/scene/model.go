@@ -132,6 +132,14 @@ type FrameConfig struct {
 	Fillet        bool    `json:"frameFillet"`
 }
 
+// LayerEntry defines an entry in the scene's unified layer ordering stack.
+type LayerEntry struct {
+	Type    SelectionType `json:"type"` // "node", "flow", "glow", "ripple", "image"
+	ID      StringID      `json:"id"`
+	Visible *bool         `json:"visible,omitempty"`
+	Locked  *bool         `json:"locked,omitempty"`
+}
+
 // Node represents an editable diagram shape.
 type Node struct {
 	ID          StringID       `json:"id"`
@@ -157,6 +165,19 @@ type Node struct {
 	Opacity     float64  `json:"opacity"`
 	Animation   string   `json:"animation,omitempty"` // "none", "pulse", "float", "fade"
 	Anim        string   `json:"anim,omitempty"`      // Legacy JS alias
+	Visible     *bool    `json:"visible,omitempty"`
+	Locked      bool     `json:"locked,omitempty"`
+}
+
+func (n Node) IsVisible() bool {
+	if n.Visible == nil {
+		return true
+	}
+	return *n.Visible
+}
+
+func (n Node) IsLocked() bool {
+	return n.Locked
 }
 
 // Flow represents an animated or static connector between nodes/points.
@@ -188,6 +209,19 @@ type Flow struct {
 	CustomMime  string           `json:"customMime,omitempty"`
 	CustomW     float64          `json:"customW,omitempty"`
 	CustomH     float64          `json:"customH,omitempty"`
+	Visible     *bool            `json:"visible,omitempty"`
+	Locked      bool             `json:"locked,omitempty"`
+}
+
+func (f Flow) IsVisible() bool {
+	if f.Visible == nil {
+		return true
+	}
+	return *f.Visible
+}
+
+func (f Flow) IsLocked() bool {
+	return f.Locked
 }
 
 // Glow represents a pulsating hotspot or radar ping.
@@ -218,6 +252,19 @@ type Glow struct {
 	CustomMime   string   `json:"customMime,omitempty"`
 	CustomW      float64  `json:"customW,omitempty"`
 	CustomH      float64  `json:"customH,omitempty"`
+	Visible      *bool    `json:"visible,omitempty"`
+	Locked       bool     `json:"locked,omitempty"`
+}
+
+func (g Glow) IsVisible() bool {
+	if g.Visible == nil {
+		return true
+	}
+	return *g.Visible
+}
+
+func (g Glow) IsLocked() bool {
+	return g.Locked
 }
 
 // Ripple represents a refractive water ripple effect.
@@ -238,20 +285,69 @@ type Ripple struct {
 	Rings      int      `json:"rings,omitempty"` // Legacy JS alias
 	Thick      float64  `json:"thick,omitempty"`
 	Refraction float64  `json:"refraction,omitempty"`
+	Visible    *bool    `json:"visible,omitempty"`
+	Locked     bool     `json:"locked,omitempty"`
+}
+
+func (r Ripple) IsVisible() bool {
+	if r.Visible == nil {
+		return true
+	}
+	return *r.Visible
+}
+
+func (r Ripple) IsLocked() bool {
+	return r.Locked
+}
+
+// Image represents an independently positioned image object on the canvas.
+type Image struct {
+	ID                  StringID       `json:"id"`
+	Name                string         `json:"name,omitempty"` // User-editable display name
+	AssetRef            string         `json:"assetRef,omitempty"` // SVA package asset path (e.g. "assets/image-1.png")
+	Src                 string         `json:"src,omitempty"` // Data URL / base64 for live display/fallback
+	Data                string         `json:"data,omitempty"` // Alias for Src / base64 data URL
+	Filename            string         `json:"filename,omitempty"`
+	Mime                string         `json:"mime,omitempty"`
+	X                   float64        `json:"x"` // Center X in canvas percentage [0..100]
+	Y                   float64        `json:"y"` // Center Y in canvas percentage [0..100]
+	Width               float64        `json:"width"` // Display width in pixels
+	Height              float64        `json:"height"` // Display height in pixels
+	NaturalWidth        float64        `json:"naturalWidth,omitempty"` // Source image width (for non-destructive crop in Stage 15)
+	NaturalHeight       float64        `json:"naturalHeight,omitempty"` // Source image height (for non-destructive crop in Stage 15)
+	MaintainAspectRatio bool           `json:"maintainAspectRatio"`
+	Opacity             float64        `json:"opacity"`
+	Visible             *bool          `json:"visible,omitempty"`
+	Locked              bool           `json:"locked,omitempty"`
+	Metadata            map[string]any `json:"metadata,omitempty"` // Extension metadata
+}
+
+func (img Image) IsVisible() bool {
+	if img.Visible == nil {
+		return true
+	}
+	return *img.Visible
+}
+
+func (img Image) IsLocked() bool {
+	return img.Locked
 }
 
 // Snapshot is a serialized snapshot of the scene for import/export across boundaries.
 type Snapshot struct {
-	Revision int64         `json:"revision"`
-	Canvas   CanvasConfig  `json:"canvas"`
-	Camera   CameraConfig  `json:"camera"`
-	Optical  OpticalConfig `json:"optical,omitempty"`
-	Frame    FrameConfig   `json:"frame,omitempty"`
-	Overlays FrameConfig   `json:"overlays,omitempty"` // Alias for JS state.overlays compatibility
-	Nodes    []Node        `json:"nodes"`
-	Flows    []Flow        `json:"flows"`
-	Glows    []Glow        `json:"glows"`
+	Revision      int64         `json:"revision"`
+	Canvas        CanvasConfig  `json:"canvas"`
+	Camera        CameraConfig  `json:"camera"`
+	Optical       OpticalConfig `json:"optical,omitempty"`
+	Frame         FrameConfig   `json:"frame,omitempty"`
+	Overlays      FrameConfig   `json:"overlays,omitempty"` // Alias for JS state.overlays compatibility
+	Nodes         []Node        `json:"nodes"`
+	Flows         []Flow        `json:"flows"`
+	Glows         []Glow        `json:"glows"`
 	Ripples       []Ripple      `json:"ripples"`
 	Groups        []Group       `json:"groups,omitempty"`
 	GroupsCounter int64         `json:"groupsCounter,omitempty"`
+	Images        []Image       `json:"images,omitempty"`
+	ImagesCounter int64         `json:"imagesCounter,omitempty"`
+	Layers        []LayerEntry  `json:"layers,omitempty"`
 }

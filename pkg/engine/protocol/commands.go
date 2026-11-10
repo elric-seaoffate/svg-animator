@@ -500,6 +500,128 @@ type GroupBoundsResponse struct {
 	Error   string  `json:"error,omitempty"`
 }
 
+// ImageCreateRequest payload for "Image.Create".
+type ImageCreateRequest struct {
+	Image scene.Image `json:"image"`
+}
+
+// ImageCreateResponse response for "Image.Create".
+type ImageCreateResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageUpdateRequest payload for "Image.Update".
+type ImageUpdateRequest struct {
+	ID    scene.StringID `json:"id"`
+	Patch scene.Image    `json:"patch"`
+}
+
+// ImageUpdateResponse response for "Image.Update".
+type ImageUpdateResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageDeleteRequest payload for "Image.Delete".
+type ImageDeleteRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// ImageDeleteResponse response for "Image.Delete".
+type ImageDeleteResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ImageGetRequest payload for "Image.Get".
+type ImageGetRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// ImageGetResponse response for "Image.Get".
+type ImageGetResponse struct {
+	Found bool        `json:"found"`
+	Image scene.Image `json:"image,omitempty"`
+}
+
+// ImageListResponse response for "Image.List".
+type ImageListResponse struct {
+	Images        []scene.Image `json:"images"`
+	Count         int           `json:"count"`
+	ImagesCounter int64         `json:"imagesCounter"`
+}
+
+// LayerGetResponse response for "Layer.Get".
+type LayerGetResponse struct {
+	Layers []scene.LayerEntry `json:"layers"`
+	Count  int                `json:"count"`
+}
+
+// LayerSetRequest payload for "Layer.Set".
+type LayerSetRequest struct {
+	Layers []scene.LayerEntry `json:"layers"`
+}
+
+// LayerSetResponse response for "Layer.Set".
+type LayerSetResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// LayerReorderRequest payload for "Layer.BringToFront", "Layer.BringForward", "Layer.SendBackward", "Layer.SendToBack".
+type LayerReorderRequest struct {
+	Targets []scene.SelectionItem `json:"targets"`
+}
+
+// LayerReorderResponse response for layer reorder commands.
+type LayerReorderResponse struct {
+	Success bool               `json:"success"`
+	Changed bool               `json:"changed"`
+	Layers  []scene.LayerEntry `json:"layers,omitempty"`
+	Error   string             `json:"error,omitempty"`
+}
+
+// LayerVisibilityRequest payload for "Layer.SetVisibility".
+type LayerVisibilityRequest struct {
+	Type    scene.SelectionType `json:"type"`
+	ID      scene.StringID      `json:"id"`
+	Visible bool                `json:"visible"`
+}
+
+// LayerVisibilityResponse response for "Layer.SetVisibility".
+type LayerVisibilityResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// LayerLockedRequest payload for "Layer.SetLocked".
+type LayerLockedRequest struct {
+	Type   scene.SelectionType `json:"type"`
+	ID     scene.StringID      `json:"id"`
+	Locked bool                `json:"locked"`
+}
+
+// LayerLockedResponse response for "Layer.SetLocked".
+type LayerLockedResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// LayerEffectiveRequest payload for "Layer.GetEffective".
+type LayerEffectiveRequest struct {
+	Type scene.SelectionType `json:"type"`
+	ID   scene.StringID      `json:"id"`
+}
+
+// LayerEffectiveResponse response for "Layer.GetEffective".
+type LayerEffectiveResponse struct {
+	Visible bool `json:"visible"`
+	Locked  bool `json:"locked"`
+}
+
 // SceneCopyRequest payload for "Scene.Copy".
 type SceneCopyRequest struct {
 	Items   []scene.SelectionItem `json:"items,omitempty"`
@@ -2050,6 +2172,144 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		}
 		snap := activeScene.GetSnapshot()
 		return json.Marshal(SceneDuplicateResponse{Success: true, NewItems: newItems, NewGroupID: newGrpID, Snapshot: &snap})
+
+	case "Image.Create":
+		var req ImageCreateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCreateRequest: %w", err)
+		}
+		img, err := activeScene.CreateImage(req.Image)
+		if err != nil {
+			return json.Marshal(ImageCreateResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCreateResponse{Success: true, Image: img})
+
+	case "Image.Update":
+		var req ImageUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageUpdateRequest: %w", err)
+		}
+		img, err := activeScene.UpdateImage(req.ID, req.Patch)
+		if err != nil {
+			return json.Marshal(ImageUpdateResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageUpdateResponse{Success: true, Image: img})
+
+	case "Image.Delete":
+		var req ImageDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageDeleteRequest: %w", err)
+		}
+		if err := activeScene.DeleteImage(req.ID); err != nil {
+			return json.Marshal(ImageDeleteResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageDeleteResponse{Success: true})
+
+	case "Image.Get":
+		var req ImageGetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageGetRequest: %w", err)
+		}
+		img, exists := activeScene.GetImage(req.ID)
+		return json.Marshal(ImageGetResponse{Found: exists, Image: img})
+
+	case "Image.List":
+		images := activeScene.GetAllImages()
+		return json.Marshal(ImageListResponse{
+			Images:        images,
+			Count:         len(images),
+			ImagesCounter: activeScene.ImagesCounter(),
+		})
+
+	case "Layer.Get":
+		layers := activeScene.GetLayers()
+		return json.Marshal(LayerGetResponse{
+			Layers: layers,
+			Count:  len(layers),
+		})
+
+	case "Layer.Set":
+		var req LayerSetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerSetRequest: %w", err)
+		}
+		if err := activeScene.SetLayers(req.Layers); err != nil {
+			return json.Marshal(LayerSetResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerSetResponse{Success: true})
+
+	case "Layer.BringToFront":
+		var req LayerReorderRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerReorderRequest: %w", err)
+		}
+		changed, err := activeScene.BringToFront(req.Targets)
+		if err != nil {
+			return json.Marshal(LayerReorderResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerReorderResponse{Success: true, Changed: changed, Layers: activeScene.GetLayers()})
+
+	case "Layer.SendToBack":
+		var req LayerReorderRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerReorderRequest: %w", err)
+		}
+		changed, err := activeScene.SendToBack(req.Targets)
+		if err != nil {
+			return json.Marshal(LayerReorderResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerReorderResponse{Success: true, Changed: changed, Layers: activeScene.GetLayers()})
+
+	case "Layer.BringForward":
+		var req LayerReorderRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerReorderRequest: %w", err)
+		}
+		changed, err := activeScene.BringForward(req.Targets)
+		if err != nil {
+			return json.Marshal(LayerReorderResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerReorderResponse{Success: true, Changed: changed, Layers: activeScene.GetLayers()})
+
+	case "Layer.SendBackward":
+		var req LayerReorderRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerReorderRequest: %w", err)
+		}
+		changed, err := activeScene.SendBackward(req.Targets)
+		if err != nil {
+			return json.Marshal(LayerReorderResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerReorderResponse{Success: true, Changed: changed, Layers: activeScene.GetLayers()})
+
+	case "Layer.SetVisibility":
+		var req LayerVisibilityRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerVisibilityRequest: %w", err)
+		}
+		if err := activeScene.SetObjectVisibility(req.Type, req.ID, req.Visible); err != nil {
+			return json.Marshal(LayerVisibilityResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerVisibilityResponse{Success: true})
+
+	case "Layer.SetLocked":
+		var req LayerLockedRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerLockedRequest: %w", err)
+		}
+		if err := activeScene.SetObjectLocked(req.Type, req.ID, req.Locked); err != nil {
+			return json.Marshal(LayerLockedResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(LayerLockedResponse{Success: true})
+
+	case "Layer.GetEffective":
+		var req LayerEffectiveRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding LayerEffectiveRequest: %w", err)
+		}
+		vis := activeScene.GetEffectiveVisibility(req.Type, req.ID)
+		locked := activeScene.GetEffectiveLocked(req.Type, req.ID)
+		return json.Marshal(LayerEffectiveResponse{Visible: vis, Locked: locked})
 
 	default:
 		return nil, errors.New("unknown engine command: " + command)

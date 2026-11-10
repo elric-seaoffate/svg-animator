@@ -79,6 +79,9 @@ window.Ripples = {
         } else {
           this.list.push(normalized);
         }
+        if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+          window.LayerManager.addEntry('ripple', normalized.id);
+        }
         return normalized;
       }
     }
@@ -101,6 +104,9 @@ window.Ripples = {
       y: initialProps.y !== undefined ? initialProps.y : 50
     };
     this.list.push(newRipple);
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+      window.LayerManager.addEntry('ripple', newRipple.id);
+    }
     return newRipple;
   },
 
@@ -138,6 +144,9 @@ window.Ripples = {
     if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
       window.ObjectGroups.pruneMember('ripple', id);
     }
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.removeEntry === 'function') {
+      window.LayerManager.removeEntry('ripple', id);
+    }
     return this.list.length < before;
   },
 
@@ -146,7 +155,12 @@ window.Ripples = {
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
       const wasmFound = window.EngineBridge.findRippleAt(xPct, yPct, canvasW, canvasH);
       if (wasmFound && wasmFound.id) {
-        return this.getRipple(wasmFound.id) || wasmFound;
+        const local = this.getRipple(wasmFound.id) || wasmFound;
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const effL = window.LayerManager.getEffective('ripple', local.id);
+          if (effL && !effL.visible) return null;
+        }
+        return local;
       }
       if (wasmFound === null) return null;
     }
@@ -154,6 +168,10 @@ window.Ripples = {
     // JavaScript fallback
     for (let i = this.list.length - 1; i >= 0; i--) {
       const rp = this.list[i];
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('ripple', rp.id);
+        if (effL && !effL.visible) continue;
+      }
       const rx = (rp.x / 100) * canvasW;
       const ry = (rp.y / 100) * canvasH;
       const testX = (xPct / 100) * canvasW;
@@ -205,6 +223,10 @@ window.Ripples = {
     let elements = '';
 
     this.list.forEach((rp) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('ripple', rp.id);
+        if (effL && !effL.visible) return;
+      }
       const px = (rp.x / 100) * width;
       const py = (rp.y / 100) * height;
       const totalDur = rp.dur + (rp.endDelay || 0);

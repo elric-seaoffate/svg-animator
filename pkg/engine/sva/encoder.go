@@ -193,6 +193,9 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 		RipplesCounter  int                    `json:"ripplesCounter"`
 		Groups          []scene.Group          `json:"groups"`
 		GroupsCounter   int                    `json:"groupsCounter"`
+		Images          []scene.Image          `json:"images"`
+		ImagesCounter   int                    `json:"imagesCounter"`
+		Layers          []scene.LayerEntry     `json:"layers"`
 		Metadata        map[string]any         `json:"metadata"`
 	}
 
@@ -299,6 +302,27 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 		}
 	}
 
+	// 4. Process Independent Image Objects (raw.Images)
+	for i := range raw.Images {
+		img := &raw.Images[i]
+		rawB64 := img.Src
+		if rawB64 == "" {
+			rawB64 = img.Data
+		}
+		if rawB64 != "" {
+			data, cleanMime, err := decodeBase64DataURI(rawB64, img.Mime)
+			if err == nil && len(data) > 0 {
+				ext := extensionForMIME(cleanMime)
+				assetPath := fmt.Sprintf("%simage_%s%s", AssetsDirPrefix, img.ID, ext)
+				assets[assetPath] = data
+				img.Mime = cleanMime
+				img.AssetRef = assetPath
+				img.Src = ""
+				img.Data = ""
+			}
+		}
+	}
+
 	// 4. Construct SceneData
 	if projectName == "" {
 		projectName = "Untitled Project"
@@ -358,6 +382,9 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 			RipplesCounter:  raw.RipplesCounter,
 			Groups:          groups,
 			GroupsCounter:   groupsCounter,
+			Images:          raw.Images,
+			ImagesCounter:   raw.ImagesCounter,
+			Layers:          raw.Layers,
 			Metadata:        raw.Metadata,
 		},
 		Assets: assets,

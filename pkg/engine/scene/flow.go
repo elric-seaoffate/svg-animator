@@ -101,6 +101,9 @@ func (s *Scene) CreateFlow(initial Flow) Flow {
 
 	if _, exists := s.flows[initial.ID]; !exists {
 		s.flowIDs = append(s.flowIDs, initial.ID)
+		if len(s.layers) > 0 {
+			s.layers = append(s.layers, LayerEntry{Type: SelectionFlow, ID: initial.ID})
+		}
 	}
 	s.flows[initial.ID] = initial
 	s.revision++

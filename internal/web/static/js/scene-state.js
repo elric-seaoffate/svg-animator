@@ -345,12 +345,14 @@
       const includeFlows = overrides.includeFlows !== false;
       const includeGlows = overrides.includeGlows !== false;
       const includeRipples = overrides.includeRipples !== false;
+      const includeImages = overrides.includeImages !== false;
       const includeNodes = overrides.includeNodes !== false;
 
       let svgString = window.Effects.build(state);
       if (includeRipples && window.Ripples) svgString = window.Ripples.injectIntoSVG(svgString, state);
       if (includeGlows && window.Glows) svgString = window.Glows.injectIntoSVG(svgString, state.image.width, state.image.height);
       if (includeFlows && window.DataFlows) svgString = window.DataFlows.injectIntoSVG(svgString, state);
+      if (includeImages && window.ImageObjects) svgString = window.ImageObjects.injectIntoSVG(svgString, state);
       if (includeNodes && window.DiagramNodes) svgString = window.DiagramNodes.injectIntoSVG(svgString, state);
       return svgString;
     },

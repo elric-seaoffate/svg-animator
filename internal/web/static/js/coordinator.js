@@ -119,12 +119,19 @@
         const normalizedType = (id !== null && id !== undefined) ? type : null;
         const normalizedId = (id !== null && id !== undefined) ? id : null;
 
+        if (normalizedType && normalizedId !== null && options.source !== 'layers_list' && window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective(normalizedType, normalizedId);
+          if (eff && (eff.locked || !eff.visible)) {
+            return;
+          }
+        }
+
         if (options.toggle && normalizedType && normalizedId !== null) {
           this._toggleObjectSelectionInternal(normalizedType, normalizedId, options);
           return;
         }
 
-        if (options.additive && normalizedType && normalizedId !== null && ['node', 'flow', 'glow', 'ripple'].includes(normalizedType)) {
+        if (options.additive && normalizedType && normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(normalizedType)) {
           this._addToSelectionInternal(normalizedType, normalizedId, options);
           return;
         }
@@ -200,7 +207,7 @@
         };
 
         if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-          if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple'].includes(normalizedType)) {
+          if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(normalizedType)) {
             window.EngineBridge.setSelection(normalizedType, normalizedId, items);
           } else {
             window.EngineBridge.clearSelection();
@@ -359,6 +366,10 @@
       if (window.Ripples && typeof window.Ripples.renderList === 'function') {
         window.Ripples.renderList();
       }
+      if (window.LayerManager && typeof window.LayerManager.syncFromEngine === 'function') {
+        window.LayerManager.syncFromEngine();
+      }
+      this.emit('layers:changed', window.LayerManager ? window.LayerManager.getLayers() : []);
     },
 
     addToSelection(type, id, options = {}) {
@@ -819,6 +830,13 @@
     deleteSelectedObjects() {
       if (this.activeSelection.type === 'group' && this.activeSelection.id) {
         const grpId = this.activeSelection.id;
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('group', grpId);
+          if (eff && eff.locked) {
+            this.showNotification('Cannot delete locked group.', 'warning', 2000);
+            return false;
+          }
+        }
         const grp = this.getGroup(grpId);
         if (grp && Array.isArray(grp.members)) {
           grp.members.forEach((m) => {
@@ -830,6 +848,8 @@
               window.Glows.deleteGlow(m.id);
             } else if (m.type === 'ripple' && window.Ripples && typeof window.Ripples.deleteRipple === 'function') {
               window.Ripples.deleteRipple(m.id);
+            } else if (m.type === 'image' && window.ImageObjects && typeof window.ImageObjects.deleteImage === 'function') {
+              window.ImageObjects.deleteImage(m.id);
             }
           });
         }
@@ -847,22 +867,54 @@
       }
       const items = this.getSelectedItems();
       if (items.length === 0) return false;
+      let deletedCount = 0;
+      let lockedSkipped = 0;
+      const remainingItems = [];
       items.forEach((it) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective(it.type, it.id);
+          if (eff && eff.locked) {
+            lockedSkipped++;
+            remainingItems.push(it);
+            return;
+          }
+        }
         if (it.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.deleteNode === 'function') {
           window.DiagramNodes.deleteNode(it.id);
+          deletedCount++;
         } else if (it.type === 'flow' && window.DataFlows && typeof window.DataFlows.deleteFlow === 'function') {
           window.DataFlows.deleteFlow(it.id);
+          deletedCount++;
         } else if (it.type === 'glow' && window.Glows && typeof window.Glows.deleteGlow === 'function') {
           window.Glows.deleteGlow(it.id);
+          deletedCount++;
         } else if (it.type === 'ripple' && window.Ripples && typeof window.Ripples.deleteRipple === 'function') {
           window.Ripples.deleteRipple(it.id);
+          deletedCount++;
+        } else if (it.type === 'image' && window.ImageObjects && typeof window.ImageObjects.deleteImage === 'function') {
+          window.ImageObjects.deleteImage(it.id);
+          deletedCount++;
         }
       });
+
+      if (deletedCount === 0 && lockedSkipped > 0) {
+        this.showNotification('Cannot delete locked object(s).', 'warning', 2000);
+        return false;
+      }
+
       this._refreshAllInstanceLists();
-      this.clearSelection();
+      if (remainingItems.length === 0) {
+        this.clearSelection();
+      } else {
+        this.setMultiSelection(remainingItems);
+      }
       this.requestRender();
       this.recordHistoryImmediate();
-      this.showNotification(`Deleted ${items.length} object(s).`, 'info', 2000);
+      if (lockedSkipped > 0) {
+        this.showNotification(`Deleted ${deletedCount} object(s) (${lockedSkipped} locked skipped).`, 'info', 2500);
+      } else {
+        this.showNotification(`Deleted ${deletedCount} object(s).`, 'info', 2000);
+      }
       return true;
     },
 

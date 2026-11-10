@@ -207,6 +207,20 @@ func Decode(data []byte) (*Project, error) {
 		}
 	}
 
+	// 5. Verify referenced image object assets exist in package
+	for _, img := range sceneData.Images {
+		if img.AssetRef != "" && img.Src == "" {
+			cleanImgPath := path.Clean(img.AssetRef)
+			imgBytes, ok := assets[cleanImgPath]
+			if !ok {
+				imgBytes, ok = assets[AssetsDirPrefix+cleanImgPath]
+			}
+			if !ok || len(imgBytes) == 0 {
+				return nil, fmt.Errorf("sva: scene references image object %s, but asset is missing from archive", img.AssetRef)
+			}
+		}
+	}
+
 	return &Project{
 		Manifest: *manifest,
 		Scene:    sceneData,
@@ -295,6 +309,29 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		}
 	}
 
+	// 4. Resolve Image Objects
+	resolvedImages := make([]scene.Image, len(s.Images))
+	copy(resolvedImages, s.Images)
+	for i := range resolvedImages {
+		img := &resolvedImages[i]
+		if img.Src == "" && img.AssetRef != "" {
+			assetBytes, ok := proj.Assets[path.Clean(img.AssetRef)]
+			if !ok {
+				assetBytes, ok = proj.Assets[AssetsDirPrefix+path.Clean(img.AssetRef)]
+			}
+			if ok && len(assetBytes) > 0 {
+				mime := img.Mime
+				if mime == "" {
+					mime = detectMIMEType(img.AssetRef, assetBytes)
+				}
+				dataURI := "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(assetBytes)
+				img.Src = dataURI
+				img.Data = dataURI
+				img.Mime = mime
+			}
+		}
+	}
+
 	controls := make(map[string]any)
 	if s.Controls != nil {
 		for k, v := range s.Controls {
@@ -343,6 +380,9 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		"ripplesCounter":  s.RipplesCounter,
 		"groups":          resolvedGroups,
 		"groupsCounter":   groupsCounter,
+		"images":          resolvedImages,
+		"imagesCounter":   s.ImagesCounter,
+		"layers":          s.Layers,
 		"metadata":        s.Metadata,
 	}
 

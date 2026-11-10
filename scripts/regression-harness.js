@@ -5731,7 +5731,336 @@ async function runHarness() {
   window.ProjectManager._downloadBlob = origDownloadBlob;
   console.log('[HARNESS] Scenario 34 PASS: Backward compatibility, malformed IDs and SQLite serialization verified.');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12 & 13 persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // ===========================================================================
+  // STAGE 14: Unified Layer Management & Independent Image Objects
+  // ===========================================================================
+  console.log('\n[HARNESS] Testing Stage 14 Unified Layer Management & Independent Image Objects...');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 35: Layer Ordering CRUD, BringToFront, SendToBack, BringForward, SendBackward
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 35: Layer ordering CRUD and reordering operations...');
+  window.ProjectManager.resetToNewProject();
+
+  const s35Node = window.DiagramNodes.createNode({ shape: 'rect', text: 'Base Node', x: 20, y: 20 });
+  const s35Glow = window.Glows.createGlow({ name: 'Middle Glow', x: 40, y: 40 });
+  const s35Img = window.ImageObjects.createImage({ name: 'Top Image', x: 60, y: 60, width: 100, height: 80 });
+
+  window.LayerManager.ensureAllObjectsRepresented();
+  let s35Layers = window.LayerManager.getLayers();
+  assert.strictEqual(s35Layers.length, 3, 'Scenario 35: 3 layers must exist');
+  assert.strictEqual(s35Layers[0].type, 'glow', 'Scenario 35: Glow is at index 0 (bottom)');
+  assert.strictEqual(s35Layers[1].type, 'image', 'Scenario 35: Image is at index 1 (middle)');
+  assert.strictEqual(s35Layers[2].type, 'node', 'Scenario 35: Node is at index 2 (top)');
+
+  // Send node to back (index 2 -> index 0)
+  window.LayerManager.sendToBack([{ type: 'node', id: s35Node.id }]);
+  s35Layers = window.LayerManager.getLayers();
+  assert.strictEqual(s35Layers[0].type, 'node', 'Scenario 35: Node sent to back');
+  assert.strictEqual(s35Layers[1].type, 'glow', 'Scenario 35: Glow shifted to 1');
+  assert.strictEqual(s35Layers[2].type, 'image', 'Scenario 35: Image shifted to 2');
+
+  // Bring node forward (index 0 -> index 1)
+  window.LayerManager.bringForward([{ type: 'node', id: s35Node.id }]);
+  s35Layers = window.LayerManager.getLayers();
+  assert.strictEqual(s35Layers[1].type, 'node', 'Scenario 35: Node brought forward 1 step');
+
+  // Bring node to front (index 1 -> index 2)
+  window.LayerManager.bringToFront([{ type: 'node', id: s35Node.id }]);
+  s35Layers = window.LayerManager.getLayers();
+  assert.strictEqual(s35Layers[2].type, 'node', 'Scenario 35: Node brought to front');
+
+  // Send node backward (index 2 -> index 1)
+  window.LayerManager.sendBackward([{ type: 'node', id: s35Node.id }]);
+  s35Layers = window.LayerManager.getLayers();
+  assert.strictEqual(s35Layers[1].type, 'node', 'Scenario 35: Node sent backward 1 step');
+  console.log('[HARNESS] Scenario 35 PASS: Layer ordering CRUD and reordering operations verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 36: Object Visibility & Effective Visibility
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 36: Object visibility and exclusion from output and hit-testing...');
+  window.LayerManager.setVisibility('node', s35Node.id, false);
+  let effVis = window.LayerManager.getEffective('node', s35Node.id);
+  assert.strictEqual(effVis.visible, false, 'Scenario 36: Node effective visibility is false');
+
+  // SVG compilation must omit hidden elements
+  const s36State = window.SceneState.buildRenderState ? window.SceneState.buildRenderState() : {};
+  const s36SVG = window.buildFullSVG(s36State);
+  assert.ok(!s36SVG.includes(`data-node-id="${s35Node.id}"`), 'Scenario 36: Hidden node must be excluded from SVG output');
+
+  // Hit-testing on canvas must ignore hidden elements
+  const hitNodeHidden = window.DiagramNodes.findNodeAtPct(s35Node.x, s35Node.y, 1280, 720);
+  assert.strictEqual(hitNodeHidden, null, 'Scenario 36: Hidden node cannot be hit-tested on canvas');
+
+  // Re-enable visibility
+  window.LayerManager.setVisibility('node', s35Node.id, true);
+  effVis = window.LayerManager.getEffective('node', s35Node.id);
+  assert.strictEqual(effVis.visible, true, 'Scenario 36: Node effective visibility restored to true');
+  const s36State2 = window.SceneState.buildRenderState ? window.SceneState.buildRenderState() : {};
+  const s36SVGVisible = window.buildFullSVG(s36State2);
+  assert.ok(s36SVGVisible.includes(`data-node-id="${s35Node.id}"`), 'Scenario 36: Visible node is present in SVG output');
+  console.log('[HARNESS] Scenario 36 PASS: Object visibility verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 37: Object Locking & Canvas Selection Blocking
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 37: Object locking, canvas blocking, and deletion skip...');
+  window.LayerManager.setLocked('node', s35Node.id, true);
+  let effLock = window.LayerManager.getEffective('node', s35Node.id);
+  assert.strictEqual(effLock.locked, true, 'Scenario 37: Node is locked');
+
+  // Attempt to select locked node via canvas
+  window.AppCoordinator.clearSelection();
+  window.AppCoordinator.selectObject('node', s35Node.id, { source: 'canvas' });
+  assert.strictEqual(window.AppCoordinator.getActiveSelection()?.id || null, null, 'Scenario 37: Canvas selection of locked object is blocked');
+
+  // Select via layers list must succeed (for inspection/unlocking)
+  window.AppCoordinator.selectObject('node', s35Node.id, { source: 'layers_list' });
+  assert.ok(window.AppCoordinator.getActiveSelection(), 'Scenario 37: Selecting locked object from layers list succeeds');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, s35Node.id);
+
+  // Delete selected objects must skip locked objects
+  let skippedNotification = false;
+  const origNotify = window.AppCoordinator.showNotification;
+  window.AppCoordinator.showNotification = (msg, type) => {
+    if (msg && (msg.includes('Cannot delete locked') || msg.includes('locked skipped') || msg.includes('Locked object(s) skipped'))) skippedNotification = true;
+  };
+  window.AppCoordinator.deleteSelectedObjects();
+  window.AppCoordinator.showNotification = origNotify;
+
+  assert.strictEqual(skippedNotification, true, 'Scenario 37: Notification shown when locked object skipped during delete');
+  assert.ok(window.DiagramNodes.getNode(s35Node.id), 'Scenario 37: Locked node must not be deleted');
+
+  // Unlock node
+  window.LayerManager.setLocked('node', s35Node.id, false);
+  effLock = window.LayerManager.getEffective('node', s35Node.id);
+  assert.strictEqual(effLock.locked, false, 'Scenario 37: Node is unlocked');
+  console.log('[HARNESS] Scenario 37 PASS: Object locking and deletion skip verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 38: Image Object Lifecycle, Aspect Ratio & Coordinate Mapping
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 38: Image Object lifecycle, aspect ratio math, and hit-testing...');
+  const testPngB64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  const s38Img = window.ImageObjects.createImage({
+    name: 'Industrial Valve',
+    filename: 'valve.png',
+    data: testPngB64,
+    x: 45,
+    y: 55,
+    width: 200,
+    height: 100,
+    naturalWidth: 400,
+    naturalHeight: 200,
+    maintainAspectRatio: true,
+    opacity: 0.85
+  });
+  assert.ok(s38Img && s38Img.id, 'Scenario 38: Image created');
+  assert.strictEqual(s38Img.name, 'Industrial Valve');
+
+  const patchImg = window.ImageObjects.updateImage(s38Img.id, { width: 300 });
+  assert.strictEqual(patchImg.width, 300, 'Scenario 38: Width updated');
+
+  // Hit-testing image at percentage position (45%, 55%) on 1280x720 canvas
+  const hitImg = window.ImageObjects.findImageAtPct(45, 55, 1280, 720);
+  assert.ok(hitImg, 'Scenario 38: findImageAtPct finds image at its coordinates');
+  assert.strictEqual(hitImg.id, s38Img.id);
+
+  // Render SVG markup check
+  const renderedImgMarkup = window.ImageObjects.renderImageElement(s38Img, 1280, 720);
+  assert.ok(renderedImgMarkup.includes(`data-image-id="${s38Img.id}"`), 'Scenario 38: SVG markup includes data-image-id');
+  assert.ok(renderedImgMarkup.includes('opacity="0.85"'), 'Scenario 38: SVG markup includes opacity');
+  console.log('[HARNESS] Scenario 38 PASS: Image Object lifecycle and rendering verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 39: Layer and Group Integration
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 39: Layer and Group integration, contiguity, and hierarchy...');
+  window.ProjectManager.resetToNewProject();
+
+  const s39N1 = window.DiagramNodes.createNode({ text: 'Pump Inlet', x: 10, y: 10 });
+  const s39G1 = window.Glows.createGlow({ name: 'Pump Core', x: 20, y: 20 });
+  const s39N2 = window.DiagramNodes.createNode({ text: 'Pump Outlet', x: 30, y: 30 });
+  const s39R1 = window.Ripples.createRipple({ name: 'Pump Cavitation', x: 40, y: 40 });
+
+  window.LayerManager.ensureAllObjectsRepresented();
+  // Create group with s39N1 and s39N2
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: s39N1.id },
+    { type: 'node', id: s39N2.id }
+  ]);
+  const s39Grp = window.AppCoordinator.createGroupFromSelection('Pump Group');
+  assert.ok(s39Grp, 'Scenario 39: Group created');
+
+  // Group members must be placed contiguous in layer stack
+  window.LayerManager.syncFromEngine();
+  const s39Layers = window.LayerManager.getLayers();
+  const idx1 = s39Layers.findIndex(l => l.type === 'node' && String(l.id) === String(s39N1.id));
+  const idx2 = s39Layers.findIndex(l => l.type === 'node' && String(l.id) === String(s39N2.id));
+  assert.ok(idx1 >= 0 && idx2 >= 0, 'Scenario 39: Both node layers found in layer stack');
+  assert.strictEqual(Math.abs(idx1 - idx2), 1, 'Scenario 39: Group member layers must be contiguous in layer stack');
+
+  // Reorder group to front
+  window.LayerManager.bringToFront(s39Grp.members);
+  const s39LayersAfter = window.LayerManager.getLayers();
+  const lastIdx = s39LayersAfter.length - 1;
+  const s39Top1 = s39LayersAfter[lastIdx];
+  const s39Top2 = s39LayersAfter[lastIdx - 1];
+  assert.ok((String(s39Top1.id) === String(s39N1.id) && String(s39Top2.id) === String(s39N2.id)) || (String(s39Top1.id) === String(s39N2.id) && String(s39Top2.id) === String(s39N1.id)),
+    'Scenario 39: Moving group members to front moves all contiguous members to top');
+  console.log('[HARNESS] Scenario 39 PASS: Layer and Group integration verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 40: Multi-Selection with Images, Duplication & Copy/Paste
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 40: Multi-selection with images, duplication and copy/paste...');
+  window.ProjectManager.resetToNewProject();
+
+  const s40Node = window.DiagramNodes.createNode({ text: 'Generator', x: 50, y: 50 });
+  const s40Img = window.ImageObjects.createImage({ name: 'Logo Badge', x: 60, y: 60, width: 80, height: 40 });
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: s40Node.id },
+    { type: 'image', id: s40Img.id }
+  ]);
+
+  const s40Selected = window.AppCoordinator.getSelectedItems();
+  assert.strictEqual(s40Selected.length, 2, 'Scenario 40: Mixed node and image selected');
+
+  // Duplicate selection
+  const s40DupOk = window.AppCoordinator.duplicateSelection();
+  assert.strictEqual(s40DupOk, true, 'Scenario 40: Duplication succeeds with image');
+  assert.strictEqual(window.DiagramNodes.list.length, 2, 'Scenario 40: 2 nodes exist after duplication');
+  assert.strictEqual(window.ImageObjects.list.length, 2, 'Scenario 40: 2 images exist after duplication');
+
+  // Copy and Paste
+  const s40CopyOk = window.AppCoordinator.copySelection();
+  assert.strictEqual(s40CopyOk, true, 'Scenario 40: Copy selection succeeds');
+  const s40PasteOk = window.AppCoordinator.pasteClipboard();
+  assert.strictEqual(s40PasteOk, true, 'Scenario 40: Paste clipboard succeeds');
+  assert.strictEqual(window.DiagramNodes.list.length, 3, 'Scenario 40: 3 nodes exist after paste');
+  assert.strictEqual(window.ImageObjects.list.length, 3, 'Scenario 40: 3 images exist after paste');
+  console.log('[HARNESS] Scenario 40 PASS: Multi-selection with images, duplication and copy/paste verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 41: Native .sva Round-Trip with Bundled Image Assets & Layers
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 41: Native .sva round-trip with bundled image asset extraction...');
+  window.ProjectManager.resetToNewProject();
+
+  const s41Node = window.DiagramNodes.createNode({ text: 'Circuit Board', x: 25, y: 25 });
+  const s41Flow = window.DataFlows.createFlow({ name: 'Data Bus', nodes: [{ x: 25, y: 25 }, { x: 75, y: 75 }] });
+  const s41Glow = window.Glows.createGlow({ name: 'LED Indicator', x: 50, y: 50 });
+  const s41Ripple = window.Ripples.createRipple({ name: 'Antenna Wave', x: 75, y: 75 });
+  const s41Img = window.ImageObjects.createImage({
+    name: 'Schematic Overlay',
+    filename: 'schematic.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 40,
+    y: 40,
+    width: 120,
+    height: 90
+  });
+
+  const customLayers = [
+    { type: 'ripple', id: s41Ripple.id, visible: true, locked: false },
+    { type: 'node', id: s41Node.id, visible: true, locked: false },
+    { type: 'glow', id: s41Glow.id, visible: false, locked: false },
+    { type: 'image', id: s41Img.id, visible: true, locked: true },
+    { type: 'flow', id: s41Flow.id, visible: true, locked: false }
+  ];
+  window.LayerManager.setLayers(customLayers);
+
+  let s41CapturedBlob = null;
+  const origBlobFn = window.ProjectManager._downloadBlob;
+  window.ProjectManager._downloadBlob = (b) => { s41CapturedBlob = b; };
+
+  await window.ProjectManager.exportSVA();
+  assert.ok(s41CapturedBlob, 'Scenario 41: exportSVA succeeded');
+
+  const s41Buf = await s41CapturedBlob.arrayBuffer();
+  const s41Bytes = new Uint8Array(s41Buf);
+  let s41Bin = '';
+  for (let i = 0; i < s41Bytes.length; i += 8192) {
+    s41Bin += String.fromCharCode.apply(null, s41Bytes.subarray(i, i + 8192));
+  }
+  const s41B64 = btoa(s41Bin);
+
+  // Validate archive
+  const s41Val = window.EngineBridge.validateSVA(s41B64);
+  assert.ok(s41Val && s41Val.success, 'Scenario 41: Exported archive validates');
+
+  // Decode archive and inspect manifest assets
+  const s41Dec = window.EngineBridge.decodeSVA(s41B64);
+  assert.ok(s41Dec && s41Dec.success, 'Scenario 41: Exported archive decodes');
+  const s41Manifest = s41Dec.manifest;
+  assert.ok(s41Manifest.assets && s41Manifest.assets.length >= 1, 'Scenario 41: Manifest contains bundled image asset');
+  assert.ok(s41Manifest.assets.some(a => a.id.startsWith('image_')), 'Scenario 41: Image asset bundled in manifest');
+
+  // Clear scene and import SVA
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.ImageObjects.list.length, 0, 'Scenario 41: Image list cleared');
+
+  await window.ProjectManager.importSVA({
+    name: 'Circuit Board.sva',
+    arrayBuffer: async () => s41Buf
+  });
+
+  window.ProjectManager._downloadBlob = origBlobFn;
+
+  // Verify restored image and layers
+  assert.strictEqual(window.ImageObjects.list.length, 1, 'Scenario 41: Image object restored');
+  const restoredImg = window.ImageObjects.list[0];
+  assert.strictEqual(restoredImg.name, 'Schematic Overlay');
+  assert.ok(restoredImg.data && restoredImg.data.startsWith('data:image/'), 'Scenario 41: Image data URL restored');
+
+  const restoredLayers = window.LayerManager.getLayers();
+  assert.strictEqual(restoredLayers.length, 5, 'Scenario 41: All 5 layers restored');
+  assert.strictEqual(restoredLayers[0].type, 'ripple', 'Scenario 41: Ripple at bottom');
+  assert.strictEqual(restoredLayers[1].type, 'node', 'Scenario 41: Node at index 1');
+  assert.strictEqual(restoredLayers[2].type, 'glow', 'Scenario 41: Glow at index 2');
+  assert.strictEqual(restoredLayers[2].visible, false, 'Scenario 41: Glow hidden state preserved');
+  assert.strictEqual(restoredLayers[3].type, 'image', 'Scenario 41: Image at index 3');
+  assert.strictEqual(restoredLayers[3].locked, true, 'Scenario 41: Image locked state preserved');
+  assert.strictEqual(restoredLayers[4].type, 'flow', 'Scenario 41: Flow at top');
+  console.log('[HARNESS] Scenario 41 PASS: Native .sva round-trip with bundled assets and layers verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 42: History Undo/Redo State Restoration for Images & Layers
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 42: History undo/redo state restoration for images and layers...');
+  window.ProjectManager.resetToNewProject();
+
+  const s42Node = window.DiagramNodes.createNode({ text: 'History Node', x: 20, y: 20 });
+  const s42Img = window.ImageObjects.createImage({ name: 'History Image', x: 40, y: 40 });
+  window.HistoryManager.recordImmediate();
+
+  const initialLayers = JSON.parse(JSON.stringify(window.LayerManager.getLayers()));
+
+  // Action: reorder layers (bring node to front) and hide image
+  window.LayerManager.bringToFront([{ type: 'node', id: s42Node.id }]);
+  window.LayerManager.setVisibility('image', s42Img.id, false);
+  window.HistoryManager.recordImmediate();
+
+  const modifiedLayers = window.LayerManager.getLayers();
+  assert.strictEqual(modifiedLayers[1].type, 'node', 'Scenario 42: Node brought to front');
+  assert.strictEqual(window.LayerManager.getEffective('image', s42Img.id).visible, false, 'Scenario 42: Image hidden');
+
+  // Undo
+  window.HistoryManager.undo();
+  const undoneLayers = window.LayerManager.getLayers();
+  assert.strictEqual(undoneLayers[0].type, initialLayers[0].type, 'Scenario 42: Undo restored initial bottom layer');
+  assert.strictEqual(window.LayerManager.getEffective('image', s42Img.id).visible, true, 'Scenario 42: Undo restored image visibility');
+
+  // Redo
+  window.HistoryManager.redo();
+  const redoneLayers = window.LayerManager.getLayers();
+  assert.strictEqual(redoneLayers[1].type, 'node', 'Scenario 42: Redo restored node to front');
+  assert.strictEqual(window.LayerManager.getEffective('image', s42Img.id).visible, false, 'Scenario 42: Redo restored image hidden state');
+  console.log('[HARNESS] Scenario 42 PASS: History undo/redo state restoration for images and layers verified.');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 & 14 unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

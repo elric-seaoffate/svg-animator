@@ -1462,3 +1462,140 @@ func TestDispatchGroupAndClipboardCommands(t *testing.T) {
 		t.Fatalf("Group.RemoveMembers step 2 failed (expected dissolved): %+v", remRes2)
 	}
 }
+
+func TestDispatchImageAndLayerCommands(t *testing.T) {
+	// 1. Image.Create
+	imgReq, _ := json.Marshal(ImageCreateRequest{
+		Image: scene.Image{
+			Filename:     "test_photo.png",
+			Width:        400,
+			Height:       300,
+			NaturalWidth: 800,
+			NaturalHeight: 600,
+		},
+	})
+	imgBytes, err := Dispatch("Image.Create", imgReq)
+	if err != nil {
+		t.Fatalf("Image.Create failed: %v", err)
+	}
+	var imgRes ImageCreateResponse
+	if err := json.Unmarshal(imgBytes, &imgRes); err != nil || !imgRes.Success {
+		t.Fatalf("Image.Create response mismatch: %+v", imgRes)
+	}
+	imgID := imgRes.Image.ID
+
+	// 2. Image.Get
+	getReq, _ := json.Marshal(ImageGetRequest{ID: imgID})
+	getBytes, err := Dispatch("Image.Get", getReq)
+	if err != nil {
+		t.Fatalf("Image.Get failed: %v", err)
+	}
+	var getRes ImageGetResponse
+	if err := json.Unmarshal(getBytes, &getRes); err != nil || !getRes.Found {
+		t.Fatalf("Image.Get not found: %+v", getRes)
+	}
+
+	// 3. Image.Update
+	upReq, _ := json.Marshal(ImageUpdateRequest{
+		ID: imgID,
+		Patch: scene.Image{
+			Name: "Custom Photo Name",
+			Width: 500,
+		},
+	})
+	upBytes, err := Dispatch("Image.Update", upReq)
+	if err != nil {
+		t.Fatalf("Image.Update failed: %v", err)
+	}
+	var upRes ImageUpdateResponse
+	if err := json.Unmarshal(upBytes, &upRes); err != nil || !upRes.Success || upRes.Image.Name != "Custom Photo Name" {
+		t.Fatalf("Image.Update response mismatch: %+v", upRes)
+	}
+
+	// 4. Image.List
+	listBytes, err := Dispatch("Image.List", nil)
+	if err != nil {
+		t.Fatalf("Image.List failed: %v", err)
+	}
+	var listRes ImageListResponse
+	if err := json.Unmarshal(listBytes, &listRes); err != nil || listRes.Count == 0 {
+		t.Fatalf("Image.List empty: %+v", listRes)
+	}
+
+	// 5. Layer.Get
+	layerBytes, err := Dispatch("Layer.Get", nil)
+	if err != nil {
+		t.Fatalf("Layer.Get failed: %v", err)
+	}
+	var layerRes LayerGetResponse
+	if err := json.Unmarshal(layerBytes, &layerRes); err != nil || layerRes.Count == 0 {
+		t.Fatalf("Layer.Get empty: %+v", layerRes)
+	}
+
+	// 6. Layer.BringToFront
+	frontReq, _ := json.Marshal(LayerReorderRequest{
+		Targets: []scene.SelectionItem{{Type: scene.SelectionImage, ID: imgID}},
+	})
+	frontBytes, err := Dispatch("Layer.BringToFront", frontReq)
+	if err != nil {
+		t.Fatalf("Layer.BringToFront failed: %v", err)
+	}
+	var frontRes LayerReorderResponse
+	if err := json.Unmarshal(frontBytes, &frontRes); err != nil || !frontRes.Success {
+		t.Fatalf("Layer.BringToFront mismatch: %+v", frontRes)
+	}
+
+	// 7. Layer.SetVisibility and Layer.SetLocked
+	visReq, _ := json.Marshal(LayerVisibilityRequest{
+		Type:    scene.SelectionImage,
+		ID:      imgID,
+		Visible: false,
+	})
+	visBytes, err := Dispatch("Layer.SetVisibility", visReq)
+	if err != nil {
+		t.Fatalf("Layer.SetVisibility failed: %v", err)
+	}
+	var visRes LayerVisibilityResponse
+	if err := json.Unmarshal(visBytes, &visRes); err != nil || !visRes.Success {
+		t.Fatalf("Layer.SetVisibility mismatch: %+v", visRes)
+	}
+
+	lockReq, _ := json.Marshal(LayerLockedRequest{
+		Type:   scene.SelectionImage,
+		ID:     imgID,
+		Locked: true,
+	})
+	lockBytes, err := Dispatch("Layer.SetLocked", lockReq)
+	if err != nil {
+		t.Fatalf("Layer.SetLocked failed: %v", err)
+	}
+	var lockRes LayerLockedResponse
+	if err := json.Unmarshal(lockBytes, &lockRes); err != nil || !lockRes.Success {
+		t.Fatalf("Layer.SetLocked mismatch: %+v", lockRes)
+	}
+
+	// 8. Layer.GetEffective
+	effReq, _ := json.Marshal(LayerEffectiveRequest{
+		Type: scene.SelectionImage,
+		ID:   imgID,
+	})
+	effBytes, err := Dispatch("Layer.GetEffective", effReq)
+	if err != nil {
+		t.Fatalf("Layer.GetEffective failed: %v", err)
+	}
+	var effRes LayerEffectiveResponse
+	if err := json.Unmarshal(effBytes, &effRes); err != nil || effRes.Visible != false || effRes.Locked != true {
+		t.Fatalf("Layer.GetEffective expected visible=false, locked=true, got %+v", effRes)
+	}
+
+	// 9. Image.Delete
+	delReq, _ := json.Marshal(ImageDeleteRequest{ID: imgID})
+	delBytes, err := Dispatch("Image.Delete", delReq)
+	if err != nil {
+		t.Fatalf("Image.Delete failed: %v", err)
+	}
+	var delRes ImageDeleteResponse
+	if err := json.Unmarshal(delBytes, &delRes); err != nil || !delRes.Success {
+		t.Fatalf("Image.Delete mismatch: %+v", delRes)
+	}
+}

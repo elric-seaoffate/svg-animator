@@ -17,6 +17,7 @@ type ClipboardPayload struct {
 	Flows   []Flow   `json:"flows,omitempty"`
 	Glows   []Glow   `json:"glows,omitempty"`
 	Ripples []Ripple `json:"ripples,omitempty"`
+	Images  []Image  `json:"images,omitempty"`
 	Groups  []Group  `json:"groups,omitempty"`
 }
 
@@ -53,6 +54,10 @@ func (s *Scene) CopySelection(items []SelectionItem, groupID StringID) (Clipboar
 					if r, ok := s.ripples[m.ID]; ok {
 						payload.Ripples = append(payload.Ripples, r)
 					}
+				case SelectionImage:
+					if img, ok := s.images[m.ID]; ok {
+						payload.Images = append(payload.Images, img)
+					}
 				}
 			}
 			return payload, nil
@@ -68,6 +73,7 @@ func (s *Scene) CopySelection(items []SelectionItem, groupID StringID) (Clipboar
 	flowIDs := make(map[StringID]bool)
 	glowIDs := make(map[StringID]bool)
 	rippleIDs := make(map[StringID]bool)
+	imageIDs := make(map[StringID]bool)
 
 	for _, it := range items {
 		switch it.Type {
@@ -90,6 +96,11 @@ func (s *Scene) CopySelection(items []SelectionItem, groupID StringID) (Clipboar
 			rippleIDs[it.ID] = true
 			if r, ok := s.ripples[it.ID]; ok {
 				payload.Ripples = append(payload.Ripples, r)
+			}
+		case SelectionImage:
+			imageIDs[it.ID] = true
+			if img, ok := s.images[it.ID]; ok {
+				payload.Images = append(payload.Images, img)
 			}
 		case SelectionGroup:
 			if grp, exists := s.groups[it.ID]; exists {
@@ -124,6 +135,13 @@ func (s *Scene) CopySelection(items []SelectionItem, groupID StringID) (Clipboar
 								payload.Ripples = append(payload.Ripples, r)
 							}
 						}
+					case SelectionImage:
+						if !imageIDs[m.ID] {
+							imageIDs[m.ID] = true
+							if img, ok := s.images[m.ID]; ok {
+								payload.Images = append(payload.Images, img)
+							}
+						}
 					}
 				}
 			}
@@ -152,6 +170,7 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 	flowIDMap := make(map[StringID]StringID)
 	glowIDMap := make(map[StringID]StringID)
 	rippleIDMap := make(map[StringID]StringID)
+	imageIDMap := make(map[StringID]StringID)
 
 	// 1. Paste Nodes
 	for _, n := range payload.Nodes {
@@ -240,7 +259,39 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 		newItems = append(newItems, SelectionItem{Type: SelectionRipple, ID: newID})
 	}
 
-	// 4. Paste Flows (with Node remapping)
+	// 4. Paste Images
+	for _, img := range payload.Images {
+		var newID StringID
+		for {
+			s.imagesCounter++
+			newID = StringID("image-" + strconv.FormatInt(s.imagesCounter, 10))
+			if _, exists := s.images[newID]; !exists {
+				break
+			}
+		}
+		imageIDMap[img.ID] = newID
+
+		cloned := img
+		cloned.ID = newID
+		cloned.X += offsetX
+		cloned.Y += offsetY
+		cloned.X = math.Max(-50.0, math.Min(150.0, cloned.X))
+		cloned.Y = math.Max(-50.0, math.Min(150.0, cloned.Y))
+		cloned.X = math.Round(cloned.X*1000.0) / 1000.0
+		cloned.Y = math.Round(cloned.Y*1000.0) / 1000.0
+		if cloned.Name != "" {
+			cloned.Name = cloned.Name + " Copy"
+		}
+
+		if s.images == nil {
+			s.images = make(map[StringID]Image)
+		}
+		s.images[newID] = cloned
+		s.imageIDs = append(s.imageIDs, newID)
+		newItems = append(newItems, SelectionItem{Type: SelectionImage, ID: newID})
+	}
+
+	// 5. Paste Flows (with Node remapping)
 	for _, f := range payload.Flows {
 		var newID StringID
 		for {
@@ -325,6 +376,10 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 				if newRID, ok := rippleIDMap[m.ID]; ok {
 					remappedMembers = append(remappedMembers, GroupMember{Type: SelectionRipple, ID: newRID})
 				}
+			case SelectionImage:
+				if newImgID, ok := imageIDMap[m.ID]; ok {
+					remappedMembers = append(remappedMembers, GroupMember{Type: SelectionImage, ID: newImgID})
+				}
 			}
 		}
 
@@ -336,9 +391,11 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 			}
 			s.groups[newGID] = clonedGroup
 			s.groupIDs = append(s.groupIDs, newGID)
+			s.coalesceGroupMembersInLayersLocked(clonedGroup)
 		}
 	}
 
+	s.ensureLayersInitializedLocked()
 	s.revision++
 	return newItems, newGroupID, nil
 }

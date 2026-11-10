@@ -67,6 +67,9 @@ type SceneData struct {
 	RipplesCounter  int                    `json:"ripplesCounter,omitempty"`
 	Groups          []scene.Group          `json:"groups,omitempty"`
 	GroupsCounter   int                    `json:"groupsCounter,omitempty"`
+	Images          []scene.Image          `json:"images,omitempty"`
+	ImagesCounter   int                    `json:"imagesCounter,omitempty"`
+	Layers          []scene.LayerEntry     `json:"layers,omitempty"`
 	Metadata        map[string]any         `json:"metadata,omitempty"`
 }
 
@@ -105,5 +108,8 @@ func (s *SceneData) ToSnapshot() scene.Snapshot {
 		Ripples:       s.Ripples,
 		Groups:        s.Groups,
 		GroupsCounter: int64(groupsCounter),
+		Images:        s.Images,
+		ImagesCounter: int64(s.ImagesCounter),
+		Layers:        s.Layers,
 	}
 }

@@ -83,6 +83,9 @@ func (s *Scene) CreateRipple(initial Ripple) Ripple {
 
 	if _, exists := s.ripples[initial.ID]; !exists {
 		s.rippleIDs = append(s.rippleIDs, initial.ID)
+		if len(s.layers) > 0 {
+			s.layers = append(s.layers, LayerEntry{Type: SelectionRipple, ID: initial.ID})
+		}
 	}
 	s.ripples[initial.ID] = initial
 	s.revision++

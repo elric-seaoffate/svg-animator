@@ -9,7 +9,7 @@ import (
 
 // GroupMember represents an object instance member in a persistent group.
 type GroupMember struct {
-	Type SelectionType `json:"type"` // "node", "flow", "glow", "ripple"
+	Type SelectionType `json:"type"` // "node", "flow", "glow", "ripple", "image"
 	ID   StringID      `json:"id"`
 }
 
@@ -18,7 +18,20 @@ type Group struct {
 	ID       StringID       `json:"id"`
 	Name     string         `json:"name,omitempty"` // User-editable display name
 	Members  []GroupMember  `json:"members"`
+	Visible  *bool          `json:"visible,omitempty"`
+	Locked   bool           `json:"locked,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"` // Forward-compatible extension metadata
+}
+
+func (grp Group) IsVisible() bool {
+	if grp.Visible == nil {
+		return true
+	}
+	return *grp.Visible
+}
+
+func (grp Group) IsLocked() bool {
+	return grp.Locked
 }
 
 // nextGroupID generates the next sequential group ID.
@@ -134,6 +147,8 @@ func (s *Scene) CreateGroup(name string, members []GroupMember) (Group, error) {
 
 	s.groups[newID] = grp
 	s.groupIDs = append(s.groupIDs, newID)
+	s.ensureLayersInitializedLocked()
+	s.coalesceGroupMembersInLayersLocked(grp)
 	s.revision++
 
 	return grp, nil
@@ -413,6 +428,21 @@ func (s *Scene) MoveGroup(groupID StringID, deltaX float64, deltaY float64) erro
 		}
 	}
 
+	// 5. Move member Images
+	for _, m := range grp.Members {
+		if m.Type == SelectionImage {
+			if img, exists := s.images[m.ID]; exists {
+				img.X += deltaX
+				img.Y += deltaY
+				img.X = math.Max(-50.0, math.Min(150.0, img.X))
+				img.Y = math.Max(-50.0, math.Min(150.0, img.Y))
+				img.X = math.Round(img.X*1000.0) / 1000.0
+				img.Y = math.Round(img.Y*1000.0) / 1000.0
+				s.images[m.ID] = img
+			}
+		}
+	}
+
 	s.revision++
 	return nil
 }
@@ -491,6 +521,16 @@ func (s *Scene) ComputeGroupBounds(groupID StringID, canvasW, canvasH float64) (
 					maxY = math.Max(maxY, p.Y)
 					count++
 				}
+			}
+		case SelectionImage:
+			if img, exists := s.images[m.ID]; exists {
+				hwPct := (img.Width / 2.0 / canvasW) * 100.0
+				hhPct := (img.Height / 2.0 / canvasH) * 100.0
+				minX = math.Min(minX, img.X-hwPct)
+				maxX = math.Max(maxX, img.X+hwPct)
+				minY = math.Min(minY, img.Y-hhPct)
+				maxY = math.Max(maxY, img.Y+hhPct)
+				count++
 			}
 		}
 	}

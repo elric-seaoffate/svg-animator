@@ -79,6 +79,9 @@ window.Glows = {
         } else {
           this.list.push(normalized);
         }
+        if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+          window.LayerManager.addEntry('glow', normalized.id);
+        }
         return normalized;
       }
     }
@@ -110,6 +113,9 @@ window.Glows = {
     if (initialProps.customH) newGlow.customH = initialProps.customH;
 
     this.list.push(newGlow);
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+      window.LayerManager.addEntry('glow', newGlow.id);
+    }
     return newGlow;
   },
 
@@ -147,6 +153,9 @@ window.Glows = {
     if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
       window.ObjectGroups.pruneMember('glow', id);
     }
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.removeEntry === 'function') {
+      window.LayerManager.removeEntry('glow', id);
+    }
     return this.list.length < before;
   },
 
@@ -155,7 +164,12 @@ window.Glows = {
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
       const wasmFound = window.EngineBridge.findGlowAt(xPct, yPct, canvasW, canvasH);
       if (wasmFound && wasmFound.id) {
-        return this.getGlow(wasmFound.id) || wasmFound;
+        const local = this.getGlow(wasmFound.id) || wasmFound;
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const effL = window.LayerManager.getEffective('glow', local.id);
+          if (effL && !effL.visible) return null;
+        }
+        return local;
       }
       if (wasmFound === null) return null;
     }
@@ -163,6 +177,10 @@ window.Glows = {
     // JavaScript fallback
     for (let i = this.list.length - 1; i >= 0; i--) {
       const g = this.list[i];
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('glow', g.id);
+        if (effL && !effL.visible) continue;
+      }
       const gx = (g.x / 100) * canvasW;
       const gy = (g.y / 100) * canvasH;
       const testX = (xPct / 100) * canvasW;
@@ -229,6 +247,10 @@ window.Glows = {
     const holdSpline = '0 0 1 1';
 
     this.list.forEach((glow) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('glow', glow.id);
+        if (effL && !effL.visible) return;
+      }
       const px = (glow.x / 100) * width;
       const py = (glow.y / 100) * height;
       const op = glow.opacity !== undefined ? glow.opacity : 1.0;

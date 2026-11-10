@@ -863,3 +863,114 @@ func TestSVABackwardCompatibilityNoGroups(t *testing.T) {
 		t.Fatalf("expected empty groups slice in legacy extracted state, got %v", stateMap["groups"])
 	}
 }
+
+func TestSVAImagesAndLayersRoundtrip(t *testing.T) {
+	fakeImgBytes := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4")
+	fakeImgB64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(fakeImgBytes)
+	visFalse := false
+
+	studioJSON := fmt.Sprintf(`{
+		"version": "1.2.0",
+		"nodes": [
+			{"id": "node-1", "shape": "rect", "text": "Node 1", "x": 10, "y": 10, "width": 50, "height": 30}
+		],
+		"nodesCounter": 1,
+		"images": [
+			{
+				"id": "image-1",
+				"name": "Plant Schematic",
+				"filename": "plant.png",
+				"mime": "image/png",
+				"src": "%s",
+				"x": 50.0,
+				"y": 50.0,
+				"width": 640.0,
+				"height": 480.0,
+				"naturalWidth": 1280.0,
+				"naturalHeight": 960.0,
+				"maintainAspectRatio": true,
+				"opacity": 0.85,
+				"visible": false,
+				"locked": true
+			}
+		],
+		"imagesCounter": 1,
+		"layers": [
+			{"type": "node", "id": "node-1"},
+			{"type": "image", "id": "image-1"}
+		]
+	}`, fakeImgB64)
+
+	proj, err := BuildProjectFromStudioState("Image Test", "Testing images and layers", []byte(studioJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed: %v", err)
+	}
+
+	// Verify image asset was extracted
+	if len(proj.Assets) != 1 {
+		t.Fatalf("expected 1 packaged asset for image, got %d", len(proj.Assets))
+	}
+	if len(proj.Scene.Images) != 1 {
+		t.Fatalf("expected 1 image in SceneData, got %d", len(proj.Scene.Images))
+	}
+	if proj.Scene.Images[0].AssetRef == "" {
+		t.Errorf("expected Image.AssetRef to be populated, got empty")
+	}
+	if proj.Scene.Images[0].Src != "" {
+		t.Errorf("expected Image.Src to be cleared in scene.json, got %q", proj.Scene.Images[0].Src)
+	}
+	if len(proj.Scene.Layers) != 2 {
+		t.Errorf("expected 2 layers in SceneData, got %d", len(proj.Scene.Layers))
+	}
+
+	// Encode to SVA zip
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	// Decode from SVA zip
+	decodedProj, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+	if len(decodedProj.Scene.Images) != 1 {
+		t.Fatalf("expected 1 image in decoded project, got %d", len(decodedProj.Scene.Images))
+	}
+	decImg := decodedProj.Scene.Images[0]
+	if decImg.Name != "Plant Schematic" {
+		t.Errorf("expected Name 'Plant Schematic', got %q", decImg.Name)
+	}
+	if decImg.IsVisible() != false {
+		t.Errorf("expected visible=false, got %v", decImg.IsVisible())
+	}
+	if decImg.IsLocked() != true {
+		t.Errorf("expected locked=true, got %v", decImg.IsLocked())
+	}
+
+	// Extract studio state for frontend
+	stateBytes, err := ExtractStudioState(decodedProj)
+	if err != nil {
+		t.Fatalf("ExtractStudioState failed: %v", err)
+	}
+	var stateMap map[string]any
+	if err := json.Unmarshal(stateBytes, &stateMap); err != nil {
+		t.Fatalf("Unmarshal extracted state failed: %v", err)
+	}
+
+	rawImages, ok := stateMap["images"].([]any)
+	if !ok || len(rawImages) != 1 {
+		t.Fatalf("expected 1 image in extracted studio state, got %v", stateMap["images"])
+	}
+	imgObj := rawImages[0].(map[string]any)
+	srcStr, _ := imgObj["src"].(string)
+	if !strings.HasPrefix(srcStr, "data:image/png;base64,") {
+		t.Errorf("expected rehydrated data URI in image src, got %q", srcStr)
+	}
+
+	rawLayers, ok := stateMap["layers"].([]any)
+	if !ok || len(rawLayers) != 2 {
+		t.Fatalf("expected 2 layers in extracted studio state, got %v", stateMap["layers"])
+	}
+	_ = visFalse
+}

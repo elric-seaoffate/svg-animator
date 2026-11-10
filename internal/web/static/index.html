@@ -59,6 +59,10 @@
         <span class="rail-icon">♒</span>
         <span class="rail-label">Ripples</span>
       </button>
+      <button type="button" class="icon-rail-btn" id="railBtn-layers" data-target-acc="acc-layers" title="Unified Layers &amp; Image Objects (7)" aria-label="Unified Layers &amp; Image Objects" aria-controls="acc-layers" aria-expanded="false">
+        <span class="rail-icon">☰</span>
+        <span class="rail-label">Layers</span>
+      </button>
       <div class="icon-rail-spacer"></div>
       <button type="button" class="icon-rail-btn icon-rail-toggle" id="railBtn-toggleLeft" title="Toggle Left Drawer (T)" aria-label="Toggle Left Drawer" aria-controls="leftDrawer" aria-expanded="true">
         <span class="rail-icon">◀</span>
@@ -986,6 +990,29 @@
           </div>
         </div>
       </div>
+
+      <!-- 7. ACCORDION: UNIFIED LAYERS & IMAGE OBJECTS -->
+      <div class="accordion-section" id="acc-layers">
+        <div class="accordion-header">
+          <span style="color: #a371f7;">☰ Layers &amp; Images</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
+        <div class="accordion-body">
+          <div class="control-group">
+            <div class="layers-toolbar" style="display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; align-items: center;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerToFront" title="Bring to Front (Ctrl+Shift+])" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">⤊ Top</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerForward" title="Bring Forward (Ctrl+])" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">↑ Up</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerBackward" title="Send Backward (Ctrl+[)" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">↓ Down</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerToBack" title="Send to Back (Ctrl+Shift+[)" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">⤋ Bottom</button>
+              <input type="file" id="inputImportImageObject" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display: none;" />
+              <button type="button" class="btn btn-primary btn-sm" id="btnImportImageObject" title="Import Independent Image Object" style="margin-left: auto; padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #238636; border-color: #2ea043; color: #fff;">+ Import Image</button>
+            </div>
+            <div id="layersListContainer" class="layers-list-container" style="max-height: 480px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 2px; padding: 4px;">
+              <!-- Rendered dynamically by window.App.renderLayersList() -->
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     </aside> <!-- end #leftDrawer -->
 
@@ -1040,6 +1067,20 @@
         <button type="button" class="floating-editor-close-btn" id="btnFloatingEditorClose" title="Close Editor (Esc)">&times;</button>
       </div>
       <div class="floating-editor-body" id="floatingEditorBody">
+        <!-- LAYER MANAGEMENT BAR (Reorder, Visibility, Locking for active object) -->
+        <div id="fctx-layerBar" style="display: flex; gap: 4px; padding: 0.35rem 0.5rem; margin-bottom: 0.45rem; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 6px; align-items: center; justify-content: space-between;">
+          <div style="display: flex; gap: 3px;">
+            <button type="button" class="btn-floating-action" id="fctx-btnLayerTop" title="Bring to Front (Ctrl+Shift+])" style="padding: 0.18rem 0.38rem; font-size: 0.72rem;">⤊ Top</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnLayerUp" title="Bring Forward (Ctrl+])" style="padding: 0.18rem 0.38rem; font-size: 0.72rem;">↑ Up</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnLayerDown" title="Send Backward (Ctrl+[)" style="padding: 0.18rem 0.38rem; font-size: 0.72rem;">↓ Down</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnLayerBottom" title="Send to Back (Ctrl+Shift+[)" style="padding: 0.18rem 0.38rem; font-size: 0.72rem;">⤋ Bottom</button>
+          </div>
+          <div style="display: flex; gap: 4px;">
+            <button type="button" class="btn-floating-action" id="fctx-btnToggleVis" title="Toggle Visibility" style="padding: 0.18rem 0.45rem; font-size: 0.75rem;">👁️</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnToggleLock" title="Toggle Lock" style="padding: 0.18rem 0.45rem; font-size: 0.75rem;">🔓</button>
+          </div>
+        </div>
+
         <!-- NODE SECTION -->
         <div id="fctx-nodeSection" class="floating-editor-section" style="display: none;">
           <div class="floating-actions-bar">
@@ -1456,6 +1497,45 @@
             <div class="slider-row">
               <input type="range" id="fctx-rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0">
               <input type="number" class="num-input" id="fctx-rippleEndDelayNum" value="1.0">
+            </div>
+          </div>
+        </div>
+
+        <!-- IMAGE OBJECT SECTION -->
+        <div id="fctx-imageSection" class="floating-editor-section" style="display: none;">
+          <div class="floating-actions-bar">
+            <span style="font-size: 0.72rem; color: #a371f7;">Image Object</span>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteImage" title="Delete image object">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-imageNameInput">Name</label>
+            <input type="text" id="fctx-imageNameInput" placeholder="Image name" class="text-field-input">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-imageWidthSlider">Width</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-imageWidthSlider" min="20" max="1920" step="1" value="200">
+              <input type="number" class="num-input" id="fctx-imageWidthNum" value="200">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-imageHeightSlider">Height</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-imageHeightSlider" min="20" max="1080" step="1" value="150">
+              <input type="number" class="num-input" id="fctx-imageHeightNum" value="150">
+            </div>
+          </div>
+          <div class="floating-prop-row">
+            <label>Aspect Ratio</label>
+            <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;">
+              <input type="checkbox" id="fctx-imageLockAspect" checked> 🔒 Lock Ratio
+            </label>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-imageOpacitySlider">Opacity</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-imageOpacitySlider" min="0" max="1.0" step="0.05" value="1.0">
+              <input type="number" class="num-input" id="fctx-imageOpacityNum" value="1.0">
             </div>
           </div>
         </div>

@@ -43,9 +43,11 @@ Core principles:
 To maintain architectural clarity as the application evolves towards Digital Twin capabilities, four distinct concepts are explicitly separated:
 
 1. **Selection (`SelectionState{Type, ID, Items}`)**: Transient UI interaction state. Indicates which objects are currently focused, hovered, or marquee-selected in the editor. Not saved to project files.
-2. **Persistent Group (`Group{ID, Name, Members, Metadata}`)**: Persistent, named spatial/visual assembly of scene objects (shapes, flows, glows, ripples) that moves and transforms together. Flat, single-level hierarchy. Stored in Go scene models, `.sva` packages, SQLite projects, and undo/redo snapshots. Automatically pruned when members are deleted.
-3. **Class / Type (Planned future phase)**: Semantic category or asset definition (e.g. Pump, Heat Exchanger, Sensor). Defines template attributes, default visual representation, and telemetry port schemas.
-4. **Data Binding (Planned future phase)**: Dynamic runtime connection between an external telemetry metric/tag and an object/class visual property (e.g. rotation, flow rate, color alert).
+2. **Persistent Group (`Group{ID, Name, Members, Metadata}`)**: Persistent, named spatial/visual assembly of scene objects (shapes, flows, glows, ripples, images) that moves and transforms together. Flat, single-level hierarchy. Stored in Go scene models, `.sva` packages, SQLite projects, and undo/redo snapshots. Automatically pruned when members are deleted.
+3. **Layer Order (`LayerEntry{Type, ID, Visible, Locked}`)**: Authoritative scene-wide stacking order. Bottom-to-top rendering index (0 is bottom-most, N-1 is top-most). Preserved in Go scene models, `.sva` packages, SQLite projects, and undo/redo snapshots. Controlled via `Layer.Get`, `Layer.Set`, `Layer.BringToFront`, `Layer.BringForward`, `Layer.SendBackward`, `Layer.SendToBack`, `Layer.SetVisibility`, `Layer.SetLocked`, and `Layer.GetEffective`.
+4. **Independent Image Objects (`Image{ID, Name, X, Y, Width, Height, MaintainAspectRatio, Opacity, AssetRef, Data}`)**: Freely positionable and scalable bitmap/SVG graphic elements. Bundled as discrete files in `.sva` packages under `assets/image_<id>.<ext>` and serialized to SQLite. Managed via `Image.Create`, `Image.Update`, `Image.Delete`, `Image.Get`, `Image.List`.
+5. **Class / Type (Planned future phase)**: Semantic category or asset definition (e.g. Pump, Heat Exchanger, Sensor). Defines template attributes, default visual representation, and telemetry port schemas.
+6. **Data Binding (Planned future phase)**: Dynamic runtime connection between an external telemetry metric/tag and an object/class visual property (e.g. rotation, flow rate, color alert).
 
 ---
 
@@ -93,6 +95,7 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 | Post-Migration Consolidation & Stable Release | **Implemented (v1.2.0)** | `cmd/svg-animator/`, `docs/`, `scripts/`, release packaging |
 | Multi-Selection, Alignment, Distribution & Colour Tool | **Implemented (Stage 12)** | `pkg/engine/scene/transform.go`, `selection.go`, `protocol/`, `coordinator.js`, `app.js` |
 | Persistent Object Groups, Integrated Duplication & Copy/Paste | **Implemented (Stage 13 & Repair)** | `pkg/engine/scene/group.go`, `clipboard.go`, `sva/`, `protocol/`, `coordinator.js`, `engine-bridge.js`, `stage.js`, `nodes.js`, `flows.js`, `glows.js`, `ripples.js`, `app.js` |
+| Unified Layer Management & Independent Image Objects | **Implemented (Stage 14)** | `pkg/engine/scene/layer.go`, `image.go`, `protocol/`, `sva/`, `engine-bridge.js`, `coordinator.js`, `app.js`, `stage.js` |
 | Three-layer frontend separation (`SceneState`, `ControlStateAdaptor`, `AppCoordinator`) | **Implemented (Phase 1)** | `internal/web/static/js/scene-state.js`, `coordinator.js` |
 | Operational APIs & UI separation across `presets`, `nodes`, `flows`, `glows`, `ripples`, `stage`, `history`, `projects`, `app`, export modals | **Implemented (Phase 1)** | `internal/web/static/js/*.js` |
 | Immutable SVG Shape Registry (`window.ShapeRegistry`) | **Implemented (Stage 2.1)** | `internal/web/static/js/shape-registry.js` (commit `f229c89`) |

@@ -162,6 +162,16 @@ window.Stage = {
             initY: rp.y
           });
         }
+      } else if (it.type === 'image' && window.ImageObjects) {
+        const img = window.ImageObjects.getImage(it.id);
+        if (img) {
+          this.groupDragInitialPositions.items.push({
+            type: 'image',
+            id: img.id,
+            initX: img.x,
+            initY: img.y
+          });
+        }
       } else if (it.type === 'flow' && window.DataFlows) {
         const f = window.DataFlows.getFlow(it.id);
         if (f && Array.isArray(f.nodes)) {
@@ -318,6 +328,15 @@ window.Stage = {
         }
 
         if (clickedNode) {
+          if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+            const effL = window.LayerManager.getEffective('node', clickedNode.id);
+            if (effL && (effL.locked || !effL.visible)) {
+              clickedNode = null;
+            }
+          }
+        }
+
+        if (clickedNode) {
           const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
           const currentSelectedItems = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
             ? window.AppCoordinator.getSelectedItems()
@@ -366,6 +385,77 @@ window.Stage = {
           return;
         }
 
+        // 3b. Image hit testing
+        let clickedImage = null;
+        const imgEl = e.target.closest ? e.target.closest('[data-image-id], [id^="img-image-"]') : null;
+        if (imgEl && window.ImageObjects) {
+          let rawId = imgEl.getAttribute('data-image-id');
+          if (!rawId && imgEl.id) {
+            rawId = imgEl.id.replace(/^img-/, '');
+          }
+          if (rawId) {
+            clickedImage = window.ImageObjects.getImage(rawId);
+          }
+        } else if (window.ImageObjects && typeof window.ImageObjects.findImageAtPct === 'function') {
+          clickedImage = window.ImageObjects.findImageAtPct(coords.x, coords.y, this.canvasWidth, this.canvasHeight);
+        }
+
+        if (clickedImage) {
+          if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+            const effL = window.LayerManager.getEffective('image', clickedImage.id);
+            if (effL && (effL.locked || !effL.visible)) {
+              clickedImage = null;
+            }
+          }
+        }
+
+        if (clickedImage) {
+          const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+          const currentSelectedItems = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
+            ? window.AppCoordinator.getSelectedItems()
+            : [];
+          const isImgSelected = currentSelectedItems.some((it) => it.type === 'image' && String(it.id) === String(clickedImage.id));
+
+          if (isModifier) {
+            if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
+              window.AppCoordinator.toggleObjectSelection('image', clickedImage.id);
+            }
+            this.isDragging = false;
+            return;
+          }
+
+          const memberGroup = (window.AppCoordinator && !window.AppCoordinator.isInGroupEditMode())
+            ? window.AppCoordinator.findGroupByMember('image', clickedImage.id)
+            : null;
+          if (memberGroup) {
+            window.AppCoordinator.selectGroup(memberGroup.id);
+            this._startMixedDrag(memberGroup.members, { x: clickedImage.x, y: clickedImage.y }, coords, e);
+            return;
+          }
+
+          if (currentSelectedItems.length > 1 && isImgSelected) {
+            this._startMixedDrag(currentSelectedItems, { x: clickedImage.x, y: clickedImage.y }, coords, e, 'image', clickedImage.id);
+            return;
+          }
+
+          // Single selection
+          this.isGroupDragging = false;
+          this.potentialSingleSelectType = null;
+          this.potentialSingleSelectId = null;
+          this.groupDragInitialPositions = null;
+          if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
+            window.AppCoordinator.selectObject('image', clickedImage.id, { openAccordionId: 'acc-layers' });
+          }
+          this.nodeGrabOffsetX = clickedImage.x - coords.x;
+          this.nodeGrabOffsetY = clickedImage.y - coords.y;
+          this.dragStartClientX = e.clientX;
+          this.dragStartClientY = e.clientY;
+          this.hasMovedDrag = false;
+          this.isDragging = true;
+          try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
+
         // 4. Glow hit testing
         const glowEl = e.target.closest ? e.target.closest('[data-glow-id], #glowReticleTarget') : null;
         if (glowEl && window.Glows) {
@@ -374,6 +464,14 @@ window.Stage = {
             glowId = parseInt(glowEl.getAttribute('data-glow-id'), 10);
           } else if (window.Glows.activeId !== null) {
             glowId = window.Glows.activeId;
+          }
+          if (glowId !== null && !isNaN(glowId)) {
+            if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+              const effL = window.LayerManager.getEffective('glow', glowId);
+              if (effL && (effL.locked || !effL.visible)) {
+                glowId = null;
+              }
+            }
           }
           if (glowId !== null && !isNaN(glowId)) {
             const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -432,6 +530,14 @@ window.Stage = {
             rippleId = window.Ripples.activeId;
           }
           if (rippleId !== null && !isNaN(rippleId)) {
+            if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+              const effL = window.LayerManager.getEffective('ripple', rippleId);
+              if (effL && (effL.locked || !effL.visible)) {
+                rippleId = null;
+              }
+            }
+          }
+          if (rippleId !== null && !isNaN(rippleId)) {
             const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
             if (isModifier) {
               if (window.AppCoordinator && typeof window.AppCoordinator.toggleObjectSelection === 'function') {
@@ -487,6 +593,14 @@ window.Stage = {
           } else if (flowEl.id && flowEl.id.startsWith('flowPath-')) {
             const m = flowEl.id.match(/flowPath-(\d+)/);
             if (m) flowId = parseInt(m[1], 10);
+          }
+          if (flowId !== null && !isNaN(flowId)) {
+            if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+              const effL = window.LayerManager.getEffective('flow', flowId);
+              if (effL && (effL.locked || !effL.visible)) {
+                flowId = null;
+              }
+            }
           }
           if (flowId !== null && !isNaN(flowId)) {
             const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -617,6 +731,21 @@ window.Stage = {
                   liveRipple.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
                 }
               }
+            } else if (item.type === 'image') {
+              const img = window.ImageObjects ? window.ImageObjects.getImage(item.id) : null;
+              if (img) {
+                img.x = Math.max(-50, Math.min(150, item.initX + deltaX));
+                img.y = Math.max(-50, Math.min(150, item.initY + deltaY));
+                const liveImg = document.querySelector('#svgContainer [data-image-id="' + img.id + '"]');
+                if (liveImg) {
+                  const cx = (img.x / 100) * this.canvasWidth;
+                  const cy = (img.y / 100) * this.canvasHeight;
+                  const w = img.width || 200;
+                  const h = img.height || 150;
+                  liveImg.setAttribute('x', (cx - w / 2).toFixed(2));
+                  liveImg.setAttribute('y', (cy - h / 2).toFixed(2));
+                }
+              }
             } else if (item.type === 'flow') {
               const f = window.DataFlows ? window.DataFlows.getFlow(item.id) : null;
               if (f && Array.isArray(f.nodes) && item.initNodes && (!f.fromNodeId || !f.toNodeId)) {
@@ -662,6 +791,13 @@ window.Stage = {
             const maxY = Math.max(this.marqueeStartPct.y, curCoords.y);
 
             const hits = [];
+            const isEligible = (type, id) => {
+              if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+                const eff = window.LayerManager.getEffective(type, id);
+                if (eff && (eff.locked || !eff.visible)) return false;
+              }
+              return true;
+            };
 
             // 1. Nodes
             const allNodes = window.DiagramNodes ? window.DiagramNodes.getAllNodes() : [];
@@ -674,7 +810,7 @@ window.Stage = {
               const nMinY = n.y - hhPct;
               const nMaxY = n.y + hhPct;
               const intersects = !(nMaxX < minX || nMinX > maxX || nMaxY < minY || nMinY > maxY);
-              if (intersects) hits.push({ type: 'node', id: n.id });
+              if (intersects && isEligible('node', n.id)) hits.push({ type: 'node', id: n.id });
             });
 
             // 2. Glows
@@ -694,7 +830,7 @@ window.Stage = {
               const gMinY = g.y - hhPct;
               const gMaxY = g.y + hhPct;
               const intersects = !(gMaxX < minX || gMinX > maxX || gMaxY < minY || gMinY > maxY);
-              if (intersects) hits.push({ type: 'glow', id: g.id });
+              if (intersects && isEligible('glow', g.id)) hits.push({ type: 'glow', id: g.id });
             });
 
             // 3. Ripples
@@ -708,15 +844,28 @@ window.Stage = {
               const rMinY = rp.y - ryPct;
               const rMaxY = rp.y + ryPct;
               const intersects = !(rMaxX < minX || rMinX > maxX || rMaxY < minY || rMinY > maxY);
-              if (intersects) hits.push({ type: 'ripple', id: rp.id });
+              if (intersects && isEligible('ripple', rp.id)) hits.push({ type: 'ripple', id: rp.id });
             });
 
-            // 4. Flows
+            // 4. Images
+            const allImages = window.ImageObjects ? window.ImageObjects.getAll() : [];
+            allImages.forEach((img) => {
+              const hwPct = ((img.width || 200) / this.canvasWidth) * 50;
+              const hhPct = ((img.height || 150) / this.canvasHeight) * 50;
+              const iMinX = img.x - hwPct;
+              const iMaxX = img.x + hwPct;
+              const iMinY = img.y - hhPct;
+              const iMaxY = img.y + hhPct;
+              const intersects = !(iMaxX < minX || iMinX > maxX || iMaxY < minY || iMinY > maxY);
+              if (intersects && isEligible('image', img.id)) hits.push({ type: 'image', id: img.id });
+            });
+
+            // 5. Flows
             const allFlows = window.DataFlows && Array.isArray(window.DataFlows.list) ? window.DataFlows.list : [];
             allFlows.forEach((f) => {
               if (Array.isArray(f.nodes)) {
                 const hasPtInBox = f.nodes.some((p) => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY);
-                if (hasPtInBox) hits.push({ type: 'flow', id: f.id });
+                if (hasPtInBox && isEligible('flow', f.id)) hits.push({ type: 'flow', id: f.id });
               }
             });
 
@@ -778,6 +927,11 @@ window.Stage = {
                 if (rp && window.EngineBridge && typeof window.EngineBridge.updateRipple === 'function') {
                   window.EngineBridge.updateRipple(rp.id, { x: rp.x, y: rp.y });
                 }
+              } else if (item.type === 'image') {
+                const img = window.ImageObjects ? window.ImageObjects.getImage(item.id) : null;
+                if (img && window.EngineBridge && typeof window.EngineBridge.updateImage === 'function') {
+                  window.EngineBridge.updateImage(img.id, { x: img.x, y: img.y });
+                }
               } else if (item.type === 'flow') {
                 const f = window.DataFlows ? window.DataFlows.getFlow(item.id) : null;
                 if (f && window.EngineBridge && typeof window.EngineBridge.updateFlow === 'function') {
@@ -796,7 +950,7 @@ window.Stage = {
             }
           } else if (potentialType && potentialId) {
             // Click without drag on multi-selected item -> narrow selection to single clicked item
-            const accMap = { node: 'acc-nodes', glow: 'acc-glows', ripple: 'acc-ripples', flow: 'acc-flows' };
+            const accMap = { node: 'acc-nodes', glow: 'acc-glows', ripple: 'acc-ripples', flow: 'acc-flows', image: 'acc-layers' };
             if (window.AppCoordinator) {
               window.AppCoordinator.selectObject(potentialType, potentialId, { openAccordionId: accMap[potentialType] });
             }

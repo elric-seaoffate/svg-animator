@@ -40,6 +40,12 @@ type Scene struct {
 	groups        map[StringID]Group
 	groupIDs      []StringID
 
+	imagesCounter int64
+	images        map[StringID]Image
+	imageIDs      []StringID
+
+	layers []LayerEntry
+
 	selection SelectionState
 	history   *HistoryManager
 }
@@ -91,11 +97,14 @@ func NewScene() *Scene {
 		glows:     make(map[StringID]Glow),
 		ripples:   make(map[StringID]Ripple),
 		groups:    make(map[StringID]Group),
+		images:    make(map[StringID]Image),
 		nodeIDs:   make([]StringID, 0),
 		flowIDs:   make([]StringID, 0),
 		glowIDs:   make([]StringID, 0),
 		rippleIDs: make([]StringID, 0),
 		groupIDs:  make([]StringID, 0),
+		imageIDs:  make([]StringID, 0),
+		layers:    make([]LayerEntry, 0),
 		selection: SelectionState{Type: SelectionNone, ID: ""},
 		history:   NewHistoryManager(50),
 	}
@@ -343,6 +352,9 @@ func (s *Scene) CreateNode(initial Node, preset *PresetConfig, snapToGrid bool) 
 
 	if _, exists := s.nodes[initial.ID]; !exists {
 		s.nodeIDs = append(s.nodeIDs, initial.ID)
+		if len(s.layers) > 0 {
+			s.layers = append(s.layers, LayerEntry{Type: SelectionNode, ID: initial.ID})
+		}
 	}
 	s.nodes[initial.ID] = initial
 	s.revision++
@@ -471,6 +483,7 @@ func (s *Scene) removeNodeLocked(id StringID) bool {
 
 	s.pruneSelectionLocked(SelectionNode, id)
 	s.pruneGroupMembersLocked(SelectionNode, id)
+	s.removeLayerEntryLocked(SelectionNode, id)
 	return true
 }
 
@@ -500,6 +513,7 @@ func (s *Scene) removeFlowLocked(id StringID) bool {
 	s.flowIDs = newIDs
 	s.pruneSelectionLocked(SelectionFlow, id)
 	s.pruneGroupMembersLocked(SelectionFlow, id)
+	s.removeLayerEntryLocked(SelectionFlow, id)
 	return true
 }
 
@@ -518,6 +532,7 @@ func (s *Scene) removeGlowLocked(id StringID) bool {
 	s.glowIDs = newIDs
 	s.pruneSelectionLocked(SelectionGlow, id)
 	s.pruneGroupMembersLocked(SelectionGlow, id)
+	s.removeLayerEntryLocked(SelectionGlow, id)
 	return true
 }
 
@@ -536,6 +551,7 @@ func (s *Scene) removeRippleLocked(id StringID) bool {
 	s.rippleIDs = newIDs
 	s.pruneSelectionLocked(SelectionRipple, id)
 	s.pruneGroupMembersLocked(SelectionRipple, id)
+	s.removeLayerEntryLocked(SelectionRipple, id)
 	return true
 }
 
@@ -614,6 +630,16 @@ func (s *Scene) RenameObject(selType SelectionType, id StringID, name string) (b
 		}
 		ripple.Name = name
 		s.ripples[id] = ripple
+		s.revision++
+		return true, nil
+
+	case SelectionImage:
+		img, ok := s.images[id]
+		if !ok {
+			return false, errors.New("image not found: " + string(id))
+		}
+		img.Name = name
+		s.images[id] = img
 		s.revision++
 		return true, nil
 
@@ -759,6 +785,41 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		}
 	}
 
+	if snap.Images != nil {
+		s.images = make(map[StringID]Image, len(snap.Images))
+		s.imageIDs = make([]StringID, 0, len(snap.Images))
+		if len(snap.Images) == 0 {
+			s.imagesCounter = snap.ImagesCounter
+		}
+		for _, img := range snap.Images {
+			rawID := string(img.ID)
+			if strings.HasPrefix(rawID, "image-") {
+				if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "image-"), 10, 64); err == nil && idNum > s.imagesCounter {
+					s.imagesCounter = idNum
+				}
+			} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.imagesCounter {
+				s.imagesCounter = idNum
+			}
+			s.images[img.ID] = img
+			s.imageIDs = append(s.imageIDs, img.ID)
+		}
+		if snap.ImagesCounter > s.imagesCounter {
+			s.imagesCounter = snap.ImagesCounter
+		}
+	} else {
+		s.images = make(map[StringID]Image)
+		s.imageIDs = make([]StringID, 0)
+	}
+
+	if snap.Layers != nil && len(snap.Layers) > 0 {
+		s.layers = make([]LayerEntry, len(snap.Layers))
+		copy(s.layers, snap.Layers)
+		s.ensureLayersInitializedLocked()
+	} else {
+		s.layers = nil
+		s.ensureLayersInitializedLocked()
+	}
+
 	if snap.Revision > 0 {
 		s.revision = snap.Revision
 	} else {
@@ -796,6 +857,15 @@ func (s *Scene) GetSnapshot() Snapshot {
 		groups[i] = s.groups[id]
 	}
 
+	images := make([]Image, len(s.imageIDs))
+	for i, id := range s.imageIDs {
+		images[i] = s.images[id]
+	}
+
+	s.ensureLayersInitializedLocked()
+	layers := make([]LayerEntry, len(s.layers))
+	copy(layers, s.layers)
+
 	return Snapshot{
 		Revision:      s.revision,
 		Canvas:        s.canvas,
@@ -809,5 +879,8 @@ func (s *Scene) GetSnapshot() Snapshot {
 		Ripples:       ripples,
 		Groups:        groups,
 		GroupsCounter: s.groupsCounter,
+		Images:        images,
+		ImagesCounter: s.imagesCounter,
+		Layers:        layers,
 	}
 }

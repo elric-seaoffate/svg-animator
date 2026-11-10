@@ -104,6 +104,9 @@ window.DataFlows = {
         } else {
           this.list.push(normalized);
         }
+        if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+          window.LayerManager.addEntry('flow', normalized.id);
+        }
         return normalized;
       }
     }
@@ -142,6 +145,9 @@ window.DataFlows = {
     if (initialProps.toNodeId !== undefined) newFlow.toNodeId = initialProps.toNodeId;
 
     this.list.push(newFlow);
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+      window.LayerManager.addEntry('flow', newFlow.id);
+    }
     return newFlow;
   },
 
@@ -179,6 +185,9 @@ window.DataFlows = {
     }
     if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
       window.ObjectGroups.pruneMember('flow', id);
+    }
+    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.removeEntry === 'function') {
+      window.LayerManager.removeEntry('flow', id);
     }
     return this.list.length < before;
   },
@@ -254,6 +263,10 @@ window.DataFlows = {
       const wasmFound = window.EngineBridge.findFlowAt(xPct, yPct, canvasW, canvasH);
       if (wasmFound && wasmFound.id) {
         const idNum = typeof wasmFound.id === 'string' && /^\d+$/.test(wasmFound.id) ? parseInt(wasmFound.id, 10) : wasmFound.id;
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const effL = window.LayerManager.getEffective('flow', idNum);
+          if (effL && !effL.visible) return null;
+        }
         return this.getFlow(idNum) || wasmFound;
       }
     }
@@ -382,6 +395,10 @@ window.DataFlows = {
     let elements = '';
 
     this.list.forEach((f) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const effL = window.LayerManager.getEffective('flow', f.id);
+        if (effL && !effL.visible) return;
+      }
       const routeMode = f.route || 'curve';
       const pathD = this.generatePathString(f.nodes, f.curvature || 0, width, height, routeMode);
       if (!pathD) return;

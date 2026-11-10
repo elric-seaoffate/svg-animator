@@ -82,6 +82,17 @@ window.ProjectManager = {
           ripplesCounter: window.Ripples ? window.Ripples.counter : 0
         };
 
+    const imageState = (window.ImageObjects && typeof window.ImageObjects.getState === 'function')
+      ? window.ImageObjects.getState()
+      : {
+          images: window.ImageObjects ? window.ImageObjects.list : [],
+          imagesCounter: window.ImageObjects ? window.ImageObjects.counter : 0
+        };
+
+    const layerState = (window.LayerManager && typeof window.LayerManager.getLayers === 'function')
+      ? window.LayerManager.getLayers()
+      : (window.LayerManager ? window.LayerManager.list : []);
+
     let groupsList = [];
     let groupsCounter = 0;
     if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.listGroups === 'function') {
@@ -125,7 +136,10 @@ window.ProjectManager = {
       ripples: rippleState.ripples,
       ripplesCounter: rippleState.ripplesCounter,
       groups: groupsList,
-      groupsCounter: groupsCounter
+      groupsCounter: groupsCounter,
+      images: imageState.images,
+      imagesCounter: imageState.imagesCounter,
+      layers: layerState
     });
   },
 
@@ -221,6 +235,26 @@ window.ProjectManager = {
       } else {
         window.ObjectGroups.list = data.groups || [];
         window.ObjectGroups.counter = data.groupsCounter || 0;
+      }
+    }
+
+    if (window.ImageObjects) {
+      if (typeof window.ImageObjects.setState === 'function') {
+        window.ImageObjects.setState({
+          images: data.images || [],
+          imagesCounter: data.imagesCounter || 0
+        });
+      } else {
+        window.ImageObjects.list = data.images || [];
+        window.ImageObjects.counter = data.imagesCounter || 0;
+      }
+    }
+
+    if (window.LayerManager) {
+      if (typeof window.LayerManager.setLayers === 'function') {
+        window.LayerManager.setLayers(data.layers || []);
+      } else {
+        window.LayerManager.list = data.layers || [];
       }
     }
 
@@ -580,6 +614,21 @@ window.ProjectManager = {
       } else {
         window.ObjectGroups.list = [];
         window.ObjectGroups.counter = 0;
+      }
+    }
+    if (window.ImageObjects) {
+      if (typeof window.ImageObjects.setState === 'function') {
+        window.ImageObjects.setState({ images: [], imagesCounter: 0 });
+      } else {
+        window.ImageObjects.list = [];
+        window.ImageObjects.counter = 0;
+      }
+    }
+    if (window.LayerManager) {
+      if (typeof window.LayerManager.setLayers === 'function') {
+        window.LayerManager.setLayers([]);
+      } else {
+        window.LayerManager.list = [];
       }
     }
     if (window.NodePresets) {

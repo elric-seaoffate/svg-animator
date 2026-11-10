@@ -95,6 +95,9 @@ func (s *Scene) CreateGlow(initial Glow) Glow {
 
 	if _, exists := s.glows[initial.ID]; !exists {
 		s.glowIDs = append(s.glowIDs, initial.ID)
+		if len(s.layers) > 0 {
+			s.layers = append(s.layers, LayerEntry{Type: SelectionGlow, ID: initial.ID})
+		}
 	}
 	s.glows[initial.ID] = initial
 	s.revision++

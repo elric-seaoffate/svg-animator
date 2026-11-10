@@ -1217,6 +1217,12 @@
       if (snap.groups && window.ObjectGroups) {
         window.ObjectGroups.setState({ groups: snap.groups, groupsCounter: snap.groupsCounter || window.ObjectGroups.counter });
       }
+      if (snap.images && window.ImageObjects) {
+        window.ImageObjects.setState({ images: snap.images, imagesCounter: snap.imagesCounter || window.ImageObjects.counter });
+      }
+      if (snap.layers && window.LayerManager) {
+        window.LayerManager.setLayers(snap.layers);
+      }
     },
 
     moveGroup(groupId, dx, dy) {
@@ -1312,6 +1318,179 @@
         return window.ObjectGroups.duplicateSelection(items, groupId, offsetX, offsetY);
       }
       return null;
+    },
+
+    // Image Object operations
+    createImage(initial) {
+      const init = Object.assign({}, initial || {});
+      if (init.data && !init.src) init.src = init.data;
+      if (init.src && !init.data) init.data = init.src;
+      if (this.isReady()) {
+        const res = this.dispatch('Image.Create', { image: init });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(res.image.id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+            else window.ImageObjects.list.push(res.image);
+            window.ImageObjects.counter = Math.max(window.ImageObjects.counter, parseInt(String(res.image.id).replace(/\D/g, '') || '0', 10));
+          }
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const img = window.ImageObjects.createImage(init);
+        return { success: true, image: img };
+      }
+      return null;
+    },
+
+    updateImage(id, patch) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.Update', { id: String(id), patch: patch || {} });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const img = window.ImageObjects.updateImage(id, patch);
+        return { success: !!img, image: img };
+      }
+      return null;
+    },
+
+    deleteImage(id) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.Delete', { id: String(id) });
+        if (res && res.success) {
+          if (window.ImageObjects) {
+            window.ImageObjects.list = window.ImageObjects.list.filter((i) => String(i.id) !== String(id));
+          }
+          if (window.ObjectGroups) window.ObjectGroups.pruneMember('image', id);
+          if (window.LayerManager) window.LayerManager.removeEntry('image', id);
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const ok = window.ImageObjects.deleteImage(id);
+        return { success: ok };
+      }
+      return null;
+    },
+
+    getImage(id) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.Get', { id: String(id) });
+        if (res && res.found) return res.image;
+      }
+      if (window.ImageObjects) return window.ImageObjects.getImage(id);
+      return null;
+    },
+
+    listImages() {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.List', {});
+        if (res && Array.isArray(res.images)) return res.images;
+      }
+      if (window.ImageObjects) return window.ImageObjects.getAll();
+      return [];
+    },
+
+    // Layer operations
+    getLayers() {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.Get', {});
+        if (res && Array.isArray(res.layers)) return res.layers;
+      }
+      if (window.LayerManager) return window.LayerManager.getLayers();
+      return [];
+    },
+
+    setLayers(layers) {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.Set', { layers });
+        if (res && res.success) return res;
+      }
+      if (window.LayerManager) {
+        window.LayerManager.setLayers(layers);
+        return { success: true };
+      }
+      return null;
+    },
+
+    bringToFront(targets) {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.BringToFront', { targets });
+        if (res && res.success && window.LayerManager) {
+          window.LayerManager.syncFromEngine();
+          return res;
+        }
+      }
+      if (window.LayerManager) return window.LayerManager.bringToFront(targets);
+      return null;
+    },
+
+    sendToBack(targets) {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.SendToBack', { targets });
+        if (res && res.success && window.LayerManager) {
+          window.LayerManager.syncFromEngine();
+          return res;
+        }
+      }
+      if (window.LayerManager) return window.LayerManager.sendToBack(targets);
+      return null;
+    },
+
+    bringForward(targets) {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.BringForward', { targets });
+        if (res && res.success && window.LayerManager) {
+          window.LayerManager.syncFromEngine();
+          return res;
+        }
+      }
+      if (window.LayerManager) return window.LayerManager.bringForward(targets);
+      return null;
+    },
+
+    sendBackward(targets) {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.SendBackward', { targets });
+        if (res && res.success && window.LayerManager) {
+          window.LayerManager.syncFromEngine();
+          return res;
+        }
+      }
+      if (window.LayerManager) return window.LayerManager.sendBackward(targets);
+      return null;
+    },
+
+    setLayerVisibility(type, id, visible) {
+      if (this.isReady()) {
+        return this.dispatch('Layer.SetVisibility', { type, id: String(id), visible: !!visible });
+      }
+      return null;
+    },
+
+    setLayerLocked(type, id, locked) {
+      if (this.isReady()) {
+        return this.dispatch('Layer.SetLocked', { type, id: String(id), locked: !!locked });
+      }
+      return null;
+    },
+
+    getEffectiveLayer(type, id) {
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.GetEffective', { type, id: String(id) });
+        if (res) return res;
+      }
+      if (window.LayerManager) return window.LayerManager.getEffective(type, id);
+      return { visible: true, locked: false };
     },
 
     recordHistory(snapshot = null, selection = null) {
@@ -1593,6 +1772,43 @@
         });
       }
 
+      const rawImages = Array.isArray(raw.images) ? raw.images : [];
+      const images = rawImages.map((img) => ({
+        id: String(img.id || ''),
+        name: String(img.name || img.filename || ('Image ' + (img.id || ''))),
+        filename: String(img.filename || ''),
+        mime: String(img.mime || 'image/png'),
+        assetRef: String(img.assetRef || ''),
+        src: String(img.src || ''),
+        x: typeof img.x === 'number' ? img.x : 50.0,
+        y: typeof img.y === 'number' ? img.y : 50.0,
+        width: Number(img.width) || 200,
+        height: Number(img.height) || 150,
+        naturalWidth: Number(img.naturalWidth) || 0,
+        naturalHeight: Number(img.naturalHeight) || 0,
+        maintainAspectRatio: img.maintainAspectRatio !== undefined ? !!img.maintainAspectRatio : true,
+        opacity: typeof img.opacity === 'number' ? img.opacity : 1.0,
+        visible: img.visible !== undefined ? img.visible : true,
+        locked: !!img.locked,
+        metadata: (img.metadata && typeof img.metadata === 'object') ? img.metadata : undefined
+      }));
+      let imagesCounter = Number(raw.imagesCounter) || 0;
+      if (imagesCounter === 0 && images.length > 0) {
+        images.forEach((img) => {
+          const m = String(img.id).match(/image-(\d+)/);
+          if (m) {
+            const num = parseInt(m[1], 10);
+            if (num > imagesCounter) imagesCounter = num;
+          }
+        });
+      }
+
+      const rawLayers = Array.isArray(raw.layers) ? raw.layers : [];
+      const layers = rawLayers.map((l) => ({
+        type: String(l.type || ''),
+        id: String(l.id || '')
+      }));
+
       return {
         revision: Number(raw.revision) || Date.now(),
         canvas: {
@@ -1630,7 +1846,10 @@
         glows: glows,
         ripples: ripples,
         groups: groups,
-        groupsCounter: groupsCounter
+        groupsCounter: groupsCounter,
+        images: images,
+        imagesCounter: imagesCounter,
+        layers: layers
       };
     },
 
@@ -1669,6 +1888,14 @@
         groupsCounter = this.getGroupsCounter() || 0;
       }
 
+      const images = (typeof window !== 'undefined' && window.ImageObjects && Array.isArray(window.ImageObjects.list))
+        ? window.ImageObjects.list
+        : [];
+      const imagesCounter = (typeof window !== 'undefined' && window.ImageObjects) ? (window.ImageObjects.counter || 0) : 0;
+      const layers = (typeof window !== 'undefined' && window.LayerManager && Array.isArray(window.LayerManager.list))
+        ? window.LayerManager.list
+        : [];
+
       return this.normalizeSceneSnapshot({
         revision: Date.now(),
         canvas: {
@@ -1686,7 +1913,10 @@
         glows: glows,
         ripples: ripples,
         groups: groups,
-        groupsCounter: groupsCounter
+        groupsCounter: groupsCounter,
+        images: images,
+        imagesCounter: imagesCounter,
+        layers: layers
       });
     },
 
@@ -2243,6 +2473,7 @@
           else if (m.type === 'flow' && window.DataFlows) window.DataFlows.deleteFlow(m.id);
           else if (m.type === 'glow' && window.Glows) window.Glows.deleteGlow(m.id);
           else if (m.type === 'ripple' && window.Ripples) window.Ripples.deleteRipple(m.id);
+          else if (m.type === 'image' && window.ImageObjects) window.ImageObjects.deleteImage(m.id);
         });
       }
       this.list.splice(idx, 1);
@@ -2298,6 +2529,13 @@
             });
             window.DataFlows.updateFlow(m.id, { nodes: f.nodes });
           }
+        } else if (m.type === 'image' && window.ImageObjects) {
+          const img = window.ImageObjects.getImage(m.id);
+          if (img) {
+            img.x = Math.max(-50, Math.min(150, (img.x || 0) + deltaX));
+            img.y = Math.max(-50, Math.min(150, (img.y || 0) + deltaY));
+            window.ImageObjects.updateImage(m.id, { x: img.x, y: img.y });
+          }
         }
       });
       return { success: true };
@@ -2351,6 +2589,17 @@
             maxY = Math.max(maxY, r.y + ryPct);
             count++;
           }
+        } else if (m.type === 'image' && window.ImageObjects) {
+          const img = window.ImageObjects.getImage(m.id);
+          if (img) {
+            const hwPct = ((img.width || 200) / 2 / canvasW) * 100;
+            const hhPct = ((img.height || 150) / 2 / canvasH) * 100;
+            minX = Math.min(minX, img.x - hwPct);
+            maxX = Math.max(maxX, img.x + hwPct);
+            minY = Math.min(minY, img.y - hhPct);
+            maxY = Math.max(maxY, img.y + hhPct);
+            count++;
+          }
         }
       });
       if (count === 0) return { success: false, error: 'No geometric members in group' };
@@ -2365,6 +2614,7 @@
         flows: [],
         glows: [],
         ripples: [],
+        images: [],
         groups: []
       };
       if (groupId) {
@@ -2384,6 +2634,9 @@
             } else if (m.type === 'ripple' && window.Ripples) {
               const r = window.Ripples.getRipple(m.id);
               if (r) payload.ripples.push(JSON.parse(JSON.stringify(r)));
+            } else if (m.type === 'image' && window.ImageObjects) {
+              const img = window.ImageObjects.getImage(m.id);
+              if (img) payload.images.push(JSON.parse(JSON.stringify(img)));
             }
           });
           return payload;
@@ -2403,6 +2656,9 @@
           } else if (it.type === 'ripple' && window.Ripples) {
             const r = window.Ripples.getRipple(it.id);
             if (r) payload.ripples.push(JSON.parse(JSON.stringify(r)));
+          } else if (it.type === 'image' && window.ImageObjects) {
+            const img = window.ImageObjects.getImage(it.id);
+            if (img) payload.images.push(JSON.parse(JSON.stringify(img)));
           }
         });
       }
@@ -2418,6 +2674,7 @@
       const flowMap = {};
       const glowMap = {};
       const rippleMap = {};
+      const imageMap = {};
 
       (payload.nodes || []).forEach((n) => {
         if (window.DiagramNodes) {
@@ -2429,6 +2686,20 @@
           if (created) {
             nodeMap[n.id] = created.id;
             newItems.push({ type: 'node', id: created.id });
+          }
+        }
+      });
+
+      (payload.images || []).forEach((img) => {
+        if (window.ImageObjects) {
+          const clone = JSON.parse(JSON.stringify(img));
+          clone.x = Math.max(-50, Math.min(150, (clone.x || 0) + offsetX));
+          clone.y = Math.max(-50, Math.min(150, (clone.y || 0) + offsetY));
+          if (clone.name) clone.name = clone.name + ' Copy';
+          const created = window.ImageObjects.createImage(clone);
+          if (created) {
+            imageMap[img.id] = created.id;
+            newItems.push({ type: 'image', id: created.id });
           }
         }
       });
@@ -2489,6 +2760,7 @@
           else if (m.type === 'flow' && flowMap[m.id]) remappedMembers.push({ type: 'flow', id: flowMap[m.id] });
           else if (m.type === 'glow' && glowMap[m.id]) remappedMembers.push({ type: 'glow', id: glowMap[m.id] });
           else if (m.type === 'ripple' && rippleMap[m.id]) remappedMembers.push({ type: 'ripple', id: rippleMap[m.id] });
+          else if (m.type === 'image' && imageMap[m.id]) remappedMembers.push({ type: 'image', id: imageMap[m.id] });
         });
         if (remappedMembers.length >= 2) {
           const res = this.createGroup((g.name || 'Group') + ' Copy', remappedMembers);
@@ -2507,11 +2779,577 @@
     }
   };
 
+  const ImageObjects = {
+    list: [],
+    counter: 0,
+
+    getAll() {
+      return this.list;
+    },
+
+    getImage(id) {
+      const strId = String(id);
+      return this.list.find((img) => String(img.id) === strId) || null;
+    },
+
+    createImage(initial = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Create', { image: initial });
+        if (res && res.success && res.image) {
+          const img = res.image;
+          const idx = this.list.findIndex((i) => String(i.id) === String(img.id));
+          if (idx >= 0) this.list[idx] = img;
+          else this.list.push(img);
+          this.counter = Math.max(this.counter, parseInt(String(img.id).replace(/\D/g, '') || '0', 10));
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
+          return img;
+        }
+      }
+
+      this.counter++;
+      const id = initial.id || ('image-' + this.counter);
+      const m = String(id).match(/image-(\d+)/);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (num > this.counter) this.counter = num;
+      }
+      const name = initial.name || ('Image ' + this.counter);
+      const img = {
+        id: String(id),
+        name: String(name),
+        filename: String(initial.filename || ''),
+        mime: String(initial.mime || 'image/png'),
+        assetRef: String(initial.assetRef || ''),
+        src: String(initial.src || initial.data || ''),
+        data: String(initial.data || initial.src || ''),
+        x: typeof initial.x === 'number' ? initial.x : 50.0,
+        y: typeof initial.y === 'number' ? initial.y : 50.0,
+        width: Number(initial.width) || 200,
+        height: Number(initial.height) || 150,
+        naturalWidth: Number(initial.naturalWidth) || 0,
+        naturalHeight: Number(initial.naturalHeight) || 0,
+        maintainAspectRatio: initial.maintainAspectRatio !== undefined ? !!initial.maintainAspectRatio : true,
+        opacity: typeof initial.opacity === 'number' ? initial.opacity : 1.0,
+        visible: initial.visible !== undefined ? !!initial.visible : true,
+        locked: !!initial.locked,
+        metadata: (initial.metadata && typeof initial.metadata === 'object') ? initial.metadata : undefined
+      };
+      this.list.push(img);
+      if (typeof window !== 'undefined' && window.LayerManager) {
+        window.LayerManager.addEntry('image', img.id);
+      }
+      return img;
+    },
+
+    updateImage(id, patch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.dispatch('Image.Update', { id: String(id), patch });
+      }
+      const img = this.getImage(id);
+      if (!img) return null;
+      if (patch.name !== undefined) img.name = String(patch.name);
+      if (patch.filename !== undefined) img.filename = String(patch.filename);
+      if (patch.mime !== undefined) img.mime = String(patch.mime);
+      if (patch.assetRef !== undefined) img.assetRef = String(patch.assetRef);
+      if (patch.src !== undefined) img.src = String(patch.src);
+      if (patch.x !== undefined) img.x = Number(patch.x);
+      if (patch.y !== undefined) img.y = Number(patch.y);
+      if (patch.width !== undefined) img.width = Math.max(10, Number(patch.width) || 10);
+      if (patch.height !== undefined) img.height = Math.max(10, Number(patch.height) || 10);
+      if (patch.naturalWidth !== undefined) img.naturalWidth = Number(patch.naturalWidth);
+      if (patch.naturalHeight !== undefined) img.naturalHeight = Number(patch.naturalHeight);
+      if (patch.maintainAspectRatio !== undefined) img.maintainAspectRatio = !!patch.maintainAspectRatio;
+      if (patch.opacity !== undefined) img.opacity = Math.max(0, Math.min(1, Number(patch.opacity)));
+      if (patch.visible !== undefined) img.visible = !!patch.visible;
+      if (patch.locked !== undefined) img.locked = !!patch.locked;
+      if (patch.metadata !== undefined) img.metadata = patch.metadata;
+      return img;
+    },
+
+    deleteImage(id) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.dispatch('Image.Delete', { id: String(id) });
+      }
+      const strId = String(id);
+      const idx = this.list.findIndex((img) => String(img.id) === strId);
+      if (idx === -1) return false;
+      this.list.splice(idx, 1);
+      if (typeof window !== 'undefined' && window.ObjectGroups) {
+        window.ObjectGroups.pruneMember('image', strId);
+      }
+      if (typeof window !== 'undefined' && window.LayerManager) {
+        window.LayerManager.removeEntry('image', strId);
+      }
+      return true;
+    },
+
+    clearAll() {
+      this.list = [];
+      this.counter = 0;
+    },
+
+    getState() {
+      return {
+        images: JSON.parse(JSON.stringify(this.list)),
+        imagesCounter: this.counter
+      };
+    },
+
+    setState(state = {}) {
+      if (!state) return;
+      this.list = Array.isArray(state.images) ? JSON.parse(JSON.stringify(state.images)) : [];
+      this.counter = parseInt(state.imagesCounter, 10) || 0;
+      if (this.counter === 0 && this.list.length > 0) {
+        this.list.forEach((img) => {
+          const match = String(img.id).match(/image-(\d+)/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > this.counter) this.counter = num;
+          }
+        });
+      }
+    },
+
+    findImageAtPct(xPct, yPct, canvasW = 1280, canvasH = 720) {
+      let orderedImages = this.list.slice();
+      if (typeof window !== 'undefined' && window.LayerManager && Array.isArray(window.LayerManager.list)) {
+        const layerOrder = window.LayerManager.list;
+        const idRank = new Map();
+        layerOrder.forEach((l, idx) => {
+          if (l.type === 'image') idRank.set(String(l.id), idx);
+        });
+        orderedImages.sort((a, b) => {
+          const rA = idRank.has(String(a.id)) ? idRank.get(String(a.id)) : -1;
+          const rB = idRank.has(String(b.id)) ? idRank.get(String(b.id)) : -1;
+          return rB - rA;
+        });
+      } else {
+        orderedImages.reverse();
+      }
+
+      for (const img of orderedImages) {
+        let effVis = img.visible !== false;
+        if (typeof window !== 'undefined' && window.LayerManager) {
+          effVis = window.LayerManager.getEffective('image', img.id).visible;
+        }
+        if (!effVis) continue;
+
+        const hwPct = ((img.width || 200) / 2 / canvasW) * 100;
+        const hhPct = ((img.height || 150) / 2 / canvasH) * 100;
+        if (xPct >= (img.x - hwPct) && xPct <= (img.x + hwPct) &&
+            yPct >= (img.y - hhPct) && yPct <= (img.y + hhPct)) {
+          return img;
+        }
+      }
+      return null;
+    },
+
+    renderImageElement(img, canvasW = 1280, canvasH = 720) {
+      if (!img) return '';
+      let effVis = img.visible !== false;
+      if (typeof window !== 'undefined' && window.LayerManager) {
+        effVis = window.LayerManager.getEffective('image', img.id).visible;
+      }
+      if (!effVis) return '';
+
+      const cx = (img.x / 100) * canvasW;
+      const cy = (img.y / 100) * canvasH;
+      const w = Number(img.width) || 200;
+      const h = Number(img.height) || 150;
+      const x = cx - w / 2;
+      const y = cy - h / 2;
+      const op = typeof img.opacity === 'number' ? img.opacity : 1.0;
+      const par = img.maintainAspectRatio !== false ? 'xMidYMid meet' : 'none';
+      const href = img.src || img.assetRef || '';
+
+      return `<image id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
+    },
+
+    injectIntoSVG(svgString, state) {
+      if (!svgString) return svgString;
+      const images = (state && state.images) || this.list || [];
+      if (!images.length) return svgString;
+
+      const cw = (state && state.canvas && state.canvas.width) || 1280;
+      const ch = (state && state.canvas && state.canvas.height) || 720;
+
+      const parts = images.map((img) => this.renderImageElement(img, cw, ch)).filter(Boolean);
+      if (!parts.length) return svgString;
+
+      const layerContent = `\n  <g id="images-layer">\n    ${parts.join('\n    ')}\n  </g>`;
+      if (svgString.includes('<g id="nodes-layer">')) {
+        return svgString.replace('<g id="nodes-layer">', layerContent + '\n  <g id="nodes-layer">');
+      }
+      return svgString.replace('</svg>', layerContent + '\n</svg>');
+    }
+  };
+
+  const LayerManager = {
+    list: [],
+
+    getLayers() {
+      return JSON.parse(JSON.stringify(this.list));
+    },
+
+    setLayers(layers) {
+      if (Array.isArray(layers)) {
+        this.list = layers.map((l) => ({
+          type: String(l.type),
+          id: String(l.id),
+          visible: l.visible !== undefined ? !!l.visible : true,
+          locked: !!l.locked
+        }));
+        if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+          window.EngineBridge.setLayers(this.list);
+        }
+      }
+    },
+
+    syncFromEngine() {
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        const layers = window.EngineBridge.getLayers();
+        if (Array.isArray(layers) && layers.length > 0) {
+          this.list = layers.map((l) => ({
+            type: String(l.type),
+            id: String(l.id),
+            visible: l.visible !== undefined ? !!l.visible : true,
+            locked: !!l.locked
+          }));
+          return;
+        }
+      }
+      this.ensureAllObjectsRepresented();
+    },
+
+    ensureAllObjectsRepresented() {
+      const existing = new Set(this.list.map((l) => `${l.type}:${l.id}`));
+      const defaultOrder = [];
+
+      if (typeof window !== 'undefined' && window.Ripples && Array.isArray(window.Ripples.list)) {
+        window.Ripples.list.forEach((r) => {
+          const key = `ripple:${r.id}`;
+          if (!existing.has(key)) {
+            defaultOrder.push({ type: 'ripple', id: String(r.id) });
+            existing.add(key);
+          }
+        });
+      }
+      if (typeof window !== 'undefined' && window.Glows && Array.isArray(window.Glows.list)) {
+        window.Glows.list.forEach((g) => {
+          const key = `glow:${g.id}`;
+          if (!existing.has(key)) {
+            defaultOrder.push({ type: 'glow', id: String(g.id) });
+            existing.add(key);
+          }
+        });
+      }
+      if (typeof window !== 'undefined' && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        window.DataFlows.list.forEach((f) => {
+          const key = `flow:${f.id}`;
+          if (!existing.has(key)) {
+            defaultOrder.push({ type: 'flow', id: String(f.id) });
+            existing.add(key);
+          }
+        });
+      }
+      if (typeof window !== 'undefined' && window.ImageObjects && Array.isArray(window.ImageObjects.list)) {
+        window.ImageObjects.list.forEach((img) => {
+          const key = `image:${img.id}`;
+          if (!existing.has(key)) {
+            defaultOrder.push({ type: 'image', id: String(img.id) });
+            existing.add(key);
+          }
+        });
+      }
+      if (typeof window !== 'undefined' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        window.DiagramNodes.list.forEach((n) => {
+          const key = `node:${n.id}`;
+          if (!existing.has(key)) {
+            defaultOrder.push({ type: 'node', id: String(n.id) });
+            existing.add(key);
+          }
+        });
+      }
+
+      if (this.list.length === 0) {
+        this.list = defaultOrder;
+      } else {
+        this.list = this.list.concat(defaultOrder);
+      }
+    },
+
+    addEntry(type, id) {
+      const strId = String(id);
+      if (!this.list.some((l) => l.type === type && String(l.id) === strId)) {
+        this.list.push({ type: String(type), id: strId });
+      }
+    },
+
+    removeEntry(type, id) {
+      const strId = String(id);
+      this.list = this.list.filter((l) => !(l.type === type && String(l.id) === strId));
+    },
+
+    _expandTargets(targets) {
+      const set = new Set();
+      const res = [];
+      const add = (t, i) => {
+        const k = `${t}:${i}`;
+        if (!set.has(k)) {
+          set.add(k);
+          res.push({ type: t, id: String(i) });
+        }
+      };
+
+      (Array.isArray(targets) ? targets : [targets]).forEach((item) => {
+        if (!item) return;
+        if (typeof item === 'string') {
+          if (item.startsWith('group-')) {
+            const grp = window.ObjectGroups && window.ObjectGroups.getGroup(item);
+            if (grp && Array.isArray(grp.members)) {
+              grp.members.forEach((m) => add(m.type, m.id));
+              return;
+            }
+          }
+          const parts = item.split(':');
+          if (parts.length === 2) {
+            add(parts[0], parts[1]);
+            return;
+          }
+        }
+        if (item.type === 'group' || (item.groupId && !item.type)) {
+          const gid = item.groupId || item.id;
+          const grp = window.ObjectGroups && window.ObjectGroups.getGroup(gid);
+          if (grp && Array.isArray(grp.members)) {
+            grp.members.forEach((m) => add(m.type, m.id));
+            return;
+          }
+        }
+        if (item.type && item.id != null) {
+          const grp = window.ObjectGroups && window.ObjectGroups.findGroupByMember(item.type, item.id);
+          if (grp && Array.isArray(grp.members)) {
+            grp.members.forEach((m) => add(m.type, m.id));
+          } else {
+            add(item.type, item.id);
+          }
+        }
+      });
+      return res;
+    },
+
+    bringToFront(targets) {
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.bringToFront(targets);
+        if (res && res.success) {
+          this.syncFromEngine();
+          return res;
+        }
+      }
+      return this._fallbackReorder(targets, 'bringToFront');
+    },
+
+    sendToBack(targets) {
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.sendToBack(targets);
+        if (res && res.success) {
+          this.syncFromEngine();
+          return res;
+        }
+      }
+      return this._fallbackReorder(targets, 'sendToBack');
+    },
+
+    bringForward(targets) {
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.bringForward(targets);
+        if (res && res.success) {
+          this.syncFromEngine();
+          return res;
+        }
+      }
+      return this._fallbackReorder(targets, 'bringForward');
+    },
+
+    sendBackward(targets) {
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.sendBackward(targets);
+        if (res && res.success) {
+          this.syncFromEngine();
+          return res;
+        }
+      }
+      return this._fallbackReorder(targets, 'sendBackward');
+    },
+
+    _fallbackReorder(targets, action) {
+      this.ensureAllObjectsRepresented();
+      const expanded = this._expandTargets(targets);
+      if (expanded.length === 0) return { success: false, error: 'No targets' };
+
+      const targetKeys = new Set(expanded.map((t) => `${t.type}:${t.id}`));
+      const selected = [];
+      const unselected = [];
+
+      this.list.forEach((entry) => {
+        if (targetKeys.has(`${entry.type}:${entry.id}`)) {
+          selected.push(entry);
+        } else {
+          unselected.push(entry);
+        }
+      });
+
+      if (action === 'bringToFront') {
+        this.list = unselected.concat(selected);
+      } else if (action === 'sendToBack') {
+        this.list = selected.concat(unselected);
+      } else if (action === 'bringForward') {
+        for (let i = this.list.length - 2; i >= 0; i--) {
+          const curKey = `${this.list[i].type}:${this.list[i].id}`;
+          const nextKey = `${this.list[i + 1].type}:${this.list[i + 1].id}`;
+          if (targetKeys.has(curKey) && !targetKeys.has(nextKey)) {
+            const tmp = this.list[i];
+            this.list[i] = this.list[i + 1];
+            this.list[i + 1] = tmp;
+          }
+        }
+      } else if (action === 'sendBackward') {
+        for (let i = 1; i < this.list.length; i++) {
+          const curKey = `${this.list[i].type}:${this.list[i].id}`;
+          const prevKey = `${this.list[i - 1].type}:${this.list[i - 1].id}`;
+          if (targetKeys.has(curKey) && !targetKeys.has(prevKey)) {
+            const tmp = this.list[i];
+            this.list[i] = this.list[i - 1];
+            this.list[i - 1] = tmp;
+          }
+        }
+      }
+      return { success: true, layers: this.getLayers() };
+    },
+
+    setVisibility(type, id, visible) {
+      const v = !!visible;
+      const strId = String(id);
+      if (type === 'group') {
+        const grp = window.ObjectGroups && window.ObjectGroups.getGroup(strId);
+        if (grp) {
+          if (!grp.metadata) grp.metadata = {};
+          grp.metadata.visible = v;
+          (grp.members || []).forEach((m) => this.setVisibility(m.type, m.id, v));
+        }
+        return;
+      }
+      if (type === 'node' && window.DiagramNodes) {
+        window.DiagramNodes.updateNode(strId, { visible: v });
+      } else if (type === 'flow' && window.DataFlows) {
+        window.DataFlows.updateFlow(strId, { visible: v });
+      } else if (type === 'glow' && window.Glows) {
+        window.Glows.updateGlow(strId, { visible: v });
+      } else if (type === 'ripple' && window.Ripples) {
+        window.Ripples.updateRipple(strId, { visible: v });
+      } else if (type === 'image' && window.ImageObjects) {
+        window.ImageObjects.updateImage(strId, { visible: v });
+      }
+      const vEntry = this.list.find((l) => l.type === type && String(l.id) === strId);
+      if (vEntry) vEntry.visible = v;
+
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        window.EngineBridge.setLayerVisibility(type, strId, v);
+      }
+    },
+
+    setLocked(type, id, locked) {
+      const l = !!locked;
+      const strId = String(id);
+      if (type === 'group') {
+        const grp = window.ObjectGroups && window.ObjectGroups.getGroup(strId);
+        if (grp) {
+          if (!grp.metadata) grp.metadata = {};
+          grp.metadata.locked = l;
+          (grp.members || []).forEach((m) => this.setLocked(m.type, m.id, l));
+        }
+        return;
+      }
+      if (type === 'node' && window.DiagramNodes) {
+        window.DiagramNodes.updateNode(strId, { locked: l });
+      } else if (type === 'flow' && window.DataFlows) {
+        window.DataFlows.updateFlow(strId, { locked: l });
+      } else if (type === 'glow' && window.Glows) {
+        window.Glows.updateGlow(strId, { locked: l });
+      } else if (type === 'ripple' && window.Ripples) {
+        window.Ripples.updateRipple(strId, { locked: l });
+      } else if (type === 'image' && window.ImageObjects) {
+        window.ImageObjects.updateImage(strId, { locked: l });
+      }
+      const lEntry = this.list.find((lItem) => lItem.type === type && String(lItem.id) === strId);
+      if (lEntry) lEntry.locked = l;
+
+      if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        window.EngineBridge.setLayerLocked(type, strId, l);
+      }
+    },
+
+    getEffective(type, id) {
+      let ownVisible = true;
+      let ownLocked = false;
+      const strId = String(id);
+
+      if (type === 'node' && window.DiagramNodes) {
+        const n = window.DiagramNodes.getNode(strId);
+        if (n) {
+          if (n.visible !== undefined) ownVisible = !!n.visible;
+          if (n.locked !== undefined) ownLocked = !!n.locked;
+        }
+      } else if (type === 'flow' && window.DataFlows) {
+        const f = window.DataFlows.getFlow(strId);
+        if (f) {
+          if (f.visible !== undefined) ownVisible = !!f.visible;
+          if (f.locked !== undefined) ownLocked = !!f.locked;
+        }
+      } else if (type === 'glow' && window.Glows) {
+        const g = window.Glows.getGlow(strId);
+        if (g) {
+          if (g.visible !== undefined) ownVisible = !!g.visible;
+          if (g.locked !== undefined) ownLocked = !!g.locked;
+        }
+      } else if (type === 'ripple' && window.Ripples) {
+        const r = window.Ripples.getRipple(strId);
+        if (r) {
+          if (r.visible !== undefined) ownVisible = !!r.visible;
+          if (r.locked !== undefined) ownLocked = !!r.locked;
+        }
+      } else if (type === 'image' && window.ImageObjects) {
+        const img = window.ImageObjects.getImage(strId);
+        if (img) {
+          if (img.visible !== undefined) ownVisible = !!img.visible;
+          if (img.locked !== undefined) ownLocked = !!img.locked;
+        }
+      } else if (type === 'group' && window.ObjectGroups) {
+        const grp = window.ObjectGroups.getGroup(strId);
+        if (grp && grp.metadata) {
+          if (grp.metadata.visible !== undefined) ownVisible = !!grp.metadata.visible;
+          if (grp.metadata.locked !== undefined) ownLocked = !!grp.metadata.locked;
+        }
+      }
+
+      if (type !== 'group' && window.ObjectGroups) {
+        const grp = window.ObjectGroups.findGroupByMember(type, strId);
+        if (grp && grp.metadata) {
+          if (grp.metadata.visible === false) ownVisible = false;
+          if (grp.metadata.locked === true) ownLocked = true;
+        }
+      }
+
+      return { visible: ownVisible, locked: ownLocked };
+    }
+  };
+
   if (typeof window !== 'undefined') {
     window.EngineBridge = EngineBridge;
     window.ObjectGroups = ObjectGroups;
+    window.ImageObjects = ImageObjects;
+    window.LayerManager = LayerManager;
   }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { EngineBridge, ObjectGroups };
+    module.exports = { EngineBridge, ObjectGroups, ImageObjects, LayerManager };
   }
 })();
