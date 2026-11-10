@@ -32,7 +32,8 @@ window.Ripples = {
   },
 
   getRipple(id) {
-    return this.list.find((r) => r.id === id) || null;
+    if (id === null || id === undefined) return null;
+    return this.list.find((r) => String(r.id) === String(id)) || null;
   },
 
   getAllRipples() {
@@ -133,6 +134,9 @@ window.Ripples = {
     this.list = this.list.filter((r) => r.id !== id);
     if (this.activeId === id) {
       this.activeId = null;
+    }
+    if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
+      window.ObjectGroups.pruneMember('ripple', id);
     }
     return this.list.length < before;
   },

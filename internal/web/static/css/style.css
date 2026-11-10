@@ -1909,6 +1909,18 @@ body.editing-flow #flightLine {
   cursor: not-allowed;
 }
 
+/* Group Selection Overlay */
+#groupSelectionBox {
+  transition: all 0.08s ease-out;
+  pointer-events: none;
+}
+
+#groupSelectionLabel {
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
 /* Non-Modal Floating Colour Picker Popover */
 .custom-color-picker-popover {
   position: fixed;

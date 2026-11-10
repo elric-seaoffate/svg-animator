@@ -1284,3 +1284,132 @@ func TestDispatchSVACommands(t *testing.T) {
 		t.Fatalf("restored state has no nodes: %+v", restoredState)
 	}
 }
+
+func TestDispatchGroupAndClipboardCommands(t *testing.T) {
+	// 1. Create two nodes
+	n1Req, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "rect", Text: "Server A", Width: 100, Height: 50, X: 15, Y: 20},
+	})
+	n1Bytes, _ := Dispatch("Node.Create", n1Req)
+	var n1Created struct {
+		Node scene.Node `json:"node"`
+	}
+	json.Unmarshal(n1Bytes, &n1Created)
+
+	n2Req, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "circle", Text: "Server B", Width: 80, Height: 80, X: 35, Y: 20},
+	})
+	n2Bytes, _ := Dispatch("Node.Create", n2Req)
+	var n2Created struct {
+		Node scene.Node `json:"node"`
+	}
+	json.Unmarshal(n2Bytes, &n2Created)
+
+	// 2. Group.Create
+	grpReq, _ := json.Marshal(GroupCreateRequest{
+		Name: "Server Cluster",
+		Members: []scene.GroupMember{
+			{Type: scene.SelectionNode, ID: n1Created.Node.ID},
+			{Type: scene.SelectionNode, ID: n2Created.Node.ID},
+		},
+	})
+	grpBytes, err := Dispatch("Group.Create", grpReq)
+	if err != nil {
+		t.Fatalf("Group.Create failed: %v", err)
+	}
+	var grpRes GroupCreateResponse
+	if err := json.Unmarshal(grpBytes, &grpRes); err != nil || !grpRes.Success {
+		t.Fatalf("Group.Create failed: %+v", grpRes)
+	}
+	if grpRes.Group.Name != "Server Cluster" || len(grpRes.Group.Members) != 2 {
+		t.Fatalf("Group.Create mismatch: %+v", grpRes.Group)
+	}
+	gID := grpRes.Group.ID
+
+	// 3. Group.Get and Group.List
+	getReq, _ := json.Marshal(GroupGetRequest{GroupID: gID})
+	getBytes, _ := Dispatch("Group.Get", getReq)
+	var getRes GroupGetResponse
+	json.Unmarshal(getBytes, &getRes)
+	if !getRes.Found || getRes.Group.ID != gID {
+		t.Fatalf("Group.Get failed: %+v", getRes)
+	}
+
+	listBytes, _ := Dispatch("Group.List", nil)
+	var listRes GroupListResponse
+	json.Unmarshal(listBytes, &listRes)
+	if listRes.Count < 1 {
+		t.Fatalf("Group.List expected count >= 1, got %d", listRes.Count)
+	}
+
+	// 4. Group.FindByMember
+	fmReq, _ := json.Marshal(GroupFindMemberRequest{Type: scene.SelectionNode, ID: n1Created.Node.ID})
+	fmBytes, _ := Dispatch("Group.FindByMember", fmReq)
+	var fmRes GroupFindMemberResponse
+	json.Unmarshal(fmBytes, &fmRes)
+	if !fmRes.Found || fmRes.Group.ID != gID {
+		t.Fatalf("Group.FindByMember failed: %+v", fmRes)
+	}
+
+	// 5. Group.Rename
+	renReq, _ := json.Marshal(GroupRenameRequest{GroupID: gID, Name: "Cluster Primary"})
+	renBytes, _ := Dispatch("Group.Rename", renReq)
+	var renRes GroupRenameResponse
+	json.Unmarshal(renBytes, &renRes)
+	if !renRes.Success || renRes.Group.Name != "Cluster Primary" {
+		t.Fatalf("Group.Rename failed: %+v", renRes)
+	}
+
+	// 6. Group.Move
+	moveReq, _ := json.Marshal(GroupMoveRequest{GroupID: gID, DX: 10, DY: 5})
+	moveBytes, _ := Dispatch("Group.Move", moveReq)
+	var moveRes GroupMoveResponse
+	json.Unmarshal(moveBytes, &moveRes)
+	if !moveRes.Success {
+		t.Fatalf("Group.Move failed: %+v", moveRes)
+	}
+
+	// 7. Group.Bounds
+	bReq, _ := json.Marshal(GroupBoundsRequest{GroupID: gID, CanvasW: 1000, CanvasH: 1000})
+	bBytes, _ := Dispatch("Group.Bounds", bReq)
+	var bRes GroupBoundsResponse
+	json.Unmarshal(bBytes, &bRes)
+	if !bRes.Success || bRes.MaxX <= bRes.MinX {
+		t.Fatalf("Group.Bounds failed: %+v", bRes)
+	}
+
+	// 8. Scene.Duplicate
+	dupReq, _ := json.Marshal(SceneDuplicateRequest{GroupID: gID, OffsetX: 5, OffsetY: 5})
+	dupBytes, _ := Dispatch("Scene.Duplicate", dupReq)
+	var dupRes SceneDuplicateResponse
+	json.Unmarshal(dupBytes, &dupRes)
+	if !dupRes.Success || dupRes.NewGroupID == "" || len(dupRes.NewItems) != 2 {
+		t.Fatalf("Scene.Duplicate failed: %+v", dupRes)
+	}
+
+	// 9. Scene.Copy and Scene.Paste
+	copyReq, _ := json.Marshal(SceneCopyRequest{GroupID: gID})
+	copyBytes, _ := Dispatch("Scene.Copy", copyReq)
+	var copyRes SceneCopyResponse
+	json.Unmarshal(copyBytes, &copyRes)
+	if !copyRes.Success || len(copyRes.Payload.Nodes) != 2 {
+		t.Fatalf("Scene.Copy failed: %+v", copyRes)
+	}
+
+	pasteReq, _ := json.Marshal(ScenePasteRequest{Payload: copyRes.Payload, OffsetX: 10, OffsetY: 10})
+	pasteBytes, _ := Dispatch("Scene.Paste", pasteReq)
+	var pasteRes ScenePasteResponse
+	json.Unmarshal(pasteBytes, &pasteRes)
+	if !pasteRes.Success || len(pasteRes.NewItems) != 2 || pasteRes.NewGroupID == "" {
+		t.Fatalf("Scene.Paste failed: %+v", pasteRes)
+	}
+
+	// 10. Group.Ungroup
+	ungReq, _ := json.Marshal(GroupUngroupRequest{GroupID: gID})
+	ungBytes, _ := Dispatch("Group.Ungroup", ungReq)
+	var ungRes GroupUngroupResponse
+	json.Unmarshal(ungBytes, &ungRes)
+	if !ungRes.Success || len(ungRes.Members) != 2 {
+		t.Fatalf("Group.Ungroup failed: %+v", ungRes)
+	}
+}

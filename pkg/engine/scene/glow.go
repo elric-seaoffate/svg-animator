@@ -145,6 +145,9 @@ func (s *Scene) UpdateGlow(g Glow) {
 		}
 	} else {
 		s.glowIDs = append(s.glowIDs, g.ID)
+		if idNum, err := strconv.ParseInt(string(g.ID), 10, 64); err == nil && idNum > s.glowsCounter {
+			s.glowsCounter = idNum
+		}
 	}
 	s.glows[g.ID] = g
 	s.revision++
@@ -155,20 +158,11 @@ func (s *Scene) RemoveGlow(id StringID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.glows[id]; !exists {
-		return false
+	if ok := s.removeGlowLocked(id); ok {
+		s.revision++
+		return true
 	}
-	delete(s.glows, id)
-	newIDs := make([]StringID, 0, len(s.glowIDs)-1)
-	for _, gid := range s.glowIDs {
-		if gid != id {
-			newIDs = append(newIDs, gid)
-		}
-	}
-	s.glowIDs = newIDs
-	s.pruneSelectionLocked(SelectionGlow, id)
-	s.revision++
-	return true
+	return false
 }
 
 // FindGlowAt hit-tests canvas percent coordinates against all glows, returning the topmost match.

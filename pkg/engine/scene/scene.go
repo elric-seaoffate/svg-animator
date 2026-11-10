@@ -3,6 +3,7 @@ package scene
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"sync"
 
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
@@ -34,6 +35,10 @@ type Scene struct {
 	ripplesCounter int64
 	ripples        map[StringID]Ripple
 	rippleIDs      []StringID
+
+	groupsCounter int64
+	groups        map[StringID]Group
+	groupIDs      []StringID
 
 	selection SelectionState
 	history   *HistoryManager
@@ -85,10 +90,12 @@ func NewScene() *Scene {
 		flows:     make(map[StringID]Flow),
 		glows:     make(map[StringID]Glow),
 		ripples:   make(map[StringID]Ripple),
+		groups:    make(map[StringID]Group),
 		nodeIDs:   make([]StringID, 0),
 		flowIDs:   make([]StringID, 0),
 		glowIDs:   make([]StringID, 0),
 		rippleIDs: make([]StringID, 0),
+		groupIDs:  make([]StringID, 0),
 		selection: SelectionState{Type: SelectionNone, ID: ""},
 		history:   NewHistoryManager(50),
 	}
@@ -431,10 +438,8 @@ func (s *Scene) UpdateNode(n Node) {
 	s.revision++
 }
 
-// RemoveNode removes a node by ID and bumps revision.
-func (s *Scene) RemoveNode(id StringID) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// removeNodeLocked removes a node by ID without acquiring the mutex or bumping revision.
+func (s *Scene) removeNodeLocked(id StringID) bool {
 	if _, exists := s.nodes[id]; !exists {
 		return false
 	}
@@ -465,7 +470,72 @@ func (s *Scene) RemoveNode(id StringID) bool {
 	}
 
 	s.pruneSelectionLocked(SelectionNode, id)
-	s.revision++
+	s.pruneGroupMembersLocked(SelectionNode, id)
+	return true
+}
+
+// RemoveNode removes a node by ID and bumps revision.
+func (s *Scene) RemoveNode(id StringID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ok := s.removeNodeLocked(id); ok {
+		s.revision++
+		return true
+	}
+	return false
+}
+
+// removeFlowLocked removes a flow by ID without acquiring the mutex or bumping revision.
+func (s *Scene) removeFlowLocked(id StringID) bool {
+	if _, exists := s.flows[id]; !exists {
+		return false
+	}
+	delete(s.flows, id)
+	newIDs := make([]StringID, 0, len(s.flowIDs)-1)
+	for _, fid := range s.flowIDs {
+		if fid != id {
+			newIDs = append(newIDs, fid)
+		}
+	}
+	s.flowIDs = newIDs
+	s.pruneSelectionLocked(SelectionFlow, id)
+	s.pruneGroupMembersLocked(SelectionFlow, id)
+	return true
+}
+
+// removeGlowLocked removes a glow by ID without acquiring the mutex or bumping revision.
+func (s *Scene) removeGlowLocked(id StringID) bool {
+	if _, exists := s.glows[id]; !exists {
+		return false
+	}
+	delete(s.glows, id)
+	newIDs := make([]StringID, 0, len(s.glowIDs)-1)
+	for _, gid := range s.glowIDs {
+		if gid != id {
+			newIDs = append(newIDs, gid)
+		}
+	}
+	s.glowIDs = newIDs
+	s.pruneSelectionLocked(SelectionGlow, id)
+	s.pruneGroupMembersLocked(SelectionGlow, id)
+	return true
+}
+
+// removeRippleLocked removes a ripple by ID without acquiring the mutex or bumping revision.
+func (s *Scene) removeRippleLocked(id StringID) bool {
+	if _, exists := s.ripples[id]; !exists {
+		return false
+	}
+	delete(s.ripples, id)
+	newIDs := make([]StringID, 0, len(s.rippleIDs)-1)
+	for _, rid := range s.rippleIDs {
+		if rid != id {
+			newIDs = append(newIDs, rid)
+		}
+	}
+	s.rippleIDs = newIDs
+	s.pruneSelectionLocked(SelectionRipple, id)
+	s.pruneGroupMembersLocked(SelectionRipple, id)
 	return true
 }
 
@@ -482,6 +552,9 @@ func (s *Scene) UpdateFlow(f Flow) {
 		}
 	} else {
 		s.flowIDs = append(s.flowIDs, f.ID)
+		if idNum, err := strconv.ParseInt(string(f.ID), 10, 64); err == nil && idNum > s.flowsCounter {
+			s.flowsCounter = idNum
+		}
 	}
 	s.flows[f.ID] = f
 	s.revision++
@@ -491,20 +564,11 @@ func (s *Scene) UpdateFlow(f Flow) {
 func (s *Scene) RemoveFlow(id StringID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.flows[id]; !exists {
-		return false
+	if ok := s.removeFlowLocked(id); ok {
+		s.revision++
+		return true
 	}
-	delete(s.flows, id)
-	newIDs := make([]StringID, 0, len(s.flowIDs)-1)
-	for _, fid := range s.flowIDs {
-		if fid != id {
-			newIDs = append(newIDs, fid)
-		}
-	}
-	s.flowIDs = newIDs
-	s.pruneSelectionLocked(SelectionFlow, id)
-	s.revision++
-	return true
+	return false
 }
 
 // RenameObject updates the human-readable display name of a Node, Flow, Glow, or Ripple.
@@ -672,6 +736,21 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		s.rippleIDs = append(s.rippleIDs, r.ID)
 	}
 
+	s.groups = make(map[StringID]Group, len(snap.Groups))
+	s.groupIDs = make([]StringID, 0, len(snap.Groups))
+	for _, g := range snap.Groups {
+		rawID := string(g.ID)
+		if strings.HasPrefix(rawID, "group-") {
+			if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "group-"), 10, 64); err == nil && idNum > s.groupsCounter {
+				s.groupsCounter = idNum
+			}
+		} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.groupsCounter {
+			s.groupsCounter = idNum
+		}
+		s.groups[g.ID] = g
+		s.groupIDs = append(s.groupIDs, g.ID)
+	}
+
 	if snap.Revision > 0 {
 		s.revision = snap.Revision
 	} else {
@@ -704,6 +783,11 @@ func (s *Scene) GetSnapshot() Snapshot {
 		ripples[i] = s.ripples[id]
 	}
 
+	groups := make([]Group, len(s.groupIDs))
+	for i, id := range s.groupIDs {
+		groups[i] = s.groups[id]
+	}
+
 	return Snapshot{
 		Revision: s.revision,
 		Canvas:   s.canvas,
@@ -715,5 +799,6 @@ func (s *Scene) GetSnapshot() Snapshot {
 		Flows:    flows,
 		Glows:    glows,
 		Ripples:  ripples,
+		Groups:   groups,
 	}
 }

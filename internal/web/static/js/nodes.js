@@ -213,6 +213,9 @@ window.DiagramNodes = {
     if (this.activeId !== null && String(this.activeId) === String(id)) {
       this.activeId = null;
     }
+    if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
+      window.ObjectGroups.pruneMember('node', id);
+    }
     return this.list.length < before;
   },
 
@@ -447,6 +450,24 @@ window.DiagramNodes = {
       btnDistV.addEventListener('click', () => {
         if (window.AppCoordinator && typeof window.AppCoordinator.distributeSelectedNodes === 'function') {
           window.AppCoordinator.distributeSelectedNodes('vertical');
+        }
+      });
+    }
+
+    const btnGroup = document.getElementById('btnGroupSelection');
+    if (btnGroup) {
+      btnGroup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+          window.AppCoordinator.createGroupFromSelection();
+        }
+      });
+    }
+
+    const btnDup = document.getElementById('btnDuplicateSelection');
+    if (btnDup) {
+      btnDup.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.duplicateSelection === 'function') {
+          window.AppCoordinator.duplicateSelection();
         }
       });
     }
@@ -706,6 +727,60 @@ window.DiagramNodes = {
     } else {
       toolbar.style.display = 'none';
     }
+  },
+
+  updateGroupOverlay(groupId) {
+    const overlay = document.getElementById('groupSelectionOverlay');
+    const box = document.getElementById('groupSelectionBox');
+    const label = document.getElementById('groupSelectionLabel');
+    if (!overlay || !box) return;
+
+    if (!groupId) {
+      overlay.style.display = 'none';
+      return;
+    }
+
+    const dims = window.AppCoordinator
+      ? window.AppCoordinator.getCanvasDimensions()
+      : { width: (window.Stage && window.Stage.canvasWidth) || 1280, height: (window.Stage && window.Stage.canvasHeight) || 720 };
+
+    let bounds = null;
+    if (window.EngineBridge && typeof window.EngineBridge.getGroupBounds === 'function') {
+      bounds = window.EngineBridge.getGroupBounds(groupId, dims.width, dims.height);
+    } else if (window.ObjectGroups && typeof window.ObjectGroups.computeBounds === 'function') {
+      bounds = window.ObjectGroups.computeBounds(groupId, dims.width, dims.height);
+    }
+
+    if (!bounds || !bounds.success) {
+      overlay.style.display = 'none';
+      return;
+    }
+
+    const pad = 14;
+    const xMinPx = (bounds.minX / 100) * dims.width - pad;
+    const yMinPx = (bounds.minY / 100) * dims.height - pad;
+    const wPx = ((bounds.maxX - bounds.minX) / 100) * dims.width + pad * 2;
+    const hPx = ((bounds.maxY - bounds.minY) / 100) * dims.height + pad * 2;
+
+    box.setAttribute('x', Math.max(0, xMinPx).toFixed(1));
+    box.setAttribute('y', Math.max(0, yMinPx).toFixed(1));
+    box.setAttribute('width', Math.max(10, wPx).toFixed(1));
+    box.setAttribute('height', Math.max(10, hPx).toFixed(1));
+
+    if (label) {
+      const grp = window.AppCoordinator ? window.AppCoordinator.getGroup(groupId) : null;
+      const name = (grp && grp.name) ? grp.name : ('Group ' + groupId);
+      label.textContent = '👥 ' + name;
+      label.setAttribute('x', Math.max(8, xMinPx).toFixed(1));
+      label.setAttribute('y', Math.max(16, yMinPx - 6).toFixed(1));
+    }
+
+    overlay.style.display = 'block';
+  },
+
+  hideGroupOverlay() {
+    const overlay = document.getElementById('groupSelectionOverlay');
+    if (overlay) overlay.style.display = 'none';
   },
 
   removeNode(id) {

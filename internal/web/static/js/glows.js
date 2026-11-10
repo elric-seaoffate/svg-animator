@@ -32,7 +32,8 @@ window.Glows = {
   },
 
   getGlow(id) {
-    return this.list.find((g) => g.id === id) || null;
+    if (id === null || id === undefined) return null;
+    return this.list.find((g) => String(g.id) === String(id)) || null;
   },
 
   getAllGlows() {
@@ -142,6 +143,9 @@ window.Glows = {
     this.list = this.list.filter((g) => g.id !== id);
     if (this.activeId === id) {
       this.activeId = null;
+    }
+    if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
+      window.ObjectGroups.pruneMember('glow', id);
     }
     return this.list.length < before;
   },

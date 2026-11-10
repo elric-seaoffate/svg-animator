@@ -374,6 +374,163 @@ type NodesTransformResponse struct {
 	Error   string       `json:"error,omitempty"`
 }
 
+// GroupCreateRequest payload for "Group.Create".
+type GroupCreateRequest struct {
+	Name    string              `json:"name,omitempty"`
+	Members []scene.GroupMember `json:"members"`
+}
+
+// GroupCreateResponse response for "Group.Create".
+type GroupCreateResponse struct {
+	Success bool        `json:"success"`
+	Group   scene.Group `json:"group,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// GroupUngroupRequest payload for "Group.Ungroup".
+type GroupUngroupRequest struct {
+	GroupID scene.StringID `json:"groupId"`
+}
+
+// GroupUngroupResponse response for "Group.Ungroup".
+type GroupUngroupResponse struct {
+	Success bool                `json:"success"`
+	Members []scene.GroupMember `json:"members,omitempty"`
+	Error   string              `json:"error,omitempty"`
+}
+
+// GroupDeleteRequest payload for "Group.Delete".
+type GroupDeleteRequest struct {
+	GroupID       scene.StringID `json:"groupId"`
+	DeleteMembers bool           `json:"deleteMembers"`
+}
+
+// GroupDeleteResponse response for "Group.Delete".
+type GroupDeleteResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// GroupRenameRequest payload for "Group.Rename".
+type GroupRenameRequest struct {
+	GroupID scene.StringID `json:"groupId"`
+	Name    string         `json:"name"`
+}
+
+// GroupRenameResponse response for "Group.Rename".
+type GroupRenameResponse struct {
+	Success bool        `json:"success"`
+	Group   scene.Group `json:"group,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// GroupGetRequest payload for "Group.Get".
+type GroupGetRequest struct {
+	GroupID scene.StringID `json:"groupId"`
+}
+
+// GroupGetResponse response for "Group.Get".
+type GroupGetResponse struct {
+	Found bool        `json:"found"`
+	Group scene.Group `json:"group,omitempty"`
+	Error string      `json:"error,omitempty"`
+}
+
+// GroupListResponse response for "Group.List".
+type GroupListResponse struct {
+	Groups []scene.Group `json:"groups"`
+	Count  int           `json:"count"`
+}
+
+// GroupMoveRequest payload for "Group.Move".
+type GroupMoveRequest struct {
+	GroupID scene.StringID `json:"groupId"`
+	DX      float64        `json:"dx"`
+	DY      float64        `json:"dy"`
+}
+
+// GroupMoveResponse response for "Group.Move".
+type GroupMoveResponse struct {
+	Success  bool            `json:"success"`
+	Snapshot *scene.Snapshot `json:"snapshot,omitempty"`
+	Error    string          `json:"error,omitempty"`
+}
+
+// GroupFindMemberRequest payload for "Group.FindByMember".
+type GroupFindMemberRequest struct {
+	Type scene.SelectionType `json:"type"`
+	ID   scene.StringID      `json:"id"`
+}
+
+// GroupFindMemberResponse response for "Group.FindByMember".
+type GroupFindMemberResponse struct {
+	Found bool        `json:"found"`
+	Group scene.Group `json:"group,omitempty"`
+}
+
+// GroupBoundsRequest payload for "Group.Bounds".
+type GroupBoundsRequest struct {
+	GroupID scene.StringID `json:"groupId"`
+	CanvasW float64        `json:"canvasW"`
+	CanvasH float64        `json:"canvasH"`
+}
+
+// GroupBoundsResponse response for "Group.Bounds".
+type GroupBoundsResponse struct {
+	Success bool    `json:"success"`
+	MinX    float64 `json:"minX"`
+	MinY    float64 `json:"minY"`
+	MaxX    float64 `json:"maxX"`
+	MaxY    float64 `json:"maxY"`
+	Error   string  `json:"error,omitempty"`
+}
+
+// SceneCopyRequest payload for "Scene.Copy".
+type SceneCopyRequest struct {
+	Items   []scene.SelectionItem `json:"items,omitempty"`
+	GroupID scene.StringID        `json:"groupId,omitempty"`
+}
+
+// SceneCopyResponse response for "Scene.Copy".
+type SceneCopyResponse struct {
+	Success bool                   `json:"success"`
+	Payload scene.ClipboardPayload `json:"payload,omitempty"`
+	Error   string                 `json:"error,omitempty"`
+}
+
+// ScenePasteRequest payload for "Scene.Paste".
+type ScenePasteRequest struct {
+	Payload scene.ClipboardPayload `json:"payload"`
+	OffsetX float64                `json:"offsetX"`
+	OffsetY float64                `json:"offsetY"`
+}
+
+// ScenePasteResponse response for "Scene.Paste".
+type ScenePasteResponse struct {
+	Success    bool                  `json:"success"`
+	NewItems   []scene.SelectionItem `json:"newItems,omitempty"`
+	NewGroupID scene.StringID        `json:"newGroupId,omitempty"`
+	Snapshot   *scene.Snapshot       `json:"snapshot,omitempty"`
+	Error      string                `json:"error,omitempty"`
+}
+
+// SceneDuplicateRequest payload for "Scene.Duplicate".
+type SceneDuplicateRequest struct {
+	Items   []scene.SelectionItem `json:"items,omitempty"`
+	GroupID scene.StringID        `json:"groupId,omitempty"`
+	OffsetX float64                `json:"offsetX"`
+	OffsetY float64                `json:"offsetY"`
+}
+
+// SceneDuplicateResponse response for "Scene.Duplicate".
+type SceneDuplicateResponse struct {
+	Success    bool                  `json:"success"`
+	NewItems   []scene.SelectionItem `json:"newItems,omitempty"`
+	NewGroupID scene.StringID        `json:"newGroupId,omitempty"`
+	Snapshot   *scene.Snapshot       `json:"snapshot,omitempty"`
+	Error      string                `json:"error,omitempty"`
+}
+
 // HistoryRecordRequest is the payload for "History.Record".
 type HistoryRecordRequest struct {
 	Snapshot  *scene.Snapshot       `json:"snapshot,omitempty"`
@@ -1737,6 +1894,132 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			Success:  true,
 			Manifest: manifest,
 		})
+
+	case "Group.Create":
+		var req GroupCreateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupCreateRequest: %w", err)
+		}
+		grp, err := activeScene.CreateGroup(req.Name, req.Members)
+		if err != nil {
+			return json.Marshal(GroupCreateResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(GroupCreateResponse{Success: true, Group: grp})
+
+	case "Group.Ungroup":
+		var req GroupUngroupRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupUngroupRequest: %w", err)
+		}
+		members, err := activeScene.Ungroup(req.GroupID)
+		if err != nil {
+			return json.Marshal(GroupUngroupResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(GroupUngroupResponse{Success: true, Members: members})
+
+	case "Group.Delete":
+		var req GroupDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupDeleteRequest: %w", err)
+		}
+		if err := activeScene.DeleteGroup(req.GroupID, req.DeleteMembers); err != nil {
+			return json.Marshal(GroupDeleteResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(GroupDeleteResponse{Success: true})
+
+	case "Group.Rename":
+		var req GroupRenameRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupRenameRequest: %w", err)
+		}
+		grp, err := activeScene.RenameGroup(req.GroupID, req.Name)
+		if err != nil {
+			return json.Marshal(GroupRenameResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(GroupRenameResponse{Success: true, Group: grp})
+
+	case "Group.Get":
+		var req GroupGetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupGetRequest: %w", err)
+		}
+		grp, exists := activeScene.GetGroup(req.GroupID)
+		return json.Marshal(GroupGetResponse{Found: exists, Group: grp})
+
+	case "Group.List":
+		grps := activeScene.GetAllGroups()
+		return json.Marshal(GroupListResponse{Groups: grps, Count: len(grps)})
+
+	case "Group.Move":
+		var req GroupMoveRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupMoveRequest: %w", err)
+		}
+		if err := activeScene.MoveGroup(req.GroupID, req.DX, req.DY); err != nil {
+			return json.Marshal(GroupMoveResponse{Success: false, Error: err.Error()})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(GroupMoveResponse{Success: true, Snapshot: &snap})
+
+	case "Group.FindByMember":
+		var req GroupFindMemberRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupFindMemberRequest: %w", err)
+		}
+		grp, found := activeScene.FindGroupByMember(req.Type, req.ID)
+		return json.Marshal(GroupFindMemberResponse{Found: found, Group: grp})
+
+	case "Group.Bounds":
+		var req GroupBoundsRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupBoundsRequest: %w", err)
+		}
+		minX, minY, maxX, maxY, err := activeScene.ComputeGroupBounds(req.GroupID, req.CanvasW, req.CanvasH)
+		if err != nil {
+			return json.Marshal(GroupBoundsResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(GroupBoundsResponse{
+			Success: true,
+			MinX:    minX,
+			MinY:    minY,
+			MaxX:    maxX,
+			MaxY:    maxY,
+		})
+
+	case "Scene.Copy":
+		var req SceneCopyRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding SceneCopyRequest: %w", err)
+		}
+		payload, err := activeScene.CopySelection(req.Items, req.GroupID)
+		if err != nil {
+			return json.Marshal(SceneCopyResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(SceneCopyResponse{Success: true, Payload: payload})
+
+	case "Scene.Paste":
+		var req ScenePasteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ScenePasteRequest: %w", err)
+		}
+		newItems, newGrpID, err := activeScene.PastePayload(req.Payload, req.OffsetX, req.OffsetY)
+		if err != nil {
+			return json.Marshal(ScenePasteResponse{Success: false, Error: err.Error()})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(ScenePasteResponse{Success: true, NewItems: newItems, NewGroupID: newGrpID, Snapshot: &snap})
+
+	case "Scene.Duplicate":
+		var req SceneDuplicateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding SceneDuplicateRequest: %w", err)
+		}
+		newItems, newGrpID, err := activeScene.DuplicateSelection(req.Items, req.GroupID, req.OffsetX, req.OffsetY)
+		if err != nil {
+			return json.Marshal(SceneDuplicateResponse{Success: false, Error: err.Error()})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(SceneDuplicateResponse{Success: true, NewItems: newItems, NewGroupID: newGrpID, Snapshot: &snap})
 
 	default:
 		return nil, errors.New("unknown engine command: " + command)

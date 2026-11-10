@@ -10,6 +10,8 @@
 (function() {
   window.AppCoordinator = {
     activeSelection: { type: null, id: null, items: [] },
+    groupEditModeGroupId: null,
+    _clipboardPayload: null,
     _listeners: {},
     _renderHandler: null,
     _isCoordinatingSelection: false,
@@ -130,6 +132,29 @@
         if (Array.isArray(options.items) && options.items.length > 0) {
           this._setMultiSelectionInternal(options.items, options.primaryId || normalizedId, options);
           return;
+        }
+
+        // Automatic group resolution: unless in group-edit mode or explicitly requested,
+        // selecting a member of a group selects the parent group.
+        if (normalizedType && normalizedId !== null && normalizedType !== 'camera' && !options.skipGroupResolve && !options.toggle && !options.additive) {
+          if (this.groupEditModeGroupId) {
+            const memberGroup = this.findGroupByMember(normalizedType, normalizedId);
+            if (!memberGroup || String(memberGroup.id) !== String(this.groupEditModeGroupId)) {
+              this.exitGroupEditMode();
+              if (memberGroup) {
+                this._isCoordinatingSelection = false;
+                this.selectGroup(memberGroup.id, options);
+                return;
+              }
+            }
+          } else {
+            const memberGroup = this.findGroupByMember(normalizedType, normalizedId);
+            if (memberGroup) {
+              this._isCoordinatingSelection = false;
+              this.selectGroup(memberGroup.id, options);
+              return;
+            }
+          }
         }
 
         // Single selection replacement
@@ -306,7 +331,300 @@
       this.selectObject(null, null, Object.assign({}, options, { items, primaryId }));
     },
 
+    isInGroupEditMode() {
+      return this.groupEditModeGroupId !== null;
+    },
+
+    getGroupEditModeGroupId() {
+      return this.groupEditModeGroupId;
+    },
+
+    enterGroupEditMode(groupId) {
+      this.groupEditModeGroupId = String(groupId);
+      this.emit('group:editmode', { groupId: this.groupEditModeGroupId });
+      this.updateActiveOverlays();
+    },
+
+    exitGroupEditMode() {
+      if (this.groupEditModeGroupId !== null) {
+        const prev = this.groupEditModeGroupId;
+        this.groupEditModeGroupId = null;
+        this.emit('group:editmode', { groupId: null, previousGroupId: prev });
+        this.updateActiveOverlays();
+      }
+    },
+
+    findGroupByMember(type, id) {
+      if (window.EngineBridge && typeof window.EngineBridge.findGroupByMember === 'function') {
+        const found = window.EngineBridge.findGroupByMember(type, id);
+        if (found) return found;
+      }
+      if (window.ObjectGroups && typeof window.ObjectGroups.findGroupByMember === 'function') {
+        return window.ObjectGroups.findGroupByMember(type, id);
+      }
+      return null;
+    },
+
+    getGroup(groupId) {
+      if (window.EngineBridge && typeof window.EngineBridge.getGroup === 'function') {
+        const found = window.EngineBridge.getGroup(groupId);
+        if (found) return found;
+      }
+      if (window.ObjectGroups && typeof window.ObjectGroups.getGroup === 'function') {
+        return window.ObjectGroups.getGroup(groupId);
+      }
+      return null;
+    },
+
+    getAllGroups() {
+      if (window.EngineBridge && typeof window.EngineBridge.listGroups === 'function') {
+        const list = window.EngineBridge.listGroups();
+        if (Array.isArray(list)) return list;
+      }
+      if (window.ObjectGroups && typeof window.ObjectGroups.getAllGroups === 'function') {
+        return window.ObjectGroups.getAllGroups();
+      }
+      return [];
+    },
+
+    selectGroup(groupId, options = {}) {
+      const grp = this.getGroup(groupId);
+      if (!grp) return false;
+
+      if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+        window.DiagramNodes.deselectNode();
+      }
+      if (window.DataFlows && window.DataFlows.activeId !== null) {
+        window.DataFlows.deselectFlow();
+      }
+      if (window.Glows && window.Glows.activeId !== null) {
+        window.Glows.deselectGlow();
+      }
+      if (window.Ripples && window.Ripples.activeId !== null) {
+        window.Ripples.deselectRipple();
+      }
+      if (window.Stage && window.Stage.activePlacement) {
+        window.Stage.clearActive();
+      }
+
+      const members = Array.isArray(grp.members) ? [...grp.members] : [];
+      this.activeSelection = {
+        type: 'group',
+        id: String(groupId),
+        items: members,
+        name: grp.name || ('Group ' + grp.id)
+      };
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        window.EngineBridge.setSelection('group', String(groupId), members);
+      }
+
+      this.updateActiveOverlays();
+      this.emit('selection:changed', this.getActiveSelection());
+
+      if (window.FloatingPropertiesEditor && typeof window.FloatingPropertiesEditor.openFor === 'function') {
+        window.FloatingPropertiesEditor.openFor('group', String(groupId));
+      }
+
+      return true;
+    },
+
+    createGroupFromSelection(name = '') {
+      let items = this.getSelectedItems();
+      if (!Array.isArray(items) || items.length < 2) {
+        this.showNotification('Select at least 2 objects to create a group.', 'warning', 2500);
+        return null;
+      }
+      for (const it of items) {
+        const existing = this.findGroupByMember(it.type, it.id);
+        if (existing) {
+          this.showNotification(`Object ${it.type} #${it.id} already belongs to group "${existing.name || existing.id}". Ungroup it first.`, 'warning', 3000);
+          return null;
+        }
+      }
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.createGroup === 'function') {
+        res = window.EngineBridge.createGroup(name, items);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.createGroup === 'function') {
+        res = window.ObjectGroups.createGroup(name, items);
+      }
+      if (res && res.success && res.group) {
+        this.selectGroup(res.group.id);
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.showNotification(`Created group: ${res.group.name || res.group.id}`, 'success', 2000);
+        return res.group;
+      }
+      this.showNotification((res && res.error) ? res.error : 'Failed to create group.', 'error', 3000);
+      return null;
+    },
+
+    ungroupSelectedGroup() {
+      let groupId = null;
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        groupId = this.activeSelection.id;
+      } else if (this.activeSelection.type && this.activeSelection.id) {
+        const grp = this.findGroupByMember(this.activeSelection.type, this.activeSelection.id);
+        if (grp) groupId = grp.id;
+      }
+      if (!groupId) {
+        this.showNotification('No group selected to ungroup.', 'warning', 2500);
+        return false;
+      }
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.ungroup === 'function') {
+        res = window.EngineBridge.ungroup(groupId);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.ungroup === 'function') {
+        res = window.ObjectGroups.ungroup(groupId);
+      }
+      if (res && res.success) {
+        this.exitGroupEditMode();
+        if (Array.isArray(res.members) && res.members.length > 0) {
+          this.setMultiSelection(res.members);
+        } else {
+          this.clearSelection();
+        }
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.showNotification('Ungrouped objects.', 'info', 2000);
+        return true;
+      }
+      this.showNotification((res && res.error) ? res.error : 'Failed to ungroup.', 'error', 3000);
+      return false;
+    },
+
+    renameSelectedGroup(newName) {
+      if (this.activeSelection.type !== 'group' || !this.activeSelection.id) return false;
+      const grpId = this.activeSelection.id;
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.renameGroup === 'function') {
+        res = window.EngineBridge.renameGroup(grpId, newName);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.renameGroup === 'function') {
+        res = window.ObjectGroups.renameGroup(grpId, newName);
+      }
+      if (res && res.success) {
+        this.activeSelection.name = newName;
+        this.emit('selection:changed', this.getActiveSelection());
+        this.recordHistoryDebounced();
+        return true;
+      }
+      return false;
+    },
+
+    duplicateSelection() {
+      let items = [], groupId = null;
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        groupId = this.activeSelection.id;
+      } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
+        items = this.activeSelection.items;
+      } else if (this.activeSelection.type && this.activeSelection.id) {
+        items = [{ type: this.activeSelection.type, id: this.activeSelection.id }];
+      } else {
+        this.showNotification('Nothing selected to duplicate.', 'warning', 2000);
+        return false;
+      }
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.duplicateSelection === 'function') {
+        res = window.EngineBridge.duplicateSelection(items, groupId, 5.0, 5.0);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.duplicateSelection === 'function') {
+        res = window.ObjectGroups.duplicateSelection(items, groupId, 5.0, 5.0);
+      }
+      if (res && res.success) {
+        if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
+          window.DiagramNodes.renderList();
+        }
+        if (res.newGroupId) {
+          this.selectGroup(res.newGroupId);
+        } else if (Array.isArray(res.newItems) && res.newItems.length > 0) {
+          if (res.newItems.length === 1) {
+            this.selectObject(res.newItems[0].type, res.newItems[0].id);
+          } else {
+            this.setMultiSelection(res.newItems);
+          }
+        }
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.showNotification('Duplicated selection.', 'info', 1500);
+        return true;
+      }
+      this.showNotification((res && res.error) ? res.error : 'Failed to duplicate.', 'error', 3000);
+      return false;
+    },
+
+    copySelection() {
+      let items = [], groupId = null;
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        groupId = this.activeSelection.id;
+      } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
+        items = this.activeSelection.items;
+      } else if (this.activeSelection.type && this.activeSelection.id) {
+        items = [{ type: this.activeSelection.type, id: this.activeSelection.id }];
+      } else {
+        this.showNotification('Nothing selected to copy.', 'warning', 2000);
+        return false;
+      }
+      let payload = null;
+      if (window.EngineBridge && typeof window.EngineBridge.copySelection === 'function') {
+        payload = window.EngineBridge.copySelection(items, groupId);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.copySelection === 'function') {
+        payload = window.ObjectGroups.copySelection(items, groupId);
+      }
+      if (payload) {
+        this._clipboardPayload = payload;
+        this.showNotification('Copied selection to clipboard.', 'info', 1500);
+        return true;
+      }
+      this.showNotification('Failed to copy selection.', 'error', 2000);
+      return false;
+    },
+
+    pasteClipboard() {
+      if (!this._clipboardPayload) {
+        this.showNotification('Clipboard is empty.', 'warning', 2000);
+        return false;
+      }
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.pastePayload === 'function') {
+        res = window.EngineBridge.pastePayload(this._clipboardPayload, 5.0, 5.0);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.pastePayload === 'function') {
+        res = window.ObjectGroups.pastePayload(this._clipboardPayload, 5.0, 5.0);
+      }
+      if (res && res.success) {
+        if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
+          window.DiagramNodes.renderList();
+        }
+        if (res.newGroupId) {
+          this.selectGroup(res.newGroupId);
+        } else if (Array.isArray(res.newItems) && res.newItems.length > 0) {
+          if (res.newItems.length === 1) {
+            this.selectObject(res.newItems[0].type, res.newItems[0].id);
+          } else {
+            this.setMultiSelection(res.newItems);
+          }
+        }
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.showNotification('Pasted from clipboard.', 'info', 1500);
+        return true;
+      }
+      this.showNotification((res && res.error) ? res.error : 'Failed to paste.', 'error', 3000);
+      return false;
+    },
+
     moveSelectedNodes(deltaX, deltaY) {
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        let res = null;
+        if (window.EngineBridge && typeof window.EngineBridge.moveGroup === 'function') {
+          res = window.EngineBridge.moveGroup(this.activeSelection.id, deltaX, deltaY);
+        } else if (window.ObjectGroups && typeof window.ObjectGroups.moveGroup === 'function') {
+          res = window.ObjectGroups.moveGroup(this.activeSelection.id, deltaX, deltaY);
+        }
+        if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+          window.DiagramNodes.refreshAfterChange();
+        }
+        this.updateActiveOverlays();
+        return true;
+      }
       const ids = this.getSelectedNodeIds();
       if (ids.length === 0) return false;
       let res = null;
@@ -398,6 +716,36 @@
     },
 
     deleteSelectedObjects() {
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        const grpId = this.activeSelection.id;
+        const grp = this.getGroup(grpId);
+        if (grp && Array.isArray(grp.members)) {
+          grp.members.forEach((m) => {
+            if (m.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.deleteNode === 'function') {
+              window.DiagramNodes.deleteNode(m.id);
+            } else if (m.type === 'flow' && window.DataFlows && typeof window.DataFlows.deleteFlow === 'function') {
+              window.DataFlows.deleteFlow(m.id);
+            } else if (m.type === 'glow' && window.Glows && typeof window.Glows.deleteGlow === 'function') {
+              window.Glows.deleteGlow(m.id);
+            } else if (m.type === 'ripple' && window.Ripples && typeof window.Ripples.deleteRipple === 'function') {
+              window.Ripples.deleteRipple(m.id);
+            }
+          });
+        }
+        if (window.EngineBridge && typeof window.EngineBridge.deleteGroup === 'function') {
+          window.EngineBridge.deleteGroup(grpId, true);
+        } else if (window.ObjectGroups && typeof window.ObjectGroups.deleteGroup === 'function') {
+          window.ObjectGroups.deleteGroup(grpId, true);
+        }
+        if (window.DiagramNodes && typeof window.DiagramNodes.renderList === 'function') {
+          window.DiagramNodes.renderList();
+        }
+        this.clearSelection();
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.showNotification('Deleted group and its members.', 'info', 2000);
+        return true;
+      }
       const items = this.getSelectedItems();
       if (items.length === 0) return false;
       items.forEach((it) => {
@@ -439,6 +787,16 @@
      * object is currently active across DiagramNodes, DataFlows, Glows, and Ripples.
      */
     updateActiveOverlays() {
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateGroupOverlay === 'function') {
+          window.DiagramNodes.updateGroupOverlay(this.activeSelection.id);
+        }
+      } else {
+        if (window.DiagramNodes && typeof window.DiagramNodes.hideGroupOverlay === 'function') {
+          window.DiagramNodes.hideGroupOverlay();
+        }
+      }
+
       if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
         const activeNode = typeof window.DiagramNodes.getNode === 'function'
           ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
@@ -477,11 +835,15 @@
      * @param {Object|string} [options] - Options object ({ reason, exceptType }) or string exceptType
      */
     clearSelection(options = {}) {
+      this.exitGroupEditMode();
       const exceptType = (typeof options === 'string')
         ? options
         : (options && options.exceptType ? options.exceptType : null);
       const opts = (typeof options === 'object' && options !== null) ? options : {};
       this.selectObject(exceptType, null, opts);
+      if (window.DiagramNodes && typeof window.DiagramNodes.hideGroupOverlay === 'function') {
+        window.DiagramNodes.hideGroupOverlay();
+      }
     },
 
     /**
@@ -496,7 +858,10 @@
       const rSel = options && options.restoredSelection;
       if (rSel && rSel.type && rSel.id !== null && rSel.id !== undefined) {
         const idStr = String(rSel.id);
-        if (rSel.type === 'node' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list) && window.DiagramNodes.list.some((n) => String(n.id) === idStr)) {
+        if (rSel.type === 'group' && (this.getGroup(idStr) || (window.ObjectGroups && window.ObjectGroups.getGroup(idStr)))) {
+          selectionRestored = true;
+          this.selectGroup(rSel.id);
+        } else if (rSel.type === 'node' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list) && window.DiagramNodes.list.some((n) => String(n.id) === idStr)) {
           selectionRestored = true;
           this.selectObject('node', rSel.id);
         } else if (rSel.type === 'flow' && window.DataFlows && Array.isArray(window.DataFlows.list) && window.DataFlows.list.some((f) => String(f.id) === idStr)) {

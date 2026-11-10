@@ -619,3 +619,80 @@ func TestSVARoundtripReExportParity(t *testing.T) {
 		t.Fatalf("Asset bytes in round 2 do not match original image bytes")
 	}
 }
+
+func TestSVAGroupPackagingAndRestoration(t *testing.T) {
+	studioJSON := `{
+		"version": "1.2.0",
+		"nodes": [
+			{"id": "1", "shape": "rect", "text": "Pump Body", "x": 20, "y": 20, "width": 80, "height": 40},
+			{"id": "2", "shape": "circle", "text": "Motor", "x": 40, "y": 20, "width": 60, "height": 60}
+		],
+		"nodesCounter": 2,
+		"flows": [],
+		"flowsCounter": 0,
+		"glows": [],
+		"glowsCounter": 0,
+		"ripples": [],
+		"ripplesCounter": 0,
+		"groups": [
+			{
+				"id": "group-1",
+				"name": "Cooling Pump 1",
+				"members": [
+					{"type": "node", "id": "1"},
+					{"type": "node", "id": "2"}
+				]
+			}
+		],
+		"groupsCounter": 1
+	}`
+
+	// 1. Build project from studio state
+	proj, err := BuildProjectFromStudioState("Pump Assembly", "Test groups in SVA", []byte(studioJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed: %v", err)
+	}
+
+	if len(proj.Scene.Groups) != 1 {
+		t.Fatalf("expected 1 group in proj.Scene, got %d", len(proj.Scene.Groups))
+	}
+	if proj.Scene.Groups[0].Name != "Cooling Pump 1" {
+		t.Errorf("group name mismatch: got %q, want 'Cooling Pump 1'", proj.Scene.Groups[0].Name)
+	}
+
+	// 2. Encode to .sva
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	// 3. Decode from .sva
+	dec, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if len(dec.Scene.Groups) != 1 {
+		t.Fatalf("expected 1 group in decoded scene, got %d", len(dec.Scene.Groups))
+	}
+	decGroup := dec.Scene.Groups[0]
+	if decGroup.ID != "group-1" || decGroup.Name != "Cooling Pump 1" || len(decGroup.Members) != 2 {
+		t.Fatalf("decoded group mismatch: %+v", decGroup)
+	}
+
+	// 4. Extract studio state
+	extractedStateBytes, err := ExtractStudioState(dec)
+	if err != nil {
+		t.Fatalf("ExtractStudioState failed: %v", err)
+	}
+
+	var stateMap map[string]any
+	if err := json.Unmarshal(extractedStateBytes, &stateMap); err != nil {
+		t.Fatalf("unmarshal extracted state failed: %v", err)
+	}
+
+	grps, ok := stateMap["groups"].([]any)
+	if !ok || len(grps) != 1 {
+		t.Fatalf("extracted state groups mismatch: %+v", stateMap["groups"])
+	}
+}

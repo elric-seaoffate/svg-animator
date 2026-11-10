@@ -579,6 +579,15 @@ window.WorkspaceController = {
       this.toggleMaximizedCanvas();
       return true;
     } else if (e.key === 'Escape') {
+      if (window.AppCoordinator && typeof window.AppCoordinator.isInGroupEditMode === 'function' && window.AppCoordinator.isInGroupEditMode()) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        const grpId = window.AppCoordinator.getGroupEditModeGroupId();
+        window.AppCoordinator.exitGroupEditMode();
+        if (grpId) {
+          window.AppCoordinator.selectGroup(grpId);
+        }
+        return true;
+      }
       if (window.FloatingPropertiesEditor && window.FloatingPropertiesEditor.isOpen) {
         if (typeof e.preventDefault === 'function') e.preventDefault();
         window.FloatingPropertiesEditor.close(true);
@@ -759,12 +768,12 @@ window.FloatingPropertiesEditor = {
   },
 
   openFor(type, id, options = {}) {
-    if (!['node', 'flow', 'glow', 'ripple'].includes(type) || id === null || id === undefined) {
+    if (!['node', 'flow', 'glow', 'ripple', 'group'].includes(type) || id === null || id === undefined) {
       this.close();
       return;
     }
-    const normalizedId = parseInt(id, 10);
-    if (isNaN(normalizedId)) {
+    const normalizedId = (type === 'group') ? String(id) : parseInt(id, 10);
+    if (type !== 'group' && isNaN(normalizedId)) {
       this.close();
       return;
     }
@@ -793,7 +802,7 @@ window.FloatingPropertiesEditor = {
       badgeEl.textContent = type.toUpperCase();
     }
     if (iconEl) {
-      const icons = { node: '🔷', flow: '⚡', glow: '✨', ripple: '💧' };
+      const icons = { node: '🔷', flow: '⚡', glow: '✨', ripple: '💧', group: '👥' };
       iconEl.textContent = icons[type] || '⚙️';
     }
 
@@ -801,7 +810,8 @@ window.FloatingPropertiesEditor = {
       node: document.getElementById('fctx-nodeSection'),
       flow: document.getElementById('fctx-flowSection'),
       glow: document.getElementById('fctx-glowSection'),
-      ripple: document.getElementById('fctx-rippleSection')
+      ripple: document.getElementById('fctx-rippleSection'),
+      group: document.getElementById('fctx-groupSection')
     };
     Object.keys(sections).forEach((k) => {
       if (sections[k]) {
@@ -836,7 +846,7 @@ window.FloatingPropertiesEditor = {
   },
 
   toggle(type, id) {
-    if (this.isOpen && this.activeType === type && this.activeId === parseInt(id, 10)) {
+    if (this.isOpen && this.activeType === type && this.activeId === (type === 'group' ? String(id) : parseInt(id, 10))) {
       this.close();
     } else {
       this.openFor(type, id);
@@ -844,7 +854,7 @@ window.FloatingPropertiesEditor = {
   },
 
   handleSelectionChanged(sel) {
-    if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
+    if (!sel || !sel.type || sel.id === null || !['node', 'flow', 'glow', 'ripple', 'group'].includes(sel.type)) {
       if (this.isOpen) this.close(false);
       return;
     }
@@ -888,6 +898,9 @@ window.FloatingPropertiesEditor = {
       el = (document.querySelector ? document.querySelector('#svgContainer [data-ripple-id="' + id + '"] .ripple-hit-target') : null) ||
            (document.querySelector ? document.querySelector('#svgContainer [data-ripple-id="' + id + '"]') : null) ||
            document.getElementById('rippleReticleTarget');
+    } else if (type === 'group') {
+      const box = document.getElementById('groupSelectionBox');
+      if (box && box.style && box.style.display !== 'none') el = box;
     }
 
     if (el && typeof el.getBoundingClientRect === 'function') {
@@ -1113,6 +1126,21 @@ window.FloatingPropertiesEditor = {
         this._setPair('fctx-rippleThick', ripple.thick !== undefined ? ripple.thick : 8);
         this._setPair('fctx-rippleDelay', ripple.delay !== undefined ? ripple.delay : 0.0);
         this._setPair('fctx-rippleEndDelay', ripple.endDelay !== undefined ? ripple.endDelay : 1.0);
+      } else if (this.activeType === 'group') {
+        const grp = window.AppCoordinator ? window.AppCoordinator.getGroup(this.activeId) : null;
+        if (!grp) {
+          this.close();
+          return;
+        }
+        if (titleEl) {
+          titleEl.textContent = 'Group: ' + (grp.name || grp.id);
+        }
+        this._setVal('fctx-groupNameInput', grp.name || '');
+        const memberCountEl = document.getElementById('fctx-groupMemberCount');
+        if (memberCountEl) {
+          const count = Array.isArray(grp.members) ? grp.members.length : 0;
+          memberCountEl.textContent = count + (count === 1 ? ' member' : ' members');
+        }
       }
     } finally {
       this._isSyncing = false;
@@ -1712,10 +1740,72 @@ window.FloatingPropertiesEditor = {
         }
       });
     }
+
+    // Group Property Bindings
+    const grpNameInput = document.getElementById('fctx-groupNameInput');
+    if (grpNameInput) {
+      grpNameInput.addEventListener('input', (e) => {
+        if (this.activeType === 'group' && this.activeId && window.AppCoordinator) {
+          window.AppCoordinator.renameSelectedGroup(e.target.value);
+        }
+      });
+    }
+
+    const btnUngroup = document.getElementById('fctx-btnUngroup');
+    if (btnUngroup) {
+      btnUngroup.addEventListener('click', () => {
+        this.close();
+        if (window.AppCoordinator && typeof window.AppCoordinator.ungroupSelectedGroup === 'function') {
+          window.AppCoordinator.ungroupSelectedGroup();
+        }
+      });
+    }
+
+    const btnDupGrp = document.getElementById('fctx-btnDuplicateGroup');
+    if (btnDupGrp) {
+      btnDupGrp.addEventListener('click', () => {
+        if (window.AppCoordinator && typeof window.AppCoordinator.duplicateSelection === 'function') {
+          window.AppCoordinator.duplicateSelection();
+        }
+      });
+    }
+
+    const btnDelGrp = document.getElementById('fctx-btnDeleteGroup');
+    if (btnDelGrp) {
+      btnDelGrp.addEventListener('click', () => {
+        this.close();
+        if (window.AppCoordinator && typeof window.AppCoordinator.deleteSelectedObjects === 'function') {
+          window.AppCoordinator.deleteSelectedObjects();
+        }
+      });
+    }
+
+    const btnEditMembers = document.getElementById('fctx-btnEditGroupMembers');
+    if (btnEditMembers) {
+      btnEditMembers.addEventListener('click', () => {
+        if (this.activeType === 'group' && this.activeId && window.AppCoordinator) {
+          const grpId = this.activeId;
+          window.AppCoordinator.enterGroupEditMode(grpId);
+          const grp = window.AppCoordinator.getGroup(grpId);
+          if (grp && Array.isArray(grp.members) && grp.members.length > 0) {
+            const first = grp.members[0];
+            window.AppCoordinator.selectObject(first.type, first.id, { skipGroupResolve: true });
+          } else {
+            this.close();
+          }
+        }
+      });
+    }
   },
 
   _resolveTargetObject(target) {
     if (!target || !target.closest) return null;
+
+    if (target.closest('#groupSelectionBox') || target.closest('#groupSelectionOverlay')) {
+      if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'group') {
+        return { type: 'group', id: window.AppCoordinator.activeSelection.id };
+      }
+    }
 
     // 1. Nodes: SVG node group or child elements, or active node selection box
     const nodeEl = target.closest('[data-node-id]');
@@ -1871,6 +1961,20 @@ window.FloatingPropertiesEditor = {
 
         const obj = this._resolveTargetObject(e.target);
         if (obj) {
+          const memberGrp = (obj.type !== 'group' && window.AppCoordinator)
+            ? window.AppCoordinator.findGroupByMember(obj.type, obj.id)
+            : null;
+
+          if (memberGrp) {
+            window.AppCoordinator.enterGroupEditMode(memberGrp.id);
+            window.AppCoordinator.selectObject(obj.type, obj.id, { skipGroupResolve: true });
+            this.openFor(obj.type, obj.id, {
+              resetPosition: false,
+              clickCoords: { clientX: e.clientX, clientY: e.clientY }
+            });
+            return;
+          }
+
           const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
           if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
             window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });
@@ -1884,7 +1988,7 @@ window.FloatingPropertiesEditor = {
 
         if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type && window.AppCoordinator.activeSelection.id !== null) {
           const sel = window.AppCoordinator.activeSelection;
-          if (['node', 'flow', 'glow', 'ripple'].includes(sel.type)) {
+          if (['node', 'flow', 'glow', 'ripple', 'group'].includes(sel.type)) {
             this.openFor(sel.type, sel.id);
           }
         }
@@ -2766,6 +2870,41 @@ document.addEventListener('DOMContentLoaded', () => {
           window.AppCoordinator.moveSelectedNodes(dx, dy);
           window.AppCoordinator.recordHistoryDebounced();
         }
+        return;
+      }
+
+      // 4. Ctrl/Cmd+G: Group selected objects
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        if (window.AppCoordinator) window.AppCoordinator.createGroupFromSelection();
+        return;
+      }
+
+      // 5. Ctrl/Cmd+Shift+G: Ungroup selected group
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        if (window.AppCoordinator) window.AppCoordinator.ungroupSelectedGroup();
+        return;
+      }
+
+      // 6. Ctrl/Cmd+D: Duplicate selection
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        if (window.AppCoordinator) window.AppCoordinator.duplicateSelection();
+        return;
+      }
+
+      // 7. Ctrl/Cmd+C: Copy selection
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        if (window.AppCoordinator) window.AppCoordinator.copySelection();
+        return;
+      }
+
+      // 8. Ctrl/Cmd+V: Paste clipboard
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        if (window.AppCoordinator) window.AppCoordinator.pasteClipboard();
         return;
       }
     }

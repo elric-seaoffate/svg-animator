@@ -39,7 +39,8 @@ window.DataFlows = {
   },
 
   getFlow(id) {
-    return this.list.find((f) => f.id === id) || null;
+    if (id === null || id === undefined) return null;
+    return this.list.find((f) => String(f.id) === String(id)) || null;
   },
 
   getAllFlows() {
@@ -175,6 +176,9 @@ window.DataFlows = {
     if (this.activeId === id) {
       this.activeId = null;
       this.activeNodeIdx = 0;
+    }
+    if (window.ObjectGroups && typeof window.ObjectGroups.pruneMember === 'function') {
+      window.ObjectGroups.pruneMember('flow', id);
     }
     return this.list.length < before;
   },

@@ -1067,6 +1067,208 @@
       return null;
     },
 
+    createGroup(name, members) {
+      if (this.isReady() && Array.isArray(members) && members.length >= 2) {
+        const res = this.dispatch('Group.Create', { name: name || '', members });
+        if (res && res.success) {
+          if (window.ObjectGroups && res.group) {
+            const idx = window.ObjectGroups.list.findIndex((g) => String(g.id) === String(res.group.id));
+            if (idx >= 0) window.ObjectGroups.list[idx] = JSON.parse(JSON.stringify(res.group));
+            else window.ObjectGroups.list.push(JSON.parse(JSON.stringify(res.group)));
+          }
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.createGroup(name, members);
+      }
+      return null;
+    },
+
+    ungroup(groupId) {
+      if (this.isReady() && groupId) {
+        const res = this.dispatch('Group.Ungroup', { groupId: String(groupId) });
+        if (res && res.success) {
+          if (window.ObjectGroups) {
+            window.ObjectGroups.list = window.ObjectGroups.list.filter((g) => String(g.id) !== String(groupId));
+          }
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.ungroup(groupId);
+      }
+      return null;
+    },
+
+    deleteGroup(groupId, deleteMembers = false) {
+      if (this.isReady() && groupId) {
+        const res = this.dispatch('Group.Delete', { groupId: String(groupId), deleteMembers: !!deleteMembers });
+        if (res && res.success) {
+          if (window.ObjectGroups) {
+            window.ObjectGroups.deleteGroup(groupId, deleteMembers);
+          }
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.deleteGroup(groupId, deleteMembers);
+      }
+      return null;
+    },
+
+    renameGroup(groupId, name) {
+      if (this.isReady() && groupId) {
+        const res = this.dispatch('Group.Rename', { groupId: String(groupId), name: String(name || '') });
+        if (res && res.success) {
+          if (window.ObjectGroups) {
+            window.ObjectGroups.renameGroup(groupId, name);
+          }
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.renameGroup(groupId, name);
+      }
+      return null;
+    },
+
+    getGroup(groupId) {
+      if (this.isReady() && groupId) {
+        const res = this.dispatch('Group.Get', { groupId: String(groupId) });
+        if (res && res.found) return res.group;
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.getGroup(groupId);
+      }
+      return null;
+    },
+
+    listGroups() {
+      if (this.isReady()) {
+        const res = this.dispatch('Group.List', {});
+        if (res && Array.isArray(res.groups)) return res.groups;
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.list;
+      }
+      return [];
+    },
+
+    syncFromEngineSnapshot(snap) {
+      if (!snap) return;
+      if (snap.nodes && window.DiagramNodes) {
+        window.DiagramNodes.setState({ nodes: snap.nodes, nodesCounter: snap.nodesCounter || window.DiagramNodes.counter });
+      }
+      if (snap.flows && window.DataFlows) {
+        window.DataFlows.setState({ flows: snap.flows, flowsCounter: snap.flowsCounter || window.DataFlows.counter });
+      }
+      if (snap.glows && window.Glows) {
+        window.Glows.setState({ glows: snap.glows, glowsCounter: snap.glowsCounter || window.Glows.counter });
+      }
+      if (snap.ripples && window.Ripples) {
+        window.Ripples.setState({ ripples: snap.ripples, ripplesCounter: snap.ripplesCounter || window.Ripples.counter });
+      }
+      if (snap.groups && window.ObjectGroups) {
+        window.ObjectGroups.setState({ groups: snap.groups, groupsCounter: snap.groupsCounter || window.ObjectGroups.counter });
+      }
+    },
+
+    moveGroup(groupId, dx, dy) {
+      if (this.isReady() && groupId) {
+        const res = this.dispatch('Group.Move', {
+          groupId: String(groupId),
+          dx: Number(dx) || 0,
+          dy: Number(dy) || 0
+        });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.moveGroup(groupId, dx, dy);
+      }
+      return null;
+    },
+
+    findGroupByMember(type, id) {
+      if (this.isReady() && type && id != null) {
+        const res = this.dispatch('Group.FindByMember', { type: String(type), id: String(id) });
+        if (res && res.found) return res.group;
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.findGroupByMember(type, id);
+      }
+      return null;
+    },
+
+    getGroupBounds(groupId, canvasW = 1280, canvasH = 720) {
+      if (this.isReady() && groupId) {
+        const res = this.dispatch('Group.Bounds', {
+          groupId: String(groupId),
+          canvasW: Number(canvasW) || 1280,
+          canvasH: Number(canvasH) || 720
+        });
+        if (res && res.success) return res;
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.computeBounds(groupId, canvasW, canvasH);
+      }
+      return null;
+    },
+
+    copySelection(items, groupId = null) {
+      if (this.isReady()) {
+        const res = this.dispatch('Scene.Copy', {
+          items: Array.isArray(items) ? items : [],
+          groupId: groupId ? String(groupId) : ''
+        });
+        if (res && res.success) return res.payload;
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.copySelection(items, groupId);
+      }
+      return null;
+    },
+
+    pastePayload(payload, offsetX = 5.0, offsetY = 5.0) {
+      if (this.isReady() && payload) {
+        const res = this.dispatch('Scene.Paste', {
+          payload,
+          offsetX: Number(offsetX) || 0,
+          offsetY: Number(offsetY) || 0
+        });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.pastePayload(payload, offsetX, offsetY);
+      }
+      return null;
+    },
+
+    duplicateSelection(items, groupId = null, offsetX = 5.0, offsetY = 5.0) {
+      if (this.isReady()) {
+        const res = this.dispatch('Scene.Duplicate', {
+          items: Array.isArray(items) ? items : [],
+          groupId: groupId ? String(groupId) : '',
+          offsetX: Number(offsetX) || 5.0,
+          offsetY: Number(offsetY) || 5.0
+        });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          return res;
+        }
+      }
+      if (window.ObjectGroups) {
+        return window.ObjectGroups.duplicateSelection(items, groupId, offsetX, offsetY);
+      }
+      return null;
+    },
+
     recordHistory(snapshot = null, selection = null) {
       if (this.isReady()) {
         const payload = {};
@@ -1857,10 +2059,347 @@
     }
   };
 
+  const ObjectGroups = {
+    list: [],
+    counter: 0,
+
+    getState() {
+      return {
+        groups: JSON.parse(JSON.stringify(this.list)),
+        groupsCounter: this.counter
+      };
+    },
+
+    setState(state = {}) {
+      if (!state) return;
+      this.list = Array.isArray(state.groups) ? JSON.parse(JSON.stringify(state.groups)) : [];
+      this.counter = parseInt(state.groupsCounter, 10) || 0;
+      if (this.counter === 0 && this.list.length > 0) {
+        this.list.forEach((g) => {
+          const match = String(g.id).match(/group-(\d+)/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > this.counter) this.counter = num;
+          }
+        });
+      }
+    },
+
+    getGroup(id) {
+      const strId = String(id);
+      return this.list.find((g) => String(g.id) === strId) || null;
+    },
+
+    findGroupByMember(type, id) {
+      const strId = String(id);
+      return this.list.find((g) =>
+        Array.isArray(g.members) && g.members.some((m) => m.type === type && String(m.id) === strId)
+      ) || null;
+    },
+
+    createGroup(name, members) {
+      if (!Array.isArray(members) || members.length < 2) {
+        return { success: false, error: 'At least 2 objects required to form a group' };
+      }
+      this.counter++;
+      const id = 'group-' + this.counter;
+      const groupName = name && String(name).trim() ? String(name).trim() : 'Group ' + this.counter;
+      const group = {
+        id: id,
+        name: groupName,
+        members: members.map((m) => ({ type: m.type, id: String(m.id) }))
+      };
+      this.list.push(group);
+      return { success: true, group: group };
+    },
+
+    ungroup(groupId) {
+      const strId = String(groupId);
+      const idx = this.list.findIndex((g) => String(g.id) === strId);
+      if (idx === -1) return { success: false, error: 'Group not found' };
+      const members = this.list[idx].members;
+      this.list.splice(idx, 1);
+      return { success: true, members: members };
+    },
+
+    renameGroup(groupId, name) {
+      const strId = String(groupId);
+      const grp = this.list.find((g) => String(g.id) === strId);
+      if (!grp) return { success: false, error: 'Group not found' };
+      grp.name = name && String(name).trim() ? String(name).trim() : 'Group ' + grp.id;
+      return { success: true, group: grp };
+    },
+
+    deleteGroup(groupId, deleteMembers = false) {
+      const strId = String(groupId);
+      const idx = this.list.findIndex((g) => String(g.id) === strId);
+      if (idx === -1) return { success: false, error: 'Group not found' };
+      const grp = this.list[idx];
+      if (deleteMembers && Array.isArray(grp.members)) {
+        grp.members.forEach((m) => {
+          if (m.type === 'node' && window.DiagramNodes) window.DiagramNodes.deleteNode(m.id);
+          else if (m.type === 'flow' && window.DataFlows) window.DataFlows.deleteFlow(m.id);
+          else if (m.type === 'glow' && window.Glows) window.Glows.deleteGlow(m.id);
+          else if (m.type === 'ripple' && window.Ripples) window.Ripples.deleteRipple(m.id);
+        });
+      }
+      this.list.splice(idx, 1);
+      return { success: true };
+    },
+
+    pruneMember(type, id) {
+      const strId = String(id);
+      for (let i = this.list.length - 1; i >= 0; i--) {
+        const grp = this.list[i];
+        if (Array.isArray(grp.members)) {
+          grp.members = grp.members.filter((m) => !(m.type === type && String(m.id) === strId));
+          if (grp.members.length < 2) {
+            this.list.splice(i, 1);
+          }
+        }
+      }
+    },
+
+    moveGroup(groupId, dx, dy) {
+      const grp = this.getGroup(groupId);
+      if (!grp) return { success: false, error: 'Group not found' };
+      const deltaX = Number(dx) || 0;
+      const deltaY = Number(dy) || 0;
+      (grp.members || []).forEach((m) => {
+        if (m.type === 'node' && window.DiagramNodes) {
+          const n = window.DiagramNodes.getNode(m.id);
+          if (n) {
+            n.x = Math.max(-50, Math.min(150, n.x + deltaX));
+            n.y = Math.max(-50, Math.min(150, n.y + deltaY));
+            window.DiagramNodes.updateNode(m.id, { x: n.x, y: n.y });
+          }
+        } else if (m.type === 'glow' && window.Glows) {
+          const g = window.Glows.getGlow(m.id);
+          if (g) {
+            g.x = Math.max(-50, Math.min(150, g.x + deltaX));
+            g.y = Math.max(-50, Math.min(150, g.y + deltaY));
+            window.Glows.updateGlow(m.id, { x: g.x, y: g.y });
+          }
+        } else if (m.type === 'ripple' && window.Ripples) {
+          const r = window.Ripples.getRipple(m.id);
+          if (r) {
+            r.x = Math.max(-50, Math.min(150, r.x + deltaX));
+            r.y = Math.max(-50, Math.min(150, r.y + deltaY));
+            window.Ripples.updateRipple(m.id, { x: r.x, y: r.y });
+          }
+        } else if (m.type === 'flow' && window.DataFlows) {
+          const f = window.DataFlows.getFlow(m.id);
+          if (f && Array.isArray(f.nodes) && !f.fromNodeId && !f.toNodeId) {
+            f.nodes.forEach((p) => {
+              p.x = Math.round((p.x + deltaX) * 1000) / 1000;
+              p.y = Math.round((p.y + deltaY) * 1000) / 1000;
+            });
+            window.DataFlows.updateFlow(m.id, { nodes: f.nodes });
+          }
+        }
+      });
+      return { success: true };
+    },
+
+    computeBounds(groupId, canvasW = 1280, canvasH = 720) {
+      const grp = this.getGroup(groupId);
+      if (!grp) return { success: false, error: 'Group not found' };
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let count = 0;
+      (grp.members || []).forEach((m) => {
+        if (m.type === 'node' && window.DiagramNodes) {
+          const n = window.DiagramNodes.getNode(m.id);
+          if (n) {
+            const eff = window.DiagramNodes.getNodeEffectiveProps(n);
+            const hwPct = (eff.width / 2 / canvasW) * 100;
+            const hhPct = (eff.height / 2 / canvasH) * 100;
+            minX = Math.min(minX, n.x - hwPct);
+            maxX = Math.max(maxX, n.x + hwPct);
+            minY = Math.min(minY, n.y - hhPct);
+            maxY = Math.max(maxY, n.y + hhPct);
+            count++;
+          }
+        } else if (m.type === 'glow' && window.Glows) {
+          const g = window.Glows.getGlow(m.id);
+          if (g) {
+            const rPct = (g.size / 2 / Math.min(canvasW, canvasH)) * 100;
+            minX = Math.min(minX, g.x - rPct);
+            maxX = Math.max(maxX, g.x + rPct);
+            minY = Math.min(minY, g.y - rPct);
+            maxY = Math.max(maxY, g.y + rPct);
+            count++;
+          }
+        } else if (m.type === 'ripple' && window.Ripples) {
+          const r = window.Ripples.getRipple(m.id);
+          if (r) {
+            const rPct = (r.outerR / Math.min(canvasW, canvasH)) * 100;
+            minX = Math.min(minX, r.x - rPct);
+            maxX = Math.max(maxX, r.x + rPct);
+            minY = Math.min(minY, r.y - rPct);
+            maxY = Math.max(maxY, r.y + rPct);
+            count++;
+          }
+        }
+      });
+      if (count === 0) return { success: false, error: 'No geometric members in group' };
+      return { success: true, minX, minY, maxX, maxY };
+    },
+
+    copySelection(items, groupId = null) {
+      const payload = {
+        format: 'svg-animator-clipboard',
+        version: '1.0.0',
+        nodes: [],
+        flows: [],
+        glows: [],
+        ripples: [],
+        groups: []
+      };
+      if (groupId) {
+        const grp = this.getGroup(groupId);
+        if (grp) {
+          payload.groups.push(JSON.parse(JSON.stringify(grp)));
+          (grp.members || []).forEach((m) => {
+            if (m.type === 'node' && window.DiagramNodes) {
+              const n = window.DiagramNodes.getNode(m.id);
+              if (n) payload.nodes.push(JSON.parse(JSON.stringify(n)));
+            } else if (m.type === 'flow' && window.DataFlows) {
+              const f = window.DataFlows.getFlow(m.id);
+              if (f) payload.flows.push(JSON.parse(JSON.stringify(f)));
+            } else if (m.type === 'glow' && window.Glows) {
+              const g = window.Glows.getGlow(m.id);
+              if (g) payload.glows.push(JSON.parse(JSON.stringify(g)));
+            } else if (m.type === 'ripple' && window.Ripples) {
+              const r = window.Ripples.getRipple(m.id);
+              if (r) payload.ripples.push(JSON.parse(JSON.stringify(r)));
+            }
+          });
+          return payload;
+        }
+      }
+      if (Array.isArray(items)) {
+        items.forEach((it) => {
+          if (it.type === 'node' && window.DiagramNodes) {
+            const n = window.DiagramNodes.getNode(it.id);
+            if (n) payload.nodes.push(JSON.parse(JSON.stringify(n)));
+          } else if (it.type === 'flow' && window.DataFlows) {
+            const f = window.DataFlows.getFlow(it.id);
+            if (f) payload.flows.push(JSON.parse(JSON.stringify(f)));
+          } else if (it.type === 'glow' && window.Glows) {
+            const g = window.Glows.getGlow(it.id);
+            if (g) payload.glows.push(JSON.parse(JSON.stringify(g)));
+          } else if (it.type === 'ripple' && window.Ripples) {
+            const r = window.Ripples.getRipple(it.id);
+            if (r) payload.ripples.push(JSON.parse(JSON.stringify(r)));
+          }
+        });
+      }
+      return payload;
+    },
+
+    pastePayload(payload, offsetX = 5.0, offsetY = 5.0) {
+      if (!payload || payload.format !== 'svg-animator-clipboard') {
+        return { success: false, error: 'Invalid clipboard format' };
+      }
+      const newItems = [];
+      const nodeMap = {};
+      const flowMap = {};
+      const glowMap = {};
+      const rippleMap = {};
+
+      (payload.nodes || []).forEach((n) => {
+        if (window.DiagramNodes) {
+          const clone = JSON.parse(JSON.stringify(n));
+          clone.x = Math.max(-50, Math.min(150, (clone.x || 0) + offsetX));
+          clone.y = Math.max(-50, Math.min(150, (clone.y || 0) + offsetY));
+          if (clone.name) clone.name = clone.name + ' Copy';
+          const created = window.DiagramNodes.createNode(clone);
+          if (created) {
+            nodeMap[n.id] = created.id;
+            newItems.push({ type: 'node', id: created.id });
+          }
+        }
+      });
+
+      (payload.glows || []).forEach((g) => {
+        if (window.Glows) {
+          const clone = JSON.parse(JSON.stringify(g));
+          clone.x = Math.max(-50, Math.min(150, (clone.x || 0) + offsetX));
+          clone.y = Math.max(-50, Math.min(150, (clone.y || 0) + offsetY));
+          if (clone.name) clone.name = clone.name + ' Copy';
+          const created = window.Glows.createGlow(clone);
+          if (created) {
+            glowMap[g.id] = created.id;
+            newItems.push({ type: 'glow', id: created.id });
+          }
+        }
+      });
+
+      (payload.ripples || []).forEach((r) => {
+        if (window.Ripples) {
+          const clone = JSON.parse(JSON.stringify(r));
+          clone.x = Math.max(-50, Math.min(150, (clone.x || 0) + offsetX));
+          clone.y = Math.max(-50, Math.min(150, (clone.y || 0) + offsetY));
+          if (clone.name) clone.name = clone.name + ' Copy';
+          const created = window.Ripples.createRipple(clone);
+          if (created) {
+            rippleMap[r.id] = created.id;
+            newItems.push({ type: 'ripple', id: created.id });
+          }
+        }
+      });
+
+      (payload.flows || []).forEach((f) => {
+        if (window.DataFlows) {
+          const clone = JSON.parse(JSON.stringify(f));
+          if (nodeMap[f.fromNodeId]) clone.fromNodeId = nodeMap[f.fromNodeId];
+          if (nodeMap[f.toNodeId]) clone.toNodeId = nodeMap[f.toNodeId];
+          if (clone.name) clone.name = clone.name + ' Copy';
+          if (Array.isArray(clone.nodes)) {
+            clone.nodes.forEach((p) => {
+              p.x = Math.round((p.x + offsetX) * 1000) / 1000;
+              p.y = Math.round((p.y + offsetY) * 1000) / 1000;
+            });
+          }
+          const created = window.DataFlows.createFlow(clone);
+          if (created) {
+            flowMap[f.id] = created.id;
+            newItems.push({ type: 'flow', id: created.id });
+          }
+        }
+      });
+
+      let newGroupId = null;
+      (payload.groups || []).forEach((g) => {
+        const remappedMembers = [];
+        (g.members || []).forEach((m) => {
+          if (m.type === 'node' && nodeMap[m.id]) remappedMembers.push({ type: 'node', id: nodeMap[m.id] });
+          else if (m.type === 'flow' && flowMap[m.id]) remappedMembers.push({ type: 'flow', id: flowMap[m.id] });
+          else if (m.type === 'glow' && glowMap[m.id]) remappedMembers.push({ type: 'glow', id: glowMap[m.id] });
+          else if (m.type === 'ripple' && rippleMap[m.id]) remappedMembers.push({ type: 'ripple', id: rippleMap[m.id] });
+        });
+        if (remappedMembers.length >= 2) {
+          const res = this.createGroup((g.name || 'Group') + ' Copy', remappedMembers);
+          if (res && res.success) {
+            newGroupId = res.group.id;
+          }
+        }
+      });
+
+      return { success: true, newItems, newGroupId };
+    },
+
+    duplicateSelection(items, groupId = null, offsetX = 5.0, offsetY = 5.0) {
+      const payload = this.copySelection(items, groupId);
+      return this.pastePayload(payload, offsetX, offsetY);
+    }
+  };
+
   if (typeof window !== 'undefined') {
     window.EngineBridge = EngineBridge;
+    window.ObjectGroups = ObjectGroups;
   }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = EngineBridge;
+    module.exports = { EngineBridge, ObjectGroups };
   }
 })();

@@ -130,6 +130,9 @@ func (s *Scene) UpdateRipple(r Ripple) {
 		}
 	} else {
 		s.rippleIDs = append(s.rippleIDs, r.ID)
+		if idNum, err := strconv.ParseInt(string(r.ID), 10, 64); err == nil && idNum > s.ripplesCounter {
+			s.ripplesCounter = idNum
+		}
 	}
 	s.ripples[r.ID] = r
 	s.revision++
@@ -140,20 +143,11 @@ func (s *Scene) RemoveRipple(id StringID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.ripples[id]; !exists {
-		return false
+	if ok := s.removeRippleLocked(id); ok {
+		s.revision++
+		return true
 	}
-	delete(s.ripples, id)
-	newIDs := make([]StringID, 0, len(s.rippleIDs)-1)
-	for _, rid := range s.rippleIDs {
-		if rid != id {
-			newIDs = append(newIDs, rid)
-		}
-	}
-	s.rippleIDs = newIDs
-	s.pruneSelectionLocked(SelectionRipple, id)
-	s.revision++
-	return true
+	return false
 }
 
 // FindRippleAt hit-tests canvas percent coordinates against all ripples, returning the topmost match.

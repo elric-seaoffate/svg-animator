@@ -165,6 +165,19 @@ window.HistoryManager = {
           ripplesCounter: window.Ripples ? window.Ripples.counter : 0
         };
 
+    let groupsList = [];
+    let groupsCounter = 0;
+    if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.listGroups === 'function') {
+      groupsList = window.EngineBridge.listGroups() || [];
+    } else if (window.ObjectGroups && typeof window.ObjectGroups.getState === 'function') {
+      const gs = window.ObjectGroups.getState();
+      groupsList = gs.groups || [];
+      groupsCounter = gs.groupsCounter || 0;
+    } else if (window.ObjectGroups) {
+      groupsList = window.ObjectGroups.list || [];
+      groupsCounter = window.ObjectGroups.counter || 0;
+    }
+
     return JSON.stringify({
       controls: controls,
       loadedPhoto: loadedPhoto,
@@ -177,7 +190,9 @@ window.HistoryManager = {
       glows: glowState.glows,
       glowsCounter: glowState.glowsCounter,
       ripples: rippleState.ripples,
-      ripplesCounter: rippleState.ripplesCounter
+      ripplesCounter: rippleState.ripplesCounter,
+      groups: groupsList,
+      groupsCounter: groupsCounter
     });
   },
 
@@ -301,6 +316,18 @@ window.HistoryManager = {
         } else {
           window.Ripples.list = data.ripples || [];
           window.Ripples.counter = data.ripplesCounter || 0;
+        }
+      }
+
+      if (window.ObjectGroups) {
+        if (typeof window.ObjectGroups.setState === 'function') {
+          window.ObjectGroups.setState({
+            groups: data.groups || [],
+            groupsCounter: data.groupsCounter || 0
+          });
+        } else {
+          window.ObjectGroups.list = data.groups || [];
+          window.ObjectGroups.counter = data.groupsCounter || 0;
         }
       }
     } catch (err) {

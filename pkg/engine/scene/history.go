@@ -48,6 +48,7 @@ func (h *HistoryManager) Record(snap Snapshot, sel SelectionState) bool {
 			len(top.Snapshot.Flows) == len(snap.Flows) &&
 			len(top.Snapshot.Glows) == len(snap.Glows) &&
 			len(top.Snapshot.Ripples) == len(snap.Ripples) &&
+			len(top.Snapshot.Groups) == len(snap.Groups) &&
 			top.Selection.Equal(sel) {
 			topB, _ := json.Marshal(top.Snapshot)
 			curB, _ := json.Marshal(snap)

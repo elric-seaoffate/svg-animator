@@ -261,6 +261,11 @@
                   <button type="button" class="tool-btn-compact" id="btnDistributeH" title="Distribute Horizontally">↔ Horizontal</button>
                   <button type="button" class="tool-btn-compact" id="btnDistributeV" title="Distribute Vertically">↕ Vertical</button>
                 </div>
+                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-top: 0.35rem; margin-bottom: 0.25rem;">Group & Actions</div>
+                <div class="group-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                  <button type="button" class="tool-btn-compact" id="btnGroupSelection" title="Group selected shapes into a persistent group (Ctrl+G)">👥 Group</button>
+                  <button type="button" class="tool-btn-compact" id="btnDuplicateSelection" title="Duplicate selected shapes (Ctrl+D)">📋 Duplicate</button>
+                </div>
               </div>
 
               <div id="emptyNodeSelection" class="inspector-empty-state">
@@ -961,6 +966,10 @@
             <line id="flightLine" x1="0%" y1="0%" x2="0%" y2="0%" stroke="rgba(88, 166, 255, 0.75)" stroke-width="2.5" stroke-dasharray="5,4" vector-effect="non-scaling-stroke" />
             <path id="flowCurvePath" d="" stroke="#00ffcc" stroke-width="2.5" stroke-dasharray="5,4" fill="none" style="display:none;" vector-effect="non-scaling-stroke" />
             <g id="multiSelectionGroup"></g>
+            <g id="groupSelectionOverlay" style="display:none;">
+              <rect id="groupSelectionBox" x="0" y="0" width="0" height="0" rx="8" fill="rgba(88, 166, 255, 0.05)" stroke="#58a6ff" stroke-width="2" stroke-dasharray="8,5" vector-effect="non-scaling-stroke" />
+              <text id="groupSelectionLabel" x="0" y="0" fill="#58a6ff" font-size="12" font-weight="600" font-family="system-ui, -apple-system, sans-serif"></text>
+            </g>
             <rect id="nodeSelectionBox" x="0" y="0" width="0" height="0" rx="8" fill="none" stroke="#a371f7" stroke-width="2" stroke-dasharray="6,4" style="display:none;" vector-effect="non-scaling-stroke" />
             <rect id="marqueeSelectionBox" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.15)" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,3" style="display:none;" vector-effect="non-scaling-stroke" />
           </svg>
@@ -1414,6 +1423,26 @@
             <div class="slider-row">
               <input type="range" id="fctx-rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0">
               <input type="number" class="num-input" id="fctx-rippleEndDelayNum" value="1.0">
+            </div>
+          </div>
+        </div>
+
+        <!-- GROUP SECTION -->
+        <div id="fctx-groupSection" class="floating-editor-section" style="display: none;">
+          <div class="floating-actions-bar">
+            <button type="button" class="btn-floating-action" id="fctx-btnUngroup" style="background: var(--bg-surface-secondary, #21262d); color: #58a6ff; border: 1px solid var(--border-color, #30363d);" title="Disband this group (Ctrl+Shift+G)">🔓 Ungroup</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnDuplicateGroup" style="background: var(--bg-surface-secondary, #21262d); color: #e6edf3; border: 1px solid var(--border-color, #30363d);" title="Duplicate group and members (Ctrl+D)">📋 Duplicate</button>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteGroup" title="Delete group and its members">&times; Delete</button>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-groupNameInput">Name</label>
+            <input type="text" id="fctx-groupNameInput" class="text-field-input" placeholder="Group name">
+          </div>
+          <div class="floating-prop-row">
+            <label>Members</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <span id="fctx-groupMemberCount" style="font-size: 0.8rem; color: #8b949e;">0 members</span>
+              <button type="button" class="btn-floating-action" id="fctx-btnEditGroupMembers" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; background: #1f6feb; color: #fff;" title="Enter Group Edit Mode to select and edit individual members">✏️ Edit Members</button>
             </div>
           </div>
         </div>

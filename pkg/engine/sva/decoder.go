@@ -322,6 +322,8 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		"glowsCounter":    s.GlowsCounter,
 		"ripples":         s.Ripples,
 		"ripplesCounter":  s.RipplesCounter,
+		"groups":          s.Groups,
+		"groupsCounter":   s.GroupsCounter,
 		"metadata":        s.Metadata,
 	}
 

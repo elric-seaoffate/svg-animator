@@ -13,6 +13,7 @@ const (
 	SelectionFlow   SelectionType = "flow"
 	SelectionGlow   SelectionType = "glow"
 	SelectionRipple SelectionType = "ripple"
+	SelectionGroup  SelectionType = "group"
 )
 
 // SelectionItem represents a single selected object reference in a selection set.
@@ -64,6 +65,9 @@ func (s *Scene) objectExistsLocked(selType SelectionType, id StringID) bool {
 	case SelectionRipple:
 		_, ok := s.ripples[id]
 		return ok
+	case SelectionGroup:
+		_, ok := s.groups[id]
+		return ok
 	default:
 		return false
 	}
@@ -88,6 +92,22 @@ func (s *Scene) SetSelection(selType SelectionType, id StringID) (SelectionState
 			Type:  selType,
 			ID:    id,
 			Items: []SelectionItem{item},
+		}
+		return s.selection, nil
+
+	case SelectionGroup:
+		grp, exists := s.groups[id]
+		if !exists {
+			return s.selection, errors.New("group not found: " + string(id))
+		}
+		items := make([]SelectionItem, len(grp.Members))
+		for i, m := range grp.Members {
+			items[i] = SelectionItem{Type: m.Type, ID: m.ID}
+		}
+		s.selection = SelectionState{
+			Type:  SelectionGroup,
+			ID:    id,
+			Items: items,
 		}
 		return s.selection, nil
 

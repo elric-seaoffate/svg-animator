@@ -4428,7 +4428,167 @@ async function runHarness() {
   assert.strictEqual(window.CustomColorPicker.isOpen, false, 'Picker must close on apply');
   assert.ok(window.CustomColorPicker.recentColors.includes('#33cc66'), 'Recent colors must include applied color');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11 & 12 multi-selection, group move, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // ---------------------------------------------------------------------------
+  // 5. Stage 13: Persistent Object Groups, Integrated Duplication and Copy/Paste
+  // ---------------------------------------------------------------------------
+  console.log('[HARNESS] Testing Stage 13 Persistent Groups, Duplication and Copy/Paste...');
+
+  // 5.1 Group Lifecycle & Membership
+  if (window.EngineBridge && typeof window.EngineBridge.dispatch === 'function' && window.EngineBridge.isReady()) {
+    window.EngineBridge.dispatch('Scene.SetState', JSON.stringify({ revision: 9999 }));
+  }
+  window.DiagramNodes.list = [];
+  window.DiagramNodes.counter = 0;
+  window.Glows.list = [];
+  window.Glows.counter = 0;
+  window.DataFlows.list = [];
+  window.DataFlows.counter = 0;
+  if (window.ObjectGroups) {
+    window.ObjectGroups.list = [];
+    window.ObjectGroups.counter = 0;
+  }
+
+  const gn1 = window.DiagramNodes.createNode({ text: 'Pump In', x: 20, y: 25, width: 100, height: 60, snap: false });
+  const gn2 = window.DiagramNodes.createNode({ text: 'Pump Out', x: 50, y: 25, width: 100, height: 60, snap: false });
+  const gg1 = window.Glows.createGlow({ x: 35, y: 25, size: 30, color: '#00ffaa' });
+
+  // Select gn1 and gn2 and create a group
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: gn1.id },
+    { type: 'node', id: gn2.id },
+    { type: 'glow', id: gg1.id }
+  ]);
+
+  const createdGrp = window.AppCoordinator.createGroupFromSelection('Cooling Pump Assembly');
+  assert.ok(createdGrp, 'Group must be successfully created');
+  assert.strictEqual(createdGrp.name, 'Cooling Pump Assembly');
+  assert.strictEqual(createdGrp.members.length, 3);
+
+  // 5.2 Lookup by Member
+  const foundByNode = window.AppCoordinator.findGroupByMember('node', gn1.id);
+  assert.ok(foundByNode, 'findGroupByMember must locate group by member node');
+  assert.strictEqual(foundByNode.id, createdGrp.id);
+
+  const foundByGlow = window.AppCoordinator.findGroupByMember('glow', gg1.id);
+  assert.ok(foundByGlow, 'findGroupByMember must locate group by member glow');
+  assert.strictEqual(foundByGlow.id, createdGrp.id);
+
+  const notFound = window.AppCoordinator.findGroupByMember('node', 99999);
+  assert.strictEqual(notFound, null, 'findGroupByMember must return null for unassigned object');
+
+  // 5.3 Selection semantics & Group-Edit Mode
+  window.AppCoordinator.clearSelection();
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, null);
+
+  // Clicking a grouped object automatically selects the entire group
+  window.AppCoordinator.selectObject('node', gn1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'group');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, createdGrp.id);
+
+  // Enter group-edit mode: now selecting member selects individual object
+  window.AppCoordinator.enterGroupEditMode(createdGrp.id);
+  assert.strictEqual(window.AppCoordinator.isInGroupEditMode(), true);
+
+  window.AppCoordinator.selectObject('node', gn1.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().type, 'node');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, gn1.id);
+
+  // Exit group-edit mode
+  window.AppCoordinator.exitGroupEditMode();
+  assert.strictEqual(window.AppCoordinator.isInGroupEditMode(), false);
+
+  // 5.4 Group Movement
+  window.AppCoordinator.selectGroup(createdGrp.id);
+  const origN1X = gn1.x;
+  const origN2X = gn2.x;
+  const origG1X = gg1.x;
+
+  window.AppCoordinator.moveSelectedNodes(10, 5);
+  const n1Moved = window.DiagramNodes.getNode(gn1.id);
+  const n2Moved = window.DiagramNodes.getNode(gn2.id);
+  const g1Moved = window.Glows.getGlow(gg1.id);
+
+  assert.strictEqual(n1Moved.x, origN1X + 10, 'Group move must translate member node 1');
+  assert.strictEqual(n2Moved.x, origN2X + 10, 'Group move must translate member node 2');
+  assert.strictEqual(g1Moved.x, origG1X + 10, 'Group move must translate member glow');
+
+  // 5.5 Automatic Group Pruning on Member Deletion
+  // Deleting gg1 reduces member count from 3 to 2
+  window.Glows.deleteGlow(gg1.id);
+  let grpAfterGlow = window.AppCoordinator.getGroup(createdGrp.id);
+  assert.ok(grpAfterGlow, 'Group must persist with 2 remaining members');
+  assert.strictEqual(grpAfterGlow.members.length, 2);
+
+  // Deleting gn1 reduces member count from 2 to 1 -> group automatically disbanded!
+  window.DiagramNodes.deleteNode(gn1.id);
+  let grpAfterNode = window.AppCoordinator.getGroup(createdGrp.id);
+  assert.strictEqual(grpAfterNode, null, 'Group must be automatically disbanded when fewer than 2 members remain');
+
+  // 5.6 Integrated Duplication & Copy/Paste with Flow Endpoint Remapping
+  if (window.EngineBridge && typeof window.EngineBridge.dispatch === 'function' && window.EngineBridge.isReady()) {
+    window.EngineBridge.dispatch('Scene.SetState', JSON.stringify({ revision: 10000 }));
+  }
+  window.DiagramNodes.list = [];
+  window.DiagramNodes.counter = 0;
+  window.DataFlows.list = [];
+  window.DataFlows.counter = 0;
+
+  const cn1 = window.DiagramNodes.createNode({ text: 'Source', x: 20, y: 40, width: 80, height: 40, snap: false });
+  const cn2 = window.DiagramNodes.createNode({ text: 'Sink', x: 60, y: 40, width: 80, height: 40, snap: false });
+  const cf1 = window.DataFlows.createFlow({ fromNodeId: cn1.id, toNodeId: cn2.id, label: 'Pipeline' });
+
+  const beforePasteNodes = window.DiagramNodes.getAllNodes().length;
+  const beforePasteFlows = window.DataFlows.getAllFlows().length;
+
+  // Copy selection of Source, Sink, and connecting Flow
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: cn1.id },
+    { type: 'node', id: cn2.id },
+    { type: 'flow', id: cf1.id }
+  ]);
+
+  const copySuccess = window.AppCoordinator.copySelection();
+  assert.strictEqual(copySuccess, true, 'copySelection must succeed');
+
+  // Paste from clipboard
+  const pasteSuccess = window.AppCoordinator.pasteClipboard();
+  assert.strictEqual(pasteSuccess, true, 'pasteClipboard must succeed');
+
+  // Verify that 2 new nodes and 1 new flow now exist in scene
+  const allNodes = window.DiagramNodes.getAllNodes();
+  const allFlows = window.DataFlows.getAllFlows();
+  assert.strictEqual(allNodes.length, beforePasteNodes + 2, 'Paste must create 2 new nodes');
+  assert.strictEqual(allFlows.length, beforePasteFlows + 1, 'Paste must create 1 new flow');
+
+  // Verify that the duplicated flow is connected to the newly pasted nodes, NOT the original nodes!
+  const pastedFlow = allFlows.find((f) => String(f.id) !== String(cf1.id));
+  assert.ok(pastedFlow, 'Pasted flow must exist');
+  assert.notStrictEqual(String(pastedFlow.fromNodeId), String(cn1.id), 'Pasted flow must remap fromNodeId away from original');
+  assert.notStrictEqual(String(pastedFlow.toNodeId), String(cn2.id), 'Pasted flow must remap toNodeId away from original');
+  assert.ok(allNodes.some((n) => String(n.id) === String(pastedFlow.fromNodeId)), 'Pasted flow fromNodeId must point to newly pasted node');
+  assert.ok(allNodes.some((n) => String(n.id) === String(pastedFlow.toNodeId)), 'Pasted flow toNodeId must point to newly pasted node');
+
+  // 5.7 Persistence in Snapshot & Undo/Redo
+  const preGroupNodes = window.DiagramNodes.getAllNodes();
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: preGroupNodes[0].id },
+    { type: 'node', id: preGroupNodes[1].id }
+  ]);
+  const persistGrp = window.AppCoordinator.createGroupFromSelection('Persist Test Group');
+  assert.ok(persistGrp);
+
+  const snapJson = window.HistoryManager.captureSnapshot();
+  const parsedSnap = JSON.parse(snapJson);
+  assert.ok(Array.isArray(parsedSnap.groups), 'Snapshot must contain groups array');
+  assert.ok(parsedSnap.groups.some((g) => g.id === persistGrp.id), 'Snapshot must contain created group');
+
+  // Undo/Redo roundtrip
+  if (window.HistoryManager) {
+    window.HistoryManager.undo();
+    window.HistoryManager.redo();
+  }
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12 & 13 persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

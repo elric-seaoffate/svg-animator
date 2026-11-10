@@ -190,6 +190,8 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 		GlowsCounter    int                    `json:"glowsCounter"`
 		Ripples         []scene.Ripple         `json:"ripples"`
 		RipplesCounter  int                    `json:"ripplesCounter"`
+		Groups          []scene.Group          `json:"groups"`
+		GroupsCounter   int                    `json:"groupsCounter"`
 		Metadata        map[string]any         `json:"metadata"`
 	}
 
@@ -335,6 +337,8 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 			GlowsCounter:    raw.GlowsCounter,
 			Ripples:         raw.Ripples,
 			RipplesCounter:  raw.RipplesCounter,
+			Groups:          raw.Groups,
+			GroupsCounter:   raw.GroupsCounter,
 			Metadata:        raw.Metadata,
 		},
 		Assets: assets,

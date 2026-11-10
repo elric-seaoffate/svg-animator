@@ -269,6 +269,33 @@ window.Stage = {
             return;
           }
 
+          const memberGroup = (window.AppCoordinator && !window.AppCoordinator.isInGroupEditMode())
+            ? window.AppCoordinator.findGroupByMember('node', clickedNode.id)
+            : null;
+
+          if (memberGroup) {
+            window.AppCoordinator.selectGroup(memberGroup.id);
+            this.isGroupDragging = true;
+            this.potentialSingleSelectId = null;
+            this.dragAnchorNode = clickedNode;
+            this.dragInitialAnchorPct = { x: clickedNode.x, y: clickedNode.y };
+            this.groupDragInitialPositions = {};
+            (memberGroup.members || []).forEach((m) => {
+              if (m.type === 'node') {
+                const n = window.DiagramNodes ? window.DiagramNodes.getNode(m.id) : null;
+                if (n) this.groupDragInitialPositions[m.id] = { x: n.x, y: n.y };
+              }
+            });
+            this.nodeGrabOffsetX = clickedNode.x - coords.x;
+            this.nodeGrabOffsetY = clickedNode.y - coords.y;
+            this.dragStartClientX = e.clientX;
+            this.dragStartClientY = e.clientY;
+            this.hasMovedDrag = false;
+            this.isDragging = true;
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          }
+
           if (currentSelectedNodeIds.length > 1 && currentSelectedNodeIds.map(String).includes(String(clickedNode.id))) {
             // Node is part of existing multi-selection -> prepare group drag
             this.isGroupDragging = true;
