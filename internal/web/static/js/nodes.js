@@ -457,8 +457,13 @@ window.DiagramNodes = {
     const btnGroup = document.getElementById('btnGroupSelection');
     if (btnGroup) {
       btnGroup.addEventListener('click', () => {
-        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
-          window.AppCoordinator.createGroupFromSelection();
+        if (window.AppCoordinator) {
+          const sel = window.AppCoordinator.getActiveSelection();
+          if (sel && sel.type === 'group' && typeof window.AppCoordinator.ungroupSelectedGroup === 'function') {
+            window.AppCoordinator.ungroupSelectedGroup();
+          } else if (typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+            window.AppCoordinator.createGroupFromSelection();
+          }
         }
       });
     }
@@ -762,6 +767,7 @@ window.DiagramNodes = {
   },
 
   updateMultiSelectToolbar() {
+    const isGroup = window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'group';
     const items = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
       ? window.AppCoordinator.getSelectedItems()
       : (this.activeId !== null ? [{ type: 'node', id: this.activeId }] : []);
@@ -771,16 +777,32 @@ window.DiagramNodes = {
 
     const toolbar = document.getElementById('nodeMultiSelectToolbar');
     const badge = document.getElementById('multiSelectionBadge');
+    const btnGroup = document.getElementById('btnGroupSelection');
     if (toolbar) {
-      if (items.length >= 2) {
+      if (isGroup || items.length >= 2) {
         toolbar.style.display = 'block';
         if (badge) {
-          badge.innerText = (nodeIds.length === items.length)
-            ? (items.length + ' Shapes Selected')
-            : (items.length + ' Objects Selected');
+          if (isGroup) {
+            const grp = window.AppCoordinator.getGroup(window.AppCoordinator.activeSelection.id);
+            const name = (grp && grp.name) ? grp.name : window.AppCoordinator.activeSelection.id;
+            badge.innerText = `Group: ${name} (${items.length} members)`;
+          } else {
+            badge.innerText = (nodeIds.length === items.length)
+              ? (items.length + ' Shapes Selected')
+              : (items.length + ' Objects Selected');
+          }
         }
-        const canAlign = nodeIds.length >= 2;
-        const canDist = nodeIds.length >= 3;
+        if (btnGroup) {
+          if (isGroup) {
+            btnGroup.textContent = '🔓 Ungroup';
+            btnGroup.title = 'Disband this group, keeping all member objects (Ctrl+Shift+G)';
+          } else {
+            btnGroup.textContent = '👥 Group';
+            btnGroup.title = 'Group selected shapes into a persistent group (Ctrl+G)';
+          }
+        }
+        const canAlign = !isGroup && nodeIds.length >= 2;
+        const canDist = !isGroup && nodeIds.length >= 3;
         ['btnAlignLeft', 'btnAlignHCenter', 'btnAlignRight', 'btnAlignTop', 'btnAlignVCenter', 'btnAlignBottom'].forEach((btnId) => {
           const btn = document.getElementById(btnId);
           if (btn) btn.disabled = !canAlign;
@@ -798,10 +820,28 @@ window.DiagramNodes = {
     ['flow', 'glow', 'ripple'].forEach((typ) => {
       const tb = document.getElementById(typ + 'MultiSelectToolbar');
       const bg = document.getElementById(typ + 'MultiSelectionBadge');
+      const bgBtn = document.getElementById('btnGroup' + typ.charAt(0).toUpperCase() + typ.slice(1) + 'Selection');
       if (tb) {
-        if (items.length >= 2) {
+        if (isGroup || items.length >= 2) {
           tb.style.display = 'block';
-          if (bg) bg.innerText = items.length + ' Objects Selected';
+          if (bg) {
+            if (isGroup) {
+              const grp = window.AppCoordinator.getGroup(window.AppCoordinator.activeSelection.id);
+              const name = (grp && grp.name) ? grp.name : window.AppCoordinator.activeSelection.id;
+              bg.innerText = `Group: ${name} (${items.length} members)`;
+            } else {
+              bg.innerText = items.length + ' Objects Selected';
+            }
+          }
+          if (bgBtn) {
+            if (isGroup) {
+              bgBtn.textContent = '🔓 Ungroup';
+              bgBtn.title = 'Disband this group, keeping all member objects (Ctrl+Shift+G)';
+            } else {
+              bgBtn.textContent = '👥 Group';
+              bgBtn.title = 'Group selected objects into a persistent group (Ctrl+G)';
+            }
+          }
         } else {
           tb.style.display = 'none';
         }
@@ -817,6 +857,7 @@ window.DiagramNodes = {
 
     if (!groupId) {
       overlay.style.display = 'none';
+      this.updateMultiSelectToolbar();
       return;
     }
 
@@ -833,6 +874,7 @@ window.DiagramNodes = {
 
     if (!bounds || !bounds.success) {
       overlay.style.display = 'none';
+      this.updateMultiSelectToolbar();
       return;
     }
 
@@ -856,11 +898,13 @@ window.DiagramNodes = {
     }
 
     overlay.style.display = 'block';
+    this.updateMultiSelectToolbar();
   },
 
   hideGroupOverlay() {
     const overlay = document.getElementById('groupSelectionOverlay');
     if (overlay) overlay.style.display = 'none';
+    this.updateMultiSelectToolbar();
   },
 
   removeNode(id) {

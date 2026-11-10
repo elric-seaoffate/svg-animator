@@ -155,6 +155,73 @@ func (s *Scene) Ungroup(groupID StringID) ([]GroupMember, error) {
 	return grp.Members, nil
 }
 
+// RemoveGroupMembers detaches one or more member objects from a persistent group without deleting them.
+// If the group has fewer than 2 members remaining after removal, the group is disbanded.
+// All objects remain intact in the scene.
+func (s *Scene) RemoveGroupMembers(groupID StringID, membersToRemove []GroupMember) (remainingGroup Group, dissolved bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	grp, exists := s.groups[groupID]
+	if !exists {
+		return Group{}, false, fmt.Errorf("group not found: %s", groupID)
+	}
+
+	if len(membersToRemove) == 0 {
+		return grp, false, errors.New("no members specified to remove")
+	}
+
+	// 1. Validation pass: verify all requested members belong to this group
+	toRemoveMap := make(map[string]bool, len(membersToRemove))
+	for _, m := range membersToRemove {
+		key := string(m.Type) + ":" + string(m.ID)
+		if toRemoveMap[key] {
+			continue
+		}
+		found := false
+		for _, gm := range grp.Members {
+			if gm.Type == m.Type && gm.ID == m.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return Group{}, false, fmt.Errorf("object %s %s does not belong to group %s", m.Type, m.ID, groupID)
+		}
+		toRemoveMap[key] = true
+	}
+
+	// 2. Filter out the members to remove
+	filtered := make([]GroupMember, 0, len(grp.Members))
+	for _, gm := range grp.Members {
+		key := string(gm.Type) + ":" + string(gm.ID)
+		if !toRemoveMap[key] {
+			filtered = append(filtered, gm)
+		}
+	}
+
+	// 3. Apply group dissolution policy (< 2 members remaining)
+	if len(filtered) < 2 {
+		delete(s.groups, groupID)
+		newIDs := make([]StringID, 0, len(s.groupIDs)-1)
+		for _, id := range s.groupIDs {
+			if id != groupID {
+				newIDs = append(newIDs, id)
+			}
+		}
+		s.groupIDs = newIDs
+		s.revision++
+		return Group{}, true, nil
+	}
+
+	// 4. Update group with remaining members
+	grp.Members = filtered
+	s.groups[groupID] = grp
+	s.revision++
+
+	return grp, false, nil
+}
+
 // RenameGroup updates the display name of a group.
 func (s *Scene) RenameGroup(groupID StringID, newName string) (Group, error) {
 	s.mu.Lock()

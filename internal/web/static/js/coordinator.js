@@ -505,9 +505,19 @@
       let groupId = null;
       if (this.activeSelection.type === 'group' && this.activeSelection.id) {
         groupId = this.activeSelection.id;
+      } else if (this.groupEditModeGroupId) {
+        groupId = this.groupEditModeGroupId;
       } else if (this.activeSelection.type && this.activeSelection.id) {
         const grp = this.findGroupByMember(this.activeSelection.type, this.activeSelection.id);
         if (grp) groupId = grp.id;
+      } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
+        for (const it of this.activeSelection.items) {
+          const grp = this.findGroupByMember(it.type, it.id);
+          if (grp) {
+            groupId = grp.id;
+            break;
+          }
+        }
       }
       if (!groupId) {
         this.showNotification('No group selected to ungroup.', 'warning', 2500);
@@ -526,12 +536,65 @@
         } else {
           this.clearSelection();
         }
+        this._refreshAllInstanceLists();
+        this.updateActiveOverlays();
         this.requestRender();
         this.recordHistoryImmediate();
         this.showNotification('Ungrouped objects.', 'info', 2000);
         return true;
       }
       this.showNotification((res && res.error) ? res.error : 'Failed to ungroup.', 'error', 3000);
+      return false;
+    },
+
+    removeSelectedMembersFromGroup(members = null, groupId = null) {
+      if (!groupId) {
+        if (this.groupEditModeGroupId) {
+          groupId = this.groupEditModeGroupId;
+        } else if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+          groupId = this.activeSelection.id;
+        } else if (this.activeSelection.type && this.activeSelection.id) {
+          const grp = this.findGroupByMember(this.activeSelection.type, this.activeSelection.id);
+          if (grp) groupId = grp.id;
+        }
+      }
+
+      if (!members) {
+        if (this.activeSelection.type && this.activeSelection.id && this.activeSelection.type !== 'group') {
+          members = [{ type: this.activeSelection.type, id: this.activeSelection.id }];
+        } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
+          members = this.activeSelection.items.filter((it) => it.type !== 'group');
+        }
+      }
+
+      if (!groupId || !Array.isArray(members) || members.length === 0) {
+        this.showNotification('No member selected to remove from group.', 'warning', 2500);
+        return false;
+      }
+
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.removeGroupMembers === 'function') {
+        res = window.EngineBridge.removeGroupMembers(groupId, members);
+      } else if (window.ObjectGroups && typeof window.ObjectGroups.removeMembers === 'function') {
+        res = window.ObjectGroups.removeMembers(groupId, members);
+      }
+
+      if (res && res.success) {
+        if (res.dissolved) {
+          this.exitGroupEditMode();
+          this.showNotification('Removed from group. Group dissolved (< 2 members remaining).', 'info', 2500);
+        } else {
+          this.showNotification(`Removed ${members.length} object${members.length > 1 ? 's' : ''} from group.`, 'info', 2000);
+        }
+        this._refreshAllInstanceLists();
+        this.updateActiveOverlays();
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.emit('selection:changed', this.getActiveSelection());
+        return true;
+      }
+
+      this.showNotification((res && res.error) ? res.error : 'Failed to remove member from group.', 'error', 3000);
       return false;
     },
 

@@ -399,6 +399,20 @@ type GroupUngroupResponse struct {
 	Error   string              `json:"error,omitempty"`
 }
 
+// GroupRemoveMembersRequest payload for "Group.RemoveMembers".
+type GroupRemoveMembersRequest struct {
+	GroupID scene.StringID      `json:"groupId"`
+	Members []scene.GroupMember `json:"members"`
+}
+
+// GroupRemoveMembersResponse response for "Group.RemoveMembers".
+type GroupRemoveMembersResponse struct {
+	Success   bool        `json:"success"`
+	Dissolved bool        `json:"dissolved"`
+	Group     scene.Group `json:"group,omitempty"`
+	Error     string      `json:"error,omitempty"`
+}
+
 // GroupDeleteRequest payload for "Group.Delete".
 type GroupDeleteRequest struct {
 	GroupID       scene.StringID `json:"groupId"`
@@ -1916,6 +1930,17 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return json.Marshal(GroupUngroupResponse{Success: false, Error: err.Error()})
 		}
 		return json.Marshal(GroupUngroupResponse{Success: true, Members: members})
+
+	case "Group.RemoveMembers":
+		var req GroupRemoveMembersRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding GroupRemoveMembersRequest: %w", err)
+		}
+		remGrp, dissolved, err := activeScene.RemoveGroupMembers(req.GroupID, req.Members)
+		if err != nil {
+			return json.Marshal(GroupRemoveMembersResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(GroupRemoveMembersResponse{Success: true, Dissolved: dissolved, Group: remGrp})
 
 	case "Group.Delete":
 		var req GroupDeleteRequest

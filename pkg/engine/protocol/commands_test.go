@@ -1412,4 +1412,53 @@ func TestDispatchGroupAndClipboardCommands(t *testing.T) {
 	if !ungRes.Success || len(ungRes.Members) != 2 {
 		t.Fatalf("Group.Ungroup failed: %+v", ungRes)
 	}
+
+	// 11. Group.RemoveMembers
+	n3Req, _ := json.Marshal(NodeCreateRequest{
+		Initial: scene.Node{Shape: "diamond", Text: "Server C", Width: 50, Height: 50, X: 50, Y: 50},
+	})
+	n3Bytes, _ := Dispatch("Node.Create", n3Req)
+	var n3Created struct {
+		Node scene.Node `json:"node"`
+	}
+	json.Unmarshal(n3Bytes, &n3Created)
+
+	grp3Req, _ := json.Marshal(GroupCreateRequest{
+		Name: "Triple Group",
+		Members: []scene.GroupMember{
+			{Type: scene.SelectionNode, ID: n1Created.Node.ID},
+			{Type: scene.SelectionNode, ID: n2Created.Node.ID},
+			{Type: scene.SelectionNode, ID: n3Created.Node.ID},
+		},
+	})
+	grp3Bytes, _ := Dispatch("Group.Create", grp3Req)
+	var grp3Res GroupCreateResponse
+	json.Unmarshal(grp3Bytes, &grp3Res)
+	if !grp3Res.Success {
+		t.Fatalf("Group.Create for 3 nodes failed: %+v", grp3Res)
+	}
+
+	// Remove 1 member -> 2 remain, not dissolved
+	remReq1, _ := json.Marshal(GroupRemoveMembersRequest{
+		GroupID: grp3Res.Group.ID,
+		Members: []scene.GroupMember{{Type: scene.SelectionNode, ID: n3Created.Node.ID}},
+	})
+	remBytes1, _ := Dispatch("Group.RemoveMembers", remReq1)
+	var remRes1 GroupRemoveMembersResponse
+	json.Unmarshal(remBytes1, &remRes1)
+	if !remRes1.Success || remRes1.Dissolved || len(remRes1.Group.Members) != 2 {
+		t.Fatalf("Group.RemoveMembers step 1 failed: %+v", remRes1)
+	}
+
+	// Remove another member -> 1 remains -> group dissolved!
+	remReq2, _ := json.Marshal(GroupRemoveMembersRequest{
+		GroupID: grp3Res.Group.ID,
+		Members: []scene.GroupMember{{Type: scene.SelectionNode, ID: n2Created.Node.ID}},
+	})
+	remBytes2, _ := Dispatch("Group.RemoveMembers", remReq2)
+	var remRes2 GroupRemoveMembersResponse
+	json.Unmarshal(remBytes2, &remRes2)
+	if !remRes2.Success || !remRes2.Dissolved {
+		t.Fatalf("Group.RemoveMembers step 2 failed (expected dissolved): %+v", remRes2)
+	}
 }

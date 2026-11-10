@@ -1460,6 +1460,12 @@
           </div>
         </div>
 
+        <!-- IN-GROUP MEMBERSHIP BAR (When active object belongs to a group) -->
+        <div id="fctx-memberOfGroupBar" style="display: none; padding: 0.35rem 0.5rem; margin-bottom: 0.45rem; background: rgba(163, 113, 247, 0.12); border: 1px solid rgba(163, 113, 247, 0.35); border-radius: 6px; justify-content: space-between; align-items: center;">
+          <span id="fctx-memberOfGroupName" style="font-size: 0.75rem; color: #d2a8ff; font-weight: 600;">👥 In Group</span>
+          <button type="button" class="btn-floating-action" id="fctx-btnRemoveFromGroup" style="padding: 0.18rem 0.45rem; font-size: 0.72rem; background: #21262d; border: 1px solid #30363d; color: #f85149;" title="Detach this object from its parent group without deleting it">🔓 Remove from Group</button>
+        </div>
+
         <!-- MULTI-SELECTION BAR (When 2+ items selected) -->
         <div id="fctx-multiBar" style="display: none; padding: 0.35rem 0.5rem; margin-bottom: 0.45rem; background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); border-radius: 6px; justify-content: space-between; align-items: center;">
           <span id="fctx-multiBarText" style="font-size: 0.75rem; color: #58a6ff; font-weight: 600;">2 Objects Selected</span>
@@ -1472,9 +1478,9 @@
         <!-- GROUP SECTION -->
         <div id="fctx-groupSection" class="floating-editor-section" style="display: none;">
           <div class="floating-actions-bar">
-            <button type="button" class="btn-floating-action" id="fctx-btnUngroup" style="background: var(--bg-surface-secondary, #21262d); color: #58a6ff; border: 1px solid var(--border-color, #30363d);" title="Disband this group (Ctrl+Shift+G)">🔓 Ungroup</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnUngroup" style="background: var(--bg-surface-secondary, #21262d); color: #58a6ff; border: 1px solid var(--border-color, #30363d);" title="Disband this group, keeping all member objects on the canvas (Ctrl+Shift+G)">🔓 Ungroup (Keep Objects)</button>
             <button type="button" class="btn-floating-action" id="fctx-btnDuplicateGroup" style="background: var(--bg-surface-secondary, #21262d); color: #e6edf3; border: 1px solid var(--border-color, #30363d);" title="Duplicate group and members (Ctrl+D)">📋 Duplicate</button>
-            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteGroup" title="Delete group and its members">&times; Delete</button>
+            <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteGroup" title="Delete group and all its member objects from the canvas">&times; Delete Group &amp; Members</button>
           </div>
           <div class="floating-prop-row">
             <label for="fctx-groupNameInput">Name</label>
@@ -1487,6 +1493,7 @@
               <button type="button" class="btn-floating-action" id="fctx-btnEditGroupMembers" style="padding: 0.2rem 0.5rem; font-size: 0.72rem; background: #1f6feb; color: #fff;" title="Enter Group Edit Mode to select and edit individual members">✏️ Edit Members</button>
             </div>
           </div>
+          <div id="fctx-groupMembersList" style="margin-top: 0.4rem; max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px;"></div>
         </div>
       </div>
     </div>

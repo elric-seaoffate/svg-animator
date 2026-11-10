@@ -368,8 +368,13 @@ window.Glows = {
     const btnGroup = document.getElementById('btnGroupGlowSelection');
     if (btnGroup) {
       btnGroup.addEventListener('click', () => {
-        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
-          window.AppCoordinator.createGroupFromSelection();
+        if (window.AppCoordinator) {
+          const sel = window.AppCoordinator.getActiveSelection();
+          if (sel && sel.type === 'group' && typeof window.AppCoordinator.ungroupSelectedGroup === 'function') {
+            window.AppCoordinator.ungroupSelectedGroup();
+          } else if (typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+            window.AppCoordinator.createGroupFromSelection();
+          }
         }
       });
     }

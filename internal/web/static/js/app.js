@@ -829,15 +829,36 @@ window.FloatingPropertiesEditor = {
   _syncMultiBar() {
     const multiBar = document.getElementById('fctx-multiBar');
     if (!multiBar) return;
+    const isGroup = window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'group';
+    const btnGroupMulti = document.getElementById('fctx-btnGroupMulti');
     const items = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedItems === 'function')
       ? window.AppCoordinator.getSelectedItems()
       : [];
-    if (items.length >= 2) {
+
+    if (isGroup) {
       multiBar.style.display = 'flex';
+      const textEl = document.getElementById('fctx-multiBarText');
       const countEl = document.getElementById('fctx-multiCount');
-      if (countEl) {
-        const allNodes = items.every(it => (it.type || '').toLowerCase() === 'node');
-        countEl.textContent = `${items.length} ${allNodes ? 'Shapes' : 'Objects'} Selected`;
+      const grp = window.AppCoordinator.getGroup(window.AppCoordinator.activeSelection.id);
+      const name = (grp && grp.name) ? grp.name : window.AppCoordinator.activeSelection.id;
+      const label = `Group: ${name} (${items.length} members)`;
+      if (textEl) textEl.textContent = label;
+      if (countEl) countEl.textContent = label;
+      if (btnGroupMulti) {
+        btnGroupMulti.textContent = '🔓 Ungroup';
+        btnGroupMulti.title = 'Ungroup this group (Ctrl+Shift+G)';
+      }
+    } else if (items.length >= 2) {
+      multiBar.style.display = 'flex';
+      const textEl = document.getElementById('fctx-multiBarText');
+      const countEl = document.getElementById('fctx-multiCount');
+      const allNodes = items.every((it) => (it.type || '').toLowerCase() === 'node');
+      const label = `${items.length} ${allNodes ? 'Shapes' : 'Objects'} Selected`;
+      if (textEl) textEl.textContent = label;
+      if (countEl) countEl.textContent = label;
+      if (btnGroupMulti) {
+        btnGroupMulti.textContent = '👥 Group';
+        btnGroupMulti.title = 'Group selected objects (Ctrl+G)';
       }
     } else {
       multiBar.style.display = 'none';
@@ -1157,9 +1178,79 @@ window.FloatingPropertiesEditor = {
         }
         this._setVal('fctx-groupNameInput', grp.name || '');
         const memberCountEl = document.getElementById('fctx-groupMemberCount');
+        const members = Array.isArray(grp.members) ? grp.members : [];
         if (memberCountEl) {
-          const count = Array.isArray(grp.members) ? grp.members.length : 0;
+          const count = members.length;
           memberCountEl.textContent = count + (count === 1 ? ' member' : ' members');
+        }
+
+        const membersListEl = document.getElementById('fctx-groupMembersList');
+        if (membersListEl) {
+          membersListEl.innerHTML = '';
+          members.forEach((m) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:3px 6px; background:rgba(255,255,255,0.04); border-radius:4px; font-size:11px;';
+
+            let icon = '📦';
+            let label = `${m.type} #${m.id}`;
+            if (m.type === 'node') {
+              icon = '🔷';
+              const n = window.DiagramNodes ? window.DiagramNodes.getNode(m.id) : null;
+              if (n && (n.name || n.text)) label = `Shape: ${n.name || n.text}`;
+            } else if (m.type === 'flow') {
+              icon = '🔀';
+              const f = window.DataFlows ? window.DataFlows.getFlow(m.id) : null;
+              if (f && (f.name || f.label)) label = `Flow: ${f.name || f.label}`;
+            } else if (m.type === 'glow') {
+              icon = '✨';
+              const g = window.Glows ? window.Glows.getGlow(m.id) : null;
+              if (g && g.name) label = `Glow: ${g.name}`;
+            } else if (m.type === 'ripple') {
+              icon = '🌊';
+              const r = window.Ripples ? window.Ripples.getRipple(m.id) : null;
+              if (r && r.name) label = `Ripple: ${r.name}`;
+            }
+
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = `${icon} ${label}`;
+            labelSpan.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; color:#c9d1d9;';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.title = `Remove ${m.type} #${m.id} from group`;
+            removeBtn.style.cssText = 'background:none; border:none; color:#f85149; font-size:14px; cursor:pointer; padding:0 4px; line-height:1; font-weight:bold;';
+            removeBtn.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              if (window.AppCoordinator && typeof window.AppCoordinator.removeSelectedMembersFromGroup === 'function') {
+                window.AppCoordinator.removeSelectedMembersFromGroup([{ type: m.type, id: m.id }], grp.id);
+                if (window.AppCoordinator.getGroup(grp.id)) {
+                  this.syncFromActiveObject();
+                }
+              }
+            });
+
+            row.appendChild(labelSpan);
+            row.appendChild(removeBtn);
+            membersListEl.appendChild(row);
+          });
+        }
+      }
+
+      // Check group membership for active object (when inspecting a grouped member object)
+      const memberBar = document.getElementById('fctx-memberOfGroupBar');
+      const memberNameSpan = document.getElementById('fctx-memberOfGroupName');
+      if (memberBar) {
+        const grp = (this.activeType && this.activeType !== 'group' && this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.findGroupByMember === 'function')
+          ? window.AppCoordinator.findGroupByMember(this.activeType, this.activeId)
+          : null;
+        if (grp) {
+          memberBar.style.display = 'flex';
+          if (memberNameSpan) {
+            memberNameSpan.textContent = `👥 In Group: ${grp.name || grp.id}`;
+          }
+        } else {
+          memberBar.style.display = 'none';
         }
       }
     } finally {
@@ -1774,10 +1865,10 @@ window.FloatingPropertiesEditor = {
     const btnUngroup = document.getElementById('fctx-btnUngroup');
     if (btnUngroup) {
       btnUngroup.addEventListener('click', () => {
-        this.close();
         if (window.AppCoordinator && typeof window.AppCoordinator.ungroupSelectedGroup === 'function') {
           window.AppCoordinator.ungroupSelectedGroup();
         }
+        this.close(false);
       });
     }
 
@@ -1793,9 +1884,19 @@ window.FloatingPropertiesEditor = {
     const btnDelGrp = document.getElementById('fctx-btnDeleteGroup');
     if (btnDelGrp) {
       btnDelGrp.addEventListener('click', () => {
-        this.close();
         if (window.AppCoordinator && typeof window.AppCoordinator.deleteSelectedObjects === 'function') {
           window.AppCoordinator.deleteSelectedObjects();
+        }
+        this.close(false);
+      });
+    }
+
+    const btnRemoveFromGroup = document.getElementById('fctx-btnRemoveFromGroup');
+    if (btnRemoveFromGroup) {
+      btnRemoveFromGroup.addEventListener('click', () => {
+        if (this.activeType && this.activeType !== 'group' && this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.removeSelectedMembersFromGroup === 'function') {
+          window.AppCoordinator.removeSelectedMembersFromGroup([{ type: this.activeType, id: this.activeId }]);
+          this.syncFromActiveObject();
         }
       });
     }
@@ -1821,8 +1922,14 @@ window.FloatingPropertiesEditor = {
     const btnGroupMulti = document.getElementById('fctx-btnGroupMulti');
     if (btnGroupMulti) {
       btnGroupMulti.addEventListener('click', () => {
-        if (window.AppCoordinator && typeof window.AppCoordinator.createGroupFromSelection === 'function') {
-          window.AppCoordinator.createGroupFromSelection();
+        if (window.AppCoordinator) {
+          const sel = window.AppCoordinator.getActiveSelection();
+          if (sel && sel.type === 'group' && typeof window.AppCoordinator.ungroupSelectedGroup === 'function') {
+            window.AppCoordinator.ungroupSelectedGroup();
+            this.close(false);
+          } else if (typeof window.AppCoordinator.createGroupFromSelection === 'function') {
+            window.AppCoordinator.createGroupFromSelection();
+          }
         }
       });
     }
@@ -1979,6 +2086,24 @@ window.FloatingPropertiesEditor = {
             window.AppCoordinator.getSelectedItems().length >= 2;
 
           if (!isAlreadyMultiSelected) {
+            const memberGroup = (obj.type !== 'group' && window.AppCoordinator && typeof window.AppCoordinator.findGroupByMember === 'function')
+              ? window.AppCoordinator.findGroupByMember(obj.type, obj.id)
+              : null;
+            const inGroupEdit = (window.AppCoordinator && typeof window.AppCoordinator.isInGroupEditMode === 'function')
+              ? window.AppCoordinator.isInGroupEditMode()
+              : false;
+
+            if (memberGroup && !inGroupEdit) {
+              if (window.AppCoordinator && typeof window.AppCoordinator.selectGroup === 'function') {
+                window.AppCoordinator.selectGroup(memberGroup.id);
+              }
+              this.openFor('group', memberGroup.id, {
+                resetPosition: true,
+                clickCoords: { clientX: e.clientX, clientY: e.clientY }
+              });
+              return;
+            }
+
             const accordionIds = { node: 'acc-nodes', flow: 'acc-flows', glow: 'acc-glows', ripple: 'acc-ripples' };
             if (window.AppCoordinator && typeof window.AppCoordinator.selectObject === 'function') {
               window.AppCoordinator.selectObject(obj.type, obj.id, { openAccordionId: accordionIds[obj.type] });

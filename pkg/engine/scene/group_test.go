@@ -224,3 +224,67 @@ func TestGroupBounds(t *testing.T) {
 		t.Errorf("expected maxY ~45, got %f", maxY)
 	}
 }
+
+func TestRemoveGroupMembers(t *testing.T) {
+	sc := NewScene()
+
+	n1 := sc.CreateNode(Node{Shape: "rect", X: 10, Y: 10, Width: 80, Height: 40}, nil, false)
+	n2 := sc.CreateNode(Node{Shape: "circle", X: 30, Y: 10, Width: 60, Height: 60}, nil, false)
+	n3 := sc.CreateNode(Node{Shape: "diamond", X: 50, Y: 10, Width: 60, Height: 60}, nil, false)
+
+	grp, err := sc.CreateGroup("Three Nodes", []GroupMember{
+		{Type: SelectionNode, ID: n1.ID},
+		{Type: SelectionNode, ID: n2.ID},
+		{Type: SelectionNode, ID: n3.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+
+	// 1. Remove invalid member (not in group)
+	_, _, err = sc.RemoveGroupMembers(grp.ID, []GroupMember{
+		{Type: SelectionNode, ID: "99999"},
+	})
+	if err == nil {
+		t.Fatalf("expected error when removing non-member")
+	}
+
+	// 2. Remove n3 from group of 3 -> 2 remain, group not dissolved
+	remGrp, dissolved, err := sc.RemoveGroupMembers(grp.ID, []GroupMember{
+		{Type: SelectionNode, ID: n3.ID},
+	})
+	if err != nil {
+		t.Fatalf("RemoveGroupMembers failed: %v", err)
+	}
+	if dissolved {
+		t.Errorf("expected group NOT to be dissolved with 2 members remaining")
+	}
+	if len(remGrp.Members) != 2 {
+		t.Errorf("expected 2 members remaining, got %d", len(remGrp.Members))
+	}
+	// n3 remains in scene
+	if _, exists := sc.nodes[n3.ID]; !exists {
+		t.Errorf("n3 must remain in scene after removal from group")
+	}
+
+	// 3. Remove n2 from group of 2 -> 1 remains, group automatically dissolved!
+	_, dissolved, err = sc.RemoveGroupMembers(grp.ID, []GroupMember{
+		{Type: SelectionNode, ID: n2.ID},
+	})
+	if err != nil {
+		t.Fatalf("RemoveGroupMembers failed: %v", err)
+	}
+	if !dissolved {
+		t.Errorf("expected group to be dissolved when fewer than 2 members remain")
+	}
+	if _, exists := sc.GetGroup(grp.ID); exists {
+		t.Errorf("group should be deleted after dissolution")
+	}
+	// All objects remain in scene
+	if _, exists := sc.nodes[n1.ID]; !exists {
+		t.Errorf("n1 must remain in scene")
+	}
+	if _, exists := sc.nodes[n2.ID]; !exists {
+		t.Errorf("n2 must remain in scene")
+	}
+}

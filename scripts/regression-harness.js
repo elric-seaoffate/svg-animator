@@ -4937,6 +4937,174 @@ async function runHarness() {
   const restoredGroups = window.AppCoordinator.getAllGroups();
   assert.ok(restoredGroups.length >= 2, 'Scenario 15: Restored groups match snapshot');
 
+  // ===========================================================================
+  // STAGE 13 REGRESSION REPAIR: Remove Group Members and Ungroup Lifecycle
+  // ===========================================================================
+  console.log('[HARNESS] Testing Stage 13 Regression Repair: Member Detachment & Ungrouping (Scenarios 16-22)...');
+
+  // SCENARIO 16: Member detachment from 3-member group (retains group)
+  const remNode1 = window.DiagramNodes.createNode({ text: 'RNode1', x: 20, y: 20 });
+  const remNode2 = window.DiagramNodes.createNode({ text: 'RNode2', x: 40, y: 20 });
+  const remGlow1 = window.Glows.createGlow({ name: 'RGlow1', x: 30, y: 30 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: remNode1.id },
+    { type: 'node', id: remNode2.id },
+    { type: 'glow', id: remGlow1.id }
+  ]);
+  const grp3 = window.AppCoordinator.createGroupFromSelection('Trio Group');
+  assert.ok(grp3, 'Scenario 16: Trio Group created');
+  assert.strictEqual(grp3.members.length, 3, 'Scenario 16: Trio Group has 3 members');
+
+  // Detach remGlow1
+  const detachRes1 = window.AppCoordinator.removeSelectedMembersFromGroup(
+    [{ type: 'glow', id: remGlow1.id }],
+    grp3.id
+  );
+  assert.strictEqual(detachRes1, true, 'Scenario 16: Member removal succeeded');
+  const grpAfterDetach = window.AppCoordinator.getGroup(grp3.id);
+  assert.ok(grpAfterDetach, 'Scenario 16: Group still exists after removing 1 member from 3');
+  assert.strictEqual(grpAfterDetach.members.length, 2, 'Scenario 16: Group now has 2 members');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('glow', remGlow1.id), null, 'Scenario 16: Detached glow is no longer in group');
+  assert.ok(window.AppCoordinator.findGroupByMember('node', remNode1.id), 'Scenario 16: remNode1 still in group');
+
+  // SCENARIO 17: Member detachment from 2-member group (triggers automatic dissolution)
+  const detachRes2 = window.AppCoordinator.removeSelectedMembersFromGroup(
+    [{ type: 'node', id: remNode1.id }],
+    grp3.id
+  );
+  assert.strictEqual(detachRes2, true, 'Scenario 17: Removal succeeded');
+  const grpDissolved = window.AppCoordinator.getGroup(grp3.id);
+  assert.strictEqual(grpDissolved, null, 'Scenario 17: Group automatically dissolved when reduced below 2 members');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('node', remNode1.id), null, 'Scenario 17: remNode1 independent');
+  assert.strictEqual(window.AppCoordinator.findGroupByMember('node', remNode2.id), null, 'Scenario 17: remNode2 independent');
+  // Both objects still exist on canvas
+  assert.ok(window.DiagramNodes.getNode(remNode1.id), 'Scenario 17: remNode1 still on canvas');
+  assert.ok(window.DiagramNodes.getNode(remNode2.id), 'Scenario 17: remNode2 still on canvas');
+
+  // SCENARIO 18: Ungroup via AppCoordinator.ungroupSelectedGroup (keeps all objects)
+  const uNode = window.DiagramNodes.createNode({ text: 'UNode', x: 50, y: 50 });
+  const uFlow = window.DataFlows.createFlow({ name: 'UFlow', x1: 50, y1: 50, x2: 80, y2: 50 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: uNode.id },
+    { type: 'flow', id: uFlow.id }
+  ]);
+  const grpToUngroup = window.AppCoordinator.createGroupFromSelection('Ungroup Test Group');
+  assert.ok(grpToUngroup, 'Scenario 18: Group created');
+
+  window.AppCoordinator.selectGroup(grpToUngroup.id);
+  const ungroupRes = window.AppCoordinator.ungroupSelectedGroup();
+  assert.strictEqual(ungroupRes, true, 'Scenario 18: Ungroup succeeded');
+  assert.strictEqual(window.AppCoordinator.getGroup(grpToUngroup.id), null, 'Scenario 18: Group removed');
+  assert.ok(window.DiagramNodes.getNode(uNode.id), 'Scenario 18: Node still exists');
+  assert.ok(window.DataFlows.getFlow(uFlow.id), 'Scenario 18: Flow still exists');
+  // Selected items must now be multi-selection of former members
+  const selAfterUngroup = window.AppCoordinator.getSelectedItems();
+  assert.strictEqual(selAfterUngroup.length, 2, 'Scenario 18: Former members selected as multi-selection');
+
+  // SCENARIO 19: Floating Properties editor ungroup button click
+  const edNode1 = window.DiagramNodes.createNode({ text: 'FNode1', x: 60, y: 60 });
+  const edNode2 = window.DiagramNodes.createNode({ text: 'FNode2', x: 70, y: 60 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: edNode1.id },
+    { type: 'node', id: edNode2.id }
+  ]);
+  const grpForEditor = window.AppCoordinator.createGroupFromSelection('Editor Ungroup');
+  window.AppCoordinator.selectGroup(grpForEditor.id);
+
+  if (window.FloatingPropertiesEditor) {
+    window.FloatingPropertiesEditor.openFor('group', grpForEditor.id);
+    assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true);
+    assert.strictEqual(window.FloatingPropertiesEditor.activeType, 'group');
+
+    // Simulate clicking #fctx-btnUngroup
+    const btnUngroupEl = document.getElementById('fctx-btnUngroup');
+    assert.ok(btnUngroupEl, 'Scenario 19: fctx-btnUngroup exists');
+    btnUngroupEl.click();
+
+    assert.strictEqual(window.AppCoordinator.getGroup(grpForEditor.id), null, 'Scenario 19: Group disbanded via UI button');
+    assert.ok(window.DiagramNodes.getNode(edNode1.id), 'Scenario 19: edNode1 remains');
+    assert.ok(window.DiagramNodes.getNode(edNode2.id), 'Scenario 19: edNode2 remains');
+    assert.strictEqual(window.FloatingPropertiesEditor.isOpen, false, 'Scenario 19: Editor closed');
+  }
+
+  // SCENARIO 20: In-group membership bar in Floating Properties Editor
+  const memNode = window.DiagramNodes.createNode({ text: 'MemNode', x: 10, y: 10 });
+  const memGlow = window.Glows.createGlow({ name: 'MemGlow', x: 15, y: 15 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: memNode.id },
+    { type: 'glow', id: memGlow.id }
+  ]);
+  const pairGrp = window.AppCoordinator.createGroupFromSelection('Pair Group');
+  assert.ok(pairGrp);
+
+  if (window.FloatingPropertiesEditor) {
+    // Open editor for member node
+    window.FloatingPropertiesEditor.openFor('node', memNode.id);
+    const memberBar = document.getElementById('fctx-memberOfGroupBar');
+    const memberNameSpan = document.getElementById('fctx-memberOfGroupName');
+    assert.ok(memberBar);
+    assert.strictEqual(memberBar.style.display, 'flex', 'Scenario 20: Member bar visible when inspecting grouped object');
+    assert.ok(memberNameSpan.textContent.includes('Pair Group'), 'Scenario 20: Member bar displays group name');
+
+    // Remove from group via #fctx-btnRemoveFromGroup
+    const btnRemove = document.getElementById('fctx-btnRemoveFromGroup');
+    assert.ok(btnRemove);
+    btnRemove.click();
+
+    // Since pair group had 2 members and 1 was removed, it dissolved
+    assert.strictEqual(window.AppCoordinator.getGroup(pairGrp.id), null, 'Scenario 20: Pair dissolved after member detachment');
+    assert.strictEqual(memberBar.style.display, 'none', 'Scenario 20: Member bar hidden after dissolution');
+    window.FloatingPropertiesEditor.close(false);
+  }
+
+  // SCENARIO 21: Multi-selection toolbar shows Ungroup for group selection
+  const tNode1 = window.DiagramNodes.createNode({ text: 'T1', x: 80, y: 80 });
+  const tNode2 = window.DiagramNodes.createNode({ text: 'T2', x: 90, y: 80 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: tNode1.id },
+    { type: 'node', id: tNode2.id }
+  ]);
+  const tGrp = window.AppCoordinator.createGroupFromSelection('Toolbar Test Group');
+  window.AppCoordinator.selectGroup(tGrp.id);
+
+  if (window.DiagramNodes && typeof window.DiagramNodes.updateMultiSelectToolbar === 'function') {
+    window.DiagramNodes.updateMultiSelectToolbar();
+    const btnGrpSel = document.getElementById('btnGroupSelection');
+    if (btnGrpSel) {
+      assert.strictEqual(btnGrpSel.textContent, '🔓 Ungroup', 'Scenario 21: Toolbar button shows Ungroup when group selected');
+      // Clicking it ungroups
+      btnGrpSel.click();
+      assert.strictEqual(window.AppCoordinator.getGroup(tGrp.id), null, 'Scenario 21: Ungrouped via toolbar button');
+    }
+  }
+
+  // SCENARIO 22: Undo/redo for member detachment and ungrouping
+  const undoNode1 = window.DiagramNodes.createNode({ text: 'Undo1', x: 100, y: 100 });
+  const undoNode2 = window.DiagramNodes.createNode({ text: 'Undo2', x: 110, y: 100 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: undoNode1.id },
+    { type: 'node', id: undoNode2.id }
+  ]);
+  const undoGrp = window.AppCoordinator.createGroupFromSelection('Undo Group');
+  assert.ok(undoGrp);
+
+  // Ungroup it
+  window.AppCoordinator.selectGroup(undoGrp.id);
+  window.AppCoordinator.ungroupSelectedGroup();
+  assert.strictEqual(window.AppCoordinator.getGroup(undoGrp.id), null, 'Scenario 22: Ungrouped before undo');
+
+  // Undo
+  if (window.HistoryManager && typeof window.HistoryManager.undo === 'function') {
+    window.HistoryManager.undo();
+    const restoredGrp = window.AppCoordinator.getGroup(undoGrp.id);
+    assert.ok(restoredGrp, 'Scenario 22: Group restored after undo');
+    assert.strictEqual(restoredGrp.members.length, 2, 'Scenario 22: Restored group has 2 members');
+
+    // Redo
+    window.HistoryManager.redo();
+    assert.strictEqual(window.AppCoordinator.getGroup(undoGrp.id), null, 'Scenario 22: Group re-ungrouped after redo');
+  }
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12 & 13 persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

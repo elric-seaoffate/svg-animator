@@ -1101,6 +1101,31 @@
       return null;
     },
 
+    removeGroupMembers(groupId, members) {
+      if (this.isReady() && groupId && Array.isArray(members)) {
+        const payload = {
+          groupId: String(groupId),
+          members: members.map((m) => ({ type: String(m.type), id: String(m.id) }))
+        };
+        const res = this.dispatch('Group.RemoveMembers', payload);
+        if (res && res.success) {
+          if (window.ObjectGroups) {
+            if (res.dissolved) {
+              window.ObjectGroups.list = window.ObjectGroups.list.filter((g) => String(g.id) !== String(groupId));
+            } else if (res.group) {
+              const idx = window.ObjectGroups.list.findIndex((g) => String(g.id) === String(groupId));
+              if (idx >= 0) window.ObjectGroups.list[idx] = JSON.parse(JSON.stringify(res.group));
+            }
+          }
+          return res;
+        }
+      }
+      if (window.ObjectGroups && typeof window.ObjectGroups.removeMembers === 'function') {
+        return window.ObjectGroups.removeMembers(groupId, members);
+      }
+      return null;
+    },
+
     deleteGroup(groupId, deleteMembers = false) {
       if (this.isReady() && groupId) {
         const res = this.dispatch('Group.Delete', { groupId: String(groupId), deleteMembers: !!deleteMembers });
@@ -2120,6 +2145,25 @@
       const members = this.list[idx].members;
       this.list.splice(idx, 1);
       return { success: true, members: members };
+    },
+
+    removeMembers(groupId, membersToRemove) {
+      const strId = String(groupId);
+      const idx = this.list.findIndex((g) => String(g.id) === strId);
+      if (idx === -1) return { success: false, error: 'Group not found' };
+      const grp = this.list[idx];
+      const toRemoveKeys = new Set((membersToRemove || []).map((m) => `${m.type}:${m.id}`));
+      for (const m of (membersToRemove || [])) {
+        if (!grp.members.some((gm) => gm.type === m.type && String(gm.id) === String(m.id))) {
+          return { success: false, error: `Object ${m.type} ${m.id} does not belong to group` };
+        }
+      }
+      grp.members = grp.members.filter((m) => !toRemoveKeys.has(`${m.type}:${m.id}`));
+      if (grp.members.length < 2) {
+        this.list.splice(idx, 1);
+        return { success: true, dissolved: true };
+      }
+      return { success: true, dissolved: false, group: grp };
     },
 
     renameGroup(groupId, name) {
