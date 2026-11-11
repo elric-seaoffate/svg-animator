@@ -208,3 +208,142 @@ func TestImageCropAndReset(t *testing.T) {
 		t.Errorf("expected restored pos 50,50, got %f,%f", reset.X, reset.Y)
 	}
 }
+
+func TestCropVersionsLifecycleAndCommit(t *testing.T) {
+	sc := NewScene()
+
+	img, err := sc.CreateImage(Image{
+		Filename:      "machine.png",
+		NaturalWidth:  1920,
+		NaturalHeight: 1080,
+		Width:         400,
+		Height:        225,
+		X:             50,
+		Y:             50,
+	})
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+
+	// 1. Initial image should have 1 version ("original")
+	if len(img.CropVersions) != 1 || img.CropVersions[0].ID != "original" {
+		t.Fatalf("expected initial version 'original', got %+v", img.CropVersions)
+	}
+	if img.ActiveCropVersionID != "original" {
+		t.Errorf("expected ActiveCropVersionID 'original', got %s", img.ActiveCropVersionID)
+	}
+
+	// 2. Create Crop 1
+	crop1 := ImageCrop{
+		SourceX:      100,
+		SourceY:      50,
+		SourceWidth:  800,
+		SourceHeight: 600,
+	}
+	w1, h1, x1, y1 := 300.0, 225.0, 48.0, 52.0
+	img1, err := sc.CreateCropVersion(img.ID, "Motor Assembly", crop1, &x1, &y1, &w1, &h1)
+	if err != nil {
+		t.Fatalf("CreateCropVersion 1 failed: %v", err)
+	}
+	if len(img1.CropVersions) != 2 {
+		t.Fatalf("expected 2 crop versions, got %d", len(img1.CropVersions))
+	}
+	if img1.ActiveCropVersionID != img1.CropVersions[1].ID {
+		t.Errorf("expected active version %s, got %s", img1.CropVersions[1].ID, img1.ActiveCropVersionID)
+	}
+	if img1.CropVersions[1].Name != "Motor Assembly" {
+		t.Errorf("expected name 'Motor Assembly', got %s", img1.CropVersions[1].Name)
+	}
+	ver1ID := img1.CropVersions[1].ID
+
+	// 3. Create Crop 2
+	crop2 := ImageCrop{
+		SourceX:      1000,
+		SourceY:      200,
+		SourceWidth:  500,
+		SourceHeight: 400,
+	}
+	w2, h2, x2, y2 := 250.0, 200.0, 60.0, 40.0
+	img2, err := sc.CreateCropVersion(img.ID, "Control Panel", crop2, &x2, &y2, &w2, &h2)
+	if err != nil {
+		t.Fatalf("CreateCropVersion 2 failed: %v", err)
+	}
+	if len(img2.CropVersions) != 3 {
+		t.Fatalf("expected 3 crop versions, got %d", len(img2.CropVersions))
+	}
+	ver2ID := img2.CropVersions[2].ID
+	if img2.ActiveCropVersionID != ver2ID {
+		t.Errorf("expected active version %s, got %s", ver2ID, img2.ActiveCropVersionID)
+	}
+
+	// 4. Switch to original
+	origState, err := sc.SelectCropVersion(img.ID, "original")
+	if err != nil {
+		t.Fatalf("SelectCropVersion 'original' failed: %v", err)
+	}
+	if origState.Crop != nil {
+		t.Errorf("expected crop nil on original, got %+v", origState.Crop)
+	}
+	if origState.ActiveCropVersionID != "original" {
+		t.Errorf("expected active 'original', got %s", origState.ActiveCropVersionID)
+	}
+
+	// 5. Switch back to Crop 1
+	c1State, err := sc.SelectCropVersion(img.ID, ver1ID)
+	if err != nil {
+		t.Fatalf("SelectCropVersion 1 failed: %v", err)
+	}
+	if c1State.Crop == nil || c1State.Crop.SourceWidth != 800 {
+		t.Errorf("expected restored crop 1 width 800, got %+v", c1State.Crop)
+	}
+	if c1State.Width != 300 || c1State.Height != 225 {
+		t.Errorf("expected restored display dimensions 300x225, got %fx%f", c1State.Width, c1State.Height)
+	}
+
+	// 6. Rename Crop 1
+	renamed, err := sc.RenameCropVersion(img.ID, ver1ID, "Primary Pump")
+	if err != nil {
+		t.Fatalf("RenameCropVersion failed: %v", err)
+	}
+	if renamed.CropVersions[1].Name != "Primary Pump" {
+		t.Errorf("expected renamed 'Primary Pump', got %s", renamed.CropVersions[1].Name)
+	}
+
+	// 7. Delete Crop 2
+	deleted, err := sc.DeleteCropVersion(img.ID, ver2ID)
+	if err != nil {
+		t.Fatalf("DeleteCropVersion failed: %v", err)
+	}
+	if len(deleted.CropVersions) != 2 {
+		t.Errorf("expected 2 versions after deletion, got %d", len(deleted.CropVersions))
+	}
+
+	// Cannot delete original
+	if _, err := sc.DeleteCropVersion(img.ID, "original"); err == nil {
+		t.Errorf("expected error when deleting 'original', got nil")
+	}
+
+	// 8. Commit Crop (Preserve versions)
+	committedPreserve, err := sc.CommitCrop(img.ID, "data:image/png;base64,AAA", "assets/cropped.png", "cropped.png", "image/png", 800, 600, 300, 225, false)
+	if err != nil {
+		t.Fatalf("CommitCrop preserve failed: %v", err)
+	}
+	if committedPreserve.Crop != nil {
+		t.Errorf("expected Crop nil after commit, got %+v", committedPreserve.Crop)
+	}
+	if committedPreserve.NaturalWidth != 800 || committedPreserve.NaturalHeight != 600 {
+		t.Errorf("expected new natural dimensions 800x600, got %fx%f", committedPreserve.NaturalWidth, committedPreserve.NaturalHeight)
+	}
+	if len(committedPreserve.CropVersions) < 1 {
+		t.Errorf("expected preserved crop versions, got %d", len(committedPreserve.CropVersions))
+	}
+
+	// 9. Commit Crop (Discard versions)
+	committedDiscard, err := sc.CommitCrop(img.ID, "data:image/png;base64,BBB", "assets/final.png", "final.png", "image/png", 800, 600, 300, 225, true)
+	if err != nil {
+		t.Fatalf("CommitCrop discard failed: %v", err)
+	}
+	if len(committedDiscard.CropVersions) != 1 || committedDiscard.CropVersions[0].ID != "original" {
+		t.Errorf("expected only 1 'original' version after discard, got %+v", committedDiscard.CropVersions)
+	}
+}

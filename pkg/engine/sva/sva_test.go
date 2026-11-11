@@ -989,3 +989,133 @@ func TestSVAImagesAndLayersRoundtrip(t *testing.T) {
 	}
 	_ = visFalse
 }
+
+func TestSVACropVersionsRoundtrip(t *testing.T) {
+	fakeImgBytes := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x00\x00\x00\x01\x00\x08\x06\x00\x00\x00")
+	fakeImgB64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(fakeImgBytes)
+
+	studioJSON := fmt.Sprintf(`{
+		"version": "1.2.0",
+		"nodes": [],
+		"flows": [],
+		"glows": [],
+		"ripples": [],
+		"groups": [],
+		"images": [
+			{
+				"id": "image-1",
+				"name": "Machine Plan",
+				"filename": "machine.png",
+				"mime": "image/png",
+				"src": "%s",
+				"x": 40.0,
+				"y": 60.0,
+				"width": 300.0,
+				"height": 200.0,
+				"naturalWidth": 600.0,
+				"naturalHeight": 400.0,
+				"crop": {
+					"enabled": true,
+					"sourceX": 50.0,
+					"sourceY": 50.0,
+					"sourceWidth": 300.0,
+					"sourceHeight": 200.0,
+					"origX": 40.0,
+					"origY": 60.0,
+					"origWidth": 600.0,
+					"origHeight": 400.0
+				},
+				"cropVersions": [
+					{
+						"id": "original",
+						"name": "Original",
+						"sourceX": 0,
+						"sourceY": 0,
+						"sourceWidth": 600,
+						"sourceHeight": 400,
+						"width": 600,
+						"height": 400,
+						"x": 40,
+						"y": 60,
+						"origX": 40,
+						"origY": 60,
+						"origWidth": 600,
+						"origHeight": 400
+					},
+					{
+						"id": "crop-1",
+						"name": "Closeup",
+						"sourceX": 50,
+						"sourceY": 50,
+						"sourceWidth": 300,
+						"sourceHeight": 200,
+						"width": 300,
+						"height": 200,
+						"x": 40,
+						"y": 60,
+						"origX": 40,
+						"origY": 60,
+						"origWidth": 600,
+						"origHeight": 400
+					}
+				],
+				"activeCropVersionId": "crop-1"
+			}
+		],
+		"imagesCounter": 1,
+		"layers": [
+			{"type": "image", "id": "image-1"}
+		]
+	}`, fakeImgB64)
+
+	proj, err := BuildProjectFromStudioState("Crop Versions Test", "Testing SVA roundtrip for crop versions", []byte(studioJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed: %v", err)
+	}
+
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	decodedProj, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if len(decodedProj.Scene.Images) != 1 {
+		t.Fatalf("expected 1 image in decoded project, got %d", len(decodedProj.Scene.Images))
+	}
+	decImg := decodedProj.Scene.Images[0]
+	if len(decImg.CropVersions) != 2 {
+		t.Fatalf("expected 2 crop versions, got %d", len(decImg.CropVersions))
+	}
+	if decImg.CropVersions[0].ID != "original" || decImg.CropVersions[0].Name != "Original" {
+		t.Errorf("version 0 mismatch: %+v", decImg.CropVersions[0])
+	}
+	if decImg.CropVersions[1].ID != "crop-1" || decImg.CropVersions[1].Name != "Closeup" {
+		t.Errorf("version 1 mismatch: %+v", decImg.CropVersions[1])
+	}
+	if decImg.ActiveCropVersionID != "crop-1" {
+		t.Errorf("expected activeCropVersionID 'crop-1', got %q", decImg.ActiveCropVersionID)
+	}
+
+	// Extract studio state and check JSON fields
+	stateBytes, err := ExtractStudioState(decodedProj)
+	if err != nil {
+		t.Fatalf("ExtractStudioState failed: %v", err)
+	}
+	var stateMap map[string]any
+	if err := json.Unmarshal(stateBytes, &stateMap); err != nil {
+		t.Fatalf("Unmarshal extracted state failed: %v", err)
+	}
+	rawImages := stateMap["images"].([]any)
+	imgObj := rawImages[0].(map[string]any)
+	if activeID, ok := imgObj["activeCropVersionId"].(string); !ok || activeID != "crop-1" {
+		t.Errorf("expected activeCropVersionId 'crop-1' in extracted state, got %v", imgObj["activeCropVersionId"])
+	}
+	rawVersions, ok := imgObj["cropVersions"].([]any)
+	if !ok || len(rawVersions) != 2 {
+		t.Fatalf("expected 2 cropVersions in extracted state, got %v", imgObj["cropVersions"])
+	}
+}

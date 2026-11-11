@@ -779,6 +779,89 @@ header h1 {
   pointer-events: none;
 }
 
+/* Crop Versions List & Pills */
+.crop-versions-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.crop-version-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.crop-version-pill:hover {
+  background: var(--bg-hover);
+  border-color: rgba(88, 166, 255, 0.4);
+}
+
+.crop-version-pill.active {
+  background: rgba(88, 166, 255, 0.15) !important;
+  border-color: #58a6ff !important;
+}
+
+.crop-version-pill.active .crop-version-name {
+  color: #58a6ff;
+  font-weight: 600;
+}
+
+.crop-version-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.crop-version-name {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crop-version-dims {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.crop-version-actions {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin-left: 6px;
+}
+
+.crop-version-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.crop-version-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.crop-version-btn.crop-version-del:hover {
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.15);
+}
+
+
 .stage-bar {
   margin-top: 0.75rem;
   width: 100%;

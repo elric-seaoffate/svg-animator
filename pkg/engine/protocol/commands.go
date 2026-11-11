@@ -557,6 +557,7 @@ type ImageListResponse struct {
 // ImageCropRequest payload for "Image.Crop".
 type ImageCropRequest struct {
 	ID   scene.StringID  `json:"id"`
+	Name string          `json:"name,omitempty"`
 	Crop scene.ImageCrop `json:"crop"`
 	NewX *float64        `json:"newX,omitempty"`
 	NewY *float64        `json:"newY,omitempty"`
@@ -566,6 +567,68 @@ type ImageCropRequest struct {
 
 // ImageCropResponse response for "Image.Crop".
 type ImageCropResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageCropVersionSelectRequest payload for "Image.CropVersionSelect".
+type ImageCropVersionSelectRequest struct {
+	ID        scene.StringID `json:"id"`
+	VersionID string         `json:"versionId"`
+}
+
+// ImageCropVersionSelectResponse response for "Image.CropVersionSelect".
+type ImageCropVersionSelectResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageCropVersionRenameRequest payload for "Image.CropVersionRename".
+type ImageCropVersionRenameRequest struct {
+	ID        scene.StringID `json:"id"`
+	VersionID string         `json:"versionId"`
+	Name      string         `json:"name"`
+}
+
+// ImageCropVersionRenameResponse response for "Image.CropVersionRename".
+type ImageCropVersionRenameResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageCropVersionDeleteRequest payload for "Image.CropVersionDelete".
+type ImageCropVersionDeleteRequest struct {
+	ID        scene.StringID `json:"id"`
+	VersionID string         `json:"versionId"`
+}
+
+// ImageCropVersionDeleteResponse response for "Image.CropVersionDelete".
+type ImageCropVersionDeleteResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageCommitCropRequest payload for "Image.CommitCrop".
+type ImageCommitCropRequest struct {
+	ID              scene.StringID `json:"id"`
+	Src             string         `json:"src,omitempty"`
+	Data            string         `json:"data,omitempty"`
+	AssetRef        string         `json:"assetRef,omitempty"`
+	Filename        string         `json:"filename,omitempty"`
+	Mime            string         `json:"mime,omitempty"`
+	NaturalWidth    float64        `json:"naturalWidth,omitempty"`
+	NaturalHeight   float64        `json:"naturalHeight,omitempty"`
+	Width           float64        `json:"width,omitempty"`
+	Height          float64        `json:"height,omitempty"`
+	DiscardVersions bool           `json:"discardVersions,omitempty"`
+}
+
+// ImageCommitCropResponse response for "Image.CommitCrop".
+type ImageCommitCropResponse struct {
 	Success bool        `json:"success"`
 	Image   scene.Image `json:"image,omitempty"`
 	Error   string      `json:"error,omitempty"`
@@ -2280,11 +2343,76 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding ImageCropRequest: %w", err)
 		}
-		img, err := activeScene.SetImageCrop(req.ID, req.Crop, req.NewX, req.NewY, req.NewW, req.NewH)
+		var img scene.Image
+		var err error
+		if req.Name != "" {
+			img, err = activeScene.CreateCropVersion(req.ID, req.Name, req.Crop, req.NewX, req.NewY, req.NewW, req.NewH)
+		} else {
+			img, err = activeScene.SetImageCrop(req.ID, req.Crop, req.NewX, req.NewY, req.NewW, req.NewH)
+		}
 		if err != nil {
 			return json.Marshal(ImageCropResponse{Success: false, Error: err.Error()})
 		}
 		return json.Marshal(ImageCropResponse{Success: true, Image: img})
+
+	case "Image.CropVersionCreate":
+		var req ImageCropRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCropRequest: %w", err)
+		}
+		img, err := activeScene.CreateCropVersion(req.ID, req.Name, req.Crop, req.NewX, req.NewY, req.NewW, req.NewH)
+		if err != nil {
+			return json.Marshal(ImageCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCropResponse{Success: true, Image: img})
+
+	case "Image.CropVersionSelect":
+		var req ImageCropVersionSelectRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCropVersionSelectRequest: %w", err)
+		}
+		img, err := activeScene.SelectCropVersion(req.ID, req.VersionID)
+		if err != nil {
+			return json.Marshal(ImageCropVersionSelectResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCropVersionSelectResponse{Success: true, Image: img})
+
+	case "Image.CropVersionRename":
+		var req ImageCropVersionRenameRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCropVersionRenameRequest: %w", err)
+		}
+		img, err := activeScene.RenameCropVersion(req.ID, req.VersionID, req.Name)
+		if err != nil {
+			return json.Marshal(ImageCropVersionRenameResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCropVersionRenameResponse{Success: true, Image: img})
+
+	case "Image.CropVersionDelete":
+		var req ImageCropVersionDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCropVersionDeleteRequest: %w", err)
+		}
+		img, err := activeScene.DeleteCropVersion(req.ID, req.VersionID)
+		if err != nil {
+			return json.Marshal(ImageCropVersionDeleteResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCropVersionDeleteResponse{Success: true, Image: img})
+
+	case "Image.CommitCrop":
+		var req ImageCommitCropRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCommitCropRequest: %w", err)
+		}
+		srcVal := req.Src
+		if srcVal == "" {
+			srcVal = req.Data
+		}
+		img, err := activeScene.CommitCrop(req.ID, srcVal, req.AssetRef, req.Filename, req.Mime, req.NaturalWidth, req.NaturalHeight, req.Width, req.Height, req.DiscardVersions)
+		if err != nil {
+			return json.Marshal(ImageCommitCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCommitCropResponse{Success: true, Image: img})
 
 	case "Image.ResetCrop":
 		var req ImageResetCropRequest

@@ -1363,15 +1363,130 @@
       return null;
     },
 
-    cropImage(id, crop, geom) {
+    cropImage(id, crop, geom, name) {
+      if (this.isReady()) {
+        const payload = {
+          id: String(id),
+          crop: crop,
+          name: name ? String(name) : ''
+        };
+        if (geom) {
+          if (geom.newX !== undefined) payload.newX = Number(geom.newX);
+          if (geom.newY !== undefined) payload.newY = Number(geom.newY);
+          if (geom.newW !== undefined) payload.newW = Number(geom.newW);
+          if (geom.newH !== undefined) payload.newH = Number(geom.newH);
+        }
+        const res = this.dispatch('Image.Crop', payload);
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
       if (window.ImageObjects) {
-        const res = window.ImageObjects.cropImage(id, crop, geom);
+        const res = window.ImageObjects.cropImage(id, crop, geom, name);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
+    selectCropVersion(id, versionId) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.CropVersionSelect', { id: String(id), versionId: String(versionId) });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.selectCropVersion(id, versionId);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
+    renameCropVersion(id, versionId, newName) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.CropVersionRename', { id: String(id), versionId: String(versionId), name: String(newName) });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.renameCropVersion(id, versionId, newName);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
+    deleteCropVersion(id, versionId) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.CropVersionDelete', { id: String(id), versionId: String(versionId) });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.deleteCropVersion(id, versionId);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
+    commitCrop(id, options = {}) {
+      if (this.isReady()) {
+        const payload = {
+          id: String(id),
+          newSrc: options.newSrc || '',
+          newAssetRef: options.newAssetRef || '',
+          newFilename: options.newFilename || '',
+          newMime: options.newMime || '',
+          naturalWidth: Number(options.naturalWidth || options.nw || 0),
+          naturalHeight: Number(options.naturalHeight || options.nh || 0),
+          width: Number(options.width || options.w || 0),
+          height: Number(options.height || options.h || 0),
+          discardVersions: !!options.discardVersions
+        };
+        const res = this.dispatch('Image.CommitCrop', payload);
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.commitCrop(id, options);
         return { success: !!res, image: res };
       }
       return null;
     },
 
     resetCrop(id) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.ResetCrop', { id: String(id) });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+          }
+          return res;
+        }
+      }
       if (window.ImageObjects) {
         const res = window.ImageObjects.resetCrop(id);
         return { success: !!res, image: res };
@@ -2966,6 +3081,8 @@
         naturalHeight: Number(initial.naturalHeight) || 0,
         maintainAspectRatio: initial.maintainAspectRatio !== undefined ? !!initial.maintainAspectRatio : true,
         crop: (initial.crop && typeof initial.crop === 'object') ? JSON.parse(JSON.stringify(initial.crop)) : undefined,
+        cropVersions: Array.isArray(initial.cropVersions) ? JSON.parse(JSON.stringify(initial.cropVersions)) : [],
+        activeCropVersionId: initial.activeCropVersionId || 'original',
         opacity: typeof initial.opacity === 'number' ? initial.opacity : 1.0,
         visible: initial.visible !== undefined ? !!initial.visible : true,
         locked: !!initial.locked,
@@ -3009,10 +3126,11 @@
       return img;
     },
 
-    cropImage(id, crop = {}, geom = {}) {
+    cropImage(id, crop = {}, geom = {}, name = '') {
       const strId = String(id);
       const payload = {
         id: strId,
+        name: name ? String(name) : '',
         crop: {
           enabled: true,
           sourceX: Number(crop.sourceX) || 0,
@@ -3042,6 +3160,26 @@
       // Fallback JS logic
       const img = this.getImage(strId);
       if (!img) return null;
+      if (!img.cropVersions || !img.cropVersions.length) {
+        img.cropVersions = [{
+          id: 'original',
+          name: 'Original',
+          sourceX: 0,
+          sourceY: 0,
+          sourceWidth: img.naturalWidth || img.width,
+          sourceHeight: img.naturalHeight || img.height,
+          width: img.width,
+          height: img.height,
+          x: img.x,
+          y: img.y,
+          origX: img.x,
+          origY: img.y,
+          origWidth: img.width,
+          origHeight: img.height
+        }];
+        img.activeCropVersionId = 'original';
+      }
+
       if (!payload.crop.origWidth || payload.crop.origWidth <= 0) {
         if (img.crop && img.crop.origWidth > 0) {
           payload.crop.origWidth = img.crop.origWidth;
@@ -3056,10 +3194,208 @@
         }
       }
       img.crop = payload.crop;
-      if (geom.newW !== undefined && geom.newW > 0) img.width = geom.newW;
-      if (geom.newH !== undefined && geom.newH > 0) img.height = geom.newH;
-      if (geom.newX !== undefined) img.x = Math.round(geom.newX * 1000) / 1000;
-      if (geom.newY !== undefined) img.y = Math.round(geom.newY * 1000) / 1000;
+      const targetW = (geom.newW !== undefined && geom.newW > 0) ? geom.newW : img.width;
+      const targetH = (geom.newH !== undefined && geom.newH > 0) ? geom.newH : img.height;
+      const targetX = (geom.newX !== undefined) ? Math.round(geom.newX * 1000) / 1000 : img.x;
+      const targetY = (geom.newY !== undefined) ? Math.round(geom.newY * 1000) / 1000 : img.y;
+      img.width = targetW;
+      img.height = targetH;
+      img.x = targetX;
+      img.y = targetY;
+
+      const verId = 'crop-' + img.cropVersions.length;
+      const verName = (name && name.trim()) ? name.trim() : ('Crop ' + img.cropVersions.length);
+      img.cropVersions.push({
+        id: verId,
+        name: verName,
+        sourceX: payload.crop.sourceX,
+        sourceY: payload.crop.sourceY,
+        sourceWidth: payload.crop.sourceWidth,
+        sourceHeight: payload.crop.sourceHeight,
+        width: targetW,
+        height: targetH,
+        x: targetX,
+        y: targetY,
+        origX: payload.crop.origX,
+        origY: payload.crop.origY,
+        origWidth: payload.crop.origWidth,
+        origHeight: payload.crop.origHeight
+      });
+      img.activeCropVersionId = verId;
+      return img;
+    },
+
+    selectCropVersion(id, versionId) {
+      const strId = String(id);
+      const strVerId = String(versionId);
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.CropVersionSelect', { id: strId, versionId: strVerId });
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      const img = this.getImage(strId);
+      if (!img || !img.cropVersions) return null;
+      const ver = img.cropVersions.find((v) => v.id === strVerId);
+      if (!ver) return null;
+      img.activeCropVersionId = strVerId;
+      if (strVerId === 'original') {
+        delete img.crop;
+        img.x = ver.x;
+        img.y = ver.y;
+        img.width = ver.width;
+        img.height = ver.height;
+      } else {
+        img.crop = {
+          enabled: true,
+          sourceX: ver.sourceX,
+          sourceY: ver.sourceY,
+          sourceWidth: ver.sourceWidth,
+          sourceHeight: ver.sourceHeight,
+          origX: ver.origX,
+          origY: ver.origY,
+          origWidth: ver.origWidth,
+          origHeight: ver.origHeight
+        };
+        img.x = ver.x;
+        img.y = ver.y;
+        img.width = ver.width;
+        img.height = ver.height;
+      }
+      return img;
+    },
+
+    renameCropVersion(id, versionId, newName) {
+      const strId = String(id);
+      const strVerId = String(versionId);
+      const name = String(newName || '').trim();
+      if (!name) return null;
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.CropVersionRename', { id: strId, versionId: strVerId, name });
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      const img = this.getImage(strId);
+      if (!img || !img.cropVersions) return null;
+      const ver = img.cropVersions.find((v) => v.id === strVerId);
+      if (!ver) return null;
+      ver.name = name;
+      return img;
+    },
+
+    deleteCropVersion(id, versionId) {
+      const strId = String(id);
+      const strVerId = String(versionId);
+      if (strVerId === 'original') return null;
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.CropVersionDelete', { id: strId, versionId: strVerId });
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      const img = this.getImage(strId);
+      if (!img || !img.cropVersions) return null;
+      const idx = img.cropVersions.findIndex((v) => v.id === strVerId);
+      if (idx === -1) return null;
+      img.cropVersions.splice(idx, 1);
+      if (img.activeCropVersionId === strVerId) {
+        const fallback = img.cropVersions[img.cropVersions.length - 1];
+        this.selectCropVersion(strId, fallback ? fallback.id : 'original');
+      }
+      return img;
+    },
+
+    commitCrop(id, options = {}) {
+      const strId = String(id);
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const payload = {
+          id: strId,
+          newSrc: options.newSrc || '',
+          newAssetRef: options.newAssetRef || '',
+          newFilename: options.newFilename || '',
+          newMime: options.newMime || '',
+          naturalWidth: Number(options.naturalWidth || options.nw || 0),
+          naturalHeight: Number(options.naturalHeight || options.nh || 0),
+          width: Number(options.width || options.w || 0),
+          height: Number(options.height || options.h || 0),
+          discardVersions: !!options.discardVersions
+        };
+        const res = window.EngineBridge.dispatch('Image.CommitCrop', payload);
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      const img = this.getImage(strId);
+      if (!img) return null;
+      if (options.newSrc) {
+        img.src = options.newSrc;
+        img.data = options.newSrc;
+      }
+      if (options.newAssetRef) img.assetRef = options.newAssetRef;
+      if (options.newFilename) img.filename = options.newFilename;
+      if (options.newMime) img.mime = options.newMime;
+      const nw = Number(options.naturalWidth || options.nw || 0);
+      const nh = Number(options.naturalHeight || options.nh || 0);
+      const w = Number(options.width || options.w || 0);
+      const h = Number(options.height || options.h || 0);
+      if (nw > 0) img.naturalWidth = nw;
+      if (nh > 0) img.naturalHeight = nh;
+      if (w > 0) img.width = w;
+      if (h > 0) img.height = h;
+      delete img.crop;
+
+      if (options.discardVersions) {
+        img.cropVersions = [{
+          id: 'original',
+          name: 'Original',
+          sourceX: 0,
+          sourceY: 0,
+          sourceWidth: img.naturalWidth || img.width,
+          sourceHeight: img.naturalHeight || img.height,
+          width: img.width,
+          height: img.height,
+          x: img.x,
+          y: img.y,
+          origX: img.x,
+          origY: img.y,
+          origWidth: img.width,
+          origHeight: img.height
+        }];
+        img.activeCropVersionId = 'original';
+      } else {
+        if (!img.cropVersions || !img.cropVersions.length) {
+          img.cropVersions = [];
+        }
+        let orig = img.cropVersions.find((v) => v.id === 'original');
+        if (!orig) {
+          orig = { id: 'original', name: 'Original' };
+          img.cropVersions.unshift(orig);
+        }
+        orig.sourceWidth = img.naturalWidth || img.width;
+        orig.sourceHeight = img.naturalHeight || img.height;
+        orig.width = img.width;
+        orig.height = img.height;
+        orig.origWidth = img.width;
+        orig.origHeight = img.height;
+        orig.x = img.x;
+        orig.y = img.y;
+        orig.origX = img.x;
+        orig.origY = img.y;
+        img.activeCropVersionId = 'original';
+      }
       return img;
     },
 
@@ -3077,6 +3413,9 @@
       // Fallback JS logic
       const img = this.getImage(strId);
       if (!img) return null;
+      if (img.cropVersions && img.cropVersions.length > 0) {
+        return this.selectCropVersion(strId, 'original');
+      }
       if (img.crop) {
         if (img.crop.origWidth > 0) img.width = img.crop.origWidth;
         if (img.crop.origHeight > 0) img.height = img.crop.origHeight;

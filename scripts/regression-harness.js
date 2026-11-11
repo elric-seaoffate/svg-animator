@@ -7292,6 +7292,295 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 57 PASS: Selection Box Context-Menu Target Resolution for Image Objects verified.');
 
+  // ---------------------------------------------------------------------------
+  // SCENARIO 58: Crop Versions Lifecycle & Authoritative Selection Parity
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 58: Crop Versions Lifecycle & Authoritative Selection Parity...');
+
+  const s58Img = window.ImageObjects.createImage({
+    name: 'Turbine Blueprint',
+    filename: 'turbine.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 50,
+    y: 50,
+    width: 400,
+    height: 300,
+    naturalWidth: 800,
+    naturalHeight: 600
+  });
+
+  // 1. Initial State: default "original" version
+  assert.ok(s58Img.cropVersions && s58Img.cropVersions.length >= 1, 'Scenario 58: cropVersions initialized');
+  assert.strictEqual(s58Img.activeCropVersionId, 'original', 'Scenario 58: active version is "original"');
+  assert.strictEqual(s58Img.cropVersions[0].id, 'original', 'Scenario 58: first version ID is original');
+  assert.strictEqual(s58Img.cropVersions[0].name, 'Original', 'Scenario 58: first version name is Original');
+
+  // 2. Create Crop Version 1
+  const crop1 = window.ImageObjects.cropImage(s58Img.id, {
+    sourceX: 100,
+    sourceY: 80,
+    sourceWidth: 200,
+    sourceHeight: 150
+  }, { newW: 200, newH: 150 }, 'Zoom Intake');
+
+  assert.strictEqual(crop1.cropVersions.length, 2, 'Scenario 58: cropVersions now has 2 versions');
+  assert.strictEqual(crop1.activeCropVersionId, 'crop-1', 'Scenario 58: active version is crop-1');
+  assert.strictEqual(crop1.cropVersions[1].name, 'Zoom Intake', 'Scenario 58: custom version name applied');
+  assert.strictEqual(crop1.width, 200, 'Scenario 58: width updated to cropped dimensions');
+  assert.strictEqual(crop1.height, 150, 'Scenario 58: height updated to cropped dimensions');
+
+  // SVG render reflects active crop
+  const svgCrop1 = window.ImageObjects.renderImageElement(crop1, 1280, 720);
+  assert.ok(svgCrop1.startsWith('<svg '), 'Scenario 58: SVG contains nested SVG viewport for active crop-1');
+  assert.ok(svgCrop1.includes('viewBox="100.00 80.00 200.00 150.00"'), 'Scenario 58: SVG viewBox matches crop-1');
+
+  // 3. Create Crop Version 2
+  const crop2 = window.ImageObjects.cropImage(s58Img.id, {
+    sourceX: 20,
+    sourceY: 30,
+    sourceWidth: 100,
+    sourceHeight: 80
+  }, { newW: 100, newH: 80 }, 'Exhaust Port');
+
+  assert.strictEqual(crop2.cropVersions.length, 3, 'Scenario 58: cropVersions now has 3 versions');
+  assert.strictEqual(crop2.activeCropVersionId, 'crop-2', 'Scenario 58: active version is crop-2');
+
+  // 4. Switch active version back to crop-1
+  const switchedCrop1 = window.ImageObjects.selectCropVersion(s58Img.id, 'crop-1');
+  assert.strictEqual(switchedCrop1.activeCropVersionId, 'crop-1', 'Scenario 58: active version switched to crop-1');
+  assert.strictEqual(switchedCrop1.width, 200, 'Scenario 58: restored crop-1 width');
+  assert.strictEqual(switchedCrop1.crop.sourceWidth, 200, 'Scenario 58: restored crop-1 sourceWidth');
+
+  // 5. Switch active version to "original"
+  const switchedOrig = window.ImageObjects.selectCropVersion(s58Img.id, 'original');
+  assert.strictEqual(switchedOrig.activeCropVersionId, 'original', 'Scenario 58: active version switched to original');
+  assert.ok(!switchedOrig.crop || !switchedOrig.crop.enabled, 'Scenario 58: crop disabled when original is active');
+  assert.strictEqual(switchedOrig.width, 400, 'Scenario 58: restored original width');
+
+  const svgOrig = window.ImageObjects.renderImageElement(switchedOrig, 1280, 720);
+  assert.ok(!svgOrig.includes('crop-viewport-'), 'Scenario 58: SVG does not use crop-viewport when original is active');
+
+  // 6. Rename crop version
+  const renamed = window.ImageObjects.renameCropVersion(s58Img.id, 'crop-1', 'Turbine Core');
+  const ver1 = renamed.cropVersions.find((v) => v.id === 'crop-1');
+  assert.strictEqual(ver1.name, 'Turbine Core', 'Scenario 58: crop version successfully renamed');
+
+  // 7. Delete crop version
+  const afterDel = window.ImageObjects.deleteCropVersion(s58Img.id, 'crop-2');
+  assert.strictEqual(afterDel.cropVersions.length, 2, 'Scenario 58: crop version successfully deleted');
+  assert.ok(!afterDel.cropVersions.some((v) => v.id === 'crop-2'), 'Scenario 58: crop-2 no longer present');
+
+  // 8. Prevent deleting "original" version
+  const cannotDelOrig = window.ImageObjects.deleteCropVersion(s58Img.id, 'original');
+  assert.ok(!cannotDelOrig || cannotDelOrig.cropVersions.some((v) => v.id === 'original'), 'Scenario 58: original version cannot be deleted');
+
+  console.log('[HARNESS] Scenario 58 PASS: Crop Versions Lifecycle & Authoritative Selection Parity verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 59: Two-Step Clip Area Workflow & Independent Object Creation
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 59: Two-Step Clip Area Workflow & Independent Object Creation...');
+
+  const s59Img = window.ImageObjects.createImage({
+    name: 'Schematic Diagram',
+    filename: 'schematic.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 40,
+    y: 40,
+    width: 300,
+    height: 200
+  });
+
+  const origLayerCount = window.LayerManager ? window.LayerManager.getLayers().length : 0;
+
+  // Step 1: User defines clip area without affecting original image
+  window.ImageToolsController.setMode('clip');
+  window.AppCoordinator.selectObject('image', s59Img.id);
+
+  // Step 2: Confirm clip area extracts sub-area to preview
+  window.ImageToolsController.confirmClipArea(s59Img, { x: 30, y: 25, w: 150, h: 100 });
+
+  // Verify preview data captured
+  assert.ok(window.ImageToolsController._previewData, 'Scenario 59: previewData captured');
+  assert.strictEqual(window.ImageToolsController._previewData.w, 150, 'Scenario 59: preview width 150');
+  assert.strictEqual(window.ImageToolsController._previewData.h, 100, 'Scenario 59: preview height 100');
+
+  // Original image must be completely untouched
+  const untouchedImg = window.ImageObjects.getImage(s59Img.id);
+  assert.ok(!untouchedImg.clip || !untouchedImg.clip.enabled, 'Scenario 59: original image has NO clip mask');
+  assert.strictEqual(untouchedImg.width, 300, 'Scenario 59: original image width unchanged');
+  assert.strictEqual(untouchedImg.height, 200, 'Scenario 59: original image height unchanged');
+
+  // Step 3: Turn preview into independent Image Object
+  window.ImageToolsController.createImageFromPreview();
+
+  const newImg = window.ImageObjects.list[window.ImageObjects.list.length - 1];
+  assert.ok(newImg && newImg.id !== s59Img.id, 'Scenario 59: New independent Image Object created');
+  assert.strictEqual(newImg.width, 150, 'Scenario 59: New image width matches clipped sub-area');
+  assert.strictEqual(newImg.height, 100, 'Scenario 59: New image height matches clipped sub-area');
+
+  if (window.LayerManager) {
+    const newLayers = window.LayerManager.getLayers();
+    assert.strictEqual(newLayers.length, origLayerCount + 1, 'Scenario 59: Layer count increased by 1');
+    assert.ok(newLayers.some((l) => l.type === 'image' && String(l.id) === String(newImg.id)), 'Scenario 59: New image added to layers');
+  }
+
+  // Verify result card is populated
+  const resCard59 = document.getElementById('imageToolsResultCard');
+  assert.strictEqual(resCard59.style.display, 'block', 'Scenario 59: Result card displayed');
+
+  console.log('[HARNESS] Scenario 59 PASS: Two-Step Clip Area Workflow & Independent Object Creation verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 60: Two-Step Snip Background Workflow & Export
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 60: Two-Step Snip Background Workflow & Export...');
+
+  window.ImageToolsController.setMode('snip');
+  assert.strictEqual(window.ImageToolsController.currentMode, 'snip', 'Scenario 60: Snip mode active');
+
+  // Capture background snip
+  window.ImageToolsController.confirmBgSnip({ x: 50, y: 50, w: 240, h: 160 });
+
+  assert.ok(window.ImageToolsController._previewData, 'Scenario 60: previewData captured from background');
+  assert.strictEqual(window.ImageToolsController._previewData.w, 240, 'Scenario 60: captured width 240');
+  assert.strictEqual(window.ImageToolsController._previewData.h, 160, 'Scenario 60: captured height 160');
+
+  // Export Preview simulation
+  let exportedDownload = null;
+  const origAppend = document.body.appendChild;
+  document.body.appendChild = function(node) {
+    if (node && node.tagName === 'A' && node.download) {
+      exportedDownload = { download: node.download, href: node.href };
+    }
+    return origAppend.call(document.body, node);
+  };
+
+  const fmtSelect = document.getElementById('selPreviewExportFormat');
+  if (fmtSelect) fmtSelect.value = 'png';
+  window.ImageToolsController.exportPreview();
+
+  // Turn preview into independent Image Object
+  window.ImageToolsController.createImageFromPreview();
+  const snipImg = window.ImageObjects.list[window.ImageObjects.list.length - 1];
+  assert.ok(snipImg, 'Scenario 60: Snip converted to independent Image Object');
+  assert.strictEqual(snipImg.width, 240, 'Scenario 60: Snip object width 240');
+  assert.strictEqual(snipImg.height, 160, 'Scenario 60: Snip object height 160');
+
+  // Discard preview resets preview state
+  window.ImageToolsController.discardPreview();
+  assert.strictEqual(window.ImageToolsController._previewData, null, 'Scenario 60: previewData cleared after discard');
+
+  document.body.appendChild = origAppend;
+  console.log('[HARNESS] Scenario 60 PASS: Two-Step Snip Background Workflow & Export verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 61: Commit Current Crop (Preserve vs Discard Versions)
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 61: Commit Current Crop (Preserve vs Discard Versions)...');
+
+  const s61Img = window.ImageObjects.createImage({
+    name: 'Motor Assembly',
+    filename: 'motor.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 50,
+    y: 50,
+    width: 320,
+    height: 240,
+    naturalWidth: 640,
+    naturalHeight: 480
+  });
+
+  // Create two crop versions
+  window.ImageObjects.cropImage(s61Img.id, {
+    sourceX: 40,
+    sourceY: 40,
+    sourceWidth: 200,
+    sourceHeight: 150
+  }, { newW: 200, newH: 150 }, 'V1 Core');
+
+  const c2 = window.ImageObjects.cropImage(s61Img.id, {
+    sourceX: 10,
+    sourceY: 10,
+    sourceWidth: 160,
+    sourceHeight: 120
+  }, { newW: 160, newH: 120 }, 'V2 Stator');
+
+  const curS61 = window.ImageObjects.getImage(s61Img.id);
+  assert.strictEqual(curS61.cropVersions.length, 3, 'Scenario 61: 3 crop versions before commit');
+
+  // Commit & Preserve Original
+  const committedPreserve = window.ImageObjects.commitCrop(s61Img.id, {
+    newSrc: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    naturalWidth: 160,
+    naturalHeight: 120,
+    width: 160,
+    height: 120,
+    discardVersions: false
+  });
+
+  assert.ok(committedPreserve, 'Scenario 61: Commit succeeded');
+  assert.strictEqual(committedPreserve.naturalWidth, 160, 'Scenario 61: naturalWidth updated to committed 160');
+  assert.strictEqual(committedPreserve.naturalHeight, 120, 'Scenario 61: naturalHeight updated to committed 120');
+  assert.strictEqual(committedPreserve.cropVersions.length, 3, 'Scenario 61: Crop versions preserved');
+
+  // Commit & Discard Versions
+  const committedDiscard = window.ImageObjects.commitCrop(s61Img.id, {
+    newSrc: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    naturalWidth: 140,
+    naturalHeight: 100,
+    width: 140,
+    height: 100,
+    discardVersions: true
+  });
+
+  assert.strictEqual(committedDiscard.cropVersions.length, 1, 'Scenario 61: Previous versions discarded');
+  assert.strictEqual(committedDiscard.cropVersions[0].id, 'original', 'Scenario 61: Reset to single original version');
+  assert.strictEqual(committedDiscard.activeCropVersionId, 'original', 'Scenario 61: Active version is original');
+  assert.strictEqual(committedDiscard.naturalWidth, 140, 'Scenario 61: Final naturalWidth 140');
+
+  console.log('[HARNESS] Scenario 61 PASS: Commit Current Crop (Preserve vs Discard Versions) verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 62: Scene Exports Render the Currently Active Crop Version
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 62: Scene Exports Render the Currently Active Crop Version...');
+
+  const s62Img = window.ImageObjects.createImage({
+    name: 'Export Crop Test',
+    filename: 'export-crop.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 50,
+    y: 50,
+    width: 400,
+    height: 300,
+    naturalWidth: 800,
+    naturalHeight: 600
+  });
+
+  // Create crop version "Focus Area"
+  const cFocus = window.ImageObjects.cropImage(s62Img.id, {
+    sourceX: 150,
+    sourceY: 120,
+    sourceWidth: 250,
+    sourceHeight: 180
+  }, { newW: 250, newH: 180 }, 'Focus Area');
+
+  // When "Focus Area" is active:
+  assert.strictEqual(cFocus.activeCropVersionId, 'crop-1', 'Scenario 62: Active crop version is Focus Area');
+  const svgCropActive = window.ImageObjects.renderImageElement(cFocus, 1280, 720);
+  assert.ok(svgCropActive.startsWith('<svg '), 'Scenario 62: Active crop version rendered with nested SVG viewport');
+  assert.ok(svgCropActive.includes('viewBox="150.00 120.00 250.00 180.00"'), 'Scenario 62: Active crop version viewBox matches');
+
+  // Switch back to "Original":
+  const switchedOrig62 = window.ImageObjects.selectCropVersion(s62Img.id, 'original');
+  assert.strictEqual(switchedOrig62.activeCropVersionId, 'original', 'Scenario 62: Active crop version is Original');
+  const svgOrigActive = window.ImageObjects.renderImageElement(switchedOrig62, 1280, 720);
+  assert.ok(svgOrigActive.startsWith('<image '), 'Scenario 62: Original rendered with standard image tag');
+  assert.ok(!svgOrigActive.includes('<svg '), 'Scenario 62: Original rendered without nested svg viewport');
+
+  console.log('[HARNESS] Scenario 62 PASS: Scene Exports Render the Currently Active Crop Version verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

@@ -313,6 +313,24 @@ type ImageCrop struct {
 	OrigHeight   float64 `json:"origHeight,omitempty"`
 }
 
+// CropVersion represents a named, persistent crop state for an Image.
+type CropVersion struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	SourceX      float64 `json:"sourceX"`
+	SourceY      float64 `json:"sourceY"`
+	SourceWidth  float64 `json:"sourceWidth"`
+	SourceHeight float64 `json:"sourceHeight"`
+	Width        float64 `json:"width,omitempty"`
+	Height       float64 `json:"height,omitempty"`
+	X            float64 `json:"x,omitempty"`
+	Y            float64 `json:"y,omitempty"`
+	OrigX        float64 `json:"origX,omitempty"`
+	OrigY        float64 `json:"origY,omitempty"`
+	OrigWidth    float64 `json:"origWidth,omitempty"`
+	OrigHeight   float64 `json:"origHeight,omitempty"`
+}
+
 // ImageClip defines non-destructive object-local rectangular clipping boundary parameters.
 type ImageClip struct {
 	Enabled bool    `json:"enabled"`
@@ -339,6 +357,8 @@ type Image struct {
 	NaturalHeight       float64        `json:"naturalHeight,omitempty"` // Source image height (for non-destructive crop in Stage 15)
 	MaintainAspectRatio bool           `json:"maintainAspectRatio"`
 	Crop                *ImageCrop     `json:"crop,omitempty"` // Non-destructive crop parameters
+	CropVersions        []CropVersion  `json:"cropVersions,omitempty"` // Selectable collection of crop versions
+	ActiveCropVersionID string         `json:"activeCropVersionId,omitempty"` // ID of currently active crop version
 	Clip                *ImageClip     `json:"clip,omitempty"` // Non-destructive object-local clipping boundary
 	Opacity             float64        `json:"opacity"`
 	Visible             *bool          `json:"visible,omitempty"`

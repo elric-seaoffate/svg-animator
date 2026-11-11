@@ -856,6 +856,10 @@ window.Stage = {
           if (btn) {
             btn.disabled = !(w >= 10 && h >= 10);
           }
+          const btnDrawer = document.getElementById('btnConfirmBgSnip');
+          if (btnDrawer) {
+            btnDrawer.disabled = !(w >= 10 && h >= 10);
+          }
           if (typeof window.syncImageToolsFromSnip === 'function') {
             window.syncImageToolsFromSnip();
           }
@@ -1819,6 +1823,31 @@ window.Stage = {
     if (lbl) {
       lbl.innerText = `${localX}, ${localY} (${localW} × ${localH} px)`;
     }
+
+    const btnConfirm = document.getElementById('btnConfirmClipArea');
+    if (btnConfirm) {
+      btnConfirm.disabled = !(localW >= 10 && localH >= 10);
+    }
+  },
+
+  confirmClipAreaMode() {
+    if (!this.isClippingImage || !this.activeClipImage || !this.clipBox || !this.clipOrigBounds) {
+      this.cancelClipMode();
+      return;
+    }
+    const img = this.activeClipImage;
+    const b = this.clipBox;
+    const ob = this.clipOrigBounds;
+    const localX = Math.round(Math.max(0, b.x - ob.left));
+    const localY = Math.round(Math.max(0, b.y - ob.top));
+    const localW = Math.max(10, Math.min(ob.w - localX, Math.round(b.w)));
+    const localH = Math.max(10, Math.min(ob.h - localY, Math.round(b.h)));
+    const clipRect = { x: localX, y: localY, w: localW, h: localH };
+    this.cancelClipMode();
+
+    if (window.ImageToolsController && typeof window.ImageToolsController.confirmClipArea === 'function') {
+      window.ImageToolsController.confirmClipArea(img, clipRect);
+    }
   },
 
   applyClipMode() {
@@ -1946,7 +1975,9 @@ window.Stage = {
     }
     const box = Object.assign({}, this.bgExtractBox);
     this.cancelBgExtractMode();
-    if (typeof window.executeBackgroundExtraction === 'function') {
+    if (window.ImageToolsController && typeof window.ImageToolsController.confirmBgSnip === 'function') {
+      window.ImageToolsController.confirmBgSnip(box);
+    } else if (typeof window.executeBackgroundExtraction === 'function') {
       window.executeBackgroundExtraction(box);
     }
   }
