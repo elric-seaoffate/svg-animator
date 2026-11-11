@@ -6422,6 +6422,261 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 47 PASS: Layers Drawer toolbar accessibility, dynamic button enabling and reordering verified.');
 
+  // ===========================================================================
+  // SCENARIO 48: Layer Ordering and State Controls in Normal Object Properties Panels
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 48: Layer ordering and state controls in normal object properties panels...');
+  window.ProjectManager.resetToNewProject();
+
+  // 1. Verify static index.html markup contains LAYER sections inside each normal editor
+  const indexHtmlRaw = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+
+  // Verify nodeEditor contains nodeLayerSection
+  const nodeEditorIdx = indexHtmlRaw.indexOf('id="nodeEditor"');
+  const nodeLayerIdx = indexHtmlRaw.indexOf('id="nodeLayerSection"');
+  const accPresetsIdx = indexHtmlRaw.indexOf('id="acc-presets"');
+  assert.ok(nodeEditorIdx !== -1 && nodeLayerIdx !== -1, 'Scenario 48: nodeEditor and nodeLayerSection exist in index.html');
+  assert.ok(nodeLayerIdx > nodeEditorIdx && nodeLayerIdx < accPresetsIdx, 'Scenario 48: nodeLayerSection is inside nodeEditor');
+
+  // Verify flowEditor contains flowLayerSection
+  const flowEditorIdx = indexHtmlRaw.indexOf('id="flowEditor"');
+  const flowLayerIdx = indexHtmlRaw.indexOf('id="flowLayerSection"');
+  const accGlowsIdx = indexHtmlRaw.indexOf('id="acc-glows"');
+  assert.ok(flowEditorIdx !== -1 && flowLayerIdx !== -1, 'Scenario 48: flowEditor and flowLayerSection exist in index.html');
+  assert.ok(flowLayerIdx > flowEditorIdx && flowLayerIdx < accGlowsIdx, 'Scenario 48: flowLayerSection is inside flowEditor');
+
+  // Verify glowEditor contains glowLayerSection
+  const glowEditorIdx = indexHtmlRaw.indexOf('id="glowEditor"');
+  const glowLayerIdx = indexHtmlRaw.indexOf('id="glowLayerSection"');
+  const accRipplesIdx = indexHtmlRaw.indexOf('id="acc-ripples"');
+  assert.ok(glowEditorIdx !== -1 && glowLayerIdx !== -1, 'Scenario 48: glowEditor and glowLayerSection exist in index.html');
+  assert.ok(glowLayerIdx > glowEditorIdx && glowLayerIdx < accRipplesIdx, 'Scenario 48: glowLayerSection is inside glowEditor');
+
+  // Verify rippleEditor contains rippleLayerSection
+  const rippleEditorIdx = indexHtmlRaw.indexOf('id="rippleEditor"');
+  const rippleLayerIdx = indexHtmlRaw.indexOf('id="rippleLayerSection"');
+  const accLayersIdx = indexHtmlRaw.indexOf('id="acc-layers"');
+  assert.ok(rippleEditorIdx !== -1 && rippleLayerIdx !== -1, 'Scenario 48: rippleEditor and rippleLayerSection exist in index.html');
+  assert.ok(rippleLayerIdx > rippleEditorIdx && rippleLayerIdx < accLayersIdx, 'Scenario 48: rippleLayerSection is inside rippleEditor');
+
+  // Verify imageEditor contains imageLayerSection
+  const imageEditorIdx = indexHtmlRaw.indexOf('id="imageEditor"');
+  const imageLayerIdx = indexHtmlRaw.indexOf('id="imageLayerSection"');
+  const endLeftDrawerIdx = indexHtmlRaw.indexOf('id="stageMain"');
+  assert.ok(imageEditorIdx !== -1 && imageLayerIdx !== -1, 'Scenario 48: imageEditor and imageLayerSection exist in index.html');
+  assert.ok(imageLayerIdx > imageEditorIdx && imageLayerIdx < endLeftDrawerIdx, 'Scenario 48: imageLayerSection is inside imageEditor');
+
+  // Verify nodeMultiSelectToolbar contains groupLayerSection
+  const multiTbIdx = indexHtmlRaw.indexOf('id="nodeMultiSelectToolbar"');
+  const groupLayerIdx = indexHtmlRaw.indexOf('id="groupLayerSection"');
+  assert.ok(multiTbIdx !== -1 && groupLayerIdx !== -1, 'Scenario 48: nodeMultiSelectToolbar and groupLayerSection exist in index.html');
+  assert.ok(groupLayerIdx > multiTbIdx && groupLayerIdx < nodeEditorIdx, 'Scenario 48: groupLayerSection is inside nodeMultiSelectToolbar');
+
+  // 2. Wire mock DOM hierarchy and verify element containment
+  const sectionsConfig = [
+    { prefix: 'Node', editorId: 'nodeEditor', sectionId: 'nodeLayerSection' },
+    { prefix: 'Flow', editorId: 'flowEditor', sectionId: 'flowLayerSection' },
+    { prefix: 'Glow', editorId: 'glowEditor', sectionId: 'glowLayerSection' },
+    { prefix: 'Ripple', editorId: 'rippleEditor', sectionId: 'rippleLayerSection' },
+    { prefix: 'Image', editorId: 'imageEditor', sectionId: 'imageLayerSection' },
+    { prefix: 'Group', editorId: 'nodeMultiSelectToolbar', sectionId: 'groupLayerSection' }
+  ];
+
+  sectionsConfig.forEach(({ prefix, editorId, sectionId }) => {
+    const editorEl = document.getElementById(editorId);
+    const sectionEl = document.getElementById(sectionId);
+    const btnToFront = document.getElementById(`btn${prefix}LayerToFront`);
+    const btnFwd = document.getElementById(`btn${prefix}LayerForward`);
+    const btnBack = document.getElementById(`btn${prefix}LayerBackward`);
+    const btnToBack = document.getElementById(`btn${prefix}LayerToBack`);
+    const posLabel = document.getElementById(`${prefix.toLowerCase()}LayerPositionLabel`);
+    const btnVis = document.getElementById(`btn${prefix}LayerVis`);
+    const btnLock = document.getElementById(`btn${prefix}LayerLock`);
+
+    editorEl.appendChild(sectionEl);
+    sectionEl.appendChild(btnToFront);
+    sectionEl.appendChild(btnFwd);
+    sectionEl.appendChild(btnBack);
+    sectionEl.appendChild(btnToBack);
+    sectionEl.appendChild(posLabel);
+    sectionEl.appendChild(btnVis);
+    sectionEl.appendChild(btnLock);
+
+    assert.strictEqual(editorEl.contains(btnToFront), true, `Scenario 48: ${editorId} contains btn${prefix}LayerToFront`);
+    assert.strictEqual(editorEl.contains(btnFwd), true, `Scenario 48: ${editorId} contains btn${prefix}LayerForward`);
+    assert.strictEqual(editorEl.contains(btnBack), true, `Scenario 48: ${editorId} contains btn${prefix}LayerBackward`);
+    assert.strictEqual(editorEl.contains(btnToBack), true, `Scenario 48: ${editorId} contains btn${prefix}LayerToBack`);
+    assert.strictEqual(editorEl.contains(posLabel), true, `Scenario 48: ${editorId} contains ${prefix.toLowerCase()}LayerPositionLabel`);
+    assert.strictEqual(editorEl.contains(btnVis), true, `Scenario 48: ${editorId} contains btn${prefix}LayerVis`);
+    assert.strictEqual(editorEl.contains(btnLock), true, `Scenario 48: ${editorId} contains btn${prefix}LayerLock`);
+  });
+
+  // Initialize event bindings for inspector sections and image editor
+  window.initInspectorLayerSectionEvents();
+  window.initImageEditorEvents();
+
+  // 3. Operational test: Create 2 shapes, select rear shape, verify controls in nodeEditor
+  const s48Node1 = window.DiagramNodes.addNode(100, 100, { name: 'Shape 1' });
+  const s48Node2 = window.DiagramNodes.addNode(150, 150, { name: 'Shape 2' });
+  assert.ok(s48Node1 && s48Node2, 'Scenario 48: Two shapes created');
+
+  // Select rear shape (s48Node1 is at layer index 0 - bottom of stack)
+  window.DiagramNodes.selectNode(s48Node1.id);
+  window.syncInspectorLayerSections();
+
+  const nodeEditorEl = document.getElementById('nodeEditor');
+  assert.strictEqual(nodeEditorEl.style.display, 'block', 'Scenario 48: nodeEditor is open for Shape 1');
+
+  const btnNFront = document.getElementById('btnNodeLayerToFront');
+  const btnNFwd = document.getElementById('btnNodeLayerForward');
+  const btnNBack = document.getElementById('btnNodeLayerBackward');
+  const btnNToBack = document.getElementById('btnNodeLayerToBack');
+  const lblNPos = document.getElementById('nodeLayerPositionLabel');
+  const btnNVis = document.getElementById('btnNodeLayerVis');
+  const btnNLock = document.getElementById('btnNodeLayerLock');
+
+  assert.strictEqual(lblNPos.textContent, 'Position: 1 of 2', 'Scenario 48: Shape 1 position is 1 of 2');
+  assert.strictEqual(btnNBack.disabled, true, 'Scenario 48: Bottom shape cannot send backward');
+  assert.strictEqual(btnNToBack.disabled, true, 'Scenario 48: Bottom shape cannot send to back');
+  assert.strictEqual(btnNFwd.disabled, false, 'Scenario 48: Bottom shape can bring forward');
+  assert.strictEqual(btnNFront.disabled, false, 'Scenario 48: Bottom shape can bring to front');
+
+  // 4. Click Bring to Front directly on the node editor button
+  btnNFront.click();
+  window.syncInspectorLayerSections();
+
+  // Verify consecutive reordering capability: panel remains open and selection remains active
+  assert.strictEqual(nodeEditorEl.style.display, 'block', 'Scenario 48: nodeEditor remains open after Bring to Front');
+  assert.strictEqual(window.DiagramNodes.activeId, s48Node1.id, 'Scenario 48: Shape 1 remains actively selected');
+  assert.strictEqual(lblNPos.textContent, 'Position: 2 of 2', 'Scenario 48: Shape 1 position updated to 2 of 2');
+  assert.strictEqual(btnNFront.disabled, true, 'Scenario 48: Top shape cannot bring to front');
+  assert.strictEqual(btnNFwd.disabled, true, 'Scenario 48: Top shape cannot bring forward');
+  assert.strictEqual(btnNBack.disabled, false, 'Scenario 48: Top shape can send backward');
+  assert.strictEqual(btnNToBack.disabled, false, 'Scenario 48: Top shape can send to back');
+
+  // 5. Consecutive reordering: Click Send Backward on the node editor button
+  btnNBack.click();
+  window.syncInspectorLayerSections();
+
+  assert.strictEqual(nodeEditorEl.style.display, 'block', 'Scenario 48: nodeEditor remains open after Send Backward');
+  assert.strictEqual(lblNPos.textContent, 'Position: 1 of 2', 'Scenario 48: Shape 1 moved back to Position: 1 of 2');
+  assert.strictEqual(btnNBack.disabled, true, 'Scenario 48: Bottom shape send backward disabled');
+  assert.strictEqual(btnNFwd.disabled, false, 'Scenario 48: Bottom shape bring forward enabled');
+
+  // 6. Test Visibility and Lock toggles on the node editor buttons
+  btnNVis.click();
+  let effN1 = window.LayerManager.getEffective('node', s48Node1.id);
+  assert.strictEqual(effN1.visible, false, 'Scenario 48: Shape 1 visibility toggled to false');
+  window.syncInspectorLayerSections();
+  assert.strictEqual(btnNVis.textContent, '🕶️ Hidden', 'Scenario 48: btnNodeLayerVis shows Hidden');
+
+  btnNVis.click();
+  effN1 = window.LayerManager.getEffective('node', s48Node1.id);
+  assert.strictEqual(effN1.visible, true, 'Scenario 48: Shape 1 visibility toggled back to true');
+  window.syncInspectorLayerSections();
+  assert.strictEqual(btnNVis.textContent, '👁 Visible', 'Scenario 48: btnNodeLayerVis shows Visible');
+
+  btnNLock.click();
+  effN1 = window.LayerManager.getEffective('node', s48Node1.id);
+  assert.strictEqual(effN1.locked, true, 'Scenario 48: Shape 1 lock toggled to true');
+  window.syncInspectorLayerSections();
+  assert.strictEqual(btnNLock.textContent, '🔒 Locked', 'Scenario 48: btnNodeLayerLock shows Locked');
+
+  btnNLock.click();
+  effN1 = window.LayerManager.getEffective('node', s48Node1.id);
+  assert.strictEqual(effN1.locked, false, 'Scenario 48: Shape 1 lock toggled back to false');
+
+  // 7. Test Flow editor layer section
+  const s48Flow1 = window.DataFlows.createFlow({ name: 'Flow 1', fromNodeId: s48Node1.id, toNodeId: s48Node2.id });
+  assert.ok(s48Flow1, 'Scenario 48: Flow 1 created');
+  window.DataFlows.selectFlow(s48Flow1.id);
+  window.syncInspectorLayerSections();
+
+  const flowEditorEl = document.getElementById('flowEditor');
+  assert.strictEqual(flowEditorEl.style.display, 'block', 'Scenario 48: flowEditor is open for Flow 1');
+  const lblFPos = document.getElementById('flowLayerPositionLabel');
+  assert.strictEqual(lblFPos.textContent, 'Position: 3 of 3', 'Scenario 48: Flow 1 at top (Position 3 of 3)');
+  const btnFToBack = document.getElementById('btnFlowLayerToBack');
+  btnFToBack.click();
+  window.syncInspectorLayerSections();
+  assert.strictEqual(flowEditorEl.style.display, 'block', 'Scenario 48: flowEditor remains open after sendToBack');
+  assert.strictEqual(lblFPos.textContent, 'Position: 1 of 3', 'Scenario 48: Flow 1 moved to bottom (Position 1 of 3)');
+
+  // 8. Test Glow editor layer section
+  const s48Glow1 = window.Glows.createGlow({ name: 'Glow 1', x: 50, y: 50 });
+  assert.ok(s48Glow1, 'Scenario 48: Glow 1 created');
+  window.Glows.selectGlow(s48Glow1.id);
+  window.syncInspectorLayerSections();
+
+  const glowEditorEl = document.getElementById('glowEditor');
+  assert.strictEqual(glowEditorEl.style.display, 'block', 'Scenario 48: glowEditor is open for Glow 1');
+  const lblGPos = document.getElementById('glowLayerPositionLabel');
+  assert.strictEqual(lblGPos.textContent, 'Position: 4 of 4', 'Scenario 48: Glow 1 at top (Position 4 of 4)');
+  const btnGBack = document.getElementById('btnGlowLayerBackward');
+  btnGBack.click();
+  window.syncInspectorLayerSections();
+  assert.strictEqual(glowEditorEl.style.display, 'block', 'Scenario 48: glowEditor remains open after send backward');
+  assert.strictEqual(lblGPos.textContent, 'Position: 3 of 4', 'Scenario 48: Glow 1 moved to Position 3 of 4');
+
+  // 9. Test Ripple editor layer section
+  const s48Ripple1 = window.Ripples.createRipple({ name: 'Ripple 1', x: 60, y: 60 });
+  assert.ok(s48Ripple1, 'Scenario 48: Ripple 1 created');
+  window.Ripples.selectRipple(s48Ripple1.id);
+  window.syncInspectorLayerSections();
+
+  const rippleEditorEl = document.getElementById('rippleEditor');
+  assert.strictEqual(rippleEditorEl.style.display, 'block', 'Scenario 48: rippleEditor is open for Ripple 1');
+  const lblRPos = document.getElementById('rippleLayerPositionLabel');
+  assert.strictEqual(lblRPos.textContent, 'Position: 5 of 5', 'Scenario 48: Ripple 1 at top (Position 5 of 5)');
+
+  // 10. Test Image editor layer section
+  const s48Img1 = window.ImageObjects.createImage({ name: 'Test Image', width: 250, height: 180 });
+  assert.ok(s48Img1, 'Scenario 48: Test Image created');
+  window.AppCoordinator.selectObject('image', s48Img1.id);
+  window.syncImageEditorUI();
+  window.syncInspectorLayerSections();
+
+  const imageEditorEl = document.getElementById('imageEditor');
+  assert.strictEqual(imageEditorEl.style.display, 'block', 'Scenario 48: imageEditor is open for Image 1');
+  const lblIPos = document.getElementById('imageLayerPositionLabel');
+  assert.strictEqual(lblIPos.textContent, 'Position: 6 of 6', 'Scenario 48: Image 1 at top (Position 6 of 6)');
+  const btnIToBack = document.getElementById('btnImageLayerToBack');
+  btnIToBack.click();
+  window.syncInspectorLayerSections();
+  assert.strictEqual(imageEditorEl.style.display, 'block', 'Scenario 48: imageEditor remains open after sendToBack');
+  assert.strictEqual(lblIPos.textContent, 'Position: 1 of 6', 'Scenario 48: Image 1 moved to bottom (Position 1 of 6)');
+
+  // 11. Test Persistent Group layer section in nodeMultiSelectToolbar
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: s48Node1.id },
+    { type: 'node', id: s48Node2.id }
+  ]);
+  const s48Grp = window.AppCoordinator.createGroupFromSelection('Test Group');
+  assert.ok(s48Grp, 'Scenario 48: Persistent group created');
+  window.AppCoordinator.selectGroup(s48Grp.id);
+  window.syncInspectorLayerSections();
+
+  const multiToolbarEl = document.getElementById('nodeMultiSelectToolbar');
+  assert.strictEqual(multiToolbarEl.style.display, 'block', 'Scenario 48: nodeMultiSelectToolbar open for group');
+  const lblGrpPos = document.getElementById('groupLayerPositionLabel');
+  assert.ok(lblGrpPos.textContent.startsWith('Position: '), 'Scenario 48: Group layer position displayed');
+
+  // 12. Test History Undo / Redo updates position indicators in normal properties panels
+  const layersBeforeMove = window.LayerManager.getLayers().map(l => `${l.type}:${l.id}`);
+  const btnGrpFront = document.getElementById('btnGroupLayerToFront');
+  btnGrpFront.click();
+  window.syncInspectorLayerSections();
+
+  const layersAfterMove = window.LayerManager.getLayers().map(l => `${l.type}:${l.id}`);
+  assert.notDeepStrictEqual(layersBeforeMove, layersAfterMove, 'Scenario 48: Group Bring to Front changed layer order');
+
+  window.HistoryManager.undo();
+  window.syncInspectorLayerSections();
+  const layersAfterUndo = window.LayerManager.getLayers().map(l => `${l.type}:${l.id}`);
+  assert.deepStrictEqual(layersBeforeMove, layersAfterUndo, 'Scenario 48: Undo restored layer order and inspector position');
+
+  console.log('[HARNESS] Scenario 48 PASS: Layer ordering and state controls in normal object properties panels verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 & 14 unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

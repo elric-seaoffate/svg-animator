@@ -590,6 +590,10 @@ window.Glows = {
       if (sl) sl.value = val;
       if (nu) nu.value = val;
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   selectGlow(id, options = {}) {
@@ -624,6 +628,9 @@ window.Glows = {
     if (empty) empty.style.display = 'block';
     const ret = document.getElementById('glowReticleTarget');
     if (ret) ret.style.display = 'none';
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'glow' && !window.AppCoordinator._isCoordinatingSelection) {
       window.AppCoordinator.clearSelection();
     }

@@ -615,6 +615,10 @@ window.DiagramNodes = {
       if (sl) sl.value = node[key];
       if (nu) nu.value = node[key];
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   selectNode(id, openAccordion = false, options = {}) {
@@ -658,6 +662,9 @@ window.DiagramNodes = {
     const multiGroup = document.getElementById('multiSelectionGroup');
     if (multiGroup) multiGroup.innerHTML = '';
     this.updateMultiSelectToolbar([]);
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'node' && !window.AppCoordinator._isCoordinatingSelection) {
       window.AppCoordinator.clearSelection();
     }
@@ -935,8 +942,13 @@ window.DiagramNodes = {
         const btnDistV = document.getElementById('btnDistributeV');
         if (btnDistH) btnDistH.disabled = !canDist;
         if (btnDistV) btnDistV.disabled = !canDist;
+        const grpLayerSec = document.getElementById('groupLayerSection');
+        if (grpLayerSec) grpLayerSec.style.display = isGroup ? 'block' : 'none';
       } else {
         toolbar.style.display = 'none';
+      }
+      if (typeof window.syncInspectorLayerSections === 'function') {
+        window.syncInspectorLayerSections();
       }
     }
 

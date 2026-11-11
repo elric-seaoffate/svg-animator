@@ -2387,6 +2387,109 @@ body.editing-flow #flightLine {
   pointer-events: none;
 }
 
+/* Object Properties Layer Section */
+.inspector-layer-section {
+  margin-top: 0.65rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border, #30363d);
+}
+
+.inspector-section-divider {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.inspector-section-divider span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8b949e;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.layer-reorder-btn-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: 0.35rem;
+}
+
+.btn-layer-reorder {
+  padding: 0.28rem 0.2rem;
+  font-size: 0.72rem;
+  border: 1px solid var(--border, #30363d);
+  background: #21262d;
+  color: #c9d1d9;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
+}
+
+.btn-layer-reorder:hover:not(:disabled) {
+  background: #30363d;
+  border-color: #58a6ff;
+  color: #ffffff;
+}
+
+.btn-layer-reorder:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.layer-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #8b949e;
+  margin-top: 0.25rem;
+}
+
+.layer-position-label {
+  font-size: 0.72rem;
+  color: #8b949e;
+  white-space: nowrap;
+}
+
+.layer-state-toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-layer-toggle {
+  padding: 0.22rem 0.45rem;
+  font-size: 0.7rem;
+  border: 1px solid var(--border, #30363d);
+  background: #21262d;
+  color: #c9d1d9;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.btn-layer-toggle:hover {
+  background: #30363d;
+  color: #ffffff;
+}
+
+.btn-layer-toggle.active {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+
+.btn-layer-toggle.locked {
+  background: rgba(227, 179, 65, 0.15);
+  border-color: #e3b341;
+  color: #e3b341;
+}
+
 .layers-list-container {
   scrollbar-width: thin;
   scrollbar-color: #30363d transparent;

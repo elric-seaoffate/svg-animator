@@ -270,6 +270,24 @@
                   <button type="button" class="tool-btn-compact" id="btnGroupSelection" title="Group selected shapes into a persistent group (Ctrl+G)">👥 Group</button>
                   <button type="button" class="tool-btn-compact" id="btnDuplicateSelection" title="Duplicate selected shapes (Ctrl+D)">📋 Duplicate</button>
                 </div>
+                <div class="inspector-layer-section group-layer-section" id="groupLayerSection" style="margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px dashed rgba(88,166,255,0.3);">
+                  <div class="inspector-section-divider">
+                    <span>GROUP LAYER</span>
+                  </div>
+                  <div class="layer-reorder-btn-row">
+                    <button type="button" class="btn-layer-reorder" id="btnGroupLayerToFront" data-action="toFront" title="Bring Group to Front (Ctrl+Shift+])" aria-label="Bring Group to Front">⤊ Front</button>
+                    <button type="button" class="btn-layer-reorder" id="btnGroupLayerForward" data-action="forward" title="Bring Group Forward (Ctrl+])" aria-label="Bring Group Forward">↑ Forward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnGroupLayerBackward" data-action="backward" title="Send Group Backward (Ctrl+[)" aria-label="Send Group Backward">↓ Backward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnGroupLayerToBack" data-action="toBack" title="Send Group to Back (Ctrl+Shift+[)" aria-label="Send Group to Back">⤋ Back</button>
+                  </div>
+                  <div class="layer-status-row">
+                    <span class="layer-position-label" id="groupLayerPositionLabel">Position: —</span>
+                    <div class="layer-state-toggles">
+                      <button type="button" class="btn-layer-toggle btn-layer-vis" id="btnGroupLayerVis" data-action="toggleVis" title="Toggle Group Visibility">👁 Visible</button>
+                      <button type="button" class="btn-layer-toggle btn-layer-lock" id="btnGroupLayerLock" data-action="toggleLock" title="Toggle Group Lock">🔓 Unlocked</button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div id="emptyNodeSelection" class="inspector-empty-state">
@@ -390,6 +408,25 @@
                     <option value="float">Gentle Float</option>
                     <option value="fade-in">Fade In</option>
                   </select>
+                </div>
+
+                <div class="inspector-layer-section" id="nodeLayerSection">
+                  <div class="inspector-section-divider">
+                    <span>LAYER</span>
+                  </div>
+                  <div class="layer-reorder-btn-row">
+                    <button type="button" class="btn-layer-reorder" id="btnNodeLayerToFront" data-action="toFront" title="Bring to Front (Ctrl+Shift+])" aria-label="Bring to Front">⤊ Front</button>
+                    <button type="button" class="btn-layer-reorder" id="btnNodeLayerForward" data-action="forward" title="Bring Forward (Ctrl+])" aria-label="Bring Forward">↑ Forward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnNodeLayerBackward" data-action="backward" title="Send Backward (Ctrl+[)" aria-label="Send Backward">↓ Backward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnNodeLayerToBack" data-action="toBack" title="Send to Back (Ctrl+Shift+[)" aria-label="Send to Back">⤋ Back</button>
+                  </div>
+                  <div class="layer-status-row">
+                    <span class="layer-position-label" id="nodeLayerPositionLabel">Position: —</span>
+                    <div class="layer-state-toggles">
+                      <button type="button" class="btn-layer-toggle btn-layer-vis" id="btnNodeLayerVis" data-action="toggleVis" title="Toggle Visibility">👁 Visible</button>
+                      <button type="button" class="btn-layer-toggle btn-layer-lock" id="btnNodeLayerLock" data-action="toggleLock" title="Toggle Lock">🔓 Unlocked</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -740,6 +777,25 @@
                   <label>Pause Mode</label>
                   <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;"><input type="checkbox" id="flowHideOnDelay" checked> 👻 Hide in pause</label>
                 </div>
+
+                <div class="inspector-layer-section" id="flowLayerSection">
+                  <div class="inspector-section-divider">
+                    <span>LAYER</span>
+                  </div>
+                  <div class="layer-reorder-btn-row">
+                    <button type="button" class="btn-layer-reorder" id="btnFlowLayerToFront" data-action="toFront" title="Bring to Front (Ctrl+Shift+])" aria-label="Bring to Front">⤊ Front</button>
+                    <button type="button" class="btn-layer-reorder" id="btnFlowLayerForward" data-action="forward" title="Bring Forward (Ctrl+])" aria-label="Bring Forward">↑ Forward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnFlowLayerBackward" data-action="backward" title="Send Backward (Ctrl+[)" aria-label="Send Backward">↓ Backward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnFlowLayerToBack" data-action="toBack" title="Send to Back (Ctrl+Shift+[)" aria-label="Send to Back">⤋ Back</button>
+                  </div>
+                  <div class="layer-status-row">
+                    <span class="layer-position-label" id="flowLayerPositionLabel">Position: —</span>
+                    <div class="layer-state-toggles">
+                      <button type="button" class="btn-layer-toggle btn-layer-vis" id="btnFlowLayerVis" data-action="toggleVis" title="Toggle Visibility">👁 Visible</button>
+                      <button type="button" class="btn-layer-toggle btn-layer-lock" id="btnFlowLayerLock" data-action="toggleLock" title="Toggle Lock">🔓 Unlocked</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -883,6 +939,25 @@
                   <label>Pause Mode</label>
                   <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;"><input type="checkbox" id="glowHideOnDelay" checked> 👻 Hide in pause</label>
                 </div>
+
+                <div class="inspector-layer-section" id="glowLayerSection">
+                  <div class="inspector-section-divider">
+                    <span>LAYER</span>
+                  </div>
+                  <div class="layer-reorder-btn-row">
+                    <button type="button" class="btn-layer-reorder" id="btnGlowLayerToFront" data-action="toFront" title="Bring to Front (Ctrl+Shift+])" aria-label="Bring to Front">⤊ Front</button>
+                    <button type="button" class="btn-layer-reorder" id="btnGlowLayerForward" data-action="forward" title="Bring Forward (Ctrl+])" aria-label="Bring Forward">↑ Forward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnGlowLayerBackward" data-action="backward" title="Send Backward (Ctrl+[)" aria-label="Send Backward">↓ Backward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnGlowLayerToBack" data-action="toBack" title="Send to Back (Ctrl+Shift+[)" aria-label="Send to Back">⤋ Back</button>
+                  </div>
+                  <div class="layer-status-row">
+                    <span class="layer-position-label" id="glowLayerPositionLabel">Position: —</span>
+                    <div class="layer-state-toggles">
+                      <button type="button" class="btn-layer-toggle btn-layer-vis" id="btnGlowLayerVis" data-action="toggleVis" title="Toggle Visibility">👁 Visible</button>
+                      <button type="button" class="btn-layer-toggle btn-layer-lock" id="btnGlowLayerLock" data-action="toggleLock" title="Toggle Lock">🔓 Unlocked</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -985,6 +1060,25 @@
                   <label>End Delay</label>
                   <div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum"></div>
                 </div>
+
+                <div class="inspector-layer-section" id="rippleLayerSection">
+                  <div class="inspector-section-divider">
+                    <span>LAYER</span>
+                  </div>
+                  <div class="layer-reorder-btn-row">
+                    <button type="button" class="btn-layer-reorder" id="btnRippleLayerToFront" data-action="toFront" title="Bring to Front (Ctrl+Shift+])" aria-label="Bring to Front">⤊ Front</button>
+                    <button type="button" class="btn-layer-reorder" id="btnRippleLayerForward" data-action="forward" title="Bring Forward (Ctrl+])" aria-label="Bring Forward">↑ Forward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnRippleLayerBackward" data-action="backward" title="Send Backward (Ctrl+[)" aria-label="Send Backward">↓ Backward</button>
+                    <button type="button" class="btn-layer-reorder" id="btnRippleLayerToBack" data-action="toBack" title="Send to Back (Ctrl+Shift+[)" aria-label="Send to Back">⤋ Back</button>
+                  </div>
+                  <div class="layer-status-row">
+                    <span class="layer-position-label" id="rippleLayerPositionLabel">Position: —</span>
+                    <div class="layer-state-toggles">
+                      <button type="button" class="btn-layer-toggle btn-layer-vis" id="btnRippleLayerVis" data-action="toggleVis" title="Toggle Visibility">👁 Visible</button>
+                      <button type="button" class="btn-layer-toggle btn-layer-lock" id="btnRippleLayerLock" data-action="toggleLock" title="Toggle Lock">🔓 Unlocked</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1013,6 +1107,63 @@
             </div>
             <div id="layersListContainer" class="layers-list-container" style="max-height: 480px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 2px; padding: 4px;">
               <!-- Rendered dynamically by window.App.renderLayersList() -->
+            </div>
+            <div id="imageEditor" style="display: none; margin-top: 0.5rem; padding: 0.4rem; background: rgba(22, 27, 34, 0.7); border: 1px solid var(--border); border-radius: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <span style="font-weight: bold; color: #a371f7;" id="editingImageLabel">Editing Image</span>
+                <button type="button" class="btn-deselect-sidebar" id="btnDeselectImage" title="Deselect image (Select None)">Deselect</button>
+              </div>
+              <div class="inspector-prop-row">
+                <label>Name</label>
+                <input type="text" id="imageNameInput" placeholder="Display name" class="text-field-input">
+              </div>
+              <div class="inspector-prop-row">
+                <label>Width</label>
+                <div class="slider-row">
+                  <input type="range" id="imageWidthSlider" min="20" max="1920" step="1" value="200">
+                  <input type="number" class="num-input" id="imageWidthNum" value="200">
+                </div>
+              </div>
+              <div class="inspector-prop-row">
+                <label>Height</label>
+                <div class="slider-row">
+                  <input type="range" id="imageHeightSlider" min="20" max="1080" step="1" value="150">
+                  <input type="number" class="num-input" id="imageHeightNum" value="150">
+                </div>
+              </div>
+              <div class="inspector-prop-row">
+                <label>Ratio</label>
+                <label class="toggle-switch" style="font-size: 0.72rem; flex: 1; margin: 0;"><input type="checkbox" id="imageLockAspect" checked> 🔒 Lock Ratio</label>
+              </div>
+              <div class="inspector-prop-row">
+                <label>Opacity</label>
+                <div class="slider-row">
+                  <input type="range" id="imageOpacitySlider" min="0" max="1.0" step="0.05" value="1.0">
+                  <input type="number" class="num-input" id="imageOpacityNum" value="1.0">
+                </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 0.35rem;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnDeleteImage" style="color: #f85149; border-color: rgba(248,81,73,0.4); padding: 0.2rem 0.5rem; font-size: 0.72rem;">&times; Delete Image</button>
+              </div>
+
+              <div class="inspector-layer-section" id="imageLayerSection">
+                <div class="inspector-section-divider">
+                  <span>LAYER</span>
+                </div>
+                <div class="layer-reorder-btn-row">
+                  <button type="button" class="btn-layer-reorder" id="btnImageLayerToFront" data-action="toFront" title="Bring to Front (Ctrl+Shift+])" aria-label="Bring to Front">⤊ Front</button>
+                  <button type="button" class="btn-layer-reorder" id="btnImageLayerForward" data-action="forward" title="Bring Forward (Ctrl+])" aria-label="Bring Forward">↑ Forward</button>
+                  <button type="button" class="btn-layer-reorder" id="btnImageLayerBackward" data-action="backward" title="Send Backward (Ctrl+[)" aria-label="Send Backward">↓ Backward</button>
+                  <button type="button" class="btn-layer-reorder" id="btnImageLayerToBack" data-action="toBack" title="Send to Back (Ctrl+Shift+[)" aria-label="Send to Back">⤋ Back</button>
+                </div>
+                <div class="layer-status-row">
+                  <span class="layer-position-label" id="imageLayerPositionLabel">Position: —</span>
+                  <div class="layer-state-toggles">
+                    <button type="button" class="btn-layer-toggle btn-layer-vis" id="btnImageLayerVis" data-action="toggleVis" title="Toggle Visibility">👁 Visible</button>
+                    <button type="button" class="btn-layer-toggle btn-layer-lock" id="btnImageLayerLock" data-action="toggleLock" title="Toggle Lock">🔓 Unlocked</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

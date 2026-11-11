@@ -788,6 +788,10 @@ window.DataFlows = {
       if (sl) sl.value = val;
       if (nu) nu.value = val;
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   selectFlow(id, options = {}) {
@@ -836,6 +840,9 @@ window.DataFlows = {
     if (ret) ret.innerHTML = '';
     const path = document.getElementById('flowCurvePath');
     if (path) path.style.display = 'none';
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'flow' && !window.AppCoordinator._isCoordinatingSelection) {
       window.AppCoordinator.clearSelection();
     }
@@ -983,6 +990,10 @@ window.DataFlows = {
       };
       container.appendChild(div);
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   triggerAppRender() {

@@ -430,6 +430,10 @@ window.Ripples = {
         });
       }
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   addRipple(initialProps = {}) {
@@ -463,6 +467,10 @@ window.Ripples = {
       if (sl) sl.value = val;
       if (nu) nu.value = val;
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   selectRipple(id, options = {}) {
@@ -497,6 +505,9 @@ window.Ripples = {
     if (empty) empty.style.display = 'block';
     const ret = document.getElementById('rippleReticleTarget');
     if (ret) ret.style.display = 'none';
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'ripple' && !window.AppCoordinator._isCoordinatingSelection) {
       window.AppCoordinator.clearSelection();
     }
@@ -595,6 +606,10 @@ window.Ripples = {
       };
       container.appendChild(div);
     });
+
+    if (typeof window.syncInspectorLayerSections === 'function') {
+      window.syncInspectorLayerSections();
+    }
   },
 
   triggerAppRender() {
