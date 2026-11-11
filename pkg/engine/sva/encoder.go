@@ -178,26 +178,31 @@ func Encode(proj *Project) ([]byte, error) {
 // packages them into SVA Project assets, and prepares a canonical Project.
 func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJson []byte) (*Project, error) {
 	var raw struct {
-		Version         string                 `json:"version"`
-		Controls        map[string]any         `json:"controls"`
+		Version         string                  `json:"version"`
+		Canvas          scene.CanvasConfig      `json:"canvas"`
+		Camera          scene.CameraConfig      `json:"camera"`
+		Optical         scene.OpticalConfig     `json:"optical"`
+		Frame           scene.FrameConfig       `json:"frame"`
+		Overlays        scene.FrameConfig       `json:"overlays"`
+		Controls        map[string]any          `json:"controls"`
 		LoadedPhoto     map[string]any          `json:"loadedPhoto"`
 		Background      *scene.BackgroundConfig `json:"background"`
 		Presets         map[string]any          `json:"presets"`
-		AutoApplyPreset *bool                  `json:"autoApplyPreset"`
-		Nodes           []scene.Node           `json:"nodes"`
-		NodesCounter    int                    `json:"nodesCounter"`
-		Flows           []scene.Flow           `json:"flows"`
-		FlowsCounter    int                    `json:"flowsCounter"`
-		Glows           []scene.Glow           `json:"glows"`
-		GlowsCounter    int                    `json:"glowsCounter"`
-		Ripples         []scene.Ripple         `json:"ripples"`
-		RipplesCounter  int                    `json:"ripplesCounter"`
-		Groups          []scene.Group          `json:"groups"`
-		GroupsCounter   int                    `json:"groupsCounter"`
-		Images          []scene.Image          `json:"images"`
-		ImagesCounter   int                    `json:"imagesCounter"`
-		Layers          []scene.LayerEntry     `json:"layers"`
-		Metadata        map[string]any         `json:"metadata"`
+		AutoApplyPreset *bool                   `json:"autoApplyPreset"`
+		Nodes           []scene.Node            `json:"nodes"`
+		NodesCounter    int                     `json:"nodesCounter"`
+		Flows           []scene.Flow            `json:"flows"`
+		FlowsCounter    int                     `json:"flowsCounter"`
+		Glows           []scene.Glow            `json:"glows"`
+		GlowsCounter    int                     `json:"glowsCounter"`
+		Ripples         []scene.Ripple          `json:"ripples"`
+		RipplesCounter  int                     `json:"ripplesCounter"`
+		Groups          []scene.Group           `json:"groups"`
+		GroupsCounter   int                     `json:"groupsCounter"`
+		Images          []scene.Image           `json:"images"`
+		ImagesCounter   int                     `json:"imagesCounter"`
+		Layers          []scene.LayerEntry      `json:"layers"`
+		Metadata        map[string]any          `json:"metadata"`
 	}
 
 	if err := json.Unmarshal(schemaJson, &raw); err != nil {
@@ -207,7 +212,21 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 	assets := make(map[string][]byte)
 	var photoInfo *PhotoAssetInfo
 
-	// 1. Process Background Image (LoadedPhoto)
+	// 1. Process Background Image (LoadedPhoto or Background)
+	if (raw.LoadedPhoto == nil || len(raw.LoadedPhoto) == 0) && raw.Background != nil {
+		raw.LoadedPhoto = map[string]any{
+			"b64":                 raw.Background.B64,
+			"src":                 raw.Background.Src,
+			"data":                raw.Background.Data,
+			"mime":                raw.Background.Mime,
+			"filename":            raw.Background.Filename,
+			"naturalWidth":        raw.Background.NaturalWidth,
+			"naturalHeight":       raw.Background.NaturalHeight,
+			"crop":                raw.Background.Crop,
+			"cropVersions":        raw.Background.CropVersions,
+			"activeCropVersionId": raw.Background.ActiveCropVersionID,
+		}
+	}
 	if raw.LoadedPhoto != nil && len(raw.LoadedPhoto) > 0 {
 		b64Val, _ := raw.LoadedPhoto["b64"].(string)
 		if b64Val == "" {
@@ -396,6 +415,11 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 		},
 		Scene: SceneData{
 			SchemaVersion:   CurrentFormatVersion,
+			Canvas:          raw.Canvas,
+			Background:      raw.Background,
+			Camera:          raw.Camera,
+			Optical:         raw.Optical,
+			Frame:           raw.Frame,
 			Controls:        raw.Controls,
 			Presets:         raw.Presets,
 			AutoApplyPreset: autoApply,
@@ -416,6 +440,10 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 			Metadata:        raw.Metadata,
 		},
 		Assets: assets,
+	}
+
+	if proj.Scene.Frame.Style == "" && !proj.Scene.Frame.Enabled && (raw.Overlays.Style != "" || raw.Overlays.Enabled) {
+		proj.Scene.Frame = raw.Overlays
 	}
 
 	// Extract standard scene config from Controls if available
@@ -562,49 +590,113 @@ func extractSceneConfigsFromControls(sceneData *SceneData, controls map[string]a
 		return def
 	}
 
-	sceneData.Canvas.Width = getFloat("canvasWidthInput", 1600)
-	sceneData.Canvas.Height = getFloat("canvasHeightInput", 900)
-	sceneData.Canvas.Duration = getFloat("exportDurationInput", 17)
-	sceneData.Canvas.PlaybackMode = getStr("exportLoopSelect", "loop")
-	sceneData.Canvas.Pattern = getStr("canvasPatternSelect", "blueprint")
-	sceneData.Canvas.GridSize = getFloat("canvasGridSizeSlider", 25)
-	sceneData.Canvas.BgColor = getStr("canvasBgColorPicker", "#070b12")
-	sceneData.Canvas.BgTransparent = getBool("chkCanvasBgTransparent", false)
+	defW := sceneData.Canvas.Width
+	if defW <= 0 { defW = 1600 }
+	sceneData.Canvas.Width = getFloat("canvasWidthInput", defW)
 
-	sceneData.Camera.Motion = getStr("cameraMotionSelect", "ken-burns")
-	sceneData.Camera.Duration = getFloat("camDurationSlider", 8)
-	sceneData.Camera.Loop = getStr("camLoopSelect", "loop")
-	sceneData.Camera.StartX = getFloat("startXSlider", 50)
-	sceneData.Camera.StartY = getFloat("startYSlider", 50)
-	sceneData.Camera.StartZoom = getFloat("startZoomSlider", 1.0)
-	sceneData.Camera.EndX = getFloat("endXSlider", 50)
-	sceneData.Camera.EndY = getFloat("endYSlider", 50)
-	sceneData.Camera.EndZoom = getFloat("endZoomSlider", 1.25)
-	sceneData.Camera.Sway = getFloat("swaySlider", 1.4)
-	sceneData.Camera.Breathe = getFloat("breatheSlider", 1.8)
-	sceneData.Camera.TiltX = getFloat("perspTiltXSlider", 0)
-	sceneData.Camera.TiltY = getFloat("perspTiltYSlider", 0)
+	defH := sceneData.Canvas.Height
+	if defH <= 0 { defH = 900 }
+	sceneData.Canvas.Height = getFloat("canvasHeightInput", defH)
 
-	sceneData.Optical.Type = getStr("effectSelect", "none")
-	sceneData.Optical.StartBlur = getFloat("startBlurSlider", 0)
-	sceneData.Optical.EndBlur = getFloat("endBlurSlider", 18)
-	sceneData.Optical.FocusDur = getFloat("focusDurSlider", 6)
-	sceneData.Optical.TSShape = getStr("tsShapeSelect", "horizontal")
-	sceneData.Optical.TSPosX = getFloat("tsPosXSlider", 50)
-	sceneData.Optical.TSPos = getFloat("tsPosSlider", 50)
-	sceneData.Optical.TSWidth = getFloat("tsWidthSlider", 20)
-	sceneData.Optical.TSBlur = getFloat("tsBlurSlider", 8)
-	sceneData.Optical.MBInt = getFloat("mbIntSlider", 0)
-	sceneData.Optical.MBAng = getFloat("mbAngSlider", 0)
+	defDur := sceneData.Canvas.Duration
+	if defDur <= 0 { defDur = 17 }
+	sceneData.Canvas.Duration = getFloat("exportDurationInput", defDur)
 
-	sceneData.Frame.Enabled = getBool("chkModuleFrame", false)
-	sceneData.Frame.Style = getStr("frameStyleSelect", "none")
-	sceneData.Frame.Depth = getFloat("frameDepthSlider", 48)
-	sceneData.Frame.Lighting = getBool("chkFrameLighting", true)
-	sceneData.Frame.LightDir = getStr("frameLightDirSelect", "tl")
-	sceneData.Frame.LightInt = getFloat("frameLightIntSlider", 0.6)
-	sceneData.Frame.Shadow = getFloat("frameShadowSlider", 0.55)
-	sceneData.Frame.Fillet = getBool("chkFrameFillet", true)
+	defLoop := sceneData.Canvas.PlaybackMode
+	if defLoop == "" { defLoop = "loop" }
+	sceneData.Canvas.PlaybackMode = getStr("exportLoopSelect", defLoop)
+
+	defPattern := sceneData.Canvas.Pattern
+	if defPattern == "" { defPattern = "blueprint" }
+	sceneData.Canvas.Pattern = getStr("canvasPatternSelect", defPattern)
+
+	defGrid := sceneData.Canvas.GridSize
+	if defGrid <= 0 { defGrid = 25 }
+	sceneData.Canvas.GridSize = getFloat("canvasGridSizeSlider", defGrid)
+
+	defBg := sceneData.Canvas.BgColor
+	if defBg == "" { defBg = "#070b12" }
+	sceneData.Canvas.BgColor = getStr("canvasBgColorPicker", defBg)
+
+	if _, ok := controls["chkCanvasBgTransparent"]; ok {
+		sceneData.Canvas.BgTransparent = getBool("chkCanvasBgTransparent", sceneData.Canvas.BgTransparent)
+	}
+
+	defMotion := sceneData.Camera.Motion
+	if defMotion == "" { defMotion = "ken-burns" }
+	sceneData.Camera.Motion = getStr("cameraMotionSelect", defMotion)
+
+	defCamDur := sceneData.Camera.Duration
+	if defCamDur <= 0 { defCamDur = 8 }
+	sceneData.Camera.Duration = getFloat("camDurationSlider", defCamDur)
+
+	defCamLoop := sceneData.Camera.Loop
+	if defCamLoop == "" { defCamLoop = "loop" }
+	sceneData.Camera.Loop = getStr("camLoopSelect", defCamLoop)
+
+	sceneData.Camera.StartX = getFloat("startXSlider", sceneData.Camera.StartX)
+	sceneData.Camera.StartY = getFloat("startYSlider", sceneData.Camera.StartY)
+	defZoom := sceneData.Camera.StartZoom
+	if defZoom <= 0 { defZoom = 1.0 }
+	sceneData.Camera.StartZoom = getFloat("startZoomSlider", defZoom)
+
+	sceneData.Camera.EndX = getFloat("endXSlider", sceneData.Camera.EndX)
+	sceneData.Camera.EndY = getFloat("endYSlider", sceneData.Camera.EndY)
+	defEndZoom := sceneData.Camera.EndZoom
+	if defEndZoom <= 0 { defEndZoom = 1.25 }
+	sceneData.Camera.EndZoom = getFloat("endZoomSlider", defEndZoom)
+
+	defSway := sceneData.Camera.Sway
+	if defSway <= 0 { defSway = 1.4 }
+	sceneData.Camera.Sway = getFloat("swaySlider", defSway)
+
+	defBreathe := sceneData.Camera.Breathe
+	if defBreathe <= 0 { defBreathe = 1.8 }
+	sceneData.Camera.Breathe = getFloat("breatheSlider", defBreathe)
+
+	sceneData.Camera.TiltX = getFloat("perspTiltXSlider", sceneData.Camera.TiltX)
+	sceneData.Camera.TiltY = getFloat("perspTiltYSlider", sceneData.Camera.TiltY)
+
+	defOptType := sceneData.Optical.Type
+	if defOptType == "" { defOptType = "none" }
+	sceneData.Optical.Type = getStr("effectSelect", defOptType)
+	sceneData.Optical.StartBlur = getFloat("startBlurSlider", sceneData.Optical.StartBlur)
+	sceneData.Optical.EndBlur = getFloat("endBlurSlider", sceneData.Optical.EndBlur)
+	sceneData.Optical.FocusDur = getFloat("focusDurSlider", sceneData.Optical.FocusDur)
+	defTSShape := sceneData.Optical.TSShape
+	if defTSShape == "" { defTSShape = "horizontal" }
+	sceneData.Optical.TSShape = getStr("tsShapeSelect", defTSShape)
+	sceneData.Optical.TSPosX = getFloat("tsPosXSlider", sceneData.Optical.TSPosX)
+	sceneData.Optical.TSPos = getFloat("tsPosSlider", sceneData.Optical.TSPos)
+	sceneData.Optical.TSWidth = getFloat("tsWidthSlider", sceneData.Optical.TSWidth)
+	sceneData.Optical.TSBlur = getFloat("tsBlurSlider", sceneData.Optical.TSBlur)
+	sceneData.Optical.MBInt = getFloat("mbIntSlider", sceneData.Optical.MBInt)
+	sceneData.Optical.MBAng = getFloat("mbAngSlider", sceneData.Optical.MBAng)
+
+	if _, ok := controls["chkModuleFrame"]; ok {
+		sceneData.Frame.Enabled = getBool("chkModuleFrame", sceneData.Frame.Enabled)
+	}
+	defFrameStyle := sceneData.Frame.Style
+	if defFrameStyle == "" { defFrameStyle = "none" }
+	sceneData.Frame.Style = getStr("frameStyleSelect", defFrameStyle)
+	defDepth := sceneData.Frame.Depth
+	if defDepth <= 0 { defDepth = 48 }
+	sceneData.Frame.Depth = getFloat("frameDepthSlider", defDepth)
+	if _, ok := controls["chkFrameLighting"]; ok {
+		sceneData.Frame.Lighting = getBool("chkFrameLighting", sceneData.Frame.Lighting)
+	}
+	defLightDir := sceneData.Frame.LightDir
+	if defLightDir == "" { defLightDir = "tl" }
+	sceneData.Frame.LightDir = getStr("frameLightDirSelect", defLightDir)
+	defLightInt := sceneData.Frame.LightInt
+	if defLightInt <= 0 { defLightInt = 0.6 }
+	sceneData.Frame.LightInt = getFloat("frameLightIntSlider", defLightInt)
+	defShadow := sceneData.Frame.Shadow
+	if defShadow <= 0 { defShadow = 0.55 }
+	sceneData.Frame.Shadow = getFloat("frameShadowSlider", defShadow)
+	if _, ok := controls["chkFrameFillet"]; ok {
+		sceneData.Frame.Fillet = getBool("chkFrameFillet", sceneData.Frame.Fillet)
+	}
 }
 
 func min(a, b int) int {

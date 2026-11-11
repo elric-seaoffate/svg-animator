@@ -275,6 +275,40 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 
 	// 1. Resolve Background Photo
 	var loadedPhoto map[string]any
+	if (s.Photo == nil || s.Photo.AssetPath == "") && s.Background != nil {
+		if s.Background.AssetRef != "" {
+			s.Photo = &PhotoAssetInfo{
+				AssetPath:           s.Background.AssetRef,
+				Filename:            s.Background.Filename,
+				MIME:                s.Background.Mime,
+				NaturalWidth:        int(s.Background.NaturalWidth),
+				NaturalHeight:       int(s.Background.NaturalHeight),
+				Crop:                s.Background.Crop,
+				CropVersions:        s.Background.CropVersions,
+				ActiveCropVersionID: s.Background.ActiveCropVersionID,
+			}
+		} else {
+			b64 := s.Background.B64
+			if b64 == "" {
+				b64 = s.Background.Data
+			}
+			if b64 == "" {
+				b64 = s.Background.Src
+			}
+			if b64 != "" {
+				loadedPhoto = map[string]any{
+					"filename":            s.Background.Filename,
+					"mime":                s.Background.Mime,
+					"b64":                 b64,
+					"naturalWidth":        s.Background.NaturalWidth,
+					"naturalHeight":       s.Background.NaturalHeight,
+					"crop":                s.Background.Crop,
+					"cropVersions":        s.Background.CropVersions,
+					"activeCropVersionId": s.Background.ActiveCropVersionID,
+				}
+			}
+		}
+	}
 	if s.Photo != nil && s.Photo.AssetPath != "" {
 		assetBytes, ok := proj.Assets[path.Clean(s.Photo.AssetPath)]
 		if !ok {
@@ -404,8 +438,14 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 
 	payload := map[string]any{
 		"version":         "1.2.0",
+		"canvas":          s.Canvas,
+		"camera":          s.Camera,
+		"optical":         s.Optical,
+		"frame":           s.Frame,
+		"overlays":        s.Frame,
 		"controls":        controls,
 		"loadedPhoto":     loadedPhoto,
+		"background":      loadedPhoto,
 		"presets":         s.Presets,
 		"autoApplyPreset": s.AutoApplyPreset,
 		"nodes":           s.Nodes,

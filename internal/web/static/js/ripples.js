@@ -84,6 +84,8 @@ window.Ripples = {
         }
         return normalized;
       }
+      console.error('Ripple.Create failed in Go engine');
+      return null;
     }
 
     // 2. JavaScript fallback
@@ -119,7 +121,25 @@ window.Ripples = {
       window.EngineBridge.renameObject('ripple', id, patch.name);
     }
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.updateRipple(id, patch);
+      const updated = window.EngineBridge.updateRipple(id, patch);
+      if (!updated) {
+        console.error('Ripple.Update failed in Go engine:', id);
+        return null;
+      }
+      const origId = rp.id;
+      Object.assign(rp, updated);
+      rp.id = origId;
+      if (patch.name !== undefined) {
+        rp.name = (updated.name !== undefined) ? updated.name : patch.name;
+      }
+      if (patch.locked !== undefined) {
+        rp.locked = (updated.locked !== undefined) ? updated.locked : patch.locked;
+      }
+      if (patch.visible !== undefined) {
+        rp.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
+      }
+      if (updated.waveCount !== undefined && rp.rings === undefined) rp.rings = updated.waveCount;
+      return rp;
     }
 
     Object.keys(patch).forEach((key) => {
@@ -133,7 +153,11 @@ window.Ripples = {
   deleteRipple(id) {
     // Go/WASM Engine synchronization
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.deleteRipple(id);
+      const ok = window.EngineBridge.deleteRipple(id);
+      if (!ok) {
+        console.error('Ripple.Delete failed in Go engine:', id);
+        return false;
+      }
     }
 
     const before = this.list.length;

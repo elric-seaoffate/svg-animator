@@ -902,6 +902,12 @@ func (s *Scene) GetSnapshot() Snapshot {
 	s.ensureLayersInitializedLocked()
 	layers := make([]LayerEntry, len(s.layers))
 	copy(layers, s.layers)
+	for i := range layers {
+		v := s.getEffectiveVisibilityLocked(layers[i].Type, layers[i].ID)
+		l := s.getEffectiveLockedLocked(layers[i].Type, layers[i].ID)
+		layers[i].Visible = &v
+		layers[i].Locked = &l
+	}
 
 	return Snapshot{
 		Revision:      s.revision,

@@ -90,7 +90,7 @@ window.DiagramNodes = {
       ? !!initialProps.applyPreset
       : (window.NodePresets ? window.NodePresets.autoApplyToNewNodes !== false : true);
     const presetState = (shouldApplyPreset && window.NodePresets) ? window.NodePresets.getState() : null;
-    const shouldSnap = initialProps.snap !== false;
+    const shouldSnap = initialProps.snap === true || (initialProps.snap !== false && initialProps.x === undefined && initialProps.y === undefined);
 
     // Authoritative Go / WASM path
     if (window.EngineBridge && typeof window.EngineBridge.createNode === 'function' && window.EngineBridge.isReady()) {
@@ -118,6 +118,8 @@ window.DiagramNodes = {
         }
         return localNode;
       }
+      console.error('Node.Create failed in Go engine');
+      return null;
     }
 
     // Mathematical JavaScript fallback
@@ -183,13 +185,30 @@ window.DiagramNodes = {
       window.EngineBridge.renameObject('node', id, patch.name);
     }
     if (window.EngineBridge && typeof window.EngineBridge.updateNode === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.updateNode(id, patch);
-    }
-    Object.keys(patch).forEach((key) => {
-      if (key !== 'id') {
-        node[key] = patch[key];
+      const updated = window.EngineBridge.updateNode(id, patch);
+      if (!updated) {
+        console.error('Node.Update failed in Go engine:', id);
+        return null;
       }
-    });
+      const origId = node.id;
+      Object.assign(node, updated);
+      node.id = origId;
+      if (patch.name !== undefined) {
+        node.name = (updated.name !== undefined) ? updated.name : patch.name;
+      }
+      if (patch.locked !== undefined) {
+        node.locked = (updated.locked !== undefined) ? updated.locked : patch.locked;
+      }
+      if (patch.visible !== undefined) {
+        node.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
+      }
+    } else {
+      Object.keys(patch).forEach((key) => {
+        if (key !== 'id') {
+          node[key] = patch[key];
+        }
+      });
+    }
 
     // Synchronize attached flows when node moves
     if (patch.x !== undefined || patch.y !== undefined) {
@@ -212,7 +231,11 @@ window.DiagramNodes = {
 
   deleteNode(id) {
     if (window.EngineBridge && typeof window.EngineBridge.deleteNode === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.deleteNode(id);
+      const ok = window.EngineBridge.deleteNode(id);
+      if (!ok) {
+        console.error('Node.Delete failed in Go engine:', id);
+        return false;
+      }
     }
 
     // Detach any flows attached to deleted node

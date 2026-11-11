@@ -1221,10 +1221,12 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding EvaluateSceneAtTimeRequest: %w", err)
 		}
+		targetScene := activeScene
 		if req.Snapshot != nil {
-			activeScene.SetFromSnapshot(*req.Snapshot)
+			targetScene = scene.NewScene()
+			targetScene.SetFromSnapshot(*req.Snapshot)
 		}
-		res := timeline.EvaluateSceneAtTime(activeScene, req.Time)
+		res := timeline.EvaluateSceneAtTime(targetScene, req.Time)
 		return json.Marshal(res)
 
 	case "Timeline.EvaluateBatch":
@@ -1232,12 +1234,14 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding EvaluateBatchRequest: %w", err)
 		}
+		targetScene := activeScene
 		if req.Snapshot != nil {
-			activeScene.SetFromSnapshot(*req.Snapshot)
+			targetScene = scene.NewScene()
+			targetScene.SetFromSnapshot(*req.Snapshot)
 		}
 		results := make([]timeline.FrameResult, len(req.Times))
 		for i, t := range req.Times {
-			results[i] = timeline.EvaluateSceneAtTime(activeScene, t)
+			results[i] = timeline.EvaluateSceneAtTime(targetScene, t)
 		}
 		return json.Marshal(results)
 

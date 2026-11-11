@@ -7343,9 +7343,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (svgContainer) {
         svgContainer.innerHTML = window.buildFullSVG(state);
       }
-      if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function') {
-        window.EngineBridge.syncScene();
-      }
       if (window.TimelinePlayer && typeof window.TimelinePlayer.onSceneRedrawn === 'function') {
         window.TimelinePlayer.onSceneRedrawn();
       } else if (window.TimelinePlayer && typeof window.TimelinePlayer.syncFromScene === 'function') {

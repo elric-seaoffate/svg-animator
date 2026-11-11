@@ -118,6 +118,8 @@ window.DataFlows = {
         }
         return normalized;
       }
+      console.error('Flow.Create failed in Go engine');
+      return null;
     }
 
     // 2. JavaScript fallback
@@ -169,7 +171,26 @@ window.DataFlows = {
       window.EngineBridge.renameObject('flow', id, patch.name);
     }
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.updateFlow(id, patch);
+      const updated = window.EngineBridge.updateFlow(id, patch);
+      if (!updated) {
+        console.error('Flow.Update failed in Go engine:', id);
+        return null;
+      }
+      const origId = f.id;
+      Object.assign(f, updated);
+      f.id = origId;
+      if (patch.name !== undefined) {
+        f.name = (updated.name !== undefined) ? updated.name : patch.name;
+      }
+      if (patch.locked !== undefined) {
+        f.locked = (updated.locked !== undefined) ? updated.locked : patch.locked;
+      }
+      if (patch.visible !== undefined) {
+        f.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
+      }
+      if (updated.color) f.color = updated.color;
+      if (updated.route) f.route = updated.route;
+      return f;
     }
 
     Object.keys(patch).forEach((key) => {
@@ -183,7 +204,11 @@ window.DataFlows = {
   deleteFlow(id) {
     // Go/WASM Engine synchronization
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.deleteFlow(id);
+      const ok = window.EngineBridge.deleteFlow(id);
+      if (!ok) {
+        console.error('Flow.Delete failed in Go engine:', id);
+        return false;
+      }
     }
 
     const before = this.list.length;
@@ -212,6 +237,8 @@ window.DataFlows = {
         }
         return { flow: localFlow || wasmRes.flow, waypointIdx: wasmRes.waypointIdx };
       }
+      console.error('Flow.AddWaypoint failed in Go engine:', flowId);
+      return null;
     }
 
     const f = this.getFlow(flowId);
@@ -236,6 +263,8 @@ window.DataFlows = {
         }
         return { flow: localFlow || wasmRes.flow, waypointIdx: wasmRes.waypointIdx };
       }
+      console.error('Flow.RemoveWaypoint failed in Go engine:', flowId);
+      return null;
     }
 
     const f = this.getFlow(flowId);
@@ -258,6 +287,8 @@ window.DataFlows = {
         }
         return wasmRes.flow.nodes[waypointIdx];
       }
+      console.error('Flow.UpdateWaypoint failed in Go engine:', flowId);
+      return null;
     }
 
     const f = this.getFlow(flowId);

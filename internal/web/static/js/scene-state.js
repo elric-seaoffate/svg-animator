@@ -136,6 +136,22 @@
 
     setLoadedPhoto(photoObj) {
       this.loadedPhoto = photoObj || null;
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+        const p = this.loadedPhoto;
+        window.EngineBridge.setBackground(p ? {
+          filename: p.filename || '',
+          mime: p.mime || '',
+          src: p.src || p.dataUrl || '',
+          b64: p.b64 || '',
+          naturalWidth: p.naturalWidth || 0,
+          naturalHeight: p.naturalHeight || 0,
+          sourceWidth: p.sourceWidth || p.naturalWidth || 0,
+          sourceHeight: p.sourceHeight || p.naturalHeight || 0,
+          crop: p.crop || null,
+          cropVersions: p.cropVersions || null,
+          activeCropVersionId: p.activeCropVersionId || 'original'
+        } : null);
+      }
       return this.loadedPhoto;
     },
 

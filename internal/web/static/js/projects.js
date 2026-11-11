@@ -43,7 +43,7 @@ window.ProjectManager = {
       controls = window.SceneState.getControlsSnapshot(trackedIds);
     }
 
-    const loadedPhoto = (window.SceneState && typeof window.SceneState.getLoadedPhoto === 'function')
+    let loadedPhoto = (window.SceneState && typeof window.SceneState.getLoadedPhoto === 'function')
       ? window.SceneState.getLoadedPhoto()
       : (typeof window.getLoadedPhoto === 'function' ? window.getLoadedPhoto() : null);
 
@@ -54,42 +54,42 @@ window.ProjectManager = {
           autoApplyToNewNodes: window.NodePresets ? !!window.NodePresets.autoApplyToNewNodes : true
         };
 
-    const nodeState = (window.DiagramNodes && typeof window.DiagramNodes.getState === 'function')
+    let nodeState = (window.DiagramNodes && typeof window.DiagramNodes.getState === 'function')
       ? window.DiagramNodes.getState()
       : {
           nodes: window.DiagramNodes ? window.DiagramNodes.list : [],
           nodesCounter: window.DiagramNodes ? window.DiagramNodes.counter : 0
         };
 
-    const flowState = (window.DataFlows && typeof window.DataFlows.getState === 'function')
+    let flowState = (window.DataFlows && typeof window.DataFlows.getState === 'function')
       ? window.DataFlows.getState()
       : {
           flows: window.DataFlows ? window.DataFlows.list : [],
           flowsCounter: window.DataFlows ? window.DataFlows.counter : 0
         };
 
-    const glowState = (window.Glows && typeof window.Glows.getState === 'function')
+    let glowState = (window.Glows && typeof window.Glows.getState === 'function')
       ? window.Glows.getState()
       : {
           glows: window.Glows ? window.Glows.list : [],
           glowsCounter: window.Glows ? window.Glows.counter : 0
         };
 
-    const rippleState = (window.Ripples && typeof window.Ripples.getState === 'function')
+    let rippleState = (window.Ripples && typeof window.Ripples.getState === 'function')
       ? window.Ripples.getState()
       : {
           ripples: window.Ripples ? window.Ripples.list : [],
           ripplesCounter: window.Ripples ? window.Ripples.counter : 0
         };
 
-    const imageState = (window.ImageObjects && typeof window.ImageObjects.getState === 'function')
+    let imageState = (window.ImageObjects && typeof window.ImageObjects.getState === 'function')
       ? window.ImageObjects.getState()
       : {
           images: window.ImageObjects ? window.ImageObjects.list : [],
           imagesCounter: window.ImageObjects ? window.ImageObjects.counter : 0
         };
 
-    const layerState = (window.LayerManager && typeof window.LayerManager.getLayers === 'function')
+    let layerState = (window.LayerManager && typeof window.LayerManager.getLayers === 'function')
       ? window.LayerManager.getLayers()
       : (window.LayerManager ? window.LayerManager.list : []);
 
@@ -121,11 +121,71 @@ window.ProjectManager = {
       });
     }
 
-    return JSON.stringify({
+    let engineCanvas = null;
+    let engineCamera = null;
+    let engineOptical = null;
+    let engineFrame = null;
+    let engineOverlays = null;
+    let engineBackground = null;
+
+    // Authoritative Go / WASM Scene Extraction
+    if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.getSceneState === 'function') {
+      const snap = window.EngineBridge.getSceneState();
+      if (snap) {
+        if (Array.isArray(snap.nodes)) {
+          nodeState = {
+            nodes: snap.nodes,
+            nodesCounter: snap.nodes.reduce((max, n) => Math.max(max, parseInt(String(n.id).replace(/\D/g, '') || '0', 10)), nodeState.nodesCounter || 0)
+          };
+        }
+        if (Array.isArray(snap.flows)) {
+          flowState = {
+            flows: snap.flows,
+            flowsCounter: snap.flows.reduce((max, f) => Math.max(max, parseInt(String(f.id).replace(/\D/g, '') || '0', 10)), flowState.flowsCounter || 0)
+          };
+        }
+        if (Array.isArray(snap.glows)) {
+          glowState = {
+            glows: snap.glows,
+            glowsCounter: snap.glows.reduce((max, g) => Math.max(max, parseInt(String(g.id).replace(/\D/g, '') || '0', 10)), glowState.glowsCounter || 0)
+          };
+        }
+        if (Array.isArray(snap.ripples)) {
+          rippleState = {
+            ripples: snap.ripples,
+            ripplesCounter: snap.ripples.reduce((max, r) => Math.max(max, parseInt(String(r.id).replace(/\D/g, '') || '0', 10)), rippleState.ripplesCounter || 0)
+          };
+        }
+        if (Array.isArray(snap.images)) {
+          imageState = {
+            images: snap.images,
+            imagesCounter: snap.imagesCounter !== undefined ? snap.imagesCounter : (snap.images.reduce((max, i) => Math.max(max, parseInt(String(i.id).replace(/\D/g, '') || '0', 10)), imageState.imagesCounter || 0))
+          };
+        }
+        if (Array.isArray(snap.groups)) {
+          groupsList = snap.groups;
+          groupsCounter = snap.groupsCounter !== undefined ? snap.groupsCounter : groupsCounter;
+        }
+        if (Array.isArray(snap.layers) && snap.layers.length > 0) {
+          layerState = snap.layers;
+        }
+        if (snap.background && (snap.background.src || snap.background.data || snap.background.filename)) {
+          engineBackground = snap.background;
+          loadedPhoto = Object.assign({}, loadedPhoto || {}, snap.background);
+        }
+        if (snap.canvas) engineCanvas = snap.canvas;
+        if (snap.camera) engineCamera = snap.camera;
+        if (snap.optical) engineOptical = snap.optical;
+        if (snap.frame) engineFrame = snap.frame;
+        if (snap.overlays) engineOverlays = snap.overlays;
+      }
+    }
+
+    const payload = {
       version: '1.2.0',
       controls: controls,
       loadedPhoto: loadedPhoto,
-      background: loadedPhoto,
+      background: engineBackground || loadedPhoto,
       presets: presetState.preset,
       autoApplyPreset: presetState.autoApplyToNewNodes,
       nodes: nodeState.nodes,
@@ -141,7 +201,14 @@ window.ProjectManager = {
       images: imageState.images,
       imagesCounter: imageState.imagesCounter,
       layers: layerState
-    });
+    };
+    if (engineCanvas) payload.canvas = engineCanvas;
+    if (engineCamera) payload.camera = engineCamera;
+    if (engineOptical) payload.optical = engineOptical;
+    if (engineFrame) payload.frame = engineFrame;
+    if (engineOverlays) payload.overlays = engineOverlays;
+
+    return JSON.stringify(payload);
   },
 
   applyStudioState(schemaJsonStr, options = { coordinate: true }) {

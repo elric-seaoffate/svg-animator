@@ -93,6 +93,8 @@ window.Glows = {
         }
         return normalized;
       }
+      console.error('Glow.Create failed in Go engine');
+      return null;
     }
 
     // 2. JavaScript fallback
@@ -137,7 +139,25 @@ window.Glows = {
       window.EngineBridge.renameObject('glow', id, patch.name);
     }
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.updateGlow(id, patch);
+      const updated = window.EngineBridge.updateGlow(id, patch);
+      if (!updated) {
+        console.error('Glow.Update failed in Go engine:', id);
+        return null;
+      }
+      const origId = glow.id;
+      Object.assign(glow, updated);
+      glow.id = origId;
+      if (patch.name !== undefined) {
+        glow.name = (updated.name !== undefined) ? updated.name : patch.name;
+      }
+      if (patch.locked !== undefined) {
+        glow.locked = (updated.locked !== undefined) ? updated.locked : patch.locked;
+      }
+      if (patch.visible !== undefined) {
+        glow.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
+      }
+      if (updated.radarRings !== undefined && glow.rings === undefined) glow.rings = updated.radarRings;
+      return glow;
     }
 
     Object.keys(patch).forEach((key) => {
@@ -151,7 +171,11 @@ window.Glows = {
   deleteGlow(id) {
     // Go/WASM Engine synchronization
     if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.deleteGlow(id);
+      const ok = window.EngineBridge.deleteGlow(id);
+      if (!ok) {
+        console.error('Glow.Delete failed in Go engine:', id);
+        return false;
+      }
     }
 
     const before = this.list.length;

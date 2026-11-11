@@ -2873,3 +2873,53 @@ func TestSafePartialUpdatesAndCommandContracts(t *testing.T) {
 		}
 	})
 }
+
+// TestTimelineEvaluateReadOnlyIsolation verifies that Timeline.Evaluate* with custom snapshot does not mutate activeScene.
+func TestTimelineEvaluateReadOnlyIsolation(t *testing.T) {
+	// 1. Establish baseline scene
+	_, err := Dispatch("Scene.SetState", []byte(`{"canvas": {"width": 1280, "height": 720}, "nodes": [{"id": "node-1", "shape": "box", "x": 100, "y": 100, "width": 100, "height": 50}]}`))
+	if err != nil {
+		t.Fatalf("Scene.SetState failed: %v", err)
+	}
+
+	snapBeforeBytes, _ := Dispatch("Scene.GetState", []byte(`{}`))
+	var snapBefore scene.Snapshot
+	_ = json.Unmarshal(snapBeforeBytes, &snapBefore)
+	revBefore := snapBefore.Revision
+
+	// 2. Evaluate with a temporary snapshot containing a completely different scene
+	tempSnapJSON := `{"snapshot": {"canvas": {"width": 800, "height": 600}, "nodes": [{"id": "temp-node-99", "shape": "circle", "x": 50, "y": 50, "width": 80, "height": 80}]}}`
+	_, err = Dispatch("Timeline.EvaluateSceneAtTime", []byte(tempSnapJSON))
+	if err != nil {
+		t.Fatalf("Timeline.EvaluateSceneAtTime with snapshot failed: %v", err)
+	}
+
+	// 3. Verify activeScene is untouched
+	snapAfterBytes, _ := Dispatch("Scene.GetState", []byte(`{}`))
+	var snapAfter scene.Snapshot
+	_ = json.Unmarshal(snapAfterBytes, &snapAfter)
+
+	if snapAfter.Revision != revBefore {
+		t.Errorf("expected activeScene revision %d, got %d", revBefore, snapAfter.Revision)
+	}
+	if len(snapAfter.Nodes) != 1 || snapAfter.Nodes[0].ID != "node-1" {
+		t.Errorf("activeScene was overwritten by timeline evaluation: %+v", snapAfter.Nodes)
+	}
+	if snapAfter.Canvas.Width != 1280 {
+		t.Errorf("activeScene canvas was overwritten by timeline evaluation: width = %f", snapAfter.Canvas.Width)
+	}
+
+	// 4. Test EvaluateBatch with snapshot
+	batchReq := `{"times": [0.0, 1.0, 2.0], "snapshot": {"canvas": {"width": 640, "height": 480}, "nodes": []}}`
+	_, err = Dispatch("Timeline.EvaluateBatch", []byte(batchReq))
+	if err != nil {
+		t.Fatalf("Timeline.EvaluateBatch with snapshot failed: %v", err)
+	}
+
+	snapBatchAfterBytes, _ := Dispatch("Scene.GetState", []byte(`{}`))
+	var snapBatchAfter scene.Snapshot
+	_ = json.Unmarshal(snapBatchAfterBytes, &snapBatchAfter)
+	if snapBatchAfter.Revision != revBefore || len(snapBatchAfter.Nodes) != 1 {
+		t.Errorf("activeScene was overwritten by Timeline.EvaluateBatch")
+	}
+}

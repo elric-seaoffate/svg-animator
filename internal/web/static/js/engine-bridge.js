@@ -1077,7 +1077,10 @@
     },
 
     createGroup(name, members) {
-      if (this.isReady() && Array.isArray(members) && members.length >= 2) {
+      if (this.isReady()) {
+        if (!Array.isArray(members) || members.length < 2) {
+          return { success: false, error: 'A group requires at least two members' };
+        }
         const res = this.dispatch('Group.Create', { name: name || '', members });
         if (res && res.success) {
           if (window.ObjectGroups && res.group) {
@@ -1087,15 +1090,14 @@
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to create group in Go engine' };
       }
-      if (window.ObjectGroups) {
-        return window.ObjectGroups.createGroup(name, members);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     ungroup(groupId) {
-      if (this.isReady() && groupId) {
+      if (this.isReady()) {
+        if (!groupId) return { success: false, error: 'Missing groupId' };
         const res = this.dispatch('Group.Ungroup', { groupId: String(groupId) });
         if (res && res.success) {
           if (window.ObjectGroups) {
@@ -1103,15 +1105,14 @@
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to ungroup in Go engine' };
       }
-      if (window.ObjectGroups) {
-        return window.ObjectGroups.ungroup(groupId);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     removeGroupMembers(groupId, members) {
-      if (this.isReady() && groupId && Array.isArray(members)) {
+      if (this.isReady()) {
+        if (!groupId || !Array.isArray(members)) return { success: false, error: 'Invalid parameters' };
         const payload = {
           groupId: String(groupId),
           members: members.map((m) => ({ type: String(m.type), id: String(m.id) }))
@@ -1128,43 +1129,43 @@
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to remove group members in Go engine' };
       }
-      if (window.ObjectGroups && typeof window.ObjectGroups.removeMembers === 'function') {
-        return window.ObjectGroups.removeMembers(groupId, members);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     deleteGroup(groupId, deleteMembers = false) {
-      if (this.isReady() && groupId) {
+      if (this.isReady()) {
+        if (!groupId) return { success: false, error: 'Missing groupId' };
         const res = this.dispatch('Group.Delete', { groupId: String(groupId), deleteMembers: !!deleteMembers });
         if (res && res.success) {
           if (window.ObjectGroups) {
-            window.ObjectGroups.deleteGroup(groupId, deleteMembers);
+            window.ObjectGroups.list = window.ObjectGroups.list.filter((g) => String(g.id) !== String(groupId));
+            if (deleteMembers && res.snapshot) {
+              this.syncFromEngineSnapshot(res.snapshot);
+            }
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to delete group in Go engine' };
       }
-      if (window.ObjectGroups) {
-        return window.ObjectGroups.deleteGroup(groupId, deleteMembers);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     renameGroup(groupId, name) {
-      if (this.isReady() && groupId) {
+      if (this.isReady()) {
+        if (!groupId) return { success: false, error: 'Missing groupId' };
         const res = this.dispatch('Group.Rename', { groupId: String(groupId), name: String(name || '') });
         if (res && res.success) {
           if (window.ObjectGroups) {
-            window.ObjectGroups.renameGroup(groupId, name);
+            const grp = window.ObjectGroups.list.find((g) => String(g.id) === String(groupId));
+            if (grp) grp.name = String(name || '');
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to rename group in Go engine' };
       }
-      if (window.ObjectGroups) {
-        return window.ObjectGroups.renameGroup(groupId, name);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     getGroup(groupId) {
@@ -1211,26 +1212,74 @@
 
     syncFromEngineSnapshot(snap) {
       if (!snap) return;
+
+      if (snap.background) {
+        this._applyBackgroundUpdate(snap.background);
+      }
+
       if (snap.nodes && window.DiagramNodes) {
-        window.DiagramNodes.setState({ nodes: snap.nodes, nodesCounter: snap.nodesCounter || window.DiagramNodes.counter });
+        const mappedNodes = snap.nodes.map((n) => {
+          const item = Object.assign({}, n);
+          if (!item.text && item.label) item.text = item.label;
+          if (!item.label && item.text) item.label = item.text;
+          if (!item.fillColor && item.fill) item.fillColor = item.fill;
+          if (!item.fill && item.fillColor) item.fill = item.fillColor;
+          if (!item.strokeColor && item.stroke) item.strokeColor = item.stroke;
+          if (!item.stroke && item.strokeColor) item.stroke = item.strokeColor;
+          if (!item.anim && item.animation) item.anim = item.animation;
+          if (!item.animation && item.anim) item.animation = item.anim;
+          return item;
+        });
+        window.DiagramNodes.setState({ nodes: mappedNodes, nodesCounter: snap.nodesCounter || window.DiagramNodes.counter });
       }
+
       if (snap.flows && window.DataFlows) {
-        window.DataFlows.setState({ flows: snap.flows, flowsCounter: snap.flowsCounter || window.DataFlows.counter });
+        const mappedFlows = snap.flows.map((f) => {
+          const item = Object.assign({}, f);
+          if (!item.route && item.routeMode) item.route = item.routeMode;
+          if (!item.routeMode && item.route) item.routeMode = item.route;
+          return item;
+        });
+        window.DataFlows.setState({ flows: mappedFlows, flowsCounter: snap.flowsCounter || window.DataFlows.counter });
       }
+
       if (snap.glows && window.Glows) {
-        window.Glows.setState({ glows: snap.glows, glowsCounter: snap.glowsCounter || window.Glows.counter });
+        const mappedGlows = snap.glows.map((g) => {
+          const item = Object.assign({}, g);
+          if (item.radarRings && !item.rings) item.rings = item.radarRings;
+          if (item.rings && !item.radarRings) item.radarRings = item.rings;
+          item.isRadar = (item.shape === 'radar') || !!item.isRadar;
+          return item;
+        });
+        window.Glows.setState({ glows: mappedGlows, glowsCounter: snap.glowsCounter || window.Glows.counter });
       }
+
       if (snap.ripples && window.Ripples) {
-        window.Ripples.setState({ ripples: snap.ripples, ripplesCounter: snap.ripplesCounter || window.Ripples.counter });
+        const mappedRipples = snap.ripples.map((r) => {
+          const item = Object.assign({}, r);
+          if (item.waveCount && !item.rings) item.rings = item.waveCount;
+          if (item.rings && !item.waveCount) item.waveCount = item.rings;
+          return item;
+        });
+        window.Ripples.setState({ ripples: mappedRipples, ripplesCounter: snap.ripplesCounter || window.Ripples.counter });
       }
+
       if (snap.groups && window.ObjectGroups) {
         window.ObjectGroups.setState({ groups: snap.groups, groupsCounter: snap.groupsCounter || window.ObjectGroups.counter });
       }
+
       if (snap.images && window.ImageObjects) {
-        window.ImageObjects.setState({ images: snap.images, imagesCounter: snap.imagesCounter || window.ImageObjects.counter });
+        const mappedImages = snap.images.map((img) => {
+          const item = Object.assign({}, img);
+          if (!item.data && item.src) item.data = item.src;
+          if (!item.src && item.data) item.src = item.data;
+          return item;
+        });
+        window.ImageObjects.setState({ images: mappedImages, imagesCounter: snap.imagesCounter || window.ImageObjects.counter });
       }
+
       if (snap.layers && window.LayerManager) {
-        window.LayerManager.setLayers(snap.layers);
+        window.LayerManager.setLayers(snap.layers, { skipBridge: true, skipEngineSync: true });
       }
     },
 
@@ -1293,7 +1342,8 @@
     },
 
     pastePayload(payload, offsetX = 5.0, offsetY = 5.0) {
-      if (this.isReady() && payload) {
+      if (this.isReady()) {
+        if (!payload) return { success: false, error: 'Missing payload' };
         const res = this.dispatch('Scene.Paste', {
           payload,
           offsetX: Number(offsetX) || 0,
@@ -1303,11 +1353,9 @@
           if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to paste payload in Go engine' };
       }
-      if (window.ObjectGroups) {
-        return window.ObjectGroups.pastePayload(payload, offsetX, offsetY);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     duplicateSelection(items, groupId = null, offsetX = 5.0, offsetY = 5.0) {
@@ -1322,11 +1370,9 @@
           if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to duplicate selection in Go engine' };
       }
-      if (window.ObjectGroups) {
-        return window.ObjectGroups.duplicateSelection(items, groupId, offsetX, offsetY);
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     // Image Object operations
@@ -1346,12 +1392,9 @@
           if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to create image in Go engine' };
       }
-      if (window.ImageObjects) {
-        const img = window.ImageObjects.createImage(init);
-        return { success: true, image: img };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     updateImage(id, patch) {
@@ -1364,12 +1407,9 @@
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to update image in Go engine' };
       }
-      if (window.ImageObjects) {
-        const img = window.ImageObjects.updateImage(id, patch);
-        return { success: !!img, image: img };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     cropImage(id, crop, geom, name) {
@@ -1393,12 +1433,9 @@
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to crop image in Go engine' };
       }
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.cropImage(id, crop, geom, name);
-        return { success: !!res, image: res };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     selectCropVersion(id, versionId) {
@@ -1407,16 +1444,17 @@
         if (res && res.success && res.image) {
           if (window.ImageObjects) {
             const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
-            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+            if (idx >= 0) {
+              if (!res.image.crop) delete window.ImageObjects.list[idx].crop;
+              Object.assign(window.ImageObjects.list[idx], res.image);
+              if (!res.image.crop) delete window.ImageObjects.list[idx].crop;
+            }
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to select crop version in Go engine' };
       }
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.selectCropVersion(id, versionId);
-        return { success: !!res, image: res };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     renameCropVersion(id, versionId, newName) {
@@ -1425,16 +1463,13 @@
         if (res && res.success && res.image) {
           if (window.ImageObjects) {
             const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
-            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+            if (idx >= 0) Object.assign(window.ImageObjects.list[idx], res.image);
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to rename crop version in Go engine' };
       }
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.renameCropVersion(id, versionId, newName);
-        return { success: !!res, image: res };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     deleteCropVersion(id, versionId) {
@@ -1443,16 +1478,17 @@
         if (res && res.success && res.image) {
           if (window.ImageObjects) {
             const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
-            if (idx >= 0) window.ImageObjects.list[idx] = res.image;
+            if (idx >= 0) {
+              if (!res.image.crop) delete window.ImageObjects.list[idx].crop;
+              Object.assign(window.ImageObjects.list[idx], res.image);
+              if (!res.image.crop) delete window.ImageObjects.list[idx].crop;
+            }
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to delete crop version in Go engine' };
       }
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.deleteCropVersion(id, versionId);
-        return { success: !!res, image: res };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     commitCrop(id, options = {}) {
@@ -1477,12 +1513,9 @@
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to commit crop in Go engine' };
       }
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.commitCrop(id, options);
-        return { success: !!res, image: res };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     resetCrop(id) {
@@ -1491,32 +1524,61 @@
         if (res && res.success && res.image) {
           if (window.ImageObjects) {
             const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) {
+              delete window.ImageObjects.list[idx].crop;
+              Object.assign(window.ImageObjects.list[idx], res.image);
+              if (!res.image.crop) delete window.ImageObjects.list[idx].crop;
+            }
+          }
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to reset crop in Go engine' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    clipImage(id, clip = {}) {
+      if (this.isReady()) {
+        const payload = {
+          id: String(id),
+          clip: {
+            enabled: true,
+            x: Math.max(0, Number(clip.x) || 0),
+            y: Math.max(0, Number(clip.y) || 0),
+            width: Math.max(10, Number(clip.width) || 10),
+            height: Math.max(10, Number(clip.height) || 10)
+          }
+        };
+        const res = this.dispatch('Image.Clip', payload);
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
             if (idx >= 0) window.ImageObjects.list[idx] = res.image;
           }
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to clip image in Go engine' };
       }
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.resetCrop(id);
-        return { success: !!res, image: res };
-      }
-      return null;
-    },
-
-    clipImage(id, clip) {
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.clipImage(id, clip);
-        return { success: !!res, image: res };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     resetClip(id) {
-      if (window.ImageObjects) {
-        const res = window.ImageObjects.resetClip(id);
-        return { success: !!res, image: res };
+      if (this.isReady()) {
+        const res = this.dispatch('Image.ResetClip', { id: String(id) });
+        if (res && res.success && res.image) {
+          if (window.ImageObjects) {
+            const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(id));
+            if (idx >= 0) {
+              delete window.ImageObjects.list[idx].clip;
+              Object.assign(window.ImageObjects.list[idx], res.image);
+              if (!res.image.clip) delete window.ImageObjects.list[idx].clip;
+            }
+          }
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to reset clip in Go engine' };
       }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     setBackground(bg) {
@@ -1525,7 +1587,7 @@
         const res = this.dispatch('Background.Set', payload);
         return res;
       }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     getBackground() {
@@ -1547,33 +1609,9 @@
           this._applyBackgroundUpdate(res.background);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to crop background in Go engine' };
       }
-      // Pure JS fallback
-      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
-      if (!photo) return null;
-      if (!photo.cropVersions || !photo.cropVersions.length) {
-        photo.cropVersions = [{
-          id: 'original',
-          name: 'Original',
-          sourceX: 0,
-          sourceY: 0,
-          sourceWidth: photo.naturalWidth || 1280,
-          sourceHeight: photo.naturalHeight || 720
-        }];
-      }
-      const cropCount = photo.cropVersions.filter(function(v) { return v.id && v.id.startsWith('crop-'); }).length;
-      const verId = 'crop-' + (cropCount + 1);
-      const verName = (name && name.trim()) ? name.trim() : ('Crop ' + (cropCount + 1));
-      const sx = Math.max(0, crop.sourceX !== undefined ? crop.sourceX : (crop.x || 0));
-      const sy = Math.max(0, crop.sourceY !== undefined ? crop.sourceY : (crop.y || 0));
-      const sw = Math.max(10, crop.sourceWidth !== undefined ? crop.sourceWidth : (crop.width || photo.naturalWidth || 1280));
-      const sh = Math.max(10, crop.sourceHeight !== undefined ? crop.sourceHeight : (crop.height || photo.naturalHeight || 720));
-      const newVer = { id: verId, name: verName, sourceX: sx, sourceY: sy, sourceWidth: sw, sourceHeight: sh };
-      photo.cropVersions.push(newVer);
-      photo.activeCropVersionId = verId;
-      photo.crop = { enabled: true, sourceX: sx, sourceY: sy, sourceWidth: sw, sourceHeight: sh };
-      if (window.triggerRender) window.triggerRender();
-      return { success: true, background: photo };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     selectBackgroundCropVersion(versionId) {
@@ -1584,69 +1622,38 @@
           this._applyBackgroundUpdate(res.background);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to select background crop version in Go engine' };
       }
-      // Pure JS fallback
-      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
-      if (!photo || !photo.cropVersions) return null;
-      const ver = photo.cropVersions.find(function(v) { return v.id === vId; });
-      if (!ver) return null;
-      photo.activeCropVersionId = vId;
-      if (vId === 'original') {
-        photo.crop = null;
-      } else {
-        photo.crop = { enabled: true, sourceX: ver.sourceX, sourceY: ver.sourceY, sourceWidth: ver.sourceWidth, sourceHeight: ver.sourceHeight };
-      }
-      if (window.triggerRender) window.triggerRender();
-      return { success: true, background: photo };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     renameBackgroundCropVersion(versionId, name) {
       const vId = String(versionId);
       const cleanName = String(name || '').trim();
-      if (!cleanName) return null;
+      if (!cleanName) return { success: false, error: 'Invalid name' };
       if (this.isReady()) {
         const res = this.dispatch('Background.CropRename', { versionId: vId, name: cleanName });
         if (res && res.success && res.background) {
           this._applyBackgroundUpdate(res.background);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to rename background crop version in Go engine' };
       }
-      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
-      if (!photo || !photo.cropVersions) return null;
-      const ver = photo.cropVersions.find(function(v) { return v.id === vId; });
-      if (ver) {
-        ver.name = cleanName;
-        return { success: true, background: photo };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     deleteBackgroundCropVersion(versionId) {
       const vId = String(versionId);
-      if (vId === 'original') return null;
+      if (vId === 'original') return { success: false, error: 'Cannot delete original crop version' };
       if (this.isReady()) {
         const res = this.dispatch('Background.CropDelete', { versionId: vId });
         if (res && res.success && res.background) {
           this._applyBackgroundUpdate(res.background);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to delete background crop version in Go engine' };
       }
-      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
-      if (!photo || !photo.cropVersions) return null;
-      const idx = photo.cropVersions.findIndex(function(v) { return v.id === vId; });
-      if (idx < 0) return null;
-      photo.cropVersions.splice(idx, 1);
-      if (photo.activeCropVersionId === vId) {
-        const fallback = photo.cropVersions[photo.cropVersions.length - 1] || photo.cropVersions[0];
-        if (fallback) {
-          this.selectBackgroundCropVersion(fallback.id);
-        } else {
-          photo.activeCropVersionId = 'original';
-          photo.crop = null;
-        }
-      }
-      if (window.triggerRender) window.triggerRender();
-      return { success: true, background: photo };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     resetBackgroundCrop() {
@@ -1656,8 +1663,9 @@
           this._applyBackgroundUpdate(res.background);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to reset background crop in Go engine' };
       }
-      return this.selectBackgroundCropVersion('original');
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     commitBackgroundCrop(options = {}) {
@@ -1671,26 +1679,9 @@
           this._applyBackgroundUpdate(res.background);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to commit background crop in Go engine' };
       }
-      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
-      if (!photo) return null;
-      if (options.newB64) {
-        photo.b64 = options.newB64;
-      }
-      if (options.discardVersions) {
-        photo.cropVersions = [{
-          id: 'original',
-          name: 'Original',
-          sourceX: 0,
-          sourceY: 0,
-          sourceWidth: photo.naturalWidth || 1280,
-          sourceHeight: photo.naturalHeight || 720
-        }];
-        photo.activeCropVersionId = 'original';
-        photo.crop = null;
-      }
-      if (window.triggerRender) window.triggerRender();
-      return { success: true, background: photo };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     _applyBackgroundUpdate(bg) {
@@ -1717,12 +1708,9 @@
           if (window.LayerManager) window.LayerManager.removeEntry('image', id);
           return res;
         }
+        return { success: false, error: (res && res.error) || 'Failed to delete image in Go engine' };
       }
-      if (window.ImageObjects) {
-        const ok = window.ImageObjects.deleteImage(id);
-        return { success: ok };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     getImage(id) {
@@ -1757,13 +1745,9 @@
       if (this.isReady()) {
         const res = this.dispatch('Layer.Set', { layers });
         if (res && res.success) return res;
-        return res || { success: false, error: 'Layer.Set dispatch failed' };
+        return { success: false, error: (res && res.error) || 'Layer.Set dispatch failed' };
       }
-      if (window.LayerManager && typeof window.LayerManager.setLayers === 'function') {
-        window.LayerManager.setLayers(layers, { skipBridge: true });
-        return { success: true };
-      }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     normalizeLayerTargets(rawTargets) {
@@ -1849,12 +1833,9 @@
           if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
-        return res || { success: false, error: 'Layer.BringToFront dispatch failed' };
+        return { success: false, error: (res && res.error) || 'Layer.BringToFront dispatch failed' };
       }
-      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
-        return window.LayerManager._fallbackReorder(norm.targets, 'bringToFront');
-      }
-      return { success: false, error: 'EngineBridge not ready' };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     sendToBack(targets) {
@@ -1869,12 +1850,9 @@
           if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
-        return res || { success: false, error: 'Layer.SendToBack dispatch failed' };
+        return { success: false, error: (res && res.error) || 'Layer.SendToBack dispatch failed' };
       }
-      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
-        return window.LayerManager._fallbackReorder(norm.targets, 'sendToBack');
-      }
-      return { success: false, error: 'EngineBridge not ready' };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     bringForward(targets) {
@@ -1889,12 +1867,9 @@
           if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
-        return res || { success: false, error: 'Layer.BringForward dispatch failed' };
+        return { success: false, error: (res && res.error) || 'Layer.BringForward dispatch failed' };
       }
-      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
-        return window.LayerManager._fallbackReorder(norm.targets, 'bringForward');
-      }
-      return { success: false, error: 'EngineBridge not ready' };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     sendBackward(targets) {
@@ -1909,12 +1884,9 @@
           if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
-        return res || { success: false, error: 'Layer.SendBackward dispatch failed' };
+        return { success: false, error: (res && res.error) || 'Layer.SendBackward dispatch failed' };
       }
-      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
-        return window.LayerManager._fallbackReorder(norm.targets, 'sendBackward');
-      }
-      return { success: false, error: 'EngineBridge not ready' };
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     setLayerVisibility(type, id, visible) {
@@ -2075,6 +2047,47 @@
       const tiltX = Number(cameraRaw.tiltX) || 0;
       const tiltY = Number(cameraRaw.tiltY) || 0;
 
+      let background = null;
+      const rawBg = raw.background || raw.loadedPhoto || null;
+      if (rawBg && typeof rawBg === 'object') {
+        let crop = undefined;
+        if (rawBg.crop && typeof rawBg.crop === 'object') {
+          crop = {
+            enabled: rawBg.crop.enabled !== false,
+            sourceX: Number(rawBg.crop.sourceX) || 0,
+            sourceY: Number(rawBg.crop.sourceY) || 0,
+            sourceWidth: Number(rawBg.crop.sourceWidth) || 0,
+            sourceHeight: Number(rawBg.crop.sourceHeight) || 0
+          };
+        }
+        let cropVersions = [];
+        if (Array.isArray(rawBg.cropVersions)) {
+          cropVersions = rawBg.cropVersions.map((v) => ({
+            id: String(v.id || ''),
+            name: String(v.name || ''),
+            sourceX: Number(v.sourceX) || 0,
+            sourceY: Number(v.sourceY) || 0,
+            sourceWidth: Number(v.sourceWidth) || 0,
+            sourceHeight: Number(v.sourceHeight) || 0
+          }));
+        }
+        background = {
+          assetRef: String(rawBg.assetRef || ''),
+          filename: String(rawBg.filename || ''),
+          mime: String(rawBg.mime || 'image/png'),
+          src: String(rawBg.src || rawBg.data || ''),
+          data: String(rawBg.data || rawBg.src || ''),
+          b64: String(rawBg.b64 || ''),
+          sourceWidth: Number(rawBg.sourceWidth || rawBg.naturalWidth) || 0,
+          sourceHeight: Number(rawBg.sourceHeight || rawBg.naturalHeight) || 0,
+          naturalWidth: Number(rawBg.naturalWidth || rawBg.sourceWidth) || 0,
+          naturalHeight: Number(rawBg.naturalHeight || rawBg.sourceHeight) || 0,
+          activeCropVersionId: String(rawBg.activeCropVersionId || rawBg.activeCropVersionID || ''),
+          crop: crop,
+          cropVersions: cropVersions
+        };
+      }
+
       const nodes = Array.isArray(raw.nodes) ? raw.nodes.map((n) => ({
         id: String(n.id != null ? n.id : ''),
         name: n.name != null ? String(n.name) : undefined,
@@ -2096,7 +2109,9 @@
         textColor: String(n.textColor || '#e6edf3'),
         fontSize: Number(n.fontSize) || 15,
         animation: String(n.animation || n.anim || 'none'),
-        anim: String(n.anim || n.animation || 'none')
+        anim: String(n.anim || n.animation || 'none'),
+        visible: n.visible !== undefined ? n.visible : true,
+        locked: !!n.locked
       })) : [];
 
       const flows = Array.isArray(raw.flows) ? raw.flows.map((f) => ({
@@ -2123,7 +2138,13 @@
         type: String(f.type || 'orb'),
         showLine: f.showLine !== false,
         glow: Number(f.glow) || 0,
-        label: String(f.label || '')
+        label: String(f.label || ''),
+        customB64: String(f.customB64 || ''),
+        customMime: String(f.customMime || ''),
+        customW: Number(f.customW) || 0,
+        customH: Number(f.customH) || 0,
+        visible: f.visible !== undefined ? f.visible : true,
+        locked: !!f.locked
       })) : [];
 
       const glows = Array.isArray(raw.glows) ? raw.glows.map((g) => ({
@@ -2151,7 +2172,9 @@
         customB64: String(g.customB64 || ''),
         customMime: String(g.customMime || ''),
         customW: Number(g.customW) || 0,
-        customH: Number(g.customH) || 0
+        customH: Number(g.customH) || 0,
+        visible: g.visible !== undefined ? g.visible : true,
+        locked: !!g.locked
       })) : [];
 
       const ripples = Array.isArray(raw.ripples) ? raw.ripples.map((r) => ({
@@ -2169,7 +2192,9 @@
         thick: Number(r.thick != null ? r.thick : 8),
         refraction: Number(r.refraction != null ? r.refraction : 35),
         x: Number(r.x) || 0,
-        y: Number(r.y) || 0
+        y: Number(r.y) || 0,
+        visible: r.visible !== undefined ? r.visible : true,
+        locked: !!r.locked
       })) : [];
 
       const opticalRaw = raw.optical || {};
@@ -2226,7 +2251,8 @@
         filename: String(img.filename || ''),
         mime: String(img.mime || 'image/png'),
         assetRef: String(img.assetRef || ''),
-        src: String(img.src || ''),
+        src: String(img.src || img.data || ''),
+        data: String(img.data || img.src || ''),
         x: typeof img.x === 'number' ? img.x : 50.0,
         y: typeof img.y === 'number' ? img.y : 50.0,
         width: Number(img.width) || 200,
@@ -2237,6 +2263,41 @@
         opacity: typeof img.opacity === 'number' ? img.opacity : 1.0,
         visible: img.visible !== undefined ? img.visible : true,
         locked: !!img.locked,
+        crop: (img.crop && typeof img.crop === 'object') ? {
+          enabled: !!img.crop.enabled,
+          sourceX: Number(img.crop.sourceX) || 0,
+          sourceY: Number(img.crop.sourceY) || 0,
+          sourceWidth: Number(img.crop.sourceWidth) || 0,
+          sourceHeight: Number(img.crop.sourceHeight) || 0,
+          origX: Number(img.crop.origX) || 0,
+          origY: Number(img.crop.origY) || 0,
+          origWidth: Number(img.crop.origWidth) || 0,
+          origHeight: Number(img.crop.origHeight) || 0
+        } : undefined,
+        cropVersions: Array.isArray(img.cropVersions) ? img.cropVersions.map((v) => ({
+          id: String(v.id || ''),
+          name: String(v.name || ''),
+          sourceX: Number(v.sourceX) || 0,
+          sourceY: Number(v.sourceY) || 0,
+          sourceWidth: Number(v.sourceWidth) || 0,
+          sourceHeight: Number(v.sourceHeight) || 0,
+          width: Number(v.width) || 0,
+          height: Number(v.height) || 0,
+          x: Number(v.x) || 0,
+          y: Number(v.y) || 0,
+          origX: Number(v.origX) || 0,
+          origY: Number(v.origY) || 0,
+          origWidth: Number(v.origWidth) || 0,
+          origHeight: Number(v.origHeight) || 0
+        })) : [],
+        activeCropVersionId: String(img.activeCropVersionId || img.activeCropVersionID || ''),
+        clip: (img.clip && typeof img.clip === 'object') ? {
+          enabled: !!img.clip.enabled,
+          x: Number(img.clip.x) || 0,
+          y: Number(img.clip.y) || 0,
+          width: Number(img.clip.width) || 0,
+          height: Number(img.clip.height) || 0
+        } : undefined,
         metadata: (img.metadata && typeof img.metadata === 'object') ? img.metadata : undefined
       }));
       let imagesCounter = Number(raw.imagesCounter) || 0;
@@ -2270,6 +2331,7 @@
           transparent: transparent,
           bgTransparent: transparent
         },
+        background: background,
         camera: {
           motion: motion,
           camDuration: camDuration,
@@ -2312,6 +2374,10 @@
       const optical = (rs && rs.optical) || {};
       const overlays = (rs && rs.overlays) || {};
 
+      const bg = (typeof window !== 'undefined' && window.SceneState && typeof window.SceneState.getLoadedPhoto === 'function')
+        ? window.SceneState.getLoadedPhoto()
+        : (typeof window !== 'undefined' && typeof window.getLoadedPhoto === 'function' ? window.getLoadedPhoto() : null);
+
       const nodes = (typeof window !== 'undefined' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list))
         ? window.DiagramNodes.list
         : [];
@@ -2352,6 +2418,7 @@
           loop: loop
         },
         camera: cam,
+        background: bg,
         optical: optical,
         frame: overlays,
         overlays: overlays,
@@ -3251,6 +3318,8 @@
           if (window.LayerManager) window.LayerManager.syncFromEngine();
           return img;
         }
+        console.error('Image.Create failed in Go engine');
+        return null;
       }
 
       this.counter++;
@@ -3293,7 +3362,19 @@
 
     updateImage(id, patch = {}) {
       if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.dispatch('Image.Update', { id: String(id), patch });
+        const res = window.EngineBridge.dispatch('Image.Update', { id: String(id), patch });
+        if (!res || !res.success || !res.image) {
+          console.error('Image.Update failed in Go engine:', res && res.error);
+          return null;
+        }
+        const img = this.getImage(id);
+        if (img) {
+          Object.assign(img, res.image);
+          if (patch.visible !== undefined) img.visible = !!patch.visible;
+          if (patch.locked !== undefined) img.locked = !!patch.locked;
+          return img;
+        }
+        return res.image;
       }
       const img = this.getImage(id);
       if (!img) return null;
@@ -3348,9 +3429,14 @@
         const res = window.EngineBridge.dispatch('Image.Crop', payload);
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            Object.assign(this.list[idx], res.image);
+            return this.list[idx];
+          }
           return res.image;
         }
+        console.error('Image.Crop failed in Go engine');
+        return null;
       }
 
       // Fallback JS logic
@@ -3428,9 +3514,17 @@
         const res = window.EngineBridge.dispatch('Image.CropVersionSelect', { id: strId, versionId: strVerId });
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            if (!res.image.crop) delete this.list[idx].crop;
+            Object.assign(this.list[idx], res.image);
+            if (!res.image.crop) delete this.list[idx].crop;
+            return this.list[idx];
+          }
+          if (!res.image.crop) delete res.image.crop;
           return res.image;
         }
+        console.error('Image.CropVersionSelect failed in Go engine');
+        return null;
       }
 
       const img = this.getImage(strId);
@@ -3473,9 +3567,14 @@
         const res = window.EngineBridge.dispatch('Image.CropVersionRename', { id: strId, versionId: strVerId, name });
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            Object.assign(this.list[idx], res.image);
+            return this.list[idx];
+          }
           return res.image;
         }
+        console.error('Image.CropVersionRename failed in Go engine');
+        return null;
       }
 
       const img = this.getImage(strId);
@@ -3494,9 +3593,17 @@
         const res = window.EngineBridge.dispatch('Image.CropVersionDelete', { id: strId, versionId: strVerId });
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            if (!res.image.crop) delete this.list[idx].crop;
+            Object.assign(this.list[idx], res.image);
+            if (!res.image.crop) delete this.list[idx].crop;
+            return this.list[idx];
+          }
+          if (!res.image.crop) delete res.image.crop;
           return res.image;
         }
+        console.error('Image.CropVersionDelete failed in Go engine');
+        return null;
       }
 
       const img = this.getImage(strId);
@@ -3529,9 +3636,14 @@
         const res = window.EngineBridge.dispatch('Image.CommitCrop', payload);
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            Object.assign(this.list[idx], res.image);
+            return this.list[idx];
+          }
           return res.image;
         }
+        console.error('Image.CommitCrop failed in Go engine');
+        return null;
       }
 
       const img = this.getImage(strId);
@@ -3601,9 +3713,17 @@
         const res = window.EngineBridge.dispatch('Image.ResetCrop', { id: strId });
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            delete this.list[idx].crop;
+            Object.assign(this.list[idx], res.image);
+            if (!res.image.crop) delete this.list[idx].crop;
+            return this.list[idx];
+          }
+          if (!res.image.crop) delete res.image.crop;
           return res.image;
         }
+        console.error('Image.ResetCrop failed in Go engine');
+        return null;
       }
 
       // Fallback JS logic
@@ -3641,9 +3761,14 @@
         const res = window.EngineBridge.dispatch('Image.Clip', payload);
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            Object.assign(this.list[idx], res.image);
+            return this.list[idx];
+          }
           return res.image;
         }
+        console.error('Image.Clip failed in Go engine');
+        return null;
       }
 
       // Fallback JS logic
@@ -3655,19 +3780,27 @@
 
     resetClip(id) {
       const strId = String(id);
-      const existing = this.getImage(strId);
-      if (existing) {
-        if (existing.clip) existing.clip.enabled = false;
-        delete existing.clip;
-      }
-
       if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
         const res = window.EngineBridge.dispatch('Image.ResetClip', { id: strId });
         if (res && res.success && res.image) {
           const idx = this.list.findIndex((i) => String(i.id) === strId);
-          if (idx >= 0) this.list[idx] = res.image;
+          if (idx >= 0) {
+            delete this.list[idx].clip;
+            Object.assign(this.list[idx], res.image);
+            if (!res.image.clip) delete this.list[idx].clip;
+            return this.list[idx];
+          }
+          if (!res.image.clip) delete res.image.clip;
           return res.image;
         }
+        console.error('Image.ResetClip failed in Go engine');
+        return null;
+      }
+
+      const existing = this.getImage(strId);
+      if (existing) {
+        if (existing.clip) existing.clip.enabled = false;
+        delete existing.clip;
       }
 
       return existing;
@@ -3675,7 +3808,11 @@
 
     deleteImage(id) {
       if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.dispatch('Image.Delete', { id: String(id) });
+        const res = window.EngineBridge.dispatch('Image.Delete', { id: String(id) });
+        if (!res || !res.success) {
+          console.error('Image.Delete failed in Go engine:', res && res.error);
+          return false;
+        }
       }
       const strId = String(id);
       const idx = this.list.findIndex((img) => String(img.id) === strId);

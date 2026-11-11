@@ -100,7 +100,7 @@ func (s *SceneData) ToSnapshot() scene.Snapshot {
 		}
 	}
 
-	return scene.Snapshot{
+	snap := scene.Snapshot{
 		Canvas:        s.Canvas,
 		Camera:        s.Camera,
 		Optical:       s.Optical,
@@ -116,4 +116,32 @@ func (s *SceneData) ToSnapshot() scene.Snapshot {
 		ImagesCounter: int64(s.ImagesCounter),
 		Layers:        s.Layers,
 	}
+
+	if s.Background != nil {
+		bgCopy := *s.Background
+		if s.Background.Crop != nil {
+			c := *s.Background.Crop
+			bgCopy.Crop = &c
+		}
+		if len(s.Background.CropVersions) > 0 {
+			bgCopy.CropVersions = make([]scene.BackgroundCropVersion, len(s.Background.CropVersions))
+			copy(bgCopy.CropVersions, s.Background.CropVersions)
+		}
+		snap.Background = &bgCopy
+	} else if s.Photo != nil {
+		snap.Background = &scene.BackgroundConfig{
+			AssetRef:            s.Photo.AssetPath,
+			Filename:            s.Photo.Filename,
+			Mime:                s.Photo.MIME,
+			NaturalWidth:        float64(s.Photo.NaturalWidth),
+			NaturalHeight:       float64(s.Photo.NaturalHeight),
+			SourceWidth:         float64(s.Photo.NaturalWidth),
+			SourceHeight:        float64(s.Photo.NaturalHeight),
+			Crop:                s.Photo.Crop,
+			CropVersions:        s.Photo.CropVersions,
+			ActiveCropVersionID: s.Photo.ActiveCropVersionID,
+		}
+	}
+
+	return snap
 }

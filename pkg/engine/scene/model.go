@@ -166,7 +166,7 @@ type Node struct {
 	Animation   string   `json:"animation,omitempty"` // "none", "pulse", "float", "fade"
 	Anim        string   `json:"anim,omitempty"`      // Legacy JS alias
 	Visible     *bool    `json:"visible,omitempty"`
-	Locked      bool     `json:"locked,omitempty"`
+	Locked      bool     `json:"locked"`
 }
 
 func (n Node) IsVisible() bool {
@@ -210,7 +210,7 @@ type Flow struct {
 	CustomW     float64          `json:"customW,omitempty"`
 	CustomH     float64          `json:"customH,omitempty"`
 	Visible     *bool            `json:"visible,omitempty"`
-	Locked      bool             `json:"locked,omitempty"`
+	Locked      bool             `json:"locked"`
 }
 
 func (f Flow) IsVisible() bool {
@@ -253,7 +253,7 @@ type Glow struct {
 	CustomW      float64  `json:"customW,omitempty"`
 	CustomH      float64  `json:"customH,omitempty"`
 	Visible      *bool    `json:"visible,omitempty"`
-	Locked       bool     `json:"locked,omitempty"`
+	Locked       bool     `json:"locked"`
 }
 
 func (g Glow) IsVisible() bool {
@@ -286,7 +286,7 @@ type Ripple struct {
 	Thick      float64  `json:"thick,omitempty"`
 	Refraction float64  `json:"refraction,omitempty"`
 	Visible    *bool    `json:"visible,omitempty"`
-	Locked     bool     `json:"locked,omitempty"`
+	Locked     bool     `json:"locked"`
 }
 
 func (r Ripple) IsVisible() bool {
@@ -362,7 +362,7 @@ type Image struct {
 	Clip                *ImageClip     `json:"clip,omitempty"` // Non-destructive object-local clipping boundary
 	Opacity             float64        `json:"opacity"`
 	Visible             *bool          `json:"visible,omitempty"`
-	Locked              bool           `json:"locked,omitempty"`
+	Locked              bool           `json:"locked"`
 	Metadata            map[string]any `json:"metadata,omitempty"` // Extension metadata
 }
 

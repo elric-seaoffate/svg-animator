@@ -159,13 +159,19 @@ func (s *Scene) SetLayers(entries []LayerEntry) error {
 			return fmt.Errorf("invalid layer entry: %s %s does not exist", e.Type, e.ID)
 		}
 		seen[key] = true
+		var visPtr *bool
 		if e.Visible != nil {
 			_ = s.setObjectVisibilityLocked(e.Type, e.ID, *e.Visible)
+			vVal := *e.Visible
+			visPtr = &vVal
 		}
+		var lockPtr *bool
 		if e.Locked != nil {
 			_ = s.setObjectLockedLocked(e.Type, e.ID, *e.Locked)
+			lVal := *e.Locked
+			lockPtr = &lVal
 		}
-		validated = append(validated, LayerEntry{Type: e.Type, ID: e.ID})
+		validated = append(validated, LayerEntry{Type: e.Type, ID: e.ID, Visible: visPtr, Locked: lockPtr})
 	}
 
 	s.layers = validated
