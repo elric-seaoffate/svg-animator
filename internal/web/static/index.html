@@ -1216,17 +1216,17 @@
             <rect id="nodeSelectionBox" x="0" y="0" width="0" height="0" rx="8" fill="none" stroke="#a371f7" stroke-width="2" stroke-dasharray="6,4" style="display:none;" vector-effect="non-scaling-stroke" />
             <rect id="marqueeSelectionBox" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.15)" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,3" style="display:none;" vector-effect="non-scaling-stroke" />
             <!-- Interactive Crop Overlay for Image Objects -->
-            <g id="cropOverlayGroup" style="display:none;">
-              <path id="cropDimMask" fill="rgba(0, 0, 0, 0.55)" fill-rule="evenodd" />
-              <rect id="cropBoxRect" x="0" y="0" width="0" height="0" fill="none" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6,3" vector-effect="non-scaling-stroke" style="cursor: move;" />
-              <rect class="crop-handle" id="cropHandle-nw" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nwse-resize;" />
-              <rect class="crop-handle" id="cropHandle-n" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ns-resize;" />
-              <rect class="crop-handle" id="cropHandle-ne" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nesw-resize;" />
-              <rect class="crop-handle" id="cropHandle-e" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ew-resize;" />
-              <rect class="crop-handle" id="cropHandle-se" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nwse-resize;" />
-              <rect class="crop-handle" id="cropHandle-s" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ns-resize;" />
-              <rect class="crop-handle" id="cropHandle-sw" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nesw-resize;" />
-              <rect class="crop-handle" id="cropHandle-w" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ew-resize;" />
+            <g id="cropOverlayGroup" style="display:none; pointer-events: auto;">
+              <path id="cropDimMask" fill="rgba(0, 0, 0, 0.55)" fill-rule="evenodd" style="pointer-events: none;" />
+              <rect id="cropBoxRect" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.001)" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6,3" vector-effect="non-scaling-stroke" style="cursor: move; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-nw" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nwse-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-n" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ns-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-ne" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nesw-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-e" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ew-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-se" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nwse-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-s" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ns-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-sw" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nesw-resize; pointer-events: all;" />
+              <rect class="crop-handle" id="cropHandle-w" width="14" height="14" rx="2" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ew-resize; pointer-events: all;" />
             </g>
             <!-- Background Extraction Box -->
             <rect id="bgExtractBox" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.2)" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6,3" style="display:none;" vector-effect="non-scaling-stroke" />

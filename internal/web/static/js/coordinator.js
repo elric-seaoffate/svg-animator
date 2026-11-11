@@ -191,6 +191,10 @@
             window.Glows.selectGlow(normalizedId);
           } else if (normalizedType === 'ripple' && window.Ripples && window.Ripples.activeId !== normalizedId) {
             window.Ripples.selectRipple(normalizedId);
+          } else if (normalizedType === 'image') {
+            if (typeof window.syncImageEditorUI === 'function') {
+              window.syncImageEditorUI();
+            }
           } else if (normalizedType === 'camera' && window.Stage && window.Stage.activePlacement !== normalizedId) {
             window.Stage.setActive(normalizedId);
           }
@@ -218,6 +222,8 @@
           window.openAccordionById(options.openAccordionId);
         }
 
+        this._refreshAllInstanceLists();
+        this.updateActiveOverlays();
         this.emit('selection:changed', this.getActiveSelection());
       } finally {
         this._isCoordinatingSelection = false;
@@ -1009,7 +1015,7 @@
           if (activeNode && typeof window.DiagramNodes.updateUIOverlay === 'function') {
             window.DiagramNodes.updateUIOverlay(activeNode);
           }
-        } else if (this.getSelectedItems().length > 0 && typeof window.DiagramNodes.updateUIOverlay === 'function') {
+        } else if ((this.getSelectedItems().length > 0 || (this.activeSelection.type === 'image' && this.activeSelection.id != null)) && typeof window.DiagramNodes.updateUIOverlay === 'function') {
           window.DiagramNodes.updateUIOverlay(null);
         }
       }

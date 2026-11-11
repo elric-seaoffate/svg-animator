@@ -4069,10 +4069,19 @@ function renderBackgroundToOffscreenCanvas(canvasW, canvasH, callback) {
     ? window.getLoadedPhoto()
     : (window.SceneState ? window.SceneState.getLoadedPhoto() : null);
 
-  if (pat === 'photo' && loadedPhoto && (loadedPhoto.dataUrl || loadedPhoto.b64)) {
-    const src = loadedPhoto.dataUrl || ('data:' + (loadedPhoto.mime || 'image/png') + ';base64,' + loadedPhoto.b64);
+  const photoSrc = loadedPhoto ? (loadedPhoto.dataUrl || loadedPhoto.src || loadedPhoto.dataURL || loadedPhoto.url || (loadedPhoto.b64 ? ('data:' + (loadedPhoto.mime || 'image/png') + ';base64,' + loadedPhoto.b64) : '')) : '';
+
+  if (pat === 'photo' && photoSrc) {
+    const isTrans = document.getElementById('canvasBgTransparent')?.checked;
+    const bgColor = document.getElementById('canvasBgColorPicker')?.value || '#0d1117';
+    if (!isTrans) {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvasW, canvasH);
+    }
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (!photoSrc.startsWith('data:')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => {
       const fitSelect = document.getElementById('photoFitSelect');
       const fitMode = fitSelect ? fitSelect.value : 'match';
@@ -4113,7 +4122,7 @@ function renderBackgroundToOffscreenCanvas(canvasW, canvasH, callback) {
       ctx.fillRect(0, 0, canvasW, canvasH);
       callback(bgCanvas);
     };
-    img.src = src;
+    img.src = photoSrc;
   } else {
     const isTrans = document.getElementById('canvasBgTransparent')?.checked;
     const bgColor = document.getElementById('canvasBgColorPicker')?.value || '#0d1117';
@@ -4272,18 +4281,33 @@ function executeBakeImage(img, mode) {
 }
 
 window.executeBackgroundExtraction = function(box) {
-  if (!box || box.w < 10 || box.h < 10) return;
+  if (!box || box.w < 10 || box.h < 10) {
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification('Extraction region too small. Drag a larger rectangle (at least 10×10 px).', 'warning', 3000);
+    }
+    return;
+  }
   const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
   const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
 
   renderBackgroundToOffscreenCanvas(canvasW, canvasH, (bgCanvas) => {
-    if (!bgCanvas) return;
+    if (!bgCanvas) {
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Failed to render background for extraction.', 'error', 3000);
+      }
+      return;
+    }
 
     const sliceCanvas = document.createElement('canvas');
     sliceCanvas.width = Math.round(box.w);
     sliceCanvas.height = Math.round(box.h);
     const sCtx = sliceCanvas.getContext('2d');
-    if (!sCtx) return;
+    if (!sCtx) {
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Failed to create slice context for extraction.', 'error', 3000);
+      }
+      return;
+    }
 
     sCtx.drawImage(
       bgCanvas,
@@ -4292,27 +4316,58 @@ window.executeBackgroundExtraction = function(box) {
     );
 
     const dataUrl = sliceCanvas.toDataURL('image/png');
+    if (!dataUrl || dataUrl.length < 50) {
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Extraction produced invalid image data.', 'error', 3000);
+      }
+      return;
+    }
+
     const xPct = ((box.x + box.w / 2) / canvasW) * 100;
     const yPct = ((box.y + box.h / 2) / canvasH) * 100;
 
+    window._bgExtractCounter = (window._bgExtractCounter || 0) + 1;
+    const extractName = `Background Extract ${window._bgExtractCounter}`;
+    const filename = `bg_extract_${window._bgExtractCounter}.png`;
+
+    const imgPayload = {
+      name: extractName,
+      filename: filename,
+      mime: 'image/png',
+      src: dataUrl,
+      data: dataUrl,
+      x: Math.round(xPct * 1000) / 1000,
+      y: Math.round(yPct * 1000) / 1000,
+      width: Math.round(box.w),
+      height: Math.round(box.h),
+      naturalWidth: Math.round(box.w),
+      naturalHeight: Math.round(box.h),
+      maintainAspectRatio: true,
+      opacity: 1.0,
+      visible: true,
+      locked: false
+    };
+
     let created = null;
-    if (window.ImageObjects) {
-      created = window.ImageObjects.createImage({
-        filename: 'extracted_bg.png',
-        mime: 'image/png',
-        src: dataUrl,
-        data: dataUrl,
-        x: Math.round(xPct * 1000) / 1000,
-        y: Math.round(yPct * 1000) / 1000,
-        width: Math.round(box.w),
-        height: Math.round(box.h),
-        naturalWidth: Math.round(box.w),
-        naturalHeight: Math.round(box.h),
-        maintainAspectRatio: true,
-        opacity: 1.0,
-        visible: true,
-        locked: false
-      });
+    if (window.EngineBridge && typeof window.EngineBridge.createImage === 'function' && window.EngineBridge.isReady()) {
+      const res = window.EngineBridge.createImage(imgPayload);
+      created = (res && res.image) ? res.image : res;
+    } else if (window.ImageObjects) {
+      created = window.ImageObjects.createImage(imgPayload);
+    }
+
+    if (!created || !created.id) {
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Failed to create Image Object from extracted region.', 'error', 3000);
+      }
+      return;
+    }
+
+    if (window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+      window.LayerManager.addEntry('image', created.id);
+    }
+    if (window.LayerManager && typeof window.LayerManager.syncFromEngine === 'function') {
+      window.LayerManager.syncFromEngine();
     }
 
     if (window.HistoryManager) {
@@ -4321,11 +4376,21 @@ window.executeBackgroundExtraction = function(box) {
     if (typeof window.triggerRender === 'function') {
       window.triggerRender();
     }
-    if (created && window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', created.id);
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', created.id, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.requestRender();
+      window.AppCoordinator.updateActiveOverlays();
+      window.AppCoordinator.showNotification(
+        'Background region extracted as an editable image. Drag to reposition.',
+        'success',
+        4000
+      );
     }
-    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
-      window.AppCoordinator.showNotification(`Background extracted as new Image Object (${Math.round(box.w)} × ${Math.round(box.h)} px)`, 'success');
+    if (typeof window.syncImageEditorUI === 'function') {
+      window.syncImageEditorUI();
+    }
+    if (typeof window.renderLayersList === 'function') {
+      window.renderLayersList();
     }
   });
 };

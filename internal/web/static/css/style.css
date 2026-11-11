@@ -705,13 +705,33 @@ header h1 {
   color: #c9d1d9;
 }
 
+#cropOverlayGroup {
+  pointer-events: auto;
+}
+
+#cropDimMask {
+  pointer-events: none !important;
+}
+
+#cropBoxRect {
+  pointer-events: all !important;
+  fill: rgba(88, 166, 255, 0.001);
+  cursor: move;
+}
+
 .crop-handle {
+  pointer-events: all !important;
   transition: transform 0.1s ease;
 }
 
 .crop-handle:hover {
   transform-origin: center;
   fill: #79c0ff !important;
+  stroke: #ffffff !important;
+}
+
+#bgExtractBox {
+  pointer-events: none;
 }
 
 .stage-bar {

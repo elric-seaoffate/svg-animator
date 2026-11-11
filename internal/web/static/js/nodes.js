@@ -658,9 +658,13 @@ window.DiagramNodes = {
     const empty = document.getElementById('emptyNodeSelection');
     if (empty) empty.style.display = 'block';
     const selBox = document.getElementById('nodeSelectionBox');
-    if (selBox) selBox.style.display = 'none';
+    if (selBox && (!window.AppCoordinator || !window.AppCoordinator.activeSelection || window.AppCoordinator.activeSelection.type !== 'image')) {
+      selBox.style.display = 'none';
+    }
     const multiGroup = document.getElementById('multiSelectionGroup');
-    if (multiGroup) multiGroup.innerHTML = '';
+    if (multiGroup && (!window.AppCoordinator || !window.AppCoordinator.activeSelection || window.AppCoordinator.activeSelection.type !== 'image')) {
+      multiGroup.innerHTML = '';
+    }
     this.updateMultiSelectToolbar([]);
     if (typeof window.syncInspectorLayerSections === 'function') {
       window.syncInspectorLayerSections();
@@ -743,7 +747,8 @@ window.DiagramNodes = {
         selBox.style.display = 'block';
       } else if (!targetNode && window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'image' && window.ImageObjects) {
         const img = window.ImageObjects.getImage(window.AppCoordinator.activeSelection.id);
-        if (img) {
+        const isCropping = window.Stage && window.Stage.isCroppingImage;
+        if (img && !isCropping) {
           const cx = (img.x / 100) * dims.width;
           const cy = (img.y / 100) * dims.height;
           const w = (img.width || 200) + pad * 2;

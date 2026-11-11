@@ -289,6 +289,7 @@ window.Stage = {
           const handleEl = e.target.closest ? e.target.closest('.crop-handle') : null;
           const boxEl = e.target.closest ? e.target.closest('#cropBoxRect') : null;
           if (handleEl) {
+            e.stopPropagation();
             const hId = handleEl.id.replace('cropHandle-', '');
             this.cropDragMode = hId;
             this.cropDragStart = {
@@ -299,6 +300,7 @@ window.Stage = {
             try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
             return;
           } else if (boxEl) {
+            e.stopPropagation();
             this.cropDragMode = 'move';
             this.cropDragStart = {
               clientX: e.clientX,
@@ -897,11 +899,13 @@ window.Stage = {
 
         if (this.isCroppingImage) {
           this.cropDragMode = null;
+          try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
           return;
         }
 
         if (this.isExtractingBg) {
           this.isDraggingBgExtract = false;
+          try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
           return;
         }
 
@@ -1403,18 +1407,17 @@ window.Stage = {
     if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
       origW = Number(img.crop.origWidth) || w;
       origH = Number(img.crop.origHeight) || h;
-      const origCX = (Number(img.crop.origX || img.x) / 100) * canvasW;
-      const origCY = (Number(img.crop.origY || img.y) / 100) * canvasH;
-      origLeft = origCX - origW / 2;
-      origTop = origCY - origH / 2;
 
       const scaleX = origW / natW;
       const scaleY = origH / natH;
 
-      boxX = origLeft + img.crop.sourceX * scaleX;
-      boxY = origTop + img.crop.sourceY * scaleY;
-      boxW = img.crop.sourceWidth * scaleX;
-      boxH = img.crop.sourceHeight * scaleY;
+      origLeft = left - img.crop.sourceX * scaleX;
+      origTop = top - img.crop.sourceY * scaleY;
+
+      boxX = left;
+      boxY = top;
+      boxW = w;
+      boxH = h;
     }
 
     this.cropOrigBounds = {
@@ -1432,6 +1435,12 @@ window.Stage = {
       w: boxW,
       h: boxH
     };
+
+    if (this.previewBox) this.previewBox.classList.add('crop-mode-active');
+    if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'auto';
+
+    const selBox = document.getElementById('nodeSelectionBox');
+    if (selBox) selBox.style.display = 'none';
 
     const cropBar = document.getElementById('cropBar');
     if (cropBar) cropBar.style.display = 'flex';
@@ -1461,7 +1470,7 @@ window.Stage = {
       mask.setAttribute('d', d);
     }
 
-    const hw = 5;
+    const hw = 7;
     const setH = (id, x, y) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1509,8 +1518,8 @@ window.Stage = {
 
     const sourceX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
     const sourceY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
-    const sourceWidth = Math.min(ob.natW - sourceX, Math.round(b.w / scaleX));
-    const sourceHeight = Math.min(ob.natH - sourceY, Math.round(b.h / scaleY));
+    const sourceWidth = Math.max(10, Math.min(ob.natW - sourceX, Math.round(b.w / scaleX)));
+    const sourceHeight = Math.max(10, Math.min(ob.natH - sourceY, Math.round(b.h / scaleY)));
 
     const origCX = ob.left + ob.w / 2;
     const origCY = ob.top + ob.h / 2;
@@ -1552,7 +1561,12 @@ window.Stage = {
       window.triggerRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', imgId);
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.updateActiveOverlays();
+      window.AppCoordinator.showNotification('Image crop applied.', 'success', 2500);
+    }
+    if (typeof window.syncImageEditorUI === 'function') {
+      window.syncImageEditorUI();
     }
   },
 
@@ -1561,10 +1575,15 @@ window.Stage = {
     this.activeCropImage = null;
     this.activeCropImageId = null;
     this.cropDragMode = null;
+    if (this.previewBox) this.previewBox.classList.remove('crop-mode-active');
+    if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'none';
     const cropBar = document.getElementById('cropBar');
     if (cropBar) cropBar.style.display = 'none';
     const groupEl = document.getElementById('cropOverlayGroup');
     if (groupEl) groupEl.style.display = 'none';
+    if (window.AppCoordinator) {
+      window.AppCoordinator.updateActiveOverlays();
+    }
   },
 
   resetCropMode() {
@@ -1581,7 +1600,12 @@ window.Stage = {
       window.triggerRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', imgId);
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.updateActiveOverlays();
+      window.AppCoordinator.showNotification('Image crop reset to full bounds.', 'info', 2500);
+    }
+    if (typeof window.syncImageEditorUI === 'function') {
+      window.syncImageEditorUI();
     }
   },
 

@@ -6907,6 +6907,12 @@ async function runHarness() {
   assert.ok(window.Stage.cropBox, 'Scenario 50: cropBox initialized');
   assert.ok(window.Stage.cropOrigBounds, 'Scenario 50: cropOrigBounds initialized');
 
+  // Verify pointer-events and preview active states
+  const s50TrajSvg = document.getElementById('trajectorySvg');
+  assert.strictEqual(s50TrajSvg.style.pointerEvents, 'auto', 'Scenario 50: trajectorySvg pointerEvents auto while cropping');
+  const s50PreviewBox = document.getElementById('previewBox');
+  assert.strictEqual(s50PreviewBox.classList.contains('crop-mode-active'), true, 'Scenario 50: previewBox has crop-mode-active class');
+
   // Verify crop box boundaries
   assert.strictEqual(window.Stage.cropBox.w, 300, 'Scenario 50: Initial crop box width matches image width');
   assert.strictEqual(window.Stage.cropBox.h, 200, 'Scenario 50: Initial crop box height matches image height');
@@ -6917,24 +6923,46 @@ async function runHarness() {
   window.Stage.applyCropMode();
 
   assert.strictEqual(window.Stage.isCroppingImage, false, 'Scenario 50: isCroppingImage inactive after apply');
+  assert.strictEqual(s50TrajSvg.style.pointerEvents, 'none', 'Scenario 50: trajectorySvg pointerEvents reset to none');
+  assert.strictEqual(s50PreviewBox.classList.contains('crop-mode-active'), false, 'Scenario 50: crop-mode-active class removed');
+
   const appliedImg = window.ImageObjects.getImage(s50Img.id);
   assert.ok(appliedImg.crop && appliedImg.crop.enabled, 'Scenario 50: Image has crop enabled');
   assert.strictEqual(appliedImg.width, 150, 'Scenario 50: Image width updated');
   assert.strictEqual(appliedImg.height, 100, 'Scenario 50: Image height updated');
 
+  // Verify re-crop anchoring when a cropped image is translated (x and y are percentages 0..100)
+  appliedImg.x = 20;
+  appliedImg.y = 30;
+  window.Stage.startCropMode(appliedImg);
+  assert.strictEqual(window.Stage.isCroppingImage, true, 'Scenario 50: Re-crop mode started');
+  // Canvas: 1280x720. cx = 20% of 1280 = 256; left = 256 - 150/2 = 181.
+  assert.strictEqual(window.Stage.cropOrigBounds.left, 181, 'Scenario 50: cropOrigBounds.left anchored to translated position');
+  // cy = 30% of 720 = 216; top = 216 - 100/2 = 166.
+  assert.strictEqual(window.Stage.cropOrigBounds.top, 166, 'Scenario 50: cropOrigBounds.top anchored to translated position');
+  window.Stage.cancelCropMode();
+  assert.strictEqual(window.Stage.isCroppingImage, false, 'Scenario 50: Re-crop cancelled');
+  assert.strictEqual(s50TrajSvg.style.pointerEvents, 'none', 'Scenario 50: trajectorySvg pointerEvents reset to none on cancel');
+
   console.log('[HARNESS] Scenario 50 PASS: Interactive Crop Mode Lifecycle & Boundary Clamping verified.');
 
   // ---------------------------------------------------------------------------
-  // SCENARIO 51: Background Region Extraction
+  // SCENARIO 51: Background Region Extraction & Selection Validation
   // ---------------------------------------------------------------------------
-  console.log('\n[HARNESS] Scenario 51: Background Region Extraction...');
+  console.log('\n[HARNESS] Scenario 51: Background Region Extraction & Selection Validation...');
   const preImgCount = window.ImageObjects.list.length;
 
+  // Negative validation: reject degenerate extraction regions < 10x10
+  window.executeBackgroundExtraction({ x: 50, y: 50, w: 5, h: 5 });
+  assert.strictEqual(window.ImageObjects.list.length, preImgCount, 'Scenario 51: Degenerate extraction rejected');
+
+  // Valid extraction
   window.executeBackgroundExtraction({ x: 100, y: 80, w: 250, h: 180 });
 
   assert.strictEqual(window.ImageObjects.list.length, preImgCount + 1, 'Scenario 51: New image created by extraction');
   const extractedImg = window.ImageObjects.list[window.ImageObjects.list.length - 1];
-  assert.strictEqual(extractedImg.filename, 'extracted_bg.png', 'Scenario 51: Extracted image has filename');
+  assert.strictEqual(extractedImg.filename, 'bg_extract_1.png', 'Scenario 51: Extracted image has filename');
+  assert.strictEqual(extractedImg.name, 'Background Extract 1', 'Scenario 51: Extracted image has meaningful name');
   assert.strictEqual(extractedImg.width, 250, 'Scenario 51: Extracted image width matches selection');
   assert.strictEqual(extractedImg.height, 180, 'Scenario 51: Extracted image height matches selection');
   assert.ok(extractedImg.src && extractedImg.src.startsWith('data:image/png'), 'Scenario 51: Extracted image has PNG data URL');
@@ -6944,7 +6972,13 @@ async function runHarness() {
   const extractLayer = layersAfterExtract.find((l) => l.type === 'image' && l.id === extractedImg.id);
   assert.ok(extractLayer, 'Scenario 51: Extracted image is present in layer stack');
 
-  console.log('[HARNESS] Scenario 51 PASS: Background Region Extraction verified.');
+  // Verify active selection set to extracted image and purple bounding box displayed
+  assert.strictEqual(window.AppCoordinator.activeSelection.type, 'image', 'Scenario 51: AppCoordinator selected image type');
+  assert.strictEqual(window.AppCoordinator.activeSelection.id, extractedImg.id, 'Scenario 51: AppCoordinator selected extracted image ID');
+  const selBox = document.getElementById('nodeSelectionBox');
+  assert.strictEqual(selBox.style.display, 'block', 'Scenario 51: Primary selection bounding box displayed for extracted image');
+
+  console.log('[HARNESS] Scenario 51 PASS: Background Region Extraction & Selection Validation verified.');
 
   // ---------------------------------------------------------------------------
   // SCENARIO 52: Image Baking into Background (Remove and Keep options) & Undo
@@ -7054,6 +7088,63 @@ async function runHarness() {
   assert.strictEqual(restoredS53.crop.origHeight, 288, 'Scenario 53: Crop origHeight preserved');
 
   console.log('[HARNESS] Scenario 53 PASS: Cropped Image Object SVA Roundtrip Preservation verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 54: Full Pipeline: Background Extraction -> Drag -> Bake -> Undo/Redo & SVA Roundtrip
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 54: Background Extraction -> Drag -> Bake -> Undo/Redo & SVA Roundtrip...');
+
+  // 1. Extract region from background
+  window.executeBackgroundExtraction({ x: 40, y: 50, w: 200, h: 150 });
+  const s54Extracted = window.ImageObjects.list[window.ImageObjects.list.length - 1];
+  assert.strictEqual(s54Extracted.name, 'Background Extract 2', 'Scenario 54: Extracted image numbered name generated');
+
+  // 2. Drag / reposition extracted object
+  s54Extracted.x = 35;
+  s54Extracted.y = 22;
+
+  // 3. Bake into background with mode='keep'
+  executeBakeImage(s54Extracted, 'keep');
+  assert.strictEqual(s54Extracted.visible, false, 'Scenario 54: Baked object hidden with mode=keep');
+
+  // 4. Undo and Redo
+  window.HistoryManager.undo();
+  const s54Undone = window.ImageObjects.getImage(s54Extracted.id);
+  assert.ok(s54Undone, 'Scenario 54: Image exists after undo');
+  assert.strictEqual(s54Undone.visible !== false, true, 'Scenario 54: Image visibility restored on undo');
+  window.HistoryManager.redo();
+  const s54Redone = window.ImageObjects.getImage(s54Extracted.id);
+  assert.ok(s54Redone, 'Scenario 54: Image exists after redo');
+  assert.strictEqual(s54Redone.visible, false, 'Scenario 54: Image visibility hidden again on redo');
+
+  // 5. Extract another region and bake with mode='remove'
+  window.executeBackgroundExtraction({ x: 10, y: 10, w: 100, h: 100 });
+  const s54Extracted2 = window.ImageObjects.list[window.ImageObjects.list.length - 1];
+  assert.strictEqual(s54Extracted2.name, 'Background Extract 3', 'Scenario 54: Third extract numbered name generated');
+  const s54Extracted2Id = s54Extracted2.id;
+  executeBakeImage(s54Extracted2, 'remove');
+  assert.strictEqual(window.ImageObjects.getImage(s54Extracted2Id), null, 'Scenario 54: Baked object removed with mode=remove');
+
+  // 6. Native .sva Roundtrip with baked background and kept images
+  let s54Blob = null;
+  const origDl54 = window.ProjectManager._downloadBlob;
+  window.ProjectManager._downloadBlob = (b) => { s54Blob = b; };
+  await window.ProjectManager.exportSVA();
+  assert.ok(s54Blob, 'Scenario 54: SVA export produced blob');
+  const s54SvaBuf = await s54Blob.arrayBuffer();
+
+  window.ProjectManager.resetToNewProject();
+  await window.ProjectManager.importSVA({
+    name: 'BakeTest.sva',
+    arrayBuffer: async () => s54SvaBuf
+  });
+  window.ProjectManager._downloadBlob = origDl54;
+
+  const restoredPhoto = window.getLoadedPhoto();
+  assert.ok(restoredPhoto, 'Scenario 54: Baked background photo restored from SVA');
+  assert.strictEqual(restoredPhoto.filename, 'baked_background.png', 'Scenario 54: Restored background filename matches baked');
+
+  console.log('[HARNESS] Scenario 54 PASS: Background Extraction -> Drag -> Bake -> Undo/Redo & SVA Roundtrip verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
