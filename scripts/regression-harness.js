@@ -6675,6 +6675,111 @@ async function runHarness() {
   const layersAfterUndo = window.LayerManager.getLayers().map(l => `${l.type}:${l.id}`);
   assert.deepStrictEqual(layersBeforeMove, layersAfterUndo, 'Scenario 48: Undo restored layer order and inspector position');
 
+  // 13. Test Tripartite Synchronization (Layers drawer <-> Object Properties <-> Floating context editor)
+  window.AppCoordinator.selectObject('image', s48Img1.id);
+  window.renderLayersList();
+  window.syncInspectorLayerSections();
+
+  const btnImgFwd = document.getElementById('btnImageLayerForward');
+  const btnImgToFront = document.getElementById('btnImageLayerToFront');
+  const lblImgPos = document.getElementById('imageLayerPositionLabel');
+  const prevImgPos = lblImgPos.textContent;
+
+  // Move forward from normal Image Properties panel
+  btnImgFwd.click();
+  window.syncInspectorLayerSections();
+  window.renderLayersList();
+  assert.notStrictEqual(lblImgPos.textContent, prevImgPos, 'Scenario 48: Image position updated in normal Image Properties');
+
+  // Open Floating contextual Properties editor and verify synchronization
+  window.FloatingPropertiesEditor.openFor('image', s48Img1.id);
+  assert.strictEqual(window.FloatingPropertiesEditor.isOpen, true, 'Scenario 48: FloatingPropertiesEditor opened for image');
+  const fctxBtnToFront = document.getElementById('fctx-btnLayerTop');
+  const fctxBtnToBottom = document.getElementById('fctx-btnLayerBottom');
+  assert.ok(fctxBtnToFront && fctxBtnToBottom, 'Scenario 48: Floating context editor layer buttons exist');
+
+  // Reorder from Floating context editor (Bring to Front)
+  fctxBtnToFront.click();
+  window.syncInspectorLayerSections();
+  window.renderLayersList();
+
+  // Verify normal Image Properties AND Layers Drawer updated from floating context action
+  assert.strictEqual(lblImgPos.textContent, 'Position: 6 of 6', 'Scenario 48: Image Properties reflects Bring to Front from floating editor');
+  const btnDrawerFwd = document.getElementById('btnLayerForward');
+  const btnDrawerToFront = document.getElementById('btnLayerToFront');
+  assert.strictEqual(btnDrawerFwd.disabled, true, 'Scenario 48: Layers drawer toolbar forward disabled when at top');
+  assert.strictEqual(btnDrawerToFront.disabled, true, 'Scenario 48: Layers drawer toolbar toFront disabled when at top');
+  assert.strictEqual(fctxBtnToFront.disabled, true, 'Scenario 48: Floating editor toFront disabled when at top');
+
+  // Reorder from normal Image Properties (Send to Back) and verify Floating editor and Layers drawer update
+  const btnImgToBack = document.getElementById('btnImageLayerToBack');
+  btnImgToBack.click();
+  window.syncInspectorLayerSections();
+  window.renderLayersList();
+  window.FloatingPropertiesEditor.syncFromActiveObject();
+
+  assert.strictEqual(lblImgPos.textContent, 'Position: 1 of 6', 'Scenario 48: Image Properties reflects Send to Back');
+  const btnDrawerBack = document.getElementById('btnLayerBackward');
+  const btnDrawerToBack = document.getElementById('btnLayerToBack');
+  assert.strictEqual(btnDrawerBack.disabled, true, 'Scenario 48: Layers drawer toolbar backward disabled when at bottom');
+  assert.strictEqual(btnDrawerToBack.disabled, true, 'Scenario 48: Layers drawer toolbar toBack disabled when at bottom');
+  assert.strictEqual(fctxBtnToBottom.disabled, true, 'Scenario 48: Floating editor toBottom disabled when at bottom');
+  window.FloatingPropertiesEditor.close();
+
+  // 14. Test Mixed Group Stacking Contiguity & SVA Round-Trip Persistence
+  window.AppCoordinator.selectGroup(s48Grp.id);
+  window.AppCoordinator.ungroupSelectedGroup();
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: s48Node1.id },
+    { type: 'glow', id: s48Glow1.id },
+    { type: 'image', id: s48Img1.id }
+  ]);
+  const s48MixedGrp = window.AppCoordinator.createGroupFromSelection('Mixed Assembly');
+  assert.ok(s48MixedGrp, 'Scenario 48: Mixed Assembly group created');
+
+  window.AppCoordinator.selectGroup(s48MixedGrp.id);
+  window.syncInspectorLayerSections();
+  window.renderLayersList();
+
+  // Reorder mixed group to front from normal group Properties
+  btnGrpFront.click();
+  window.syncInspectorLayerSections();
+  window.renderLayersList();
+
+  // Verify group contiguity: all 3 members occupy consecutive indices at top
+  const s48CurLayers = window.LayerManager.getLayers();
+  const mixedMemberKeys = new Set([`node:${s48Node1.id}`, `glow:${s48Glow1.id}`, `image:${s48Img1.id}`]);
+  const s48MemberIndices = [];
+  s48CurLayers.forEach((l, idx) => {
+    if (mixedMemberKeys.has(`${l.type}:${l.id}`)) s48MemberIndices.push(idx);
+  });
+  assert.strictEqual(s48MemberIndices.length, 3, 'Scenario 48: All 3 mixed group members present in layers');
+  assert.strictEqual(s48MemberIndices[1], s48MemberIndices[0] + 1, 'Scenario 48: Mixed group members contiguous index 0 & 1');
+  assert.strictEqual(s48MemberIndices[2], s48MemberIndices[1] + 1, 'Scenario 48: Mixed group members contiguous index 1 & 2');
+
+  // Verify SVA persistence of group and layer order
+  let s48Blob = null;
+  const origDownload = window.ProjectManager._downloadBlob;
+  window.ProjectManager._downloadBlob = (b) => { s48Blob = b; };
+  await window.ProjectManager.exportSVA();
+  assert.ok(s48Blob, 'Scenario 48: exportSVA succeeded');
+
+  const s48Buf = await s48Blob.arrayBuffer();
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.DiagramNodes.list.length, 0, 'Scenario 48: Scene cleared');
+
+  await window.ProjectManager.importSVA({
+    name: 'Mixed Assembly.sva',
+    arrayBuffer: async () => s48Buf
+  });
+  window.ProjectManager._downloadBlob = origDownload;
+
+  assert.strictEqual(window.ObjectGroups.list.length, 1, 'Scenario 48: Mixed group restored from .sva');
+  assert.strictEqual(window.ObjectGroups.list[0].name, 'Mixed Assembly', 'Scenario 48: Restored group name matches');
+  assert.strictEqual(window.ObjectGroups.list[0].members.length, 3, 'Scenario 48: Restored group has 3 members');
+  assert.strictEqual(window.LayerManager.getLayers().length >= 3, true, 'Scenario 48: Restored scene has layer order intact');
+
   console.log('[HARNESS] Scenario 48 PASS: Layer ordering and state controls in normal object properties panels verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 & 14 unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');

@@ -845,6 +845,9 @@
 
     _coordinateLayerReorder(action, explicitTargets = null) {
       let targets = explicitTargets;
+      if (targets && !Array.isArray(targets) && typeof targets === 'object' && targets.type) {
+        targets = [targets];
+      }
       if (!targets) {
         if (this.activeSelection.type === 'group' && this.activeSelection.id) {
           targets = [{ type: 'group', id: String(this.activeSelection.id) }];

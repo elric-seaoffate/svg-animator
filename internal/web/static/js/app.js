@@ -1293,6 +1293,24 @@ window.FloatingPropertiesEditor = {
           btnLock.textContent = eff.locked ? '🔒' : '🔓';
           btnLock.title = eff.locked ? 'Unlock Object' : 'Lock Object';
         }
+
+        if (typeof window.LayerManager.getLayers === 'function') {
+          const layers = window.LayerManager.getLayers();
+          const strId = String(this.activeId);
+          const idx = layers.findIndex((l) => l.type === this.activeType && String(l.id) === strId);
+          const btnLayerTop = document.getElementById('fctx-btnLayerTop');
+          const btnLayerUp = document.getElementById('fctx-btnLayerUp');
+          const btnLayerDown = document.getElementById('fctx-btnLayerDown');
+          const btnLayerBottom = document.getElementById('fctx-btnLayerBottom');
+          if (idx !== -1) {
+            const isAtTop = (idx >= layers.length - 1) || (layers.length <= 1);
+            const isAtBottom = (idx <= 0) || (layers.length <= 1);
+            if (btnLayerTop) btnLayerTop.disabled = isAtTop;
+            if (btnLayerUp) btnLayerUp.disabled = isAtTop;
+            if (btnLayerDown) btnLayerDown.disabled = isAtBottom;
+            if (btnLayerBottom) btnLayerBottom.disabled = isAtBottom;
+          }
+        }
       }
     } finally {
       this._isSyncing = false;
@@ -1989,7 +2007,8 @@ window.FloatingPropertiesEditor = {
     if (btnLayerTop) {
       btnLayerTop.addEventListener('click', () => {
         if (this.activeType && this.activeId !== null && window.AppCoordinator) {
-          window.AppCoordinator.bringSelectionToFront({ type: this.activeType, id: this.activeId });
+          window.AppCoordinator.bringSelectionToFront([{ type: this.activeType, id: String(this.activeId) }]);
+          this.syncFromActiveObject();
         }
       });
     }
@@ -1998,7 +2017,8 @@ window.FloatingPropertiesEditor = {
     if (btnLayerUp) {
       btnLayerUp.addEventListener('click', () => {
         if (this.activeType && this.activeId !== null && window.AppCoordinator) {
-          window.AppCoordinator.bringSelectionForward({ type: this.activeType, id: this.activeId });
+          window.AppCoordinator.bringSelectionForward([{ type: this.activeType, id: String(this.activeId) }]);
+          this.syncFromActiveObject();
         }
       });
     }
@@ -2007,7 +2027,8 @@ window.FloatingPropertiesEditor = {
     if (btnLayerDown) {
       btnLayerDown.addEventListener('click', () => {
         if (this.activeType && this.activeId !== null && window.AppCoordinator) {
-          window.AppCoordinator.sendSelectionBackward({ type: this.activeType, id: this.activeId });
+          window.AppCoordinator.sendSelectionBackward([{ type: this.activeType, id: String(this.activeId) }]);
+          this.syncFromActiveObject();
         }
       });
     }
@@ -2016,7 +2037,8 @@ window.FloatingPropertiesEditor = {
     if (btnLayerBottom) {
       btnLayerBottom.addEventListener('click', () => {
         if (this.activeType && this.activeId !== null && window.AppCoordinator) {
-          window.AppCoordinator.sendSelectionToBack({ type: this.activeType, id: this.activeId });
+          window.AppCoordinator.sendSelectionToBack([{ type: this.activeType, id: String(this.activeId) }]);
+          this.syncFromActiveObject();
         }
       });
     }
