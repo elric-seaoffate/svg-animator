@@ -1492,12 +1492,31 @@ window.Stage = {
       this.activeCropImage = null;
       this.activeCropImageId = null;
 
-      const canvasW = this.canvasWidth;
-      const canvasH = this.canvasHeight;
-      const natW = Number(photo.naturalWidth) || canvasW;
-      const natH = Number(photo.naturalHeight) || canvasH;
-
+      const natW = Number(photo.naturalWidth) || this.canvasWidth;
+      const natH = Number(photo.naturalHeight) || this.canvasHeight;
       const fitMode = photo.photoFit || (document.getElementById('photoFitSelect') ? document.getElementById('photoFitSelect').value : 'match');
+
+      let canvasW = this.canvasWidth;
+      let canvasH = this.canvasHeight;
+
+      if (fitMode === 'match') {
+        canvasW = natW;
+        canvasH = natH;
+        this.canvasWidth = natW;
+        this.canvasHeight = natH;
+        const wIn = document.getElementById('canvasWidthInput');
+        const hIn = document.getElementById('canvasHeightInput');
+        if (wIn) wIn.value = natW;
+        if (hIn) hIn.value = natH;
+        if (window.SceneState && window.SceneState.controls) {
+          window.SceneState.controls.canvasWidthInput = String(natW);
+          window.SceneState.controls.canvasHeightInput = String(natH);
+        }
+        if (typeof window.triggerAppRender === 'function') {
+          window.triggerAppRender();
+        }
+      }
+
       let dispLeft = 0;
       let dispTop = 0;
       let dispW = canvasW;
@@ -1733,10 +1752,16 @@ window.Stage = {
         sourceHeight
       };
 
-      this.cancelCropMode();
+      this.cancelCropMode({ skipMatch: true });
 
       if (window.EngineBridge && typeof window.EngineBridge.cropBackground === 'function') {
         window.EngineBridge.cropBackground(cropData);
+      }
+
+      const fitSel = document.getElementById('photoFitSelect');
+      const fitMode = fitSel ? fitSel.value : 'match';
+      if (fitMode === 'match' && typeof window.matchCanvasToPhoto === 'function') {
+        window.matchCanvasToPhoto();
       }
 
       if (window.HistoryManager) {
@@ -1833,7 +1858,8 @@ window.Stage = {
     }
   },
 
-  cancelCropMode() {
+  cancelCropMode(opts = {}) {
+    const wasBg = this.isCroppingBackground;
     this.isCroppingImage = false;
     this.isCroppingBackground = false;
     this.activeCropImage = null;
@@ -1847,6 +1873,13 @@ window.Stage = {
     if (groupEl) groupEl.style.display = 'none';
     if (window.AppCoordinator) {
       window.AppCoordinator.updateActiveOverlays();
+    }
+    if (wasBg && (!opts || !opts.skipMatch)) {
+      const fitSel = document.getElementById('photoFitSelect');
+      const fitMode = fitSel ? fitSel.value : 'match';
+      if (fitMode === 'match' && typeof window.matchCanvasToPhoto === 'function') {
+        window.matchCanvasToPhoto();
+      }
     }
   },
 

@@ -1442,11 +1442,14 @@
                 <div id="imageToolsPreviousCropsList" style="display: none;"></div>
               </div>
 
-              <!-- Secondary Actions: Edit Crop & Reset to Original -->
-              <div style="display: flex; gap: 6px; margin-bottom: 0.55rem;">
+              <!-- Secondary Actions: Edit Crop, Reset to Original & Match Canvas -->
+              <div style="display: flex; gap: 6px; margin-bottom: 0.35rem;">
                 <button type="button" class="btn btn-secondary btn-sm" id="btnEditCurrentCrop" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;" title="Adjust current crop frame on canvas" disabled>✏️ Edit Current Crop</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btnResetCropToOriginal" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;" title="Restore original uncropped view" disabled>⟲ Reset to Original</button>
                 <button type="button" id="btnToolReset" style="display: none;"></button>
+              </div>
+              <div style="margin-bottom: 0.55rem;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnCropMatchCanvas" style="width: 100%; font-size: 0.72rem; padding: 0.25rem;" title="Match canvas dimensions to active crop (Policy A 1:1 framing)" disabled>📐 Match Canvas to Crop</button>
               </div>
 
               <!-- Commit & Bake Controls -->

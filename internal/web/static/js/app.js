@@ -4479,15 +4479,25 @@ window.matchCanvasToPhoto = function() {
     : (window.SceneState ? window.SceneState.getLoadedPhoto() : null);
   if (!loadedPhoto) return;
   const crop = loadedPhoto.crop;
-  const hasCrop = crop && crop.enabled !== false && (crop.sourceWidth || crop.width) > 0;
+  const hasCrop = crop && crop.enabled !== false && (
+    (crop.sourceWidth || crop.width) > 0 &&
+    (crop.sourceHeight || crop.height) > 0
+  );
   const targetW = hasCrop ? (crop.sourceWidth || crop.width) : (loadedPhoto.naturalWidth || 1280);
   const targetH = hasCrop ? (crop.sourceHeight || crop.height) : (loadedPhoto.naturalHeight || 720);
   const wIn = document.getElementById('canvasWidthInput');
   const hIn = document.getElementById('canvasHeightInput');
   if (wIn) wIn.value = Math.round(targetW);
   if (hIn) hIn.value = Math.round(targetH);
+  if (window.SceneState && window.SceneState.controls) {
+    window.SceneState.controls.canvasWidthInput = String(Math.round(targetW));
+    window.SceneState.controls.canvasHeightInput = String(Math.round(targetH));
+  }
   const fitSel = document.getElementById('photoFitSelect');
   if (fitSel) fitSel.value = 'match';
+  if (window.SceneState && window.SceneState.controls) {
+    window.SceneState.controls.photoFitSelect = 'match';
+  }
   if (typeof syncPresetDropdownFromInputs === 'function') syncPresetDropdownFromInputs();
   if (typeof updateOrientationAndPaperUI === 'function') updateOrientationAndPaperUI();
   if (typeof syncBackgroundUIVisibility === 'function') syncBackgroundUIVisibility();
@@ -4689,6 +4699,21 @@ window.ImageToolsController = {
     if (btnResetC && !btnResetC._hasBound) {
       btnResetC._hasBound = true;
       btnResetC.addEventListener('click', () => this.resetCropToOriginal());
+    }
+
+    const btnCropMatch = document.getElementById('btnCropMatchCanvas');
+    if (btnCropMatch && !btnCropMatch._hasBound) {
+      btnCropMatch._hasBound = true;
+      btnCropMatch.addEventListener('click', () => {
+        const fitSel = document.getElementById('photoFitSelect');
+        if (fitSel) fitSel.value = 'match';
+        if (window.SceneState && window.SceneState.controls) {
+          window.SceneState.controls.photoFitSelect = 'match';
+        }
+        if (typeof window.matchCanvasToPhoto === 'function') {
+          window.matchCanvasToPhoto();
+        }
+      });
     }
 
     // Quick Crop Preset Buttons (Full Height, Full Width, Full Image)
@@ -4932,6 +4957,8 @@ window.ImageToolsController = {
       if (btnApplyC) btnApplyC.disabled = false;
       if (btnCancelC) btnCancelC.disabled = !(window.Stage && window.Stage.isCroppingImage);
       if (btnEditC) btnEditC.disabled = false;
+      const btnCropMatch = document.getElementById('btnCropMatchCanvas');
+      if (btnCropMatch) btnCropMatch.disabled = false;
 
       const isCropped = !!(photo.crop && photo.crop.enabled);
       if (btnResetC) btnResetC.disabled = !isCropped;
@@ -4989,6 +5016,8 @@ window.ImageToolsController = {
       if (btnApplyC) btnApplyC.disabled = true;
       if (btnCancelC) btnCancelC.disabled = true;
       if (btnEditC) btnEditC.disabled = true;
+      const btnCropMatch = document.getElementById('btnCropMatchCanvas');
+      if (btnCropMatch) btnCropMatch.disabled = true;
       if (btnResetC) btnResetC.disabled = true;
       if (btnCommitC) btnCommitC.disabled = true;
       if (btnBakeC) btnBakeC.disabled = true;
@@ -5088,11 +5117,17 @@ window.ImageToolsController = {
       window.EngineBridge.cropBackground(cropData, versionName);
     }
 
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-      window.AppCoordinator.requestRender();
-    } else if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
+    const fitSel = document.getElementById('photoFitSelect');
+    const fitMode = fitSel ? fitSel.value : 'match';
+    if (fitMode === 'match' && typeof window.matchCanvasToPhoto === 'function') {
+      window.matchCanvasToPhoto();
+    } else {
+      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+        window.AppCoordinator.requestRender();
+      } else if (typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
     }
     if (window.AppCoordinator) {
       window.AppCoordinator.showNotification(`Applied background ${versionName}.`, 'success', 2500);
@@ -5122,11 +5157,17 @@ window.ImageToolsController = {
     if (window.EngineBridge && typeof window.EngineBridge.resetBackgroundCrop === 'function') {
       window.EngineBridge.resetBackgroundCrop();
     }
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-      window.AppCoordinator.requestRender();
-    } else if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
+    const fitSel = document.getElementById('photoFitSelect');
+    const fitMode = fitSel ? fitSel.value : 'match';
+    if (fitMode === 'match' && typeof window.matchCanvasToPhoto === 'function') {
+      window.matchCanvasToPhoto();
+    } else {
+      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+        window.AppCoordinator.requestRender();
+      } else if (typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
     }
     if (window.AppCoordinator) {
       window.AppCoordinator.showNotification('Background crop reset to Original.', 'info', 2500);
@@ -5227,11 +5268,17 @@ window.ImageToolsController = {
     if (window.EngineBridge && typeof window.EngineBridge.selectBackgroundCropVersion === 'function') {
       window.EngineBridge.selectBackgroundCropVersion(ver.id);
     }
-    if (window.HistoryManager) window.HistoryManager.recordImmediate();
-    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-      window.AppCoordinator.requestRender();
-    } else if (typeof window.triggerAppRender === 'function') {
-      window.triggerAppRender();
+    const fitSel = document.getElementById('photoFitSelect');
+    const fitMode = fitSel ? fitSel.value : 'match';
+    if (fitMode === 'match' && typeof window.matchCanvasToPhoto === 'function') {
+      window.matchCanvasToPhoto();
+    } else {
+      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+        window.AppCoordinator.requestRender();
+      } else if (typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
     }
     if (window.AppCoordinator) {
       window.AppCoordinator.showNotification(`Switched to crop "${ver.name}".`, 'info', 2000);

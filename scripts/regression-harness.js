@@ -7931,6 +7931,160 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 64 PASS: Stage 15 Final Precision - Background Crop Height & Aspect Ratio (Tests A-G) verified.');
 
+  // =========================================================================
+  // SCENARIO 65: Stage 15 Display Sizing & Framing Parity (Policies A, B, C, D)
+  // =========================================================================
+  console.log('\n[HARNESS] Scenario 65: Background Crop Display Size & Framing Parity (Policies A-D)...');
+
+  // Load a test background photo: 1600 x 1024
+  const s65Photo = {
+    filename: 'panorama.jpg',
+    src: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP...',
+    b64: '',
+    dataUrl: '',
+    naturalWidth: 1600,
+    naturalHeight: 1024,
+    mime: 'image/jpeg'
+  };
+
+  window.SceneState.loadedPhoto = JSON.parse(JSON.stringify(s65Photo));
+  window.SceneState.controls.canvasPatternSelect = 'photo';
+  window.SceneState.controls.photoFitSelect = 'match';
+  const selFit65 = document.getElementById('photoFitSelect');
+  if (selFit65) selFit65.value = 'match';
+
+  // Add foreground objects to verify non-interference and coordinate preservation
+  const fgNode1 = window.DiagramNodes.createNode({ name: 'Alpha Node', x: 25, y: 30, width: 120, height: 60 });
+  const fgGlow1 = window.Glows.createGlow({ name: 'Core Glow', x: 50, y: 50, radius: 40 });
+  const fgRipple1 = window.Ripples.createRipple({ name: 'Radar Pulse', x: 70, y: 70, maxRadius: 60 });
+
+  // Initial state in match mode: canvas should match natural dimensions (1600 x 1024)
+  window.matchCanvasToPhoto();
+  let canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1600, 'Scenario 65 Initial: Canvas width is 1600');
+  assert.strictEqual(canvasState65.height, 1024, 'Scenario 65 Initial: Canvas height is 1024');
+
+  // TEST A: Policy A (Photoshop-like Crop Framing - match mode)
+  console.log('[HARNESS] Scenario 65 Test A: Policy A Crop Framing (1:1 display scale, zero letterbox, zero shrinkage)...');
+  // Apply a 1000 x 1024 crop (X=300, Y=0, W=1000, H=1024)
+  document.getElementById('cropRegionX').value = 300;
+  document.getElementById('cropRegionY').value = 0;
+  document.getElementById('cropRegionW').value = 1000;
+  document.getElementById('cropRegionH').value = 1024;
+  window.ImageToolsController.applyCrop();
+
+  const photoAfterCrop65 = window.getLoadedPhoto();
+  assert.ok(photoAfterCrop65 && photoAfterCrop65.crop && photoAfterCrop65.crop.enabled, 'Test A: Background crop active');
+  assert.strictEqual(photoAfterCrop65.crop.sourceX, 300, 'Test A: Crop sourceX is 300');
+  assert.strictEqual(photoAfterCrop65.crop.sourceY, 0, 'Test A: Crop sourceY is 0');
+  assert.strictEqual(photoAfterCrop65.crop.sourceWidth, 1000, 'Test A: Crop sourceWidth is 1000');
+  assert.strictEqual(photoAfterCrop65.crop.sourceHeight, 1024, 'Test A: Crop sourceHeight is 1024');
+
+  // In Policy A (match mode), canvas adapts to crop dimensions
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1000, 'Test A: Canvas width adapted to crop width (1000)');
+  assert.strictEqual(canvasState65.height, 1024, 'Test A: Canvas height adapted to crop height (1024)');
+  assert.strictEqual(Number(document.getElementById('canvasWidthInput').value), 1000, 'Test A: canvasWidthInput DOM reflects 1000');
+  assert.strictEqual(Number(document.getElementById('canvasHeightInput').value), 1024, 'Test A: canvasHeightInput DOM reflects 1024');
+
+  // Render SVG and verify 1:1 display framing
+  const photoElA = window.Effects.buildPhotoElement(canvasState65, canvasState65.width, canvasState65.height);
+  assert.ok(photoElA.includes('viewBox="300 0 1000 1024"'), 'Test A: Nested SVG viewBox is 300 0 1000 1024');
+  assert.ok(photoElA.includes('width="1000"'), 'Test A: Nested SVG width is 1000');
+  assert.ok(photoElA.includes('height="1024"'), 'Test A: Nested SVG height is 1024');
+  assert.ok(photoElA.includes('preserveAspectRatio="xMidYMid meet"'), 'Test A: Nested SVG preserveAspectRatio is meet');
+
+  // TEST B: Version Switching and Reset to Original
+  console.log('[HARNESS] Scenario 65 Test B: Crop version switching & reset to original...');
+  // Reset to original
+  window.ImageToolsController.resetCropToOriginal();
+  const photoAtOrig65 = window.getLoadedPhoto();
+  assert.ok(!photoAtOrig65.crop || !photoAtOrig65.crop.enabled, 'Test B: Crop disabled on reset');
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1600, 'Test B: Canvas width restored to 1600 on reset');
+  assert.strictEqual(canvasState65.height, 1024, 'Test B: Canvas height restored to 1024 on reset');
+
+  // Switch back to Crop 1 version
+  const crop1Ver65 = photoAtOrig65.cropVersions.find(v => v.id && v.id.startsWith('crop-'));
+  assert.ok(crop1Ver65, 'Test B: Crop 1 version exists in cropVersions');
+  window.ImageToolsController.selectBackgroundCropVersion(crop1Ver65);
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1000, 'Test B: Canvas width restored to 1000 on selecting Crop 1');
+  assert.strictEqual(canvasState65.height, 1024, 'Test B: Canvas height restored to 1024 on selecting Crop 1');
+
+  // TEST C: Policies B, C, D (Contain, Cover, Stretch with custom canvas)
+  console.log('[HARNESS] Scenario 65 Test C: Fixed canvas policies B (contain), C (cover), D (stretch)...');
+  // Switch to contain mode with custom canvas size 1920x1080
+  window.SceneState.controls.photoFitSelect = 'contain';
+  if (selFit65) selFit65.value = 'contain';
+  window.SceneState.controls.canvasWidthInput = '1920';
+  window.SceneState.controls.canvasHeightInput = '1080';
+  document.getElementById('canvasWidthInput').value = '1920';
+  document.getElementById('canvasHeightInput').value = '1080';
+
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1920, 'Test C (contain): Canvas width preserved at 1920');
+  assert.strictEqual(canvasState65.height, 1080, 'Test C (contain): Canvas height preserved at 1080');
+  let photoElB = window.Effects.buildPhotoElement(canvasState65, 1920, 1080);
+  assert.ok(photoElB.includes('preserveAspectRatio="xMidYMid meet"'), 'Test C (contain): Par is meet');
+  assert.ok(photoElB.includes('width="1920"'), 'Test C (contain): SVG width is 1920');
+
+  // Cover mode
+  window.SceneState.controls.photoFitSelect = 'cover';
+  if (selFit65) selFit65.value = 'cover';
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1920, 'Test C (cover): Canvas width preserved at 1920');
+  let photoElC = window.Effects.buildPhotoElement(canvasState65, 1920, 1080);
+  assert.ok(photoElC.includes('preserveAspectRatio="xMidYMid slice"'), 'Test C (cover): Par is slice');
+
+  // Stretch mode
+  window.SceneState.controls.photoFitSelect = 'stretch';
+  if (selFit65) selFit65.value = 'stretch';
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1920, 'Test C (stretch): Canvas width preserved at 1920');
+  let photoElD = window.Effects.buildPhotoElement(canvasState65, 1920, 1080);
+  assert.ok(photoElD.includes('preserveAspectRatio="none"'), 'Test C (stretch): Par is none');
+
+  // Return to Policy A via Match Canvas button
+  const btnCropMatch = document.getElementById('btnCropMatchCanvas');
+  assert.ok(btnCropMatch, 'Test C: #btnCropMatchCanvas button exists');
+  btnCropMatch.click();
+  canvasState65 = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(canvasState65.width, 1000, 'Test C: Returned to Policy A 1000px canvas width');
+  assert.strictEqual(canvasState65.height, 1024, 'Test C: Returned to Policy A 1024px canvas height');
+
+  // TEST D: Foreground Object Preservation
+  console.log('[HARNESS] Scenario 65 Test D: Foreground object preservation...');
+  const checkNode = window.DiagramNodes.getNode(fgNode1.id);
+  const checkGlow = window.Glows.getGlow(fgGlow1.id);
+  const checkRipple = window.Ripples.getRipple(fgRipple1.id);
+  assert.ok(checkNode, 'Test D: Foreground node still exists');
+  assert.ok(checkGlow, 'Test D: Foreground glow still exists');
+  assert.ok(checkRipple, 'Test D: Foreground ripple still exists');
+  assert.strictEqual(checkNode.x, 25, 'Test D: Foreground node X coordinate is exactly 25');
+  assert.strictEqual(checkNode.y, 30, 'Test D: Foreground node Y coordinate is exactly 30');
+  assert.strictEqual(checkGlow.x, 50, 'Test D: Foreground glow X coordinate is exactly 50');
+  assert.strictEqual(checkRipple.x, 70, 'Test D: Foreground ripple X coordinate is exactly 70');
+
+  // TEST E: Native .sva roundtrip with crop and canvas size
+  console.log('[HARNESS] Scenario 65 Test E: Native .sva serialization & restoration...');
+  const s65SerializedStr = window.ProjectManager.serializeStudioState();
+  const s65Serialized = JSON.parse(s65SerializedStr);
+  assert.ok(s65Serialized.background && s65Serialized.background.crop, 'Test E: Serialized background crop exists');
+  assert.strictEqual(s65Serialized.background.crop.sourceWidth, 1000, 'Test E: Serialized crop sourceWidth is 1000');
+  assert.strictEqual(s65Serialized.background.crop.sourceHeight, 1024, 'Test E: Serialized crop sourceHeight is 1024');
+
+  window.ProjectManager.applyStudioState(s65Serialized);
+  const s65Restored = window.getLoadedPhoto();
+  assert.ok(s65Restored && s65Restored.crop, 'Test E: Restored photo has crop');
+  assert.strictEqual(s65Restored.crop.sourceWidth, 1000, 'Test E: Restored crop sourceWidth is 1000');
+  assert.strictEqual(s65Restored.crop.sourceHeight, 1024, 'Test E: Restored crop sourceHeight is 1024');
+  const restoredCanvas = window.SceneState.buildCurrentCanvasState();
+  assert.strictEqual(restoredCanvas.width, 1000, 'Test E: Restored canvas width matches crop (1000)');
+  assert.strictEqual(restoredCanvas.height, 1024, 'Test E: Restored canvas height matches crop (1024)');
+
+  console.log('[HARNESS] Scenario 65 PASS: Background Crop Display Size & Framing Parity (Policies A-D) verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

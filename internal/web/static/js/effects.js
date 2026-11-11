@@ -13,8 +13,9 @@ window.Effects = {
     const natW = imgInfo.naturalWidth || w;
     const natH = imgInfo.naturalHeight || h;
 
+    const isCroppingThisBg = (typeof window !== 'undefined' && window.Stage && window.Stage.isCroppingBackground);
     const crop = imgInfo.crop;
-    const hasCrop = crop && crop.enabled !== false && (
+    const hasCrop = !isCroppingThisBg && crop && crop.enabled !== false && (
       (crop.sourceWidth || crop.width) > 0 &&
       (crop.sourceHeight || crop.height) > 0
     );

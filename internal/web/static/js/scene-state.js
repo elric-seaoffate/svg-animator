@@ -206,12 +206,20 @@
       const fitMode = this.getControl('photoFitSelect', 'match') || 'match';
 
       if (pattern === 'photo' && this.loadedPhoto) {
+        const crop = this.loadedPhoto.crop;
+        const hasCrop = crop && crop.enabled !== false && (
+          (crop.sourceWidth || crop.width) > 0 &&
+          (crop.sourceHeight || crop.height) > 0
+        );
+        const intrinsicW = hasCrop ? (crop.sourceWidth || crop.width) : (this.loadedPhoto.naturalWidth || 1280);
+        const intrinsicH = hasCrop ? (crop.sourceHeight || crop.height) : (this.loadedPhoto.naturalHeight || 720);
+
         if (fitMode === 'match') {
-          this.controls.canvasWidthInput = String(this.loadedPhoto.naturalWidth);
-          this.controls.canvasHeightInput = String(this.loadedPhoto.naturalHeight);
+          this.controls.canvasWidthInput = String(Math.round(intrinsicW));
+          this.controls.canvasHeightInput = String(Math.round(intrinsicH));
         }
-        const w = Math.max(64, parseInt(this.getControl('canvasWidthInput', this.loadedPhoto.naturalWidth), 10) || this.loadedPhoto.naturalWidth);
-        const h = Math.max(64, parseInt(this.getControl('canvasHeightInput', this.loadedPhoto.naturalHeight), 10) || this.loadedPhoto.naturalHeight);
+        const w = Math.max(64, parseInt(this.getControl('canvasWidthInput', intrinsicW), 10) || intrinsicW);
+        const h = Math.max(64, parseInt(this.getControl('canvasHeightInput', intrinsicH), 10) || intrinsicH);
 
         this.currentImage = {
           filename: this.loadedPhoto.filename || 'photo_export',
