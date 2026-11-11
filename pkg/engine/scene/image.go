@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -207,8 +208,47 @@ func (s *Scene) GetImage(id StringID) (Image, bool) {
 	return img, exists
 }
 
-// UpdateImage updates fields of an existing image.
-func (s *Scene) UpdateImage(id StringID, patch Image) (Image, error) {
+// ValidateImage checks that image configuration conforms to operational bounds.
+func ValidateImage(img *Image) error {
+	if img == nil {
+		return errors.New("nil image")
+	}
+	if img.Width < 0 || img.Height < 0 {
+		return errors.New("image dimensions cannot be negative")
+	}
+	if img.Opacity < 0 || img.Opacity > 1.0 {
+		return errors.New("opacity must be between 0.0 and 1.0")
+	}
+	return nil
+}
+
+// ImagePatch defines a typed pointer-field patch for partial updates to Image.
+type ImagePatch struct {
+	Name                *string              `json:"name,omitempty"`
+	AssetRef            *string              `json:"assetRef,omitempty"`
+	Src                 *string              `json:"src,omitempty"`
+	Data                *string              `json:"data,omitempty"`
+	Filename            *string              `json:"filename,omitempty"`
+	Mime                *string              `json:"mime,omitempty"`
+	X                   *float64             `json:"x,omitempty"`
+	Y                   *float64             `json:"y,omitempty"`
+	Width               *float64             `json:"width,omitempty"`
+	Height              *float64             `json:"height,omitempty"`
+	NaturalWidth        *float64             `json:"naturalWidth,omitempty"`
+	NaturalHeight       *float64             `json:"naturalHeight,omitempty"`
+	MaintainAspectRatio *bool                `json:"maintainAspectRatio,omitempty"`
+	Crop                *ImageCrop           `json:"crop,omitempty"`
+	CropVersions        *[]CropVersion       `json:"cropVersions,omitempty"`
+	ActiveCropVersionID *string              `json:"activeCropVersionId,omitempty"`
+	Clip                *ImageClip           `json:"clip,omitempty"`
+	Opacity             *float64             `json:"opacity,omitempty"`
+	Visible             *bool                `json:"visible,omitempty"`
+	Locked              *bool                `json:"locked,omitempty"`
+	Metadata            map[string]any       `json:"metadata,omitempty"`
+}
+
+// UpdateImagePatch updates fields of an existing image using typed pointers for safe partial updates.
+func (s *Scene) UpdateImagePatch(id StringID, patch ImagePatch) (Image, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -217,82 +257,170 @@ func (s *Scene) UpdateImage(id StringID, patch Image) (Image, error) {
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
 
-	if patch.Name != "" {
-		img.Name = patch.Name
+	candidate := img
+
+	if patch.Name != nil {
+		candidate.Name = *patch.Name
 	}
-	if patch.AssetRef != "" {
-		img.AssetRef = patch.AssetRef
+	if patch.AssetRef != nil {
+		candidate.AssetRef = *patch.AssetRef
 	}
-	if patch.Src != "" {
-		img.Src = patch.Src
-		img.Data = patch.Src
-	} else if patch.Data != "" {
-		img.Src = patch.Data
-		img.Data = patch.Data
+	if patch.Src != nil {
+		candidate.Src = *patch.Src
+		candidate.Data = *patch.Src
+	} else if patch.Data != nil {
+		candidate.Src = *patch.Data
+		candidate.Data = *patch.Data
 	}
-	if patch.Filename != "" {
-		img.Filename = patch.Filename
+	if patch.Filename != nil {
+		candidate.Filename = *patch.Filename
 	}
-	if patch.Mime != "" {
-		img.Mime = patch.Mime
+	if patch.Mime != nil {
+		candidate.Mime = *patch.Mime
 	}
-	if patch.X != 0 || patch.Y != 0 {
-		img.X = math.Round(patch.X*1000.0) / 1000.0
-		img.Y = math.Round(patch.Y*1000.0) / 1000.0
+	if patch.X != nil {
+		candidate.X = math.Round(*patch.X*1000.0) / 1000.0
 	}
-	if patch.Width > 0 {
-		img.Width = patch.Width
+	if patch.Y != nil {
+		candidate.Y = math.Round(*patch.Y*1000.0) / 1000.0
 	}
-	if patch.Height > 0 {
-		img.Height = patch.Height
+	if patch.Width != nil {
+		candidate.Width = *patch.Width
 	}
-	if patch.NaturalWidth > 0 {
-		img.NaturalWidth = patch.NaturalWidth
+	if patch.Height != nil {
+		candidate.Height = *patch.Height
 	}
-	if patch.NaturalHeight > 0 {
-		img.NaturalHeight = patch.NaturalHeight
+	if patch.NaturalWidth != nil {
+		candidate.NaturalWidth = *patch.NaturalWidth
 	}
-	if img.Crop == nil || !img.Crop.Enabled {
-		if len(img.CropVersions) > 0 && img.CropVersions[0].ID == "original" {
-			if patch.Width > 0 {
-				img.CropVersions[0].Width = patch.Width
-				img.CropVersions[0].OrigWidth = patch.Width
-			}
-			if patch.Height > 0 {
-				img.CropVersions[0].Height = patch.Height
-				img.CropVersions[0].OrigHeight = patch.Height
-			}
-			if patch.X != 0 || patch.Y != 0 {
-				img.CropVersions[0].X = img.X
-				img.CropVersions[0].Y = img.Y
-				img.CropVersions[0].OrigX = img.X
-				img.CropVersions[0].OrigY = img.Y
-			}
-		}
+	if patch.NaturalHeight != nil {
+		candidate.NaturalHeight = *patch.NaturalHeight
 	}
-	img.MaintainAspectRatio = patch.MaintainAspectRatio
+	if patch.MaintainAspectRatio != nil {
+		candidate.MaintainAspectRatio = *patch.MaintainAspectRatio
+	}
 	if patch.Crop != nil {
 		c := *patch.Crop
-		img.Crop = &c
+		candidate.Crop = &c
+	}
+	if patch.CropVersions != nil {
+		candidate.CropVersions = *patch.CropVersions
+	}
+	if patch.ActiveCropVersionID != nil {
+		candidate.ActiveCropVersionID = *patch.ActiveCropVersionID
 	}
 	if patch.Clip != nil {
 		cl := *patch.Clip
-		img.Clip = &cl
+		candidate.Clip = &cl
 	}
-	if patch.Opacity > 0 {
-		img.Opacity = patch.Opacity
+	if patch.Opacity != nil {
+		candidate.Opacity = *patch.Opacity
 	}
 	if patch.Visible != nil {
-		img.Visible = patch.Visible
+		candidate.Visible = patch.Visible
 	}
-	img.Locked = patch.Locked
+	if patch.Locked != nil {
+		candidate.Locked = *patch.Locked
+	}
 	if patch.Metadata != nil {
-		img.Metadata = patch.Metadata
+		candidate.Metadata = patch.Metadata
 	}
 
-	s.images[id] = img
+	if candidate.Crop == nil || !candidate.Crop.Enabled {
+		if len(candidate.CropVersions) > 0 && candidate.CropVersions[0].ID == "original" {
+			if patch.Width != nil {
+				candidate.CropVersions[0].Width = candidate.Width
+				candidate.CropVersions[0].OrigWidth = candidate.Width
+			}
+			if patch.Height != nil {
+				candidate.CropVersions[0].Height = candidate.Height
+				candidate.CropVersions[0].OrigHeight = candidate.Height
+			}
+			if patch.X != nil || patch.Y != nil {
+				candidate.CropVersions[0].X = candidate.X
+				candidate.CropVersions[0].Y = candidate.Y
+				candidate.CropVersions[0].OrigX = candidate.X
+				candidate.CropVersions[0].OrigY = candidate.Y
+			}
+		}
+	}
+
+	if err := ValidateImage(&candidate); err != nil {
+		return Image{}, fmt.Errorf("validating image: %w", err)
+	}
+
+	s.images[id] = candidate
 	s.revision++
-	return img, nil
+	return candidate, nil
+}
+
+// UpdateImage updates fields of an existing image (compatibility wrapper around UpdateImagePatch).
+func (s *Scene) UpdateImage(id StringID, patch Image) (Image, error) {
+	p := ImagePatch{}
+	if patch.Name != "" {
+		p.Name = &patch.Name
+	}
+	if patch.AssetRef != "" {
+		p.AssetRef = &patch.AssetRef
+	}
+	if patch.Src != "" {
+		p.Src = &patch.Src
+	}
+	if patch.Data != "" {
+		p.Data = &patch.Data
+	}
+	if patch.Filename != "" {
+		p.Filename = &patch.Filename
+	}
+	if patch.Mime != "" {
+		p.Mime = &patch.Mime
+	}
+	if patch.X != 0 {
+		p.X = &patch.X
+	}
+	if patch.Y != 0 {
+		p.Y = &patch.Y
+	}
+	if patch.Width > 0 {
+		p.Width = &patch.Width
+	}
+	if patch.Height > 0 {
+		p.Height = &patch.Height
+	}
+	if patch.NaturalWidth > 0 {
+		p.NaturalWidth = &patch.NaturalWidth
+	}
+	if patch.NaturalHeight > 0 {
+		p.NaturalHeight = &patch.NaturalHeight
+	}
+	if patch.MaintainAspectRatio {
+		p.MaintainAspectRatio = &patch.MaintainAspectRatio
+	}
+	if patch.Crop != nil {
+		p.Crop = patch.Crop
+	}
+	if patch.CropVersions != nil {
+		p.CropVersions = &patch.CropVersions
+	}
+	if patch.ActiveCropVersionID != "" {
+		p.ActiveCropVersionID = &patch.ActiveCropVersionID
+	}
+	if patch.Clip != nil {
+		p.Clip = patch.Clip
+	}
+	if patch.Opacity > 0 {
+		p.Opacity = &patch.Opacity
+	}
+	if patch.Visible != nil {
+		p.Visible = patch.Visible
+	}
+	if patch.Locked {
+		p.Locked = &patch.Locked
+	}
+	if patch.Metadata != nil {
+		p.Metadata = patch.Metadata
+	}
+	return s.UpdateImagePatch(id, p)
 }
 
 // DeleteImage deletes an image and removes it from layers and any parent group.

@@ -425,6 +425,26 @@ func (s *Scene) FindNodeAt(xPct, yPct, canvasW, canvasH float64) *Node {
 	return nil
 }
 
+// ValidateNode checks that node configuration conforms to operational bounds.
+func ValidateNode(n *Node) error {
+	if n == nil {
+		return errors.New("nil node")
+	}
+	if n.Width < 0 || n.Height < 0 {
+		return errors.New("node dimensions cannot be negative")
+	}
+	if n.Opacity < 0 || n.Opacity > 1.0 {
+		return errors.New("opacity must be between 0.0 and 1.0")
+	}
+	if n.FillOpacity < 0 || n.FillOpacity > 1.0 {
+		return errors.New("fillOpacity must be between 0.0 and 1.0")
+	}
+	if n.StrokeWidth < 0 {
+		return errors.New("strokeWidth cannot be negative")
+	}
+	return nil
+}
+
 // UpdateNode adds or modifies a node and bumps revision.
 func (s *Scene) UpdateNode(n Node) {
 	s.mu.Lock()

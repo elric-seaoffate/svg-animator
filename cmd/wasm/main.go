@@ -48,6 +48,20 @@ func dispatchBridge(this js.Value, args []js.Value) any {
 		}
 	}
 
+	// If the inner response contains success: false, unwrap the failure to the top-level envelope
+	if resMap, ok := result.(map[string]any); ok {
+		if s, ok := resMap["success"].(bool); ok && !s {
+			errStr, _ := resMap["error"].(string)
+			if errStr == "" {
+				errStr = fmt.Sprintf("command %s failed", cmd)
+			}
+			return map[string]any{
+				"success": false,
+				"error":   errStr,
+			}
+		}
+	}
+
 	return map[string]any{
 		"success": true,
 		"data":    result,

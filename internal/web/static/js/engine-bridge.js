@@ -157,17 +157,26 @@
         this._stats.lastDurationMs = duration;
 
         if (res && res.success) {
+          this._lastError = null;
           return res.data;
         } else {
           this._stats.errors++;
-          console.error('[EngineBridge] Command failed (' + command + '):', res && res.error);
+          const err = (res && res.error) || 'Command failed';
+          this._lastError = err;
+          console.error('[EngineBridge] Command failed (' + command + '):', err);
           return null;
         }
       } catch (err) {
         this._stats.errors++;
+        const errMsg = err && err.message ? err.message : String(err);
+        this._lastError = errMsg;
         console.error('[EngineBridge] Exception dispatching (' + command + '):', err);
         return null;
       }
+    },
+
+    getLastError() {
+      return this._lastError || null;
     },
 
     ping() {

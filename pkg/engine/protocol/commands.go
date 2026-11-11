@@ -107,10 +107,38 @@ type NodeCreateRequest struct {
 	Snap    bool                `json:"snap"`
 }
 
+// NodeUpdatePayload defines typed pointer fields for safe partial updates to a Node.
+type NodeUpdatePayload struct {
+	Name        *string        `json:"name,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	Shape       *string        `json:"shape,omitempty"`
+	Label       *string        `json:"label,omitempty"`
+	Text        *string        `json:"text,omitempty"`
+	Subtext     *string        `json:"subtext,omitempty"`
+	X           *float64       `json:"x,omitempty"`
+	Y           *float64       `json:"y,omitempty"`
+	Width       *float64       `json:"width,omitempty"`
+	Height      *float64       `json:"height,omitempty"`
+	Fill        *string        `json:"fill,omitempty"`
+	FillColor   *string        `json:"fillColor,omitempty"`
+	FillOpacity *float64       `json:"fillOpacity,omitempty"`
+	Stroke      *string        `json:"stroke,omitempty"`
+	StrokeColor *string        `json:"strokeColor,omitempty"`
+	StrokeWidth *float64       `json:"strokeWidth,omitempty"`
+	StrokeStyle *string        `json:"strokeStyle,omitempty"`
+	TextColor   *string        `json:"textColor,omitempty"`
+	FontSize    *float64       `json:"fontSize,omitempty"`
+	Opacity     *float64       `json:"opacity,omitempty"`
+	Animation   *string        `json:"animation,omitempty"`
+	Anim        *string        `json:"anim,omitempty"`
+	Visible     *bool          `json:"visible,omitempty"`
+	Locked      *bool          `json:"locked,omitempty"`
+}
+
 // NodeUpdateRequest is the payload for "Node.Update".
 type NodeUpdateRequest struct {
-	ID    scene.StringID `json:"id"`
-	Patch scene.Node     `json:"patch"`
+	ID    scene.StringID    `json:"id"`
+	Patch NodeUpdatePayload `json:"patch"`
 }
 
 // NodeDeleteRequest is the payload for "Node.Delete".
@@ -138,10 +166,42 @@ type FlowCreateRequest struct {
 	Initial scene.Flow `json:"initial"`
 }
 
+// FlowUpdatePayload defines typed pointer fields for safe partial updates to a Flow.
+type FlowUpdatePayload struct {
+	Name        *string           `json:"name,omitempty"`
+	Metadata    map[string]any    `json:"metadata,omitempty"`
+	FromNodeID  *scene.StringID   `json:"fromNodeId,omitempty"`
+	ToNodeID    *scene.StringID   `json:"toNodeId,omitempty"`
+	Nodes       *[]geometry.Point `json:"nodes,omitempty"`
+	Curvature   *float64          `json:"curvature,omitempty"`
+	RouteMode   *string           `json:"routeMode,omitempty"`
+	Route       *string           `json:"route,omitempty"`
+	LineWidth   *float64          `json:"lineWidth,omitempty"`
+	LineStyle   *string           `json:"lineStyle,omitempty"`
+	Arrow       *string           `json:"arrow,omitempty"`
+	Color       *string           `json:"color,omitempty"`
+	Opacity     *float64          `json:"opacity,omitempty"`
+	Speed       *float64          `json:"speed,omitempty"`
+	Delay       *float64          `json:"delay,omitempty"`
+	EndDelay    *float64          `json:"endDelay,omitempty"`
+	HideOnDelay *bool             `json:"hideOnDelay,omitempty"`
+	Scale       *float64          `json:"scale,omitempty"`
+	Type        *string           `json:"type,omitempty"`
+	ShowLine    *bool             `json:"showLine,omitempty"`
+	Glow        *float64          `json:"glow,omitempty"`
+	Label       *string           `json:"label,omitempty"`
+	CustomB64   *string           `json:"customB64,omitempty"`
+	CustomMime  *string           `json:"customMime,omitempty"`
+	CustomW     *float64          `json:"customW,omitempty"`
+	CustomH     *float64          `json:"customH,omitempty"`
+	Visible     *bool             `json:"visible,omitempty"`
+	Locked      *bool             `json:"locked,omitempty"`
+}
+
 // FlowUpdateRequest is the payload for "Flow.Update".
 type FlowUpdateRequest struct {
-	ID    scene.StringID `json:"id"`
-	Patch scene.Flow     `json:"patch"`
+	ID    scene.StringID    `json:"id"`
+	Patch FlowUpdatePayload `json:"patch"`
 }
 
 // FlowDeleteRequest is the payload for "Flow.Delete".
@@ -217,10 +277,42 @@ type GlowCreateRequest struct {
 	Initial scene.Glow `json:"initial"`
 }
 
+// GlowUpdatePayload defines typed pointer fields for safe partial updates to a Glow.
+type GlowUpdatePayload struct {
+	Name         *string        `json:"name,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	Shape        *string        `json:"shape,omitempty"`
+	X            *float64       `json:"x,omitempty"`
+	Y            *float64       `json:"y,omitempty"`
+	Size         *float64       `json:"size,omitempty"`
+	Color        *string        `json:"color,omitempty"`
+	Opacity      *float64       `json:"opacity,omitempty"`
+	Duration     *float64       `json:"dur,omitempty"`
+	AltDuration  *float64       `json:"duration,omitempty"`
+	Delay        *float64       `json:"delay,omitempty"`
+	EndDelay     *float64       `json:"endDelay,omitempty"`
+	Playback     *string        `json:"playback,omitempty"`
+	IsRadar      *bool          `json:"isRadar,omitempty"`
+	RadarRings   *int           `json:"radarRings,omitempty"`
+	Rings        *int           `json:"rings,omitempty"`
+	RadarStagger *float64       `json:"radarStagger,omitempty"`
+	Scale        *float64       `json:"scale,omitempty"`
+	Blur         *float64       `json:"blur,omitempty"`
+	Thick        *float64       `json:"thick,omitempty"`
+	CoreR        *float64       `json:"coreR,omitempty"`
+	HideOnDelay  *bool          `json:"hideOnDelay,omitempty"`
+	CustomB64    *string        `json:"customB64,omitempty"`
+	CustomMime   *string        `json:"customMime,omitempty"`
+	CustomW      *float64       `json:"customW,omitempty"`
+	CustomH      *float64       `json:"customH,omitempty"`
+	Visible      *bool          `json:"visible,omitempty"`
+	Locked       *bool          `json:"locked,omitempty"`
+}
+
 // GlowUpdateRequest is the payload for "Glow.Update".
 type GlowUpdateRequest struct {
-	ID    scene.StringID `json:"id"`
-	Patch scene.Glow     `json:"patch"`
+	ID    scene.StringID    `json:"id"`
+	Patch GlowUpdatePayload `json:"patch"`
 }
 
 // GlowDeleteRequest is the payload for "Glow.Delete".
@@ -255,10 +347,32 @@ type RippleCreateRequest struct {
 	Initial scene.Ripple `json:"initial"`
 }
 
+// RippleUpdatePayload defines typed pointer fields for safe partial updates to a Ripple.
+type RippleUpdatePayload struct {
+	Name        *string        `json:"name,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	X           *float64       `json:"x,omitempty"`
+	Y           *float64       `json:"y,omitempty"`
+	InnerR      *float64       `json:"innerR,omitempty"`
+	OuterR      *float64       `json:"outerR,omitempty"`
+	Duration    *float64       `json:"dur,omitempty"`
+	AltDuration *float64       `json:"duration,omitempty"`
+	Delay       *float64       `json:"delay,omitempty"`
+	EndDelay    *float64       `json:"endDelay,omitempty"`
+	Color       *string        `json:"color,omitempty"`
+	Opacity     *float64       `json:"opacity,omitempty"`
+	WaveCount   *int           `json:"waveCount,omitempty"`
+	Rings       *int           `json:"rings,omitempty"`
+	Thick       *float64       `json:"thick,omitempty"`
+	Refraction  *float64       `json:"refraction,omitempty"`
+	Visible     *bool          `json:"visible,omitempty"`
+	Locked      *bool          `json:"locked,omitempty"`
+}
+
 // RippleUpdateRequest is the payload for "Ripple.Update".
 type RippleUpdateRequest struct {
-	ID    scene.StringID `json:"id"`
-	Patch scene.Ripple   `json:"patch"`
+	ID    scene.StringID      `json:"id"`
+	Patch RippleUpdatePayload `json:"patch"`
 }
 
 // RippleDeleteRequest is the payload for "Ripple.Delete".
@@ -288,9 +402,47 @@ type RippleDescribeRequest struct {
 	CanvasH float64        `json:"canvasH"`
 }
 
+// CameraUpdatePayload defines typed pointer fields for safe partial updates to a Camera.
+type CameraUpdatePayload struct {
+	Motion        *string  `json:"motion,omitempty"`
+	Duration      *float64 `json:"camDuration,omitempty"`
+	AltDuration   *float64 `json:"duration,omitempty"`
+	Loop          *string  `json:"camLoop,omitempty"`
+	AltLoop       *string  `json:"loop,omitempty"`
+	StartX        *float64 `json:"startX,omitempty"`
+	StartY        *float64 `json:"startY,omitempty"`
+	StartZoom     *float64 `json:"startZoom,omitempty"`
+	EndX          *float64 `json:"endX,omitempty"`
+	EndY          *float64 `json:"endY,omitempty"`
+	EndZoom       *float64 `json:"endZoom,omitempty"`
+	Sway          *float64 `json:"sway,omitempty"`
+	Breathe       *float64 `json:"breathe,omitempty"`
+	TiltX         *float64 `json:"tiltX,omitempty"`
+	TiltY         *float64 `json:"tiltY,omitempty"`
+	BgColor       *string  `json:"bgColor,omitempty"`
+	BgTransparent *bool    `json:"bgTransparent,omitempty"`
+}
+
 // CameraUpdateRequest is the payload for "Camera.Update".
 type CameraUpdateRequest struct {
-	Camera scene.CameraConfig `json:"camera"`
+	Camera *CameraUpdatePayload `json:"camera,omitempty"`
+}
+
+func (c *CameraUpdateRequest) UnmarshalJSON(b []byte) error {
+	type rawCameraReq struct {
+		Camera *CameraUpdatePayload `json:"camera,omitempty"`
+	}
+	var raw rawCameraReq
+	if err := json.Unmarshal(b, &raw); err == nil && raw.Camera != nil {
+		c.Camera = raw.Camera
+		return nil
+	}
+	var payload CameraUpdatePayload
+	if err := json.Unmarshal(b, &payload); err != nil {
+		return err
+	}
+	c.Camera = &payload
+	return nil
 }
 
 // CameraEvaluateRequest is the payload for "Camera.Evaluate".
@@ -301,9 +453,42 @@ type CameraEvaluateRequest struct {
 	Camera  *scene.CameraConfig `json:"camera,omitempty"`
 }
 
+// OpticsUpdatePayload defines typed pointer fields for safe partial updates to OpticalConfig.
+type OpticsUpdatePayload struct {
+	Type        *string  `json:"type,omitempty"`
+	StartBlur   *float64 `json:"startBlur,omitempty"`
+	EndBlur     *float64 `json:"endBlur,omitempty"`
+	FocusDur    *float64 `json:"focusDur,omitempty"`
+	AltDuration *float64 `json:"duration,omitempty"`
+	TSShape     *string  `json:"tsShape,omitempty"`
+	TSPosX      *float64 `json:"tsPosX,omitempty"`
+	TSPos       *float64 `json:"tsPos,omitempty"`
+	TSWidth     *float64 `json:"tsWidth,omitempty"`
+	TSBlur      *float64 `json:"tsBlur,omitempty"`
+	MBInt       *float64 `json:"mbInt,omitempty"`
+	MBAng       *float64 `json:"mbAng,omitempty"`
+}
+
 // OpticsUpdateRequest is the payload for "Optics.Update".
 type OpticsUpdateRequest struct {
-	Optical scene.OpticalConfig `json:"optical"`
+	Optical *OpticsUpdatePayload `json:"optical,omitempty"`
+}
+
+func (o *OpticsUpdateRequest) UnmarshalJSON(b []byte) error {
+	type rawOpticsReq struct {
+		Optical *OpticsUpdatePayload `json:"optical,omitempty"`
+	}
+	var raw rawOpticsReq
+	if err := json.Unmarshal(b, &raw); err == nil && raw.Optical != nil {
+		o.Optical = raw.Optical
+		return nil
+	}
+	var payload OpticsUpdatePayload
+	if err := json.Unmarshal(b, &payload); err != nil {
+		return err
+	}
+	o.Optical = &payload
+	return nil
 }
 
 // OpticsEvaluateRequest is the payload for "Optics.Evaluate".
@@ -314,9 +499,46 @@ type OpticsEvaluateRequest struct {
 	Optical     *scene.OpticalConfig `json:"optical,omitempty"`
 }
 
+// FrameUpdatePayload defines typed pointer fields for safe partial updates to FrameConfig.
+type FrameUpdatePayload struct {
+	Enabled     *bool    `json:"frame,omitempty"`
+	AltEnabled  *bool    `json:"enabled,omitempty"`
+	Style       *string  `json:"frameStyle,omitempty"`
+	AltStyle    *string  `json:"style,omitempty"`
+	Depth       *float64 `json:"frameDepth,omitempty"`
+	AltDepth    *float64 `json:"depth,omitempty"`
+	Lighting    *bool    `json:"frameLighting,omitempty"`
+	AltLighting *bool    `json:"lighting,omitempty"`
+	LightDir    *string  `json:"frameLightDir,omitempty"`
+	AltLightDir *string  `json:"lightDir,omitempty"`
+	LightInt    *float64 `json:"frameLightInt,omitempty"`
+	AltLightInt *float64 `json:"lightInt,omitempty"`
+	Shadow      *float64 `json:"frameShadow,omitempty"`
+	AltShadow   *float64 `json:"shadow,omitempty"`
+	Fillet      *bool    `json:"frameFillet,omitempty"`
+	AltFillet   *bool    `json:"fillet,omitempty"`
+}
+
 // FrameUpdateRequest is the payload for "Frame.Update".
 type FrameUpdateRequest struct {
-	Frame scene.FrameConfig `json:"frame"`
+	Frame *FrameUpdatePayload `json:"frame,omitempty"`
+}
+
+func (f *FrameUpdateRequest) UnmarshalJSON(b []byte) error {
+	type rawFrameReq struct {
+		Frame *FrameUpdatePayload `json:"frame,omitempty"`
+	}
+	var raw rawFrameReq
+	if err := json.Unmarshal(b, &raw); err == nil && raw.Frame != nil {
+		f.Frame = raw.Frame
+		return nil
+	}
+	var payload FrameUpdatePayload
+	if err := json.Unmarshal(b, &payload); err != nil {
+		return err
+	}
+	f.Frame = &payload
+	return nil
 }
 
 // FrameDescribeRequest is the payload for "Frame.Describe".
@@ -512,10 +734,13 @@ type ImageCreateResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// ImageUpdatePayload defines typed pointer fields for safe partial updates to an Image.
+type ImageUpdatePayload = scene.ImagePatch
+
 // ImageUpdateRequest payload for "Image.Update".
 type ImageUpdateRequest struct {
-	ID    scene.StringID `json:"id"`
-	Patch scene.Image    `json:"patch"`
+	ID    scene.StringID     `json:"id"`
+	Patch ImageUpdatePayload `json:"patch"`
 }
 
 // ImageUpdateResponse response for "Image.Update".
@@ -944,23 +1169,28 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		})
 
 	case "Scene.SetState":
-		var req SetSceneStateRequest
-		if err := json.Unmarshal(payloadJSON, &req); err == nil && (len(req.Snapshot.Flows) > 0 || req.Snapshot.Revision > 0 || len(req.Snapshot.Nodes) > 0) {
-			activeScene.SetFromSnapshot(req.Snapshot)
-			return json.Marshal(SetSceneStateResponse{
-				Revision:   activeScene.Revision(),
-				FlowsCount: len(req.Snapshot.Flows),
-				Status:     "ok",
-			})
-		}
-		var directSnap scene.Snapshot
-		if err := json.Unmarshal(payloadJSON, &directSnap); err != nil {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(payloadJSON, &raw); err != nil {
 			return nil, fmt.Errorf("decoding SetSceneStateRequest: %w", err)
 		}
-		activeScene.SetFromSnapshot(directSnap)
+		var snap scene.Snapshot
+		if rawSnap, hasSnapshot := raw["snapshot"]; hasSnapshot {
+			if string(rawSnap) == "null" {
+				snap = scene.Snapshot{}
+			} else {
+				if err := json.Unmarshal(rawSnap, &snap); err != nil {
+					return nil, fmt.Errorf("decoding wrapped snapshot: %w", err)
+				}
+			}
+		} else {
+			if err := json.Unmarshal(payloadJSON, &snap); err != nil {
+				return nil, fmt.Errorf("decoding direct snapshot: %w", err)
+			}
+		}
+		activeScene.SetFromSnapshot(snap)
 		return json.Marshal(SetSceneStateResponse{
 			Revision:   activeScene.Revision(),
-			FlowsCount: len(directSnap.Flows),
+			FlowsCount: len(snap.Flows),
 			Status:     "ok",
 		})
 
@@ -1066,74 +1296,94 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if existing == nil {
 			return nil, fmt.Errorf("node with id %q not found", req.ID)
 		}
-		updated := *existing
-		if req.Patch.Name != "" {
-			updated.Name = req.Patch.Name
+		candidate := *existing
+		p := req.Patch
+		if p.Name != nil {
+			candidate.Name = *p.Name
 		}
-		if req.Patch.Shape != "" {
-			updated.Shape = geometry.NormalizeShapeID(req.Patch.Shape)
+		if p.Shape != nil {
+			candidate.Shape = geometry.NormalizeShapeID(*p.Shape)
 		}
-		if req.Patch.Text != "" {
-			updated.Text = req.Patch.Text
-			updated.Label = req.Patch.Text
-		} else if req.Patch.Label != "" {
-			updated.Text = req.Patch.Label
-			updated.Label = req.Patch.Label
+		if p.Text != nil {
+			candidate.Text = *p.Text
+			candidate.Label = *p.Text
+		} else if p.Label != nil {
+			candidate.Text = *p.Label
+			candidate.Label = *p.Label
 		}
-		if req.Patch.Subtext != "" {
-			updated.Subtext = req.Patch.Subtext
+		if p.Subtext != nil {
+			candidate.Subtext = *p.Subtext
 		}
-		if req.Patch.X != 0 {
-			updated.X = req.Patch.X
+		if p.X != nil {
+			candidate.X = *p.X
 		}
-		if req.Patch.Y != 0 {
-			updated.Y = req.Patch.Y
+		if p.Y != nil {
+			candidate.Y = *p.Y
 		}
-		if req.Patch.Width > 0 {
-			updated.Width = req.Patch.Width
+		if p.Width != nil {
+			candidate.Width = *p.Width
 		}
-		if req.Patch.Height > 0 {
-			updated.Height = req.Patch.Height
+		if p.Height != nil {
+			candidate.Height = *p.Height
 		}
-		if req.Patch.FillColor != "" {
-			updated.FillColor = req.Patch.FillColor
-			updated.Fill = req.Patch.FillColor
-		} else if req.Patch.Fill != "" {
-			updated.FillColor = req.Patch.Fill
-			updated.Fill = req.Patch.Fill
+		if p.FillColor != nil {
+			candidate.FillColor = *p.FillColor
+			candidate.Fill = *p.FillColor
+		} else if p.Fill != nil {
+			candidate.FillColor = *p.Fill
+			candidate.Fill = *p.Fill
 		}
-		if req.Patch.StrokeColor != "" {
-			updated.StrokeColor = req.Patch.StrokeColor
-			updated.Stroke = req.Patch.StrokeColor
-		} else if req.Patch.Stroke != "" {
-			updated.StrokeColor = req.Patch.Stroke
-			updated.Stroke = req.Patch.Stroke
+		if p.StrokeColor != nil {
+			candidate.StrokeColor = *p.StrokeColor
+			candidate.Stroke = *p.StrokeColor
+		} else if p.Stroke != nil {
+			candidate.StrokeColor = *p.Stroke
+			candidate.Stroke = *p.Stroke
 		}
-		if req.Patch.TextColor != "" {
-			updated.TextColor = req.Patch.TextColor
+		if p.TextColor != nil {
+			candidate.TextColor = *p.TextColor
 		}
-		if req.Patch.FontSize > 0 {
-			updated.FontSize = req.Patch.FontSize
+		if p.FontSize != nil {
+			candidate.FontSize = *p.FontSize
 		}
-		if req.Patch.FillOpacity > 0 {
-			updated.FillOpacity = req.Patch.FillOpacity
+		if p.FillOpacity != nil {
+			candidate.FillOpacity = *p.FillOpacity
 		}
-		if req.Patch.StrokeWidth > 0 {
-			updated.StrokeWidth = req.Patch.StrokeWidth
+		if p.StrokeWidth != nil {
+			candidate.StrokeWidth = *p.StrokeWidth
 		}
-		if req.Patch.StrokeStyle != "" {
-			updated.StrokeStyle = req.Patch.StrokeStyle
+		if p.StrokeStyle != nil {
+			candidate.StrokeStyle = *p.StrokeStyle
 		}
-		if req.Patch.Anim != "" {
-			updated.Anim = req.Patch.Anim
-			updated.Animation = req.Patch.Anim
-		} else if req.Patch.Animation != "" {
-			updated.Anim = req.Patch.Animation
-			updated.Animation = req.Patch.Animation
+		if p.Opacity != nil {
+			candidate.Opacity = *p.Opacity
 		}
-		activeScene.UpdateNode(updated)
+		if p.Anim != nil {
+			candidate.Anim = *p.Anim
+			candidate.Animation = *p.Anim
+		} else if p.Animation != nil {
+			candidate.Anim = *p.Animation
+			candidate.Animation = *p.Animation
+		}
+		if p.Visible != nil {
+			candidate.Visible = p.Visible
+		}
+		if p.Locked != nil {
+			candidate.Locked = *p.Locked
+		}
+		if p.Metadata != nil {
+			candidate.Metadata = p.Metadata
+		}
+		if err := scene.ValidateNode(&candidate); err != nil {
+			return nil, fmt.Errorf("validating node: %w", err)
+		}
+		activeScene.UpdateNode(candidate)
+		if p.Name != nil && *p.Name == "" {
+			_, _ = activeScene.RenameObject(scene.SelectionNode, candidate.ID, "")
+			candidate.Name = ""
+		}
 		return json.Marshal(map[string]any{
-			"node":     updated,
+			"node":     candidate,
 			"revision": activeScene.Revision(),
 		})
 
@@ -1276,81 +1526,103 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if existing == nil {
 			return nil, fmt.Errorf("flow with id %q not found", req.ID)
 		}
-		updated := *existing
-		if req.Patch.Name != "" {
-			updated.Name = req.Patch.Name
+		candidate := *existing
+		p := req.Patch
+		if p.Name != nil {
+			candidate.Name = *p.Name
 		}
-		if len(req.Patch.Nodes) >= 2 {
-			updated.Nodes = req.Patch.Nodes
+		if p.Nodes != nil && len(*p.Nodes) >= 2 {
+			candidate.Nodes = *p.Nodes
 		}
-		if req.Patch.Type != "" {
-			updated.Type = req.Patch.Type
+		if p.Type != nil {
+			candidate.Type = *p.Type
 		}
-		if req.Patch.RouteMode != "" {
-			updated.RouteMode = req.Patch.RouteMode
-		} else if req.Patch.Route != "" {
-			updated.RouteMode = req.Patch.Route
+		if p.RouteMode != nil {
+			candidate.RouteMode = *p.RouteMode
+			candidate.Route = *p.RouteMode
+		} else if p.Route != nil {
+			candidate.RouteMode = *p.Route
+			candidate.Route = *p.Route
 		}
-		if req.Patch.LineStyle != "" {
-			updated.LineStyle = req.Patch.LineStyle
+		if p.LineStyle != nil {
+			candidate.LineStyle = *p.LineStyle
 		}
-		if req.Patch.Arrow != "" {
-			updated.Arrow = req.Patch.Arrow
+		if p.Arrow != nil {
+			candidate.Arrow = *p.Arrow
 		}
-		if req.Patch.LineWidth > 0 {
-			updated.LineWidth = req.Patch.LineWidth
+		if p.LineWidth != nil {
+			candidate.LineWidth = *p.LineWidth
 		}
-		if req.Patch.Color != "" {
-			updated.Color = req.Patch.Color
+		if p.Color != nil {
+			candidate.Color = *p.Color
 		}
-		if req.Patch.Opacity > 0 {
-			updated.Opacity = req.Patch.Opacity
+		if p.Opacity != nil {
+			candidate.Opacity = *p.Opacity
 		}
-		if req.Patch.Speed > 0 {
-			updated.Speed = req.Patch.Speed
+		if p.Speed != nil {
+			candidate.Speed = *p.Speed
 		}
-		if req.Patch.Delay >= 0 {
-			updated.Delay = req.Patch.Delay
+		if p.Delay != nil {
+			candidate.Delay = *p.Delay
 		}
-		if req.Patch.EndDelay >= 0 {
-			updated.EndDelay = req.Patch.EndDelay
+		if p.EndDelay != nil {
+			candidate.EndDelay = *p.EndDelay
 		}
-		updated.HideOnDelay = req.Patch.HideOnDelay
-		if req.Patch.Scale > 0 {
-			updated.Scale = req.Patch.Scale
+		if p.HideOnDelay != nil {
+			candidate.HideOnDelay = *p.HideOnDelay
 		}
-		if req.Patch.Glow >= 0 {
-			updated.Glow = req.Patch.Glow
+		if p.Scale != nil {
+			candidate.Scale = *p.Scale
 		}
-		updated.ShowLine = req.Patch.ShowLine
-		if req.Patch.Label != "" {
-			updated.Label = req.Patch.Label
+		if p.Glow != nil {
+			candidate.Glow = *p.Glow
 		}
-		if req.Patch.Curvature != 0 {
-			updated.Curvature = req.Patch.Curvature
+		if p.ShowLine != nil {
+			candidate.ShowLine = *p.ShowLine
 		}
-		if req.Patch.FromNodeID != "" {
-			updated.FromNodeID = req.Patch.FromNodeID
+		if p.Label != nil {
+			candidate.Label = *p.Label
 		}
-		if req.Patch.ToNodeID != "" {
-			updated.ToNodeID = req.Patch.ToNodeID
+		if p.Curvature != nil {
+			candidate.Curvature = *p.Curvature
 		}
-		if req.Patch.CustomB64 != "" {
-			updated.CustomB64 = req.Patch.CustomB64
+		if p.FromNodeID != nil {
+			candidate.FromNodeID = *p.FromNodeID
 		}
-		if req.Patch.CustomMime != "" {
-			updated.CustomMime = req.Patch.CustomMime
+		if p.ToNodeID != nil {
+			candidate.ToNodeID = *p.ToNodeID
 		}
-		if req.Patch.CustomW > 0 {
-			updated.CustomW = req.Patch.CustomW
+		if p.CustomB64 != nil {
+			candidate.CustomB64 = *p.CustomB64
 		}
-		if req.Patch.CustomH > 0 {
-			updated.CustomH = req.Patch.CustomH
+		if p.CustomMime != nil {
+			candidate.CustomMime = *p.CustomMime
 		}
-
-		activeScene.UpdateFlow(updated)
+		if p.CustomW != nil {
+			candidate.CustomW = *p.CustomW
+		}
+		if p.CustomH != nil {
+			candidate.CustomH = *p.CustomH
+		}
+		if p.Visible != nil {
+			candidate.Visible = p.Visible
+		}
+		if p.Locked != nil {
+			candidate.Locked = *p.Locked
+		}
+		if p.Metadata != nil {
+			candidate.Metadata = p.Metadata
+		}
+		if err := scene.ValidateFlow(&candidate); err != nil {
+			return nil, fmt.Errorf("validating flow: %w", err)
+		}
+		activeScene.UpdateFlow(candidate)
+		if p.Name != nil && *p.Name == "" {
+			_, _ = activeScene.RenameObject(scene.SelectionFlow, candidate.ID, "")
+			candidate.Name = ""
+		}
 		return json.Marshal(map[string]any{
-			"flow":     updated,
+			"flow":     candidate,
 			"revision": activeScene.Revision(),
 		})
 
@@ -1501,77 +1773,102 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if existing == nil {
 			return nil, fmt.Errorf("glow %q not found", req.ID)
 		}
-		updated := *existing
-		if req.Patch.Name != "" {
-			updated.Name = req.Patch.Name
+		candidate := *existing
+		p := req.Patch
+		if p.Name != nil {
+			candidate.Name = *p.Name
 		}
-		if req.Patch.Shape != "" {
-			updated.Shape = req.Patch.Shape
+		if p.Shape != nil {
+			candidate.Shape = *p.Shape
 		}
-		if req.Patch.Color != "" {
-			updated.Color = req.Patch.Color
+		if p.Color != nil {
+			candidate.Color = *p.Color
 		}
-		if req.Patch.Playback != "" {
-			updated.Playback = req.Patch.Playback
+		if p.Playback != nil {
+			candidate.Playback = *p.Playback
 		}
-		if req.Patch.Size > 0 {
-			updated.Size = req.Patch.Size
+		if p.Size != nil {
+			candidate.Size = *p.Size
 		}
-		if req.Patch.Scale > 0 {
-			updated.Scale = req.Patch.Scale
+		if p.Scale != nil {
+			candidate.Scale = *p.Scale
 		}
-		if req.Patch.Blur >= 0 {
-			updated.Blur = req.Patch.Blur
+		if p.Blur != nil {
+			candidate.Blur = *p.Blur
 		}
-		if req.Patch.Duration > 0 {
-			updated.Duration = req.Patch.Duration
+		if p.Duration != nil {
+			candidate.Duration = *p.Duration
+		} else if p.AltDuration != nil {
+			candidate.Duration = *p.AltDuration
 		}
-		if req.Patch.Delay >= 0 {
-			updated.Delay = req.Patch.Delay
+		if p.Delay != nil {
+			candidate.Delay = *p.Delay
 		}
-		if req.Patch.EndDelay >= 0 {
-			updated.EndDelay = req.Patch.EndDelay
+		if p.EndDelay != nil {
+			candidate.EndDelay = *p.EndDelay
 		}
-		if req.Patch.Opacity >= 0 {
-			updated.Opacity = req.Patch.Opacity
+		if p.Opacity != nil {
+			candidate.Opacity = *p.Opacity
 		}
-		if req.Patch.Thick > 0 {
-			updated.Thick = req.Patch.Thick
+		if p.Thick != nil {
+			candidate.Thick = *p.Thick
 		}
-		if req.Patch.CoreR > 0 {
-			updated.CoreR = req.Patch.CoreR
+		if p.CoreR != nil {
+			candidate.CoreR = *p.CoreR
 		}
-		if req.Patch.Rings > 0 {
-			updated.Rings = req.Patch.Rings
-			updated.RadarRings = req.Patch.Rings
-		} else if req.Patch.RadarRings > 0 {
-			updated.RadarRings = req.Patch.RadarRings
-			updated.Rings = req.Patch.RadarRings
+		if p.RadarRings != nil {
+			candidate.RadarRings = *p.RadarRings
+			candidate.Rings = *p.RadarRings
+		} else if p.Rings != nil {
+			candidate.Rings = *p.Rings
+			candidate.RadarRings = *p.Rings
 		}
-		if req.Patch.RadarStagger > 0 {
-			updated.RadarStagger = req.Patch.RadarStagger
+		if p.RadarStagger != nil {
+			candidate.RadarStagger = *p.RadarStagger
 		}
-		updated.HideOnDelay = req.Patch.HideOnDelay
-		if req.Patch.X != 0 || req.Patch.Y != 0 {
-			updated.X = req.Patch.X
-			updated.Y = req.Patch.Y
+		if p.IsRadar != nil {
+			candidate.IsRadar = *p.IsRadar
 		}
-		if req.Patch.CustomB64 != "" {
-			updated.CustomB64 = req.Patch.CustomB64
+		if p.HideOnDelay != nil {
+			candidate.HideOnDelay = *p.HideOnDelay
 		}
-		if req.Patch.CustomMime != "" {
-			updated.CustomMime = req.Patch.CustomMime
+		if p.X != nil {
+			candidate.X = *p.X
 		}
-		if req.Patch.CustomW > 0 {
-			updated.CustomW = req.Patch.CustomW
+		if p.Y != nil {
+			candidate.Y = *p.Y
 		}
-		if req.Patch.CustomH > 0 {
-			updated.CustomH = req.Patch.CustomH
+		if p.CustomB64 != nil {
+			candidate.CustomB64 = *p.CustomB64
 		}
-
-		activeScene.UpdateGlow(updated)
+		if p.CustomMime != nil {
+			candidate.CustomMime = *p.CustomMime
+		}
+		if p.CustomW != nil {
+			candidate.CustomW = *p.CustomW
+		}
+		if p.CustomH != nil {
+			candidate.CustomH = *p.CustomH
+		}
+		if p.Visible != nil {
+			candidate.Visible = p.Visible
+		}
+		if p.Locked != nil {
+			candidate.Locked = *p.Locked
+		}
+		if p.Metadata != nil {
+			candidate.Metadata = p.Metadata
+		}
+		if err := scene.ValidateGlow(&candidate); err != nil {
+			return nil, fmt.Errorf("validating glow: %w", err)
+		}
+		activeScene.UpdateGlow(candidate)
+		if p.Name != nil && *p.Name == "" {
+			_, _ = activeScene.RenameObject(scene.SelectionGlow, candidate.ID, "")
+			candidate.Name = ""
+		}
 		return json.Marshal(map[string]any{
-			"glow":     updated,
+			"glow":     candidate,
 			"revision": activeScene.Revision(),
 		})
 
@@ -1656,52 +1953,72 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if existing == nil {
 			return nil, fmt.Errorf("ripple %q not found", req.ID)
 		}
-		updated := *existing
-		if req.Patch.Name != "" {
-			updated.Name = req.Patch.Name
+		candidate := *existing
+		p := req.Patch
+		if p.Name != nil {
+			candidate.Name = *p.Name
 		}
-		if req.Patch.Color != "" {
-			updated.Color = req.Patch.Color
+		if p.Color != nil {
+			candidate.Color = *p.Color
 		}
-		if req.Patch.Opacity >= 0 {
-			updated.Opacity = req.Patch.Opacity
+		if p.Opacity != nil {
+			candidate.Opacity = *p.Opacity
 		}
-		if req.Patch.InnerR >= 0 {
-			updated.InnerR = req.Patch.InnerR
+		if p.InnerR != nil {
+			candidate.InnerR = *p.InnerR
 		}
-		if req.Patch.OuterR > 0 {
-			updated.OuterR = req.Patch.OuterR
+		if p.OuterR != nil {
+			candidate.OuterR = *p.OuterR
 		}
-		if req.Patch.Rings > 0 {
-			updated.Rings = req.Patch.Rings
-			updated.WaveCount = req.Patch.Rings
-		} else if req.Patch.WaveCount > 0 {
-			updated.WaveCount = req.Patch.WaveCount
-			updated.Rings = req.Patch.WaveCount
+		if p.WaveCount != nil {
+			candidate.WaveCount = *p.WaveCount
+			candidate.Rings = *p.WaveCount
+		} else if p.Rings != nil {
+			candidate.Rings = *p.Rings
+			candidate.WaveCount = *p.Rings
 		}
-		if req.Patch.Thick > 0 {
-			updated.Thick = req.Patch.Thick
+		if p.Thick != nil {
+			candidate.Thick = *p.Thick
 		}
-		if req.Patch.Refraction >= 0 {
-			updated.Refraction = req.Patch.Refraction
+		if p.Refraction != nil {
+			candidate.Refraction = *p.Refraction
 		}
-		if req.Patch.Duration > 0 {
-			updated.Duration = req.Patch.Duration
+		if p.Duration != nil {
+			candidate.Duration = *p.Duration
+		} else if p.AltDuration != nil {
+			candidate.Duration = *p.AltDuration
 		}
-		if req.Patch.Delay >= 0 {
-			updated.Delay = req.Patch.Delay
+		if p.Delay != nil {
+			candidate.Delay = *p.Delay
 		}
-		if req.Patch.EndDelay >= 0 {
-			updated.EndDelay = req.Patch.EndDelay
+		if p.EndDelay != nil {
+			candidate.EndDelay = *p.EndDelay
 		}
-		if req.Patch.X != 0 || req.Patch.Y != 0 {
-			updated.X = req.Patch.X
-			updated.Y = req.Patch.Y
+		if p.X != nil {
+			candidate.X = *p.X
 		}
-
-		activeScene.UpdateRipple(updated)
+		if p.Y != nil {
+			candidate.Y = *p.Y
+		}
+		if p.Visible != nil {
+			candidate.Visible = p.Visible
+		}
+		if p.Locked != nil {
+			candidate.Locked = *p.Locked
+		}
+		if p.Metadata != nil {
+			candidate.Metadata = p.Metadata
+		}
+		if err := scene.ValidateRipple(&candidate); err != nil {
+			return nil, fmt.Errorf("validating ripple: %w", err)
+		}
+		activeScene.UpdateRipple(candidate)
+		if p.Name != nil && *p.Name == "" {
+			_, _ = activeScene.RenameObject(scene.SelectionRipple, candidate.ID, "")
+			candidate.Name = ""
+		}
 		return json.Marshal(map[string]any{
-			"ripple":   updated,
+			"ripple":   candidate,
 			"revision": activeScene.Revision(),
 		})
 
@@ -1774,10 +2091,63 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding CameraUpdateRequest: %w", err)
 		}
-		if err := scene.ValidateCamera(&req.Camera); err != nil {
+		cam := activeScene.GetCamera()
+		if req.Camera != nil {
+			p := req.Camera
+			if p.Motion != nil {
+				cam.Motion = *p.Motion
+			}
+			if p.Duration != nil {
+				cam.Duration = *p.Duration
+			} else if p.AltDuration != nil {
+				cam.Duration = *p.AltDuration
+			}
+			if p.Loop != nil {
+				cam.Loop = *p.Loop
+			} else if p.AltLoop != nil {
+				cam.Loop = *p.AltLoop
+			}
+			if p.StartX != nil {
+				cam.StartX = *p.StartX
+			}
+			if p.StartY != nil {
+				cam.StartY = *p.StartY
+			}
+			if p.StartZoom != nil {
+				cam.StartZoom = *p.StartZoom
+			}
+			if p.EndX != nil {
+				cam.EndX = *p.EndX
+			}
+			if p.EndY != nil {
+				cam.EndY = *p.EndY
+			}
+			if p.EndZoom != nil {
+				cam.EndZoom = *p.EndZoom
+			}
+			if p.Sway != nil {
+				cam.Sway = *p.Sway
+			}
+			if p.Breathe != nil {
+				cam.Breathe = *p.Breathe
+			}
+			if p.TiltX != nil {
+				cam.TiltX = *p.TiltX
+			}
+			if p.TiltY != nil {
+				cam.TiltY = *p.TiltY
+			}
+			if p.BgColor != nil {
+				cam.BgColor = *p.BgColor
+			}
+			if p.BgTransparent != nil {
+				cam.BgTransparent = *p.BgTransparent
+			}
+		}
+		if err := scene.ValidateCamera(&cam); err != nil {
 			return nil, fmt.Errorf("validating camera: %w", err)
 		}
-		activeScene.UpdateCamera(req.Camera)
+		activeScene.UpdateCamera(cam)
 		return json.Marshal(map[string]any{
 			"camera":   activeScene.GetCamera(),
 			"revision": activeScene.Revision(),
@@ -1810,10 +2180,49 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding OpticsUpdateRequest: %w", err)
 		}
-		if err := scene.ValidateOptical(&req.Optical); err != nil {
+		opt := activeScene.GetOptical()
+		if req.Optical != nil {
+			p := req.Optical
+			if p.Type != nil {
+				opt.Type = *p.Type
+			}
+			if p.StartBlur != nil {
+				opt.StartBlur = *p.StartBlur
+			}
+			if p.EndBlur != nil {
+				opt.EndBlur = *p.EndBlur
+			}
+			if p.FocusDur != nil {
+				opt.FocusDur = *p.FocusDur
+			} else if p.AltDuration != nil {
+				opt.FocusDur = *p.AltDuration
+			}
+			if p.TSShape != nil {
+				opt.TSShape = *p.TSShape
+			}
+			if p.TSPosX != nil {
+				opt.TSPosX = *p.TSPosX
+			}
+			if p.TSPos != nil {
+				opt.TSPos = *p.TSPos
+			}
+			if p.TSWidth != nil {
+				opt.TSWidth = *p.TSWidth
+			}
+			if p.TSBlur != nil {
+				opt.TSBlur = *p.TSBlur
+			}
+			if p.MBInt != nil {
+				opt.MBInt = *p.MBInt
+			}
+			if p.MBAng != nil {
+				opt.MBAng = *p.MBAng
+			}
+		}
+		if err := scene.ValidateOptical(&opt); err != nil {
 			return nil, fmt.Errorf("validating optics: %w", err)
 		}
-		activeScene.UpdateOptical(req.Optical)
+		activeScene.UpdateOptical(opt)
 		return json.Marshal(map[string]any{
 			"optical":  activeScene.GetOptical(),
 			"revision": activeScene.Revision(),
@@ -1844,10 +2253,54 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding FrameUpdateRequest: %w", err)
 		}
-		if err := scene.ValidateFrame(&req.Frame); err != nil {
+		f := activeScene.GetFrame()
+		if req.Frame != nil {
+			p := req.Frame
+			if p.Enabled != nil {
+				f.Enabled = *p.Enabled
+			} else if p.AltEnabled != nil {
+				f.Enabled = *p.AltEnabled
+			}
+			if p.Style != nil {
+				f.Style = *p.Style
+			} else if p.AltStyle != nil {
+				f.Style = *p.AltStyle
+			}
+			if p.Depth != nil {
+				f.Depth = *p.Depth
+			} else if p.AltDepth != nil {
+				f.Depth = *p.AltDepth
+			}
+			if p.Lighting != nil {
+				f.Lighting = *p.Lighting
+			} else if p.AltLighting != nil {
+				f.Lighting = *p.AltLighting
+			}
+			if p.LightDir != nil {
+				f.LightDir = *p.LightDir
+			} else if p.AltLightDir != nil {
+				f.LightDir = *p.AltLightDir
+			}
+			if p.LightInt != nil {
+				f.LightInt = *p.LightInt
+			} else if p.AltLightInt != nil {
+				f.LightInt = *p.AltLightInt
+			}
+			if p.Shadow != nil {
+				f.Shadow = *p.Shadow
+			} else if p.AltShadow != nil {
+				f.Shadow = *p.AltShadow
+			}
+			if p.Fillet != nil {
+				f.Fillet = *p.Fillet
+			} else if p.AltFillet != nil {
+				f.Fillet = *p.AltFillet
+			}
+		}
+		if err := scene.ValidateFrame(&f); err != nil {
 			return nil, fmt.Errorf("validating frame: %w", err)
 		}
-		activeScene.UpdateFrame(req.Frame)
+		activeScene.UpdateFrame(f)
 		return json.Marshal(map[string]any{
 			"frame":    activeScene.GetFrame(),
 			"revision": activeScene.Revision(),
@@ -2346,7 +2799,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding ImageUpdateRequest: %w", err)
 		}
-		img, err := activeScene.UpdateImage(req.ID, req.Patch)
+		img, err := activeScene.UpdateImagePatch(req.ID, req.Patch)
 		if err != nil {
 			return json.Marshal(ImageUpdateResponse{Success: false, Error: err.Error()})
 		}

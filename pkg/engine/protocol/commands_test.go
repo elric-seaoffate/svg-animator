@@ -10,6 +10,11 @@ import (
 	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/timeline"
 )
 
+func floatPtr(v float64) *float64 { return &v }
+func strPtr(v string) *string       { return &v }
+func boolPtr(v bool) *bool          { return &v }
+func intPtr(v int) *int             { return &v }
+
 func TestDispatchPing(t *testing.T) {
 	respBytes, err := Dispatch("Engine.Ping", nil)
 	if err != nil {
@@ -277,9 +282,9 @@ func TestDispatchShapePresetAndNodeCommands(t *testing.T) {
 	// 8. Node.Update
 	updateReq, _ := json.Marshal(NodeUpdateRequest{
 		ID: nodeID,
-		Patch: scene.Node{
-			Width: 320,
-			Text:  "Updated Note",
+		Patch: NodeUpdatePayload{
+			Width: floatPtr(320),
+			Text:  strPtr("Updated Note"),
 		},
 	})
 	updateBytes, err := Dispatch("Node.Update", updateReq)
@@ -443,9 +448,9 @@ func TestDispatchFlowLifecycleAndOperations(t *testing.T) {
 	// 9. Flow.Update
 	updateReq, _ := json.Marshal(FlowUpdateRequest{
 		ID: flowID,
-		Patch: scene.Flow{
-			Label: "Encrypted Stream",
-			Color: "#a855f7",
+		Patch: FlowUpdatePayload{
+			Label: strPtr("Encrypted Stream"),
+			Color: strPtr("#a855f7"),
 		},
 	})
 	updateBytes, err := Dispatch("Flow.Update", updateReq)
@@ -577,9 +582,9 @@ func TestDispatchGlowLifecycleAndOperations(t *testing.T) {
 	// 6. Glow.Update
 	updateReq, _ := json.Marshal(GlowUpdateRequest{
 		ID: glowID,
-		Patch: scene.Glow{
-			Color: "#00ff88",
-			Size:  35,
+		Patch: GlowUpdatePayload{
+			Color: strPtr("#00ff88"),
+			Size:  floatPtr(35),
 		},
 	})
 	updateBytes, err := Dispatch("Glow.Update", updateReq)
@@ -698,9 +703,9 @@ func TestDispatchRippleLifecycleAndOperations(t *testing.T) {
 	// 6. Ripple.Update
 	updateReq, _ := json.Marshal(RippleUpdateRequest{
 		ID: rippleID,
-		Patch: scene.Ripple{
-			Color:  "#38bdf8",
-			OuterR: 160,
+		Patch: RippleUpdatePayload{
+			Color:  strPtr("#38bdf8"),
+			OuterR: floatPtr(160),
 		},
 	})
 	updateBytes, err := Dispatch("Ripple.Update", updateReq)
@@ -741,15 +746,15 @@ func TestDispatchCameraCommands(t *testing.T) {
 
 	// 2. Camera.Update
 	updateReq, _ := json.Marshal(CameraUpdateRequest{
-		Camera: scene.CameraConfig{
-			Motion:    "ken-burns",
-			Duration:  6.0,
-			StartZoom: 1.2,
-			EndZoom:   1.8,
-			StartX:    50,
-			StartY:    50,
-			EndX:      50,
-			EndY:      50,
+		Camera: &CameraUpdatePayload{
+			Motion:    strPtr("ken-burns"),
+			Duration:  floatPtr(6.0),
+			StartZoom: floatPtr(1.2),
+			EndZoom:   floatPtr(1.8),
+			StartX:    floatPtr(50),
+			StartY:    floatPtr(50),
+			EndX:      floatPtr(50),
+			EndY:      floatPtr(50),
 		},
 	})
 	upBytes, err := Dispatch("Camera.Update", updateReq)
@@ -796,11 +801,11 @@ func TestDispatchOpticsCommands(t *testing.T) {
 
 	// 2. Optics.Update
 	upReq, _ := json.Marshal(OpticsUpdateRequest{
-		Optical: scene.OpticalConfig{
-			Type:      "focus-pull",
-			StartBlur: 8,
-			EndBlur:   0,
-			FocusDur:  4,
+		Optical: &OpticsUpdatePayload{
+			Type:      strPtr("focus-pull"),
+			StartBlur: floatPtr(8),
+			EndBlur:   floatPtr(0),
+			FocusDur:  floatPtr(4),
 		},
 	})
 	upBytes, err := Dispatch("Optics.Update", upReq)
@@ -848,12 +853,12 @@ func TestDispatchFrameCommands(t *testing.T) {
 
 	// 2. Frame.Update
 	upReq, _ := json.Marshal(FrameUpdateRequest{
-		Frame: scene.FrameConfig{
-			Enabled:  true,
-			Style:    "cyber-hud",
-			Depth:    40,
-			Lighting: true,
-			LightInt: 80,
+		Frame: &FrameUpdatePayload{
+			Enabled:  boolPtr(true),
+			Style:    strPtr("cyber-hud"),
+			Depth:    floatPtr(40),
+			Lighting: boolPtr(true),
+			LightInt: floatPtr(80),
 		},
 	})
 	upBytes, err := Dispatch("Frame.Update", upReq)
@@ -1498,9 +1503,9 @@ func TestDispatchImageAndLayerCommands(t *testing.T) {
 	// 3. Image.Update
 	upReq, _ := json.Marshal(ImageUpdateRequest{
 		ID: imgID,
-		Patch: scene.Image{
-			Name: "Custom Photo Name",
-			Width: 500,
+		Patch: ImageUpdatePayload{
+			Name:  strPtr("Custom Photo Name"),
+			Width: floatPtr(500),
 		},
 	})
 	upBytes, err := Dispatch("Image.Update", upReq)
@@ -1945,4 +1950,926 @@ func TestDispatchBackgroundCropLifecycle(t *testing.T) {
 	if len(cropResp.Background.CropVersions) != 1 {
 		t.Fatalf("Expected 1 crop version remaining, got %d", len(cropResp.Background.CropVersions))
 	}
+}
+
+func TestSafePartialUpdatesAndCommandContracts(t *testing.T) {
+	// =========================================================================
+	// TEST A: Omitted fields unchanged
+	// =========================================================================
+	t.Run("TestA_OmittedFieldsUnchanged", func(t *testing.T) {
+		// 1. Node
+		visTrue := true
+		cnReq, _ := json.Marshal(NodeCreateRequest{
+			Initial: scene.Node{
+				X:           45,
+				Y:           55,
+				Width:       200,
+				Height:      100,
+				Text:        "InitialText",
+				FillColor:   "#ff0000",
+				StrokeWidth: 4,
+				Opacity:     0.8,
+				Locked:      true,
+				Visible:     &visTrue,
+			},
+		})
+		cnBytes, err := Dispatch("Node.Create", cnReq)
+		if err != nil {
+			t.Fatalf("Node.Create failed: %v", err)
+		}
+		var cnRes struct {
+			Node scene.Node `json:"node"`
+		}
+		_ = json.Unmarshal(cnBytes, &cnRes)
+		nodeID := cnRes.Node.ID
+
+		// Partial update: only Width
+		unReq, _ := json.Marshal(NodeUpdateRequest{
+			ID: nodeID,
+			Patch: NodeUpdatePayload{
+				Width: floatPtr(250),
+			},
+		})
+		unBytes, err := Dispatch("Node.Update", unReq)
+		if err != nil {
+			t.Fatalf("Node.Update failed: %v", err)
+		}
+		var unRes struct {
+			Node scene.Node `json:"node"`
+		}
+		_ = json.Unmarshal(unBytes, &unRes)
+		n := unRes.Node
+		if n.Width != 250 {
+			t.Errorf("expected Width 250, got %f", n.Width)
+		}
+		if n.X != 45 || n.Y != 55 || n.Height != 100 || n.Text != "InitialText" || n.FillColor != "#ff0000" || n.StrokeWidth != 4 || n.Opacity != 0.8 || !n.Locked {
+			t.Errorf("omitted fields modified in Node: %+v", n)
+		}
+
+		// 2. Flow
+		cfReq, _ := json.Marshal(FlowCreateRequest{
+			Initial: scene.Flow{
+				Nodes:       []geometry.Point{{X: 10, Y: 10}, {X: 90, Y: 90}},
+				LineWidth:   3,
+				Curvature:   0.5,
+				Speed:       2.0,
+				Delay:       1.0,
+				Color:       "#ffffff",
+				ShowLine:    true,
+				HideOnDelay: true,
+			},
+		})
+		cfBytes, err := Dispatch("Flow.Create", cfReq)
+		if err != nil {
+			t.Fatalf("Flow.Create failed: %v", err)
+		}
+		var cfRes struct {
+			Flow scene.Flow `json:"flow"`
+		}
+		_ = json.Unmarshal(cfBytes, &cfRes)
+		flowID := cfRes.Flow.ID
+
+		// Partial update: only Color
+		ufReq, _ := json.Marshal(FlowUpdateRequest{
+			ID: flowID,
+			Patch: FlowUpdatePayload{
+				Color: strPtr("#00ff00"),
+			},
+		})
+		ufBytes, err := Dispatch("Flow.Update", ufReq)
+		if err != nil {
+			t.Fatalf("Flow.Update failed: %v", err)
+		}
+		var ufRes struct {
+			Flow scene.Flow `json:"flow"`
+		}
+		_ = json.Unmarshal(ufBytes, &ufRes)
+		f := ufRes.Flow
+		if f.Color != "#00ff00" {
+			t.Errorf("expected Color #00ff00, got %s", f.Color)
+		}
+		if f.LineWidth != 3 || f.Curvature != 0.5 || f.Speed != 2.0 || f.Delay != 1.0 || !f.ShowLine || !f.HideOnDelay {
+			t.Errorf("omitted fields modified in Flow: %+v", f)
+		}
+
+		// 3. Camera
+		_, _ = Dispatch("Camera.Update", []byte(`{
+			"camera": {
+				"motion": "ken-burns",
+				"camDuration": 8.0,
+				"startZoom": 1.5,
+				"endZoom": 2.0,
+				"startX": 40,
+				"startY": 60
+			}
+		}`))
+		// Partial update: only EndZoom
+		ucBytes, err := Dispatch("Camera.Update", []byte(`{"camera":{"endZoom":2.5}}`))
+		if err != nil {
+			t.Fatalf("Camera.Update failed: %v", err)
+		}
+		var ucRes struct {
+			Camera scene.CameraConfig `json:"camera"`
+		}
+		_ = json.Unmarshal(ucBytes, &ucRes)
+		c := ucRes.Camera
+		if c.EndZoom != 2.5 {
+			t.Errorf("expected EndZoom 2.5, got %f", c.EndZoom)
+		}
+		if c.Motion != "ken-burns" || c.Duration != 8.0 || c.StartZoom != 1.5 || c.StartX != 40 || c.StartY != 60 {
+			t.Errorf("omitted fields modified in Camera: %+v", c)
+		}
+
+		// 4. Optics
+		_, _ = Dispatch("Optics.Update", []byte(`{
+			"optical": {
+				"type": "focus-pull",
+				"startBlur": 5.0,
+				"endBlur": 10.0,
+				"focusDur": 3.0
+			}
+		}`))
+		// Partial update: only StartBlur
+		uoBytes, err := Dispatch("Optics.Update", []byte(`{"optical":{"startBlur":2.0}}`))
+		if err != nil {
+			t.Fatalf("Optics.Update failed: %v", err)
+		}
+		var uoRes struct {
+			Optical scene.OpticalConfig `json:"optical"`
+		}
+		_ = json.Unmarshal(uoBytes, &uoRes)
+		opt := uoRes.Optical
+		if opt.StartBlur != 2.0 {
+			t.Errorf("expected StartBlur 2.0, got %f", opt.StartBlur)
+		}
+		if opt.Type != "focus-pull" || opt.EndBlur != 10.0 || opt.FocusDur != 3.0 {
+			t.Errorf("omitted fields modified in Optics: %+v", opt)
+		}
+
+		// 5. Frame
+		_, _ = Dispatch("Frame.Update", []byte(`{
+			"frame": {
+				"frame": true,
+				"frameStyle": "cyber-hud",
+				"frameDepth": 30.0,
+				"frameLighting": true,
+				"frameShadow": 0.7
+			}
+		}`))
+		// Partial update: only Depth
+		ufrBytes, err := Dispatch("Frame.Update", []byte(`{"frame":{"frameDepth":45.0}}`))
+		if err != nil {
+			t.Fatalf("Frame.Update failed: %v", err)
+		}
+		var ufrRes struct {
+			Frame scene.FrameConfig `json:"frame"`
+		}
+		_ = json.Unmarshal(ufrBytes, &ufrRes)
+		fr := ufrRes.Frame
+		if fr.Depth != 45.0 {
+			t.Errorf("expected Depth 45.0, got %f", fr.Depth)
+		}
+		if !fr.Enabled || fr.Style != "cyber-hud" || !fr.Lighting || fr.Shadow != 0.7 {
+			t.Errorf("omitted fields modified in Frame: %+v", fr)
+		}
+
+		// 6. Image
+		ciReq, _ := json.Marshal(ImageCreateRequest{
+			Image: scene.Image{
+				Width:               400,
+				Height:              300,
+				X:                   50,
+				Y:                   50,
+				Opacity:             0.9,
+				MaintainAspectRatio: true,
+				Locked:              true,
+			},
+		})
+		ciBytes, err := Dispatch("Image.Create", ciReq)
+		if err != nil {
+			t.Fatalf("Image.Create failed: %v", err)
+		}
+		var ciRes ImageCreateResponse
+		_ = json.Unmarshal(ciBytes, &ciRes)
+		imgID := ciRes.Image.ID
+
+		// Partial update: only Width
+		uiReq, _ := json.Marshal(ImageUpdateRequest{
+			ID: imgID,
+			Patch: ImageUpdatePayload{
+				Width: floatPtr(480),
+			},
+		})
+		uiBytes, err := Dispatch("Image.Update", uiReq)
+		if err != nil {
+			t.Fatalf("Image.Update failed: %v", err)
+		}
+		var uiRes ImageUpdateResponse
+		_ = json.Unmarshal(uiBytes, &uiRes)
+		img := uiRes.Image
+		if img.Width != 480 {
+			t.Errorf("expected Width 480, got %f", img.Width)
+		}
+		if img.Height != 300 || img.X != 50 || img.Y != 50 || img.Opacity != 0.9 || !img.MaintainAspectRatio || !img.Locked {
+			t.Errorf("omitted fields modified in Image: %+v", img)
+		}
+	})
+
+	// =========================================================================
+	// TEST B: Explicit zero/false applied
+	// =========================================================================
+	t.Run("TestB_ExplicitZeroFalseApplied", func(t *testing.T) {
+		// 1. Node: explicit 0.0 coordinates, 0.0 fillOpacity, 0.0 strokeWidth, false locked
+		nReq, _ := json.Marshal(NodeCreateRequest{
+			Initial: scene.Node{
+				X:           50,
+				Y:           50,
+				Width:       100,
+				Height:      100,
+				FillOpacity: 0.8,
+				StrokeWidth: 5,
+				Locked:      true,
+			},
+		})
+		nBytes, _ := Dispatch("Node.Create", nReq)
+		var nRes struct{ Node scene.Node }
+		_ = json.Unmarshal(nBytes, &nRes)
+
+		unReq, _ := json.Marshal(NodeUpdateRequest{
+			ID: nRes.Node.ID,
+			Patch: NodeUpdatePayload{
+				X:           floatPtr(0.0),
+				Y:           floatPtr(0.0),
+				FillOpacity: floatPtr(0.0),
+				StrokeWidth: floatPtr(0.0),
+				Locked:      boolPtr(false),
+			},
+		})
+		unBytes, err := Dispatch("Node.Update", unReq)
+		if err != nil {
+			t.Fatalf("Node.Update failed on explicit zeros: %v", err)
+		}
+		var unRes struct{ Node scene.Node }
+		_ = json.Unmarshal(unBytes, &unRes)
+		node := unRes.Node
+		if node.X != 0.0 || node.Y != 0.0 {
+			t.Errorf("expected X=0, Y=0, got %f, %f", node.X, node.Y)
+		}
+		if node.FillOpacity != 0.0 {
+			t.Errorf("expected FillOpacity=0.0, got %f", node.FillOpacity)
+		}
+		if node.StrokeWidth != 0.0 {
+			t.Errorf("expected StrokeWidth=0.0, got %f", node.StrokeWidth)
+		}
+		if node.Locked {
+			t.Errorf("expected Locked=false, got true")
+		}
+
+		// 2. Flow: explicit 0.0 curvature, 0.0 delay, false showLine, false hideOnDelay
+		fReq, _ := json.Marshal(FlowCreateRequest{
+			Initial: scene.Flow{
+				Nodes:       []geometry.Point{{X: 0, Y: 0}, {X: 50, Y: 50}},
+				Curvature:   0.8,
+				Delay:       2.5,
+				EndDelay:    1.5,
+				ShowLine:    true,
+				HideOnDelay: true,
+			},
+		})
+		fBytes, _ := Dispatch("Flow.Create", fReq)
+		var fRes struct{ Flow scene.Flow }
+		_ = json.Unmarshal(fBytes, &fRes)
+
+		ufReq, _ := json.Marshal(FlowUpdateRequest{
+			ID: fRes.Flow.ID,
+			Patch: FlowUpdatePayload{
+				Curvature:   floatPtr(0.0),
+				Delay:       floatPtr(0.0),
+				EndDelay:    floatPtr(0.0),
+				ShowLine:    boolPtr(false),
+				HideOnDelay: boolPtr(false),
+			},
+		})
+		ufBytes, err := Dispatch("Flow.Update", ufReq)
+		if err != nil {
+			t.Fatalf("Flow.Update failed on explicit zeros: %v", err)
+		}
+		var ufRes struct{ Flow scene.Flow }
+		_ = json.Unmarshal(ufBytes, &ufRes)
+		flow := ufRes.Flow
+		if flow.Curvature != 0.0 || flow.Delay != 0.0 || flow.EndDelay != 0.0 || flow.ShowLine || flow.HideOnDelay {
+			t.Errorf("failed to apply explicit zero/false on flow: %+v", flow)
+		}
+
+		// 3. Glow: explicit 0.0 delay, 0.0 blur, false isRadar
+		gReq, _ := json.Marshal(GlowCreateRequest{
+			Initial: scene.Glow{
+				Size:     40,
+				Delay:    3.0,
+				Blur:     12.0,
+				IsRadar:  true,
+				Duration: 2.0,
+			},
+		})
+		gBytes, _ := Dispatch("Glow.Create", gReq)
+		var gRes struct{ Glow scene.Glow }
+		_ = json.Unmarshal(gBytes, &gRes)
+
+		ugReq, _ := json.Marshal(GlowUpdateRequest{
+			ID: gRes.Glow.ID,
+			Patch: GlowUpdatePayload{
+				Delay:   floatPtr(0.0),
+				Blur:    floatPtr(0.0),
+				IsRadar: boolPtr(false),
+			},
+		})
+		ugBytes, err := Dispatch("Glow.Update", ugReq)
+		if err != nil {
+			t.Fatalf("Glow.Update failed on explicit zeros: %v", err)
+		}
+		var ugRes struct{ Glow scene.Glow }
+		_ = json.Unmarshal(ugBytes, &ugRes)
+		glow := ugRes.Glow
+		if glow.Delay != 0.0 || glow.Blur != 0.0 || glow.IsRadar {
+			t.Errorf("failed to apply explicit zero/false on glow: %+v", glow)
+		}
+
+		// 4. Ripple: explicit 0.0 innerR, 0.0 delay, 0.0 refraction
+		rReq, _ := json.Marshal(RippleCreateRequest{
+			Initial: scene.Ripple{
+				InnerR:     15,
+				OuterR:     60,
+				Delay:      2.0,
+				Refraction: 0.5,
+				Duration:   2.0,
+			},
+		})
+		rBytes, _ := Dispatch("Ripple.Create", rReq)
+		var rRes struct{ Ripple scene.Ripple }
+		_ = json.Unmarshal(rBytes, &rRes)
+
+		urReq, _ := json.Marshal(RippleUpdateRequest{
+			ID: rRes.Ripple.ID,
+			Patch: RippleUpdatePayload{
+				InnerR:     floatPtr(0.0),
+				Delay:      floatPtr(0.0),
+				Refraction: floatPtr(0.0),
+			},
+		})
+		urBytes, err := Dispatch("Ripple.Update", urReq)
+		if err != nil {
+			t.Fatalf("Ripple.Update failed on explicit zeros: %v", err)
+		}
+		var urRes struct{ Ripple scene.Ripple }
+		_ = json.Unmarshal(urBytes, &urRes)
+		rip := urRes.Ripple
+		if rip.InnerR != 0.0 || rip.Delay != 0.0 || rip.Refraction != 0.0 {
+			t.Errorf("failed to apply explicit zero on ripple: %+v", rip)
+		}
+
+		// 5. Image: explicit 0.0 X, Y, Opacity, false MaintainAspectRatio, false Locked
+		imgReq, _ := json.Marshal(ImageCreateRequest{
+			Image: scene.Image{
+				X:                   40,
+				Y:                   40,
+				Width:               200,
+				Height:              150,
+				Opacity:             0.8,
+				MaintainAspectRatio: true,
+				Locked:              true,
+			},
+		})
+		imgBytes, _ := Dispatch("Image.Create", imgReq)
+		var imgRes ImageCreateResponse
+		_ = json.Unmarshal(imgBytes, &imgRes)
+
+		uimgReq, _ := json.Marshal(ImageUpdateRequest{
+			ID: imgRes.Image.ID,
+			Patch: ImageUpdatePayload{
+				X:                   floatPtr(0.0),
+				Y:                   floatPtr(0.0),
+				Opacity:             floatPtr(0.0),
+				MaintainAspectRatio: boolPtr(false),
+				Locked:              boolPtr(false),
+			},
+		})
+		uimgBytes, err := Dispatch("Image.Update", uimgReq)
+		if err != nil {
+			t.Fatalf("Image.Update failed on explicit zeros: %v", err)
+		}
+		var uimgRes ImageUpdateResponse
+		_ = json.Unmarshal(uimgBytes, &uimgRes)
+		im := uimgRes.Image
+		if im.X != 0.0 || im.Y != 0.0 || im.Opacity != 0.0 || im.MaintainAspectRatio || im.Locked {
+			t.Errorf("failed to apply explicit zero/false on image: %+v", im)
+		}
+
+		// 6. Camera: explicit 0.0 StartX, StartY, EndX, EndY, Sway, Breathe, TiltX, TiltY, false BgTransparent
+		_, _ = Dispatch("Camera.Update", []byte(`{
+			"camera": {
+				"startX": 50.0,
+				"startY": 50.0,
+				"endX": 50.0,
+				"endY": 50.0,
+				"sway": 10.0,
+				"breathe": 5.0,
+				"tiltX": 15.0,
+				"tiltY": 15.0,
+				"bgTransparent": true
+			}
+		}`))
+		cBytes, err := Dispatch("Camera.Update", []byte(`{
+			"camera": {
+				"startX": 0.0,
+				"startY": 0.0,
+				"endX": 0.0,
+				"endY": 0.0,
+				"sway": 0.0,
+				"breathe": 0.0,
+				"tiltX": 0.0,
+				"tiltY": 0.0,
+				"bgTransparent": false
+			}
+		}`))
+		if err != nil {
+			t.Fatalf("Camera.Update failed on explicit zeros: %v", err)
+		}
+		var cRes struct{ Camera scene.CameraConfig }
+		_ = json.Unmarshal(cBytes, &cRes)
+		cam := cRes.Camera
+		if cam.StartX != 0.0 || cam.StartY != 0.0 || cam.EndX != 0.0 || cam.EndY != 0.0 || cam.Sway != 0.0 || cam.Breathe != 0.0 || cam.TiltX != 0.0 || cam.TiltY != 0.0 || cam.BgTransparent {
+			t.Errorf("failed to apply explicit zero/false on camera: %+v", cam)
+		}
+
+		// 7. Optics: explicit 0.0 StartBlur, EndBlur, MBInt, MBAng
+		_, _ = Dispatch("Optics.Update", []byte(`{
+			"optical": {
+				"type": "motion-blur",
+				"startBlur": 5.0,
+				"endBlur": 5.0,
+				"mbInt": 12.0,
+				"mbAng": 45.0
+			}
+		}`))
+		oBytes, err := Dispatch("Optics.Update", []byte(`{
+			"optical": {
+				"startBlur": 0.0,
+				"endBlur": 0.0,
+				"mbInt": 0.0,
+				"mbAng": 0.0
+			}
+		}`))
+		if err != nil {
+			t.Fatalf("Optics.Update failed on explicit zeros: %v", err)
+		}
+		var oRes struct{ Optical scene.OpticalConfig }
+		_ = json.Unmarshal(oBytes, &oRes)
+		optical := oRes.Optical
+		if optical.StartBlur != 0.0 || optical.EndBlur != 0.0 || optical.MBInt != 0.0 || optical.MBAng != 0.0 {
+			t.Errorf("failed to apply explicit zero on optics: %+v", optical)
+		}
+
+		// 8. Frame: explicit false frame (enabled), false frameLighting, false frameFillet, 0.0 frameDepth, 0.0 frameShadow
+		_, _ = Dispatch("Frame.Update", []byte(`{
+			"frame": {
+				"frame": true,
+				"frameLighting": true,
+				"frameFillet": true,
+				"frameDepth": 25.0,
+				"frameShadow": 0.8
+			}
+		}`))
+		frBytes, err := Dispatch("Frame.Update", []byte(`{
+			"frame": {
+				"frame": false,
+				"frameLighting": false,
+				"frameFillet": false,
+				"frameDepth": 0.0,
+				"frameShadow": 0.0
+			}
+		}`))
+		if err != nil {
+			t.Fatalf("Frame.Update failed on explicit false/zero: %v", err)
+		}
+		var frRes struct{ Frame scene.FrameConfig }
+		_ = json.Unmarshal(frBytes, &frRes)
+		frame := frRes.Frame
+		if frame.Enabled || frame.Lighting || frame.Fillet || frame.Depth != 0.0 || frame.Shadow != 0.0 {
+			t.Errorf("failed to apply explicit false/zero on frame: %+v", frame)
+		}
+	})
+
+	// =========================================================================
+	// TEST C: Empty strings cleared
+	// =========================================================================
+	t.Run("TestC_EmptyStringsCleared", func(t *testing.T) {
+		// Node: Name, Text, Subtext
+		nReq, _ := json.Marshal(NodeCreateRequest{
+			Initial: scene.Node{
+				Name:    "CustomNodeName",
+				Text:    "CustomText",
+				Subtext: "CustomSubtext",
+				Width:   120,
+				Height:  80,
+			},
+		})
+		nBytes, _ := Dispatch("Node.Create", nReq)
+		var nRes struct{ Node scene.Node }
+		_ = json.Unmarshal(nBytes, &nRes)
+
+		unReq, _ := json.Marshal(NodeUpdateRequest{
+			ID: nRes.Node.ID,
+			Patch: NodeUpdatePayload{
+				Name:    strPtr(""),
+				Text:    strPtr(""),
+				Subtext: strPtr(""),
+			},
+		})
+		unBytes, err := Dispatch("Node.Update", unReq)
+		if err != nil {
+			t.Fatalf("Node.Update failed on clearing text: %v", err)
+		}
+		var unRes struct{ Node scene.Node }
+		_ = json.Unmarshal(unBytes, &unRes)
+		if unRes.Node.Name != "" || unRes.Node.Text != "" || unRes.Node.Subtext != "" {
+			t.Errorf("expected cleared strings on node, got: %+v", unRes.Node)
+		}
+
+		// Flow: Name, Label
+		fReq, _ := json.Marshal(FlowCreateRequest{
+			Initial: scene.Flow{
+				Nodes: []geometry.Point{{X: 0, Y: 0}, {X: 40, Y: 40}},
+				Name:  "FlowNameToClear",
+				Label: "FlowLabelToClear",
+			},
+		})
+		fBytes, _ := Dispatch("Flow.Create", fReq)
+		var fRes struct{ Flow scene.Flow }
+		_ = json.Unmarshal(fBytes, &fRes)
+
+		ufReq, _ := json.Marshal(FlowUpdateRequest{
+			ID: fRes.Flow.ID,
+			Patch: FlowUpdatePayload{
+				Name:  strPtr(""),
+				Label: strPtr(""),
+			},
+		})
+		ufBytes, err := Dispatch("Flow.Update", ufReq)
+		if err != nil {
+			t.Fatalf("Flow.Update failed on clearing strings: %v", err)
+		}
+		var ufRes struct{ Flow scene.Flow }
+		_ = json.Unmarshal(ufBytes, &ufRes)
+		if ufRes.Flow.Name != "" || ufRes.Flow.Label != "" {
+			t.Errorf("expected cleared strings on flow, got: %+v", ufRes.Flow)
+		}
+
+		// Glow: Name
+		gReq, _ := json.Marshal(GlowCreateRequest{
+			Initial: scene.Glow{
+				Size: 30,
+				Name: "GlowNameToClear",
+			},
+		})
+		gBytes, _ := Dispatch("Glow.Create", gReq)
+		var gRes struct{ Glow scene.Glow }
+		_ = json.Unmarshal(gBytes, &gRes)
+
+		ugReq, _ := json.Marshal(GlowUpdateRequest{
+			ID: gRes.Glow.ID,
+			Patch: GlowUpdatePayload{
+				Name: strPtr(""),
+			},
+		})
+		ugBytes, err := Dispatch("Glow.Update", ugReq)
+		if err != nil {
+			t.Fatalf("Glow.Update failed on clearing name: %v", err)
+		}
+		var ugRes struct{ Glow scene.Glow }
+		_ = json.Unmarshal(ugBytes, &ugRes)
+		if ugRes.Glow.Name != "" {
+			t.Errorf("expected cleared name on glow, got: %q", ugRes.Glow.Name)
+		}
+
+		// Ripple: Name
+		rReq, _ := json.Marshal(RippleCreateRequest{
+			Initial: scene.Ripple{
+				InnerR: 10,
+				OuterR: 40,
+				Name:   "RippleNameToClear",
+			},
+		})
+		rBytes, _ := Dispatch("Ripple.Create", rReq)
+		var rRes struct{ Ripple scene.Ripple }
+		_ = json.Unmarshal(rBytes, &rRes)
+
+		urReq, _ := json.Marshal(RippleUpdateRequest{
+			ID: rRes.Ripple.ID,
+			Patch: RippleUpdatePayload{
+				Name: strPtr(""),
+			},
+		})
+		urBytes, err := Dispatch("Ripple.Update", urReq)
+		if err != nil {
+			t.Fatalf("Ripple.Update failed on clearing name: %v", err)
+		}
+		var urRes struct{ Ripple scene.Ripple }
+		_ = json.Unmarshal(urBytes, &urRes)
+		if urRes.Ripple.Name != "" {
+			t.Errorf("expected cleared name on ripple, got: %q", urRes.Ripple.Name)
+		}
+
+		// Image: Name
+		imReq, _ := json.Marshal(ImageCreateRequest{
+			Image: scene.Image{
+				Name:   "ImageNameToClear",
+				Width:  100,
+				Height: 100,
+			},
+		})
+		imBytes, _ := Dispatch("Image.Create", imReq)
+		var imRes ImageCreateResponse
+		_ = json.Unmarshal(imBytes, &imRes)
+
+		uimReq, _ := json.Marshal(ImageUpdateRequest{
+			ID: imRes.Image.ID,
+			Patch: ImageUpdatePayload{
+				Name: strPtr(""),
+			},
+		})
+		uimBytes, err := Dispatch("Image.Update", uimReq)
+		if err != nil {
+			t.Fatalf("Image.Update failed on clearing name: %v", err)
+		}
+		var uimRes ImageUpdateResponse
+		_ = json.Unmarshal(uimBytes, &uimRes)
+		if uimRes.Image.Name != "" {
+			t.Errorf("expected cleared name on image, got: %q", uimRes.Image.Name)
+		}
+	})
+
+	// =========================================================================
+	// TEST D: Atomic rejection on invalid input
+	// =========================================================================
+	t.Run("TestD_AtomicRejectionOnInvalidInput", func(t *testing.T) {
+		// 1. Node negative width
+		cnReq, _ := json.Marshal(NodeCreateRequest{
+			Initial: scene.Node{Width: 150, Height: 100},
+		})
+		cnBytes, _ := Dispatch("Node.Create", cnReq)
+		var cnRes struct{ Node scene.Node }
+		_ = json.Unmarshal(cnBytes, &cnRes)
+		revBefore := activeScene.Revision()
+
+		unReq, _ := json.Marshal(NodeUpdateRequest{
+			ID: cnRes.Node.ID,
+			Patch: NodeUpdatePayload{
+				Width: floatPtr(-50),
+			},
+		})
+		_, err := Dispatch("Node.Update", unReq)
+		if err == nil {
+			t.Fatalf("expected Node.Update to fail on negative width")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed update: before=%d, after=%d", revBefore, activeScene.Revision())
+		}
+		nodeStill := activeScene.GetNode(cnRes.Node.ID)
+		if nodeStill.Width != 150 {
+			t.Errorf("node modified despite validation rejection: width=%f", nodeStill.Width)
+		}
+
+		// 2. Flow negative speed
+		cfReq, _ := json.Marshal(FlowCreateRequest{
+			Initial: scene.Flow{
+				Nodes: []geometry.Point{{X: 0, Y: 0}, {X: 20, Y: 20}},
+				Speed: 2.0,
+			},
+		})
+		cfBytes, _ := Dispatch("Flow.Create", cfReq)
+		var cfRes struct{ Flow scene.Flow }
+		_ = json.Unmarshal(cfBytes, &cfRes)
+		revBefore = activeScene.Revision()
+
+		ufReq, _ := json.Marshal(FlowUpdateRequest{
+			ID: cfRes.Flow.ID,
+			Patch: FlowUpdatePayload{
+				Speed: floatPtr(-1.0),
+			},
+		})
+		_, err = Dispatch("Flow.Update", ufReq)
+		if err == nil {
+			t.Fatalf("expected Flow.Update to fail on negative speed")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed flow update")
+		}
+		flowStill := activeScene.GetFlow(cfRes.Flow.ID)
+		if flowStill.Speed != 2.0 {
+			t.Errorf("flow modified despite rejection: speed=%f", flowStill.Speed)
+		}
+
+		// 3. Glow zero duration
+		cgReq, _ := json.Marshal(GlowCreateRequest{
+			Initial: scene.Glow{Size: 30, Duration: 2.0},
+		})
+		cgBytes, _ := Dispatch("Glow.Create", cgReq)
+		var cgRes struct{ Glow scene.Glow }
+		_ = json.Unmarshal(cgBytes, &cgRes)
+		revBefore = activeScene.Revision()
+
+		ugReq, _ := json.Marshal(GlowUpdateRequest{
+			ID: cgRes.Glow.ID,
+			Patch: GlowUpdatePayload{
+				Duration: floatPtr(0.0),
+			},
+		})
+		_, err = Dispatch("Glow.Update", ugReq)
+		if err == nil {
+			t.Fatalf("expected Glow.Update to fail on zero duration")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed glow update")
+		}
+		glowStill := activeScene.GetGlow(cgRes.Glow.ID)
+		if glowStill.Duration != 2.0 {
+			t.Errorf("glow modified despite rejection: duration=%f", glowStill.Duration)
+		}
+
+		// 4. Ripple outer radius < inner radius
+		crReq, _ := json.Marshal(RippleCreateRequest{
+			Initial: scene.Ripple{InnerR: 20, OuterR: 50, Duration: 2.0},
+		})
+		crBytes, _ := Dispatch("Ripple.Create", crReq)
+		var crRes struct{ Ripple scene.Ripple }
+		_ = json.Unmarshal(crBytes, &crRes)
+		revBefore = activeScene.Revision()
+
+		urReq, _ := json.Marshal(RippleUpdateRequest{
+			ID: crRes.Ripple.ID,
+			Patch: RippleUpdatePayload{
+				OuterR: floatPtr(10), // less than InnerR (20)
+			},
+		})
+		_, err = Dispatch("Ripple.Update", urReq)
+		if err == nil {
+			t.Fatalf("expected Ripple.Update to fail when OuterR < InnerR")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed ripple update")
+		}
+		ripStill := activeScene.GetRipple(crRes.Ripple.ID)
+		if ripStill.OuterR != 50 {
+			t.Errorf("ripple modified despite rejection: OuterR=%f", ripStill.OuterR)
+		}
+
+		// 5. Image negative dimensions
+		ciReq, _ := json.Marshal(ImageCreateRequest{
+			Image: scene.Image{Width: 100, Height: 80},
+		})
+		ciBytes, _ := Dispatch("Image.Create", ciReq)
+		var ciRes ImageCreateResponse
+		_ = json.Unmarshal(ciBytes, &ciRes)
+		revBefore = activeScene.Revision()
+
+		uiReq, _ := json.Marshal(ImageUpdateRequest{
+			ID: ciRes.Image.ID,
+			Patch: ImageUpdatePayload{
+				Width: floatPtr(-20),
+			},
+		})
+		uiBytes, _ := Dispatch("Image.Update", uiReq)
+		var uiRes ImageUpdateResponse
+		_ = json.Unmarshal(uiBytes, &uiRes)
+		if uiRes.Success {
+			t.Fatalf("expected Image.Update to report Success: false on negative width")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed image update")
+		}
+		imgStill, _ := activeScene.GetImage(ciRes.Image.ID)
+		if imgStill.Width != 100 {
+			t.Errorf("image modified despite rejection: width=%f", imgStill.Width)
+		}
+
+		// 6. Camera invalid motion
+		_, _ = Dispatch("Camera.Update", []byte(`{"camera":{"motion":"static"}}`))
+		revBefore = activeScene.Revision()
+		_, err = Dispatch("Camera.Update", []byte(`{"camera":{"motion":"invalid-warp-drive"}}`))
+		if err == nil {
+			t.Fatalf("expected Camera.Update to fail on invalid motion")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed camera update")
+		}
+		if activeScene.GetCamera().Motion != "static" {
+			t.Errorf("camera modified despite rejection: motion=%s", activeScene.GetCamera().Motion)
+		}
+
+		// 7. Optics invalid type
+		_, _ = Dispatch("Optics.Update", []byte(`{"optical":{"type":"none"}}`))
+		revBefore = activeScene.Revision()
+		_, err = Dispatch("Optics.Update", []byte(`{"optical":{"type":"holographic-xray"}}`))
+		if err == nil {
+			t.Fatalf("expected Optics.Update to fail on invalid type")
+		}
+		if activeScene.Revision() != revBefore {
+			t.Errorf("revision bumped on failed optics update")
+		}
+		if activeScene.GetOptical().Type != "none" {
+			t.Errorf("optics modified despite rejection: type=%s", activeScene.GetOptical().Type)
+		}
+	})
+
+	// =========================================================================
+	// TEST E: Scene.SetState wrapped forms
+	// =========================================================================
+	t.Run("TestE_SceneSetStateWrappedForms", func(t *testing.T) {
+		// Case 1: Wrapped scene with revision 0, empty nodes and flows, but background photo present
+		wrappedWithBg := []byte(`{
+			"snapshot": {
+				"revision": 0,
+				"canvas": {
+					"width": 1920,
+					"height": 1080,
+					"duration": 5.0,
+					"loop": "loop"
+				},
+				"background": {
+					"src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+					"sourceWidth": 1920,
+					"sourceHeight": 1080
+				},
+				"nodes": [],
+				"flows": []
+			}
+		}`)
+		respBytes, err := Dispatch("Scene.SetState", wrappedWithBg)
+		if err != nil {
+			t.Fatalf("Scene.SetState failed for wrapped snapshot with bg photo: %v", err)
+		}
+		var stateRes SetSceneStateResponse
+		_ = json.Unmarshal(respBytes, &stateRes)
+		if stateRes.Status != "ok" {
+			t.Errorf("expected ok status, got %s", stateRes.Status)
+		}
+		currentSnap := activeScene.GetSnapshot()
+		if currentSnap.Background == nil || currentSnap.Background.SourceWidth != 1920 {
+			t.Fatalf("Background was lost or wiped during wrapped Scene.SetState: %+v", currentSnap.Background)
+		}
+
+		// Case 2: Wrapped empty scene
+		wrappedEmpty := []byte(`{"snapshot": {}}`)
+		respBytes, err = Dispatch("Scene.SetState", wrappedEmpty)
+		if err != nil {
+			t.Fatalf("Scene.SetState failed for wrapped empty snapshot: %v", err)
+		}
+		_ = json.Unmarshal(respBytes, &stateRes)
+		if stateRes.Status != "ok" {
+			t.Errorf("expected ok status, got %s", stateRes.Status)
+		}
+
+		// Case 3: Direct snapshot format
+		directSnap := []byte(`{
+			"revision": 12,
+			"canvas": {"width": 1280, "height": 720},
+			"nodes": [{"id": "direct-node-1", "shape": "rect", "width": 100, "height": 80}]
+		}`)
+		respBytes, err = Dispatch("Scene.SetState", directSnap)
+		if err != nil {
+			t.Fatalf("Scene.SetState failed for direct snapshot: %v", err)
+		}
+		if len(activeScene.GetSnapshot().Nodes) != 1 || activeScene.GetSnapshot().Nodes[0].ID != "direct-node-1" {
+			t.Errorf("direct snapshot nodes not set properly: %+v", activeScene.GetSnapshot().Nodes)
+		}
+
+		// Case 4: Malformed payload returns clear error
+		_, err = Dispatch("Scene.SetState", []byte(`{ not valid json`))
+		if err == nil {
+			t.Errorf("expected error on malformed JSON payload")
+		}
+	})
+
+	// =========================================================================
+	// TEST F: Consistent WASM response contract
+	// =========================================================================
+	t.Run("TestF_ConsistentWASMResponseContract", func(t *testing.T) {
+		// Non-existent command returns error
+		_, err := Dispatch("NonExistent.Command", []byte(`{}`))
+		if err == nil {
+			t.Errorf("expected error for non-existent command")
+		}
+
+		// Update on non-existent node returns error
+		_, err = Dispatch("Node.Update", []byte(`{"id": "does-not-exist-999", "patch": {"width": 100}}`))
+		if err == nil {
+			t.Errorf("expected error when updating non-existent node")
+		}
+
+		// Update on non-existent flow returns error
+		_, err = Dispatch("Flow.Update", []byte(`{"id": "does-not-exist-888", "patch": {"color": "#fff"}}`))
+		if err == nil {
+			t.Errorf("expected error when updating non-existent flow")
+		}
+	})
 }
