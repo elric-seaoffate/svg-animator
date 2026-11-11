@@ -238,6 +238,10 @@ window.HistoryManager = {
     return payload;
   },
 
+  record() {
+    this.recordImmediate();
+  },
+
   recordImmediate() {
     if (this.isRestoring) return;
     if (this.debounceTimer) {

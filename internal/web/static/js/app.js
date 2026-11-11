@@ -1190,6 +1190,10 @@ window.FloatingPropertiesEditor = {
         this._setPair('fctx-imageHeight', img.height || 150);
         this._setChk('fctx-imageLockAspect', img.maintainAspectRatio !== false);
         this._setPair('fctx-imageOpacity', img.opacity !== undefined ? img.opacity : 1.0);
+        const fctxResetCrop = document.getElementById('fctx-btnResetCrop');
+        if (fctxResetCrop) {
+          fctxResetCrop.disabled = !(img.crop && img.crop.enabled);
+        }
       } else if (this.activeType === 'group') {
         const grp = window.AppCoordinator ? window.AppCoordinator.getGroup(this.activeId) : null;
         if (!grp) {
@@ -2188,6 +2192,44 @@ window.FloatingPropertiesEditor = {
             window.AppCoordinator.requestRender();
             window.AppCoordinator.recordHistoryImmediate();
             window.AppCoordinator.updateActiveOverlays();
+          }
+        }
+      });
+    }
+
+    const fctxBtnCrop = document.getElementById('fctx-btnCropImage');
+    if (fctxBtnCrop) {
+      fctxBtnCrop.addEventListener('click', () => {
+        if (this.activeType === 'image' && this.activeId !== null && window.Stage) {
+          const id = this.activeId;
+          this.close();
+          window.Stage.startCropMode(id);
+        }
+      });
+    }
+
+    const fctxBtnResetCrop = document.getElementById('fctx-btnResetCrop');
+    if (fctxBtnResetCrop) {
+      fctxBtnResetCrop.addEventListener('click', () => {
+        if (this.activeType === 'image' && this.activeId !== null && window.ImageObjects) {
+          const id = this.activeId;
+          window.ImageObjects.resetCrop(id);
+          if (window.HistoryManager) window.HistoryManager.recordImmediate();
+          if (typeof window.triggerRender === 'function') window.triggerRender();
+          if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+          this.openFor('image', id);
+        }
+      });
+    }
+
+    const fctxBtnBake = document.getElementById('fctx-btnBakeImage');
+    if (fctxBtnBake) {
+      fctxBtnBake.addEventListener('click', () => {
+        if (this.activeType === 'image' && this.activeId !== null && window.ImageObjects) {
+          const img = window.ImageObjects.getImage(this.activeId);
+          this.close();
+          if (img && typeof window.openBakeModal === 'function') {
+            window.openBakeModal(img);
           }
         }
       });
@@ -3784,6 +3826,19 @@ function syncImageEditorUI() {
   const opacityVal = img.opacity !== undefined ? img.opacity : 1.0;
   if (opSlider && document.activeElement !== opSlider) opSlider.value = opacityVal;
   if (opNum && document.activeElement !== opNum) opNum.value = opacityVal;
+
+  const cropStatusLabel = document.getElementById('imageCropStatusLabel');
+  const btnResetCrop = document.getElementById('btnResetCropImage');
+  const fctxBtnReset = document.getElementById('fctx-btnResetCrop');
+  if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+    if (cropStatusLabel) cropStatusLabel.innerText = `Crop: ${Math.round(img.crop.sourceWidth)} \u00d7 ${Math.round(img.crop.sourceHeight)} px`;
+    if (btnResetCrop) btnResetCrop.disabled = false;
+    if (fctxBtnReset) fctxBtnReset.disabled = false;
+  } else {
+    if (cropStatusLabel) cropStatusLabel.innerText = 'Crop: Full Image';
+    if (btnResetCrop) btnResetCrop.disabled = true;
+    if (fctxBtnReset) fctxBtnReset.disabled = true;
+  }
 }
 
 function initImageEditorEvents() {
@@ -3923,7 +3978,357 @@ function initImageEditorEvents() {
       }
     });
   }
+
+  const btnCrop = document.getElementById('btnCropImage');
+  if (btnCrop && !btnCrop._hasBound) {
+    btnCrop._hasBound = true;
+    btnCrop.addEventListener('click', () => {
+      const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+      if (!sel || sel.type !== 'image' || !sel.id || !window.Stage) return;
+      window.Stage.startCropMode(sel.id);
+    });
+  }
+
+  const btnResetCrop = document.getElementById('btnResetCropImage');
+  if (btnResetCrop && !btnResetCrop._hasBound) {
+    btnResetCrop._hasBound = true;
+    btnResetCrop.addEventListener('click', () => {
+      const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+      if (!sel || sel.type !== 'image' || !sel.id) return;
+      if (window.ImageObjects) window.ImageObjects.resetCrop(sel.id);
+      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      if (typeof window.triggerRender === 'function') window.triggerRender();
+      syncImageEditorUI();
+    });
+  }
+
+  const btnBake = document.getElementById('btnBakeImage');
+  if (btnBake && !btnBake._hasBound) {
+    btnBake._hasBound = true;
+    btnBake.addEventListener('click', () => {
+      const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+      if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) return;
+      const img = window.ImageObjects.getImage(sel.id);
+      if (img && typeof window.openBakeModal === 'function') {
+        window.openBakeModal(img);
+      }
+    });
+  }
+
+  const btnExtractBg = document.getElementById('btnExtractBackgroundRegion');
+  if (btnExtractBg && !btnExtractBg._hasBound) {
+    btnExtractBg._hasBound = true;
+    btnExtractBg.addEventListener('click', () => {
+      if (window.Stage && typeof window.Stage.startBgExtractMode === 'function') {
+        window.Stage.startBgExtractMode();
+      }
+    });
+  }
+
+  const btnBakeClose = document.getElementById('btnBakeModalClose');
+  const btnBakeCancel = document.getElementById('btnBakeCancel');
+  if (btnBakeClose && !btnBakeClose._hasBound) {
+    btnBakeClose._hasBound = true;
+    btnBakeClose.addEventListener('click', () => window.closeBakeModal());
+  }
+  if (btnBakeCancel && !btnBakeCancel._hasBound) {
+    btnBakeCancel._hasBound = true;
+    btnBakeCancel.addEventListener('click', () => window.closeBakeModal());
+  }
+
+  const btnBakeRemove = document.getElementById('btnBakeAndRemove');
+  if (btnBakeRemove && !btnBakeRemove._hasBound) {
+    btnBakeRemove._hasBound = true;
+    btnBakeRemove.addEventListener('click', () => {
+      if (window._bakeTargetImage) executeBakeImage(window._bakeTargetImage, 'remove');
+    });
+  }
+
+  const btnBakeKeep = document.getElementById('btnBakeAndKeep');
+  if (btnBakeKeep && !btnBakeKeep._hasBound) {
+    btnBakeKeep._hasBound = true;
+    btnBakeKeep.addEventListener('click', () => {
+      if (window._bakeTargetImage) executeBakeImage(window._bakeTargetImage, 'keep');
+    });
+  }
 }
+
+function renderBackgroundToOffscreenCanvas(canvasW, canvasH, callback) {
+  const bgCanvas = document.createElement('canvas');
+  bgCanvas.width = canvasW;
+  bgCanvas.height = canvasH;
+  const ctx = bgCanvas.getContext('2d');
+  if (!ctx) {
+    callback(null);
+    return;
+  }
+
+  const patSelect = document.getElementById('canvasPatternSelect');
+  const pat = patSelect ? patSelect.value : 'blueprint';
+  const loadedPhoto = (window.getLoadedPhoto && typeof window.getLoadedPhoto === 'function')
+    ? window.getLoadedPhoto()
+    : (window.SceneState ? window.SceneState.getLoadedPhoto() : null);
+
+  if (pat === 'photo' && loadedPhoto && (loadedPhoto.dataUrl || loadedPhoto.b64)) {
+    const src = loadedPhoto.dataUrl || ('data:' + (loadedPhoto.mime || 'image/png') + ';base64,' + loadedPhoto.b64);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const fitSelect = document.getElementById('photoFitSelect');
+      const fitMode = fitSelect ? fitSelect.value : 'match';
+      const natW = loadedPhoto.naturalWidth || img.width || canvasW;
+      const natH = loadedPhoto.naturalHeight || img.height || canvasH;
+
+      if (fitMode === 'contain') {
+        const scale = Math.min(canvasW / natW, canvasH / natH);
+        const rw = natW * scale;
+        const rh = natH * scale;
+        const ox = (canvasW - rw) / 2;
+        const oy = (canvasH - rh) / 2;
+        ctx.drawImage(img, ox, oy, rw, rh);
+      } else if (fitMode === 'stretch') {
+        ctx.drawImage(img, 0, 0, canvasW, canvasH);
+      } else if (fitMode === 'cover') {
+        const zoomVal = parseInt(document.getElementById('photoCropZoomNum')?.value || '100', 10) / 100;
+        const cropX = parseInt(document.getElementById('photoCropXNum')?.value || '50', 10) / 100;
+        const cropY = parseInt(document.getElementById('photoCropYNum')?.value || '50', 10) / 100;
+        const baseScale = Math.max(canvasW / natW, canvasH / natH) * Math.max(1.0, zoomVal);
+        const rw = natW * baseScale;
+        const rh = natH * baseScale;
+        const ox = -(Math.max(0, rw - canvasW) * cropX);
+        const oy = -(Math.max(0, rh - canvasH) * cropY);
+        ctx.drawImage(img, ox, oy, rw, rh);
+      } else { // match / default
+        const scale = Math.max(canvasW / natW, canvasH / natH);
+        const rw = natW * scale;
+        const rh = natH * scale;
+        const ox = (canvasW - rw) / 2;
+        const oy = (canvasH - rh) / 2;
+        ctx.drawImage(img, ox, oy, rw, rh);
+      }
+      callback(bgCanvas);
+    };
+    img.onerror = () => {
+      ctx.fillStyle = '#161b22';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      callback(bgCanvas);
+    };
+    img.src = src;
+  } else {
+    const isTrans = document.getElementById('canvasBgTransparent')?.checked;
+    const bgColor = document.getElementById('canvasBgColorPicker')?.value || '#0d1117';
+    if (!isTrans) {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvasW, canvasH);
+    }
+    const gridColor = document.getElementById('canvasGridColorPicker')?.value || '#1e293b';
+    const gridSize = parseInt(document.getElementById('canvasGridSizeNum')?.value || '40', 10) || 40;
+
+    if (pat === 'blueprint' || pat === 'graph') {
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvasW; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, canvasH);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvasH; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(canvasW, y + 0.5);
+        ctx.stroke();
+      }
+    } else if (pat === 'dots') {
+      ctx.fillStyle = gridColor;
+      for (let x = gridSize / 2; x < canvasW; x += gridSize) {
+        for (let y = gridSize / 2; y < canvasH; y += gridSize) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (pat === 'dark-radial') {
+      const grad = ctx.createRadialGradient(canvasW / 2, canvasH / 2, 50, canvasW / 2, canvasH / 2, Math.max(canvasW, canvasH) / 1.4);
+      grad.addColorStop(0, '#1c2128');
+      grad.addColorStop(1, '#0d1117');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvasW, canvasH);
+    }
+    callback(bgCanvas);
+  }
+}
+
+window.openBakeModal = function(img) {
+  if (!img) return;
+  window._bakeTargetImage = img;
+  const nameEl = document.getElementById('bakeModalImageName');
+  if (nameEl) nameEl.textContent = `"${img.name || img.filename || img.id}"`;
+  const modal = document.getElementById('bakeConfirmModal');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeBakeModal = function() {
+  window._bakeTargetImage = null;
+  const modal = document.getElementById('bakeConfirmModal');
+  if (modal) modal.style.display = 'none';
+};
+
+function executeBakeImage(img, mode) {
+  if (!img) return;
+  const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
+  const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
+
+  renderBackgroundToOffscreenCanvas(canvasW, canvasH, (bgCanvas) => {
+    if (!bgCanvas) return;
+    const ctx = bgCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const imgEl = new Image();
+    imgEl.crossOrigin = 'anonymous';
+    imgEl.onload = () => {
+      ctx.save();
+      const op = typeof img.opacity === 'number' ? img.opacity : 1.0;
+      ctx.globalAlpha = Math.max(0, Math.min(1, op));
+
+      const cx = (img.x / 100) * canvasW;
+      const cy = (img.y / 100) * canvasH;
+      const dw = Number(img.width) || 200;
+      const dh = Number(img.height) || 150;
+      const dx = cx - dw / 2;
+      const dy = cy - dh / 2;
+
+      if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+        ctx.drawImage(
+          imgEl,
+          img.crop.sourceX, img.crop.sourceY, img.crop.sourceWidth, img.crop.sourceHeight,
+          dx, dy, dw, dh
+        );
+      } else {
+        ctx.drawImage(imgEl, dx, dy, dw, dh);
+      }
+      ctx.restore();
+
+      const bakedDataUrl = bgCanvas.toDataURL('image/png');
+      const b64 = bakedDataUrl.replace(/^data:image\/png;base64,/, '');
+
+      const newPhoto = {
+        filename: 'baked_background.png',
+        mime: 'image/png',
+        b64: b64,
+        dataUrl: bakedDataUrl,
+        naturalWidth: canvasW,
+        naturalHeight: canvasH
+      };
+
+      if (typeof window.setLoadedPhoto === 'function') {
+        window.setLoadedPhoto(newPhoto);
+      }
+
+      const patSelect = document.getElementById('canvasPatternSelect');
+      if (patSelect) patSelect.value = 'photo';
+      const fitSelect = document.getElementById('photoFitSelect');
+      if (fitSelect) fitSelect.value = 'match';
+      const wInput = document.getElementById('canvasWidthInput');
+      const hInput = document.getElementById('canvasHeightInput');
+      if (wInput) wInput.value = canvasW;
+      if (hInput) hInput.value = canvasH;
+
+      if (mode === 'remove') {
+        if (window.ImageObjects) window.ImageObjects.deleteImage(img.id);
+        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.deleteImage(img.id);
+        if (window.AppCoordinator) window.AppCoordinator.clearSelection();
+      } else {
+        if (window.ImageObjects) window.ImageObjects.updateImage(img.id, { visible: false });
+        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(img.id, { visible: false });
+      }
+
+      window.closeBakeModal();
+
+      if (window.HistoryManager) {
+        window.HistoryManager.recordImmediate();
+      }
+      if (typeof window.triggerRender === 'function') {
+        window.triggerRender();
+      }
+      if (typeof window.syncImageEditorUI === 'function') {
+        window.syncImageEditorUI();
+      }
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        const msg = mode === 'remove'
+          ? `Baked "${img.name || img.id}" into background and removed image object.`
+          : `Baked "${img.name || img.id}" into background and set image object to hidden.`;
+        window.AppCoordinator.showNotification(msg, 'success');
+      }
+    };
+    imgEl.onerror = () => {
+      window.closeBakeModal();
+      if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+        window.AppCoordinator.showNotification('Failed to load image asset for baking.', 'error');
+      }
+    };
+    imgEl.src = img.src || img.assetRef || '';
+  });
+}
+
+window.executeBackgroundExtraction = function(box) {
+  if (!box || box.w < 10 || box.h < 10) return;
+  const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
+  const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
+
+  renderBackgroundToOffscreenCanvas(canvasW, canvasH, (bgCanvas) => {
+    if (!bgCanvas) return;
+
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = Math.round(box.w);
+    sliceCanvas.height = Math.round(box.h);
+    const sCtx = sliceCanvas.getContext('2d');
+    if (!sCtx) return;
+
+    sCtx.drawImage(
+      bgCanvas,
+      Math.round(box.x), Math.round(box.y), Math.round(box.w), Math.round(box.h),
+      0, 0, Math.round(box.w), Math.round(box.h)
+    );
+
+    const dataUrl = sliceCanvas.toDataURL('image/png');
+    const xPct = ((box.x + box.w / 2) / canvasW) * 100;
+    const yPct = ((box.y + box.h / 2) / canvasH) * 100;
+
+    let created = null;
+    if (window.ImageObjects) {
+      created = window.ImageObjects.createImage({
+        filename: 'extracted_bg.png',
+        mime: 'image/png',
+        src: dataUrl,
+        data: dataUrl,
+        x: Math.round(xPct * 1000) / 1000,
+        y: Math.round(yPct * 1000) / 1000,
+        width: Math.round(box.w),
+        height: Math.round(box.h),
+        naturalWidth: Math.round(box.w),
+        naturalHeight: Math.round(box.h),
+        maintainAspectRatio: true,
+        opacity: 1.0,
+        visible: true,
+        locked: false
+      });
+    }
+
+    if (window.HistoryManager) {
+      window.HistoryManager.recordImmediate();
+    }
+    if (typeof window.triggerRender === 'function') {
+      window.triggerRender();
+    }
+    if (created && window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', created.id);
+    }
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification(`Background extracted as new Image Object (${Math.round(box.w)} × ${Math.round(box.h)} px)`, 'success');
+    }
+  });
+};
 
 if (window.AppCoordinator) {
   window.AppCoordinator.on('layers:changed', () => {
@@ -4021,6 +4426,32 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter' && e.target && e.target.id === 'colorPickerHexInput') {
         e.preventDefault();
         window.CustomColorPicker.apply();
+        return;
+      }
+    }
+
+    if (window.Stage && window.Stage.isCroppingImage) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        window.Stage.cancelCropMode();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.Stage.applyCropMode();
+        return;
+      }
+    }
+
+    if (window.Stage && window.Stage.isExtractingBg) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        window.Stage.cancelBgExtractMode();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.Stage.confirmBgExtractMode();
         return;
       }
     }

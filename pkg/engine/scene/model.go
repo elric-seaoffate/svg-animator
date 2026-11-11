@@ -300,6 +300,19 @@ func (r Ripple) IsLocked() bool {
 	return r.Locked
 }
 
+// ImageCrop defines non-destructive source rectangular cropping parameters.
+type ImageCrop struct {
+	Enabled      bool    `json:"enabled"`
+	SourceX      float64 `json:"sourceX"`
+	SourceY      float64 `json:"sourceY"`
+	SourceWidth  float64 `json:"sourceWidth"`
+	SourceHeight float64 `json:"sourceHeight"`
+	OrigX        float64 `json:"origX,omitempty"`
+	OrigY        float64 `json:"origY,omitempty"`
+	OrigWidth    float64 `json:"origWidth,omitempty"`
+	OrigHeight   float64 `json:"origHeight,omitempty"`
+}
+
 // Image represents an independently positioned image object on the canvas.
 type Image struct {
 	ID                  StringID       `json:"id"`
@@ -316,6 +329,7 @@ type Image struct {
 	NaturalWidth        float64        `json:"naturalWidth,omitempty"` // Source image width (for non-destructive crop in Stage 15)
 	NaturalHeight       float64        `json:"naturalHeight,omitempty"` // Source image height (for non-destructive crop in Stage 15)
 	MaintainAspectRatio bool           `json:"maintainAspectRatio"`
+	Crop                *ImageCrop     `json:"crop,omitempty"` // Non-destructive crop parameters
 	Opacity             float64        `json:"opacity"`
 	Visible             *bool          `json:"visible,omitempty"`
 	Locked              bool           `json:"locked,omitempty"`

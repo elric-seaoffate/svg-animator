@@ -37,6 +37,17 @@ window.Stage = {
   cropDragLastY: 0,
   nodeGrabOffsetX: 0,
   nodeGrabOffsetY: 0,
+  isCroppingImage: false,
+  activeCropImage: null,
+  activeCropImageId: null,
+  cropBox: null,
+  cropOrigBounds: null,
+  cropDragMode: null,
+  cropDragStart: null,
+  isExtractingBg: false,
+  isDraggingBgExtract: false,
+  bgExtractStartCanvas: null,
+  bgExtractBox: null,
 
   // =========================================================================
   // Layer 3: Operational Viewport & Coordinate Math (Zero DOM Dependencies)
@@ -270,6 +281,41 @@ window.Stage = {
           this.isDraggingPhotoCrop = true;
           this.cropDragLastX = e.clientX;
           this.cropDragLastY = e.clientY;
+          try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
+
+        if (this.isCroppingImage) {
+          const handleEl = e.target.closest ? e.target.closest('.crop-handle') : null;
+          const boxEl = e.target.closest ? e.target.closest('#cropBoxRect') : null;
+          if (handleEl) {
+            const hId = handleEl.id.replace('cropHandle-', '');
+            this.cropDragMode = hId;
+            this.cropDragStart = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              box: Object.assign({}, this.cropBox)
+            };
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          } else if (boxEl) {
+            this.cropDragMode = 'move';
+            this.cropDragStart = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              box: Object.assign({}, this.cropBox)
+            };
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          }
+          return;
+        }
+
+        if (this.isExtractingBg) {
+          const pt = this.clientToCanvasPixels(e.clientX, e.clientY);
+          this.isDraggingBgExtract = true;
+          this.bgExtractStartCanvas = pt;
+          this.bgExtractBox = { x: pt.x, y: pt.y, w: 0, h: 0 };
           try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
           return;
         }
@@ -660,6 +706,76 @@ window.Stage = {
           return;
         }
 
+        if (this.isCroppingImage && this.cropDragMode && this.cropDragStart && this.cropOrigBounds) {
+          const scale = this.getEffectiveScale();
+          const dx = (e.clientX - this.cropDragStart.clientX) / scale;
+          const dy = (e.clientY - this.cropDragStart.clientY) / scale;
+          const init = this.cropDragStart.box;
+          const ob = this.cropOrigBounds;
+
+          let newX = init.x;
+          let newY = init.y;
+          let newW = init.w;
+          let newH = init.h;
+
+          if (this.cropDragMode === 'move') {
+            newX = Math.max(ob.left, Math.min(ob.left + ob.w - init.w, init.x + dx));
+            newY = Math.max(ob.top, Math.min(ob.top + ob.h - init.h, init.y + dy));
+          } else {
+            if (this.cropDragMode.includes('w')) {
+              const maxLeft = init.x + init.w - 10;
+              newX = Math.max(ob.left, Math.min(maxLeft, init.x + dx));
+              newW = init.w - (newX - init.x);
+            }
+            if (this.cropDragMode.includes('e')) {
+              const maxW = ob.left + ob.w - init.x;
+              newW = Math.max(10, Math.min(maxW, init.w + dx));
+            }
+            if (this.cropDragMode.includes('n')) {
+              const maxTop = init.y + init.h - 10;
+              newY = Math.max(ob.top, Math.min(maxTop, init.y + dy));
+              newH = init.h - (newY - init.y);
+            }
+            if (this.cropDragMode.includes('s')) {
+              const maxH = ob.top + ob.h - init.y;
+              newH = Math.max(10, Math.min(maxH, init.h + dy));
+            }
+          }
+
+          this.cropBox = { x: newX, y: newY, w: newW, h: newH };
+          this.updateCropOverlayUI();
+          return;
+        }
+
+        if (this.isExtractingBg && this.isDraggingBgExtract && this.bgExtractStartCanvas) {
+          const pt = this.clientToCanvasPixels(e.clientX, e.clientY);
+          const x = Math.max(0, Math.min(this.canvasWidth, Math.min(this.bgExtractStartCanvas.x, pt.x)));
+          const y = Math.max(0, Math.min(this.canvasHeight, Math.min(this.bgExtractStartCanvas.y, pt.y)));
+          const right = Math.max(0, Math.min(this.canvasWidth, Math.max(this.bgExtractStartCanvas.x, pt.x)));
+          const bottom = Math.max(0, Math.min(this.canvasHeight, Math.max(this.bgExtractStartCanvas.y, pt.y)));
+          const w = right - x;
+          const h = bottom - y;
+          this.bgExtractBox = { x, y, w, h };
+
+          const boxEl = document.getElementById('bgExtractBox');
+          if (boxEl) {
+            boxEl.setAttribute('x', x.toFixed(1));
+            boxEl.setAttribute('y', y.toFixed(1));
+            boxEl.setAttribute('width', w.toFixed(1));
+            boxEl.setAttribute('height', h.toFixed(1));
+            boxEl.style.display = 'block';
+          }
+          const lbl = document.getElementById('bgExtractCoordsLabel');
+          if (lbl) {
+            lbl.innerText = `${Math.round(x)}, ${Math.round(y)} (${Math.round(w)} × ${Math.round(h)} px)`;
+          }
+          const btn = document.getElementById('btnConfirmExtract');
+          if (btn) {
+            btn.disabled = !(w >= 10 && h >= 10);
+          }
+          return;
+        }
+
         if (this.isMarqueeSelecting) {
           const dist = Math.hypot(e.clientX - this.marqueeStartClient.x, e.clientY - this.marqueeStartClient.y);
           if (dist > 3) {
@@ -777,6 +893,16 @@ window.Stage = {
           if (!this.spacePressed && this.previewBox) {
             this.previewBox.classList.remove('panning-stage');
           }
+        }
+
+        if (this.isCroppingImage) {
+          this.cropDragMode = null;
+          return;
+        }
+
+        if (this.isExtractingBg) {
+          this.isDraggingBgExtract = false;
+          return;
         }
 
         if (this.isMarqueeSelecting) {
@@ -1012,6 +1138,21 @@ window.Stage = {
         }
       });
     }
+
+    const btnApplyCrop = document.getElementById('btnApplyCrop');
+    if (btnApplyCrop) btnApplyCrop.addEventListener('click', () => this.applyCropMode());
+
+    const btnResetCropInBar = document.getElementById('btnResetCropInBar');
+    if (btnResetCropInBar) btnResetCropInBar.addEventListener('click', () => this.resetCropMode());
+
+    const btnCancelCrop = document.getElementById('btnCancelCrop');
+    if (btnCancelCrop) btnCancelCrop.addEventListener('click', () => this.cancelCropMode());
+
+    const btnConfirmExtract = document.getElementById('btnConfirmExtract');
+    if (btnConfirmExtract) btnConfirmExtract.addEventListener('click', () => this.confirmBgExtractMode());
+
+    const btnCancelExtract = document.getElementById('btnCancelExtract');
+    if (btnCancelExtract) btnCancelExtract.addEventListener('click', () => this.cancelBgExtractMode());
   },
 
   initZoomControls() {
@@ -1131,6 +1272,14 @@ window.Stage = {
     return this.rectClientToPct(clientX, clientY, rect);
   },
 
+  clientToCanvasPixels(clientX, clientY) {
+    const pct = this.clientToCanvasPct(clientX, clientY);
+    return {
+      x: (pct.x / 100) * this.canvasWidth,
+      y: (pct.y / 100) * this.canvasHeight
+    };
+  },
+
   setActive(target) {
     if (window.AppCoordinator) {
       window.AppCoordinator.selectObject('camera', target, { skipStageClear: true });
@@ -1212,5 +1361,266 @@ window.Stage = {
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
+  },
+
+  startCropMode(imageObj) {
+    if (!imageObj) return;
+    const img = (typeof imageObj === 'string' || typeof imageObj === 'number')
+      ? (window.ImageObjects ? window.ImageObjects.getImage(imageObj) : null)
+      : imageObj;
+    if (!img) return;
+
+    this.isCroppingImage = true;
+    this.activeCropImage = img;
+    this.activeCropImageId = img.id;
+
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', img.id, { skipRender: true });
+    }
+
+    const canvasW = this.canvasWidth;
+    const canvasH = this.canvasHeight;
+    const cx = (img.x / 100) * canvasW;
+    const cy = (img.y / 100) * canvasH;
+    const w = Number(img.width) || 200;
+    const h = Number(img.height) || 150;
+    const left = cx - w / 2;
+    const top = cy - h / 2;
+
+    const natW = Number(img.naturalWidth) || w;
+    const natH = Number(img.naturalHeight) || h;
+
+    let origW = w;
+    let origH = h;
+    let origLeft = left;
+    let origTop = top;
+
+    let boxX = left;
+    let boxY = top;
+    let boxW = w;
+    let boxH = h;
+
+    if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+      origW = Number(img.crop.origWidth) || w;
+      origH = Number(img.crop.origHeight) || h;
+      const origCX = (Number(img.crop.origX || img.x) / 100) * canvasW;
+      const origCY = (Number(img.crop.origY || img.y) / 100) * canvasH;
+      origLeft = origCX - origW / 2;
+      origTop = origCY - origH / 2;
+
+      const scaleX = origW / natW;
+      const scaleY = origH / natH;
+
+      boxX = origLeft + img.crop.sourceX * scaleX;
+      boxY = origTop + img.crop.sourceY * scaleY;
+      boxW = img.crop.sourceWidth * scaleX;
+      boxH = img.crop.sourceHeight * scaleY;
+    }
+
+    this.cropOrigBounds = {
+      left: origLeft,
+      top: origTop,
+      w: origW,
+      h: origH,
+      natW: natW,
+      natH: natH
+    };
+
+    this.cropBox = {
+      x: boxX,
+      y: boxY,
+      w: boxW,
+      h: boxH
+    };
+
+    const cropBar = document.getElementById('cropBar');
+    if (cropBar) cropBar.style.display = 'flex';
+
+    const groupEl = document.getElementById('cropOverlayGroup');
+    if (groupEl) groupEl.style.display = 'block';
+
+    this.updateCropOverlayUI();
+  },
+
+  updateCropOverlayUI() {
+    if (!this.isCroppingImage || !this.cropBox || !this.cropOrigBounds) return;
+    const b = this.cropBox;
+    const ob = this.cropOrigBounds;
+
+    const boxRect = document.getElementById('cropBoxRect');
+    if (boxRect) {
+      boxRect.setAttribute('x', b.x.toFixed(1));
+      boxRect.setAttribute('y', b.y.toFixed(1));
+      boxRect.setAttribute('width', b.w.toFixed(1));
+      boxRect.setAttribute('height', b.h.toFixed(1));
+    }
+
+    const mask = document.getElementById('cropDimMask');
+    if (mask) {
+      const d = `M ${ob.left.toFixed(1)} ${ob.top.toFixed(1)} h ${ob.w.toFixed(1)} v ${ob.h.toFixed(1)} h -${ob.w.toFixed(1)} Z M ${b.x.toFixed(1)} ${b.y.toFixed(1)} v ${b.h.toFixed(1)} h ${b.w.toFixed(1)} v -${b.h.toFixed(1)} Z`;
+      mask.setAttribute('d', d);
+    }
+
+    const hw = 5;
+    const setH = (id, x, y) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.setAttribute('x', (x - hw).toFixed(1));
+        el.setAttribute('y', (y - hw).toFixed(1));
+      }
+    };
+
+    setH('cropHandle-nw', b.x, b.y);
+    setH('cropHandle-n',  b.x + b.w / 2, b.y);
+    setH('cropHandle-ne', b.x + b.w, b.y);
+    setH('cropHandle-e',  b.x + b.w, b.y + b.h / 2);
+    setH('cropHandle-se', b.x + b.w, b.y + b.h);
+    setH('cropHandle-s',  b.x + b.w / 2, b.y + b.h);
+    setH('cropHandle-sw', b.x, b.y + b.h);
+    setH('cropHandle-w',  b.x, b.y + b.h / 2);
+
+    const scaleX = ob.w / ob.natW;
+    const scaleY = ob.h / ob.natH;
+    const srcX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
+    const srcY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
+    const srcW = Math.round(b.w / scaleX);
+    const srcH = Math.round(b.h / scaleY);
+
+    const lbl = document.getElementById('cropCoordsLabel');
+    if (lbl) {
+      lbl.innerText = `${srcX}, ${srcY} (${srcW} × ${srcH} px)`;
+    }
+  },
+
+  applyCropMode() {
+    if (!this.isCroppingImage || !this.activeCropImage || !this.cropBox || !this.cropOrigBounds) {
+      this.cancelCropMode();
+      return;
+    }
+
+    const imgId = this.activeCropImage.id;
+    const b = this.cropBox;
+    const ob = this.cropOrigBounds;
+    const canvasW = this.canvasWidth;
+    const canvasH = this.canvasHeight;
+
+    const scaleX = ob.w / ob.natW;
+    const scaleY = ob.h / ob.natH;
+
+    const sourceX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
+    const sourceY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
+    const sourceWidth = Math.min(ob.natW - sourceX, Math.round(b.w / scaleX));
+    const sourceHeight = Math.min(ob.natH - sourceY, Math.round(b.h / scaleY));
+
+    const origCX = ob.left + ob.w / 2;
+    const origCY = ob.top + ob.h / 2;
+    const origXPct = (origCX / canvasW) * 100;
+    const origYPct = (origCY / canvasH) * 100;
+
+    const newCX = b.x + b.w / 2;
+    const newCY = b.y + b.h / 2;
+    const newXPct = (newCX / canvasW) * 100;
+    const newYPct = (newCY / canvasH) * 100;
+
+    const cropData = {
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      origX: origXPct,
+      origY: origYPct,
+      origWidth: ob.w,
+      origHeight: ob.h
+    };
+
+    const geom = {
+      newX: newXPct,
+      newY: newYPct,
+      newW: b.w,
+      newH: b.h
+    };
+
+    this.cancelCropMode();
+
+    if (window.ImageObjects) {
+      window.ImageObjects.cropImage(imgId, cropData, geom);
+    }
+    if (window.HistoryManager) {
+      window.HistoryManager.recordImmediate();
+    }
+    if (typeof window.triggerRender === 'function') {
+      window.triggerRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', imgId);
+    }
+  },
+
+  cancelCropMode() {
+    this.isCroppingImage = false;
+    this.activeCropImage = null;
+    this.activeCropImageId = null;
+    this.cropDragMode = null;
+    const cropBar = document.getElementById('cropBar');
+    if (cropBar) cropBar.style.display = 'none';
+    const groupEl = document.getElementById('cropOverlayGroup');
+    if (groupEl) groupEl.style.display = 'none';
+  },
+
+  resetCropMode() {
+    if (!this.activeCropImage) return;
+    const imgId = this.activeCropImage.id;
+    this.cancelCropMode();
+    if (window.ImageObjects) {
+      window.ImageObjects.resetCrop(imgId);
+    }
+    if (window.HistoryManager) {
+      window.HistoryManager.recordImmediate();
+    }
+    if (typeof window.triggerRender === 'function') {
+      window.triggerRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', imgId);
+    }
+  },
+
+  startBgExtractMode() {
+    this.isExtractingBg = true;
+    this.isDraggingBgExtract = false;
+    this.bgExtractBox = null;
+    if (window.AppCoordinator) {
+      window.AppCoordinator.clearSelection();
+    }
+    const bar = document.getElementById('bgExtractBar');
+    if (bar) bar.style.display = 'flex';
+    const btn = document.getElementById('btnConfirmExtract');
+    if (btn) btn.disabled = true;
+    const boxEl = document.getElementById('bgExtractBox');
+    if (boxEl) boxEl.style.display = 'none';
+    const lbl = document.getElementById('bgExtractCoordsLabel');
+    if (lbl) lbl.innerText = '';
+  },
+
+  cancelBgExtractMode() {
+    this.isExtractingBg = false;
+    this.isDraggingBgExtract = false;
+    this.bgExtractBox = null;
+    const bar = document.getElementById('bgExtractBar');
+    if (bar) bar.style.display = 'none';
+    const boxEl = document.getElementById('bgExtractBox');
+    if (boxEl) boxEl.style.display = 'none';
+  },
+
+  confirmBgExtractMode() {
+    if (!this.isExtractingBg || !this.bgExtractBox || this.bgExtractBox.w < 10 || this.bgExtractBox.h < 10) {
+      this.cancelBgExtractMode();
+      return;
+    }
+    const box = Object.assign({}, this.bgExtractBox);
+    this.cancelBgExtractMode();
+    if (typeof window.executeBackgroundExtraction === 'function') {
+      window.executeBackgroundExtraction(box);
+    }
   }
 };

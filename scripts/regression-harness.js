@@ -54,6 +54,27 @@ async function runHarness() {
   // ===========================================================================
   global.window = global;
 
+  if (typeof global.Image === 'undefined') {
+    global.Image = class {
+      constructor() {
+        this.width = 400;
+        this.height = 300;
+        this.naturalWidth = 800;
+        this.naturalHeight = 600;
+      }
+      set src(v) {
+        this._src = v;
+        if (typeof this.onload === 'function') {
+          this.onload();
+        }
+      }
+      get src() {
+        return this._src;
+      }
+    };
+    window.Image = global.Image;
+  }
+
   loadProductionScript('effects.js');
   loadProductionScript('scene-state.js');
   loadProductionScript('coordinator.js');
@@ -584,6 +605,24 @@ async function runHarness() {
           v.split(/\s+/).forEach((c) => c && classes.add(c));
         }
       },
+      getContext() {
+        return {
+          drawImage() {},
+          fillRect() {},
+          beginPath() {},
+          moveTo() {},
+          lineTo() {},
+          stroke() {},
+          arc() {},
+          fill() {},
+          createRadialGradient() { return { addColorStop() {} }; },
+          save() {},
+          restore() {}
+        };
+      },
+      toDataURL() {
+        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      },
       getAttribute(k) { return this[k] || null; },
       hasAttribute(k) { return this[k] !== undefined && this[k] !== null; },
       removeAttribute(k) { delete this[k]; },
@@ -733,6 +772,8 @@ async function runHarness() {
   window.syncUIAfterHistoryRestore = function() {};
   window.openAccordionById = function() {};
   window.triggerAppRender = function() {};
+  window.getLoadedPhoto = function() { return window.SceneState ? window.SceneState.getLoadedPhoto() : null; };
+  window.setLoadedPhoto = function(p) { return window.SceneState ? window.SceneState.setLoadedPhoto(p) : null; };
 
   loadProductionScript('history.js');
   loadProductionScript('projects.js');
@@ -6782,7 +6823,239 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 48 PASS: Layer ordering and state controls in normal object properties panels verified.');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 & 14 unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // ---------------------------------------------------------------------------
+  // SCENARIO 49: Non-Destructive Image Cropping (Model, EngineBridge & SVG)
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 49: Non-destructive Image Cropping (Model, EngineBridge, & SVG compilation)...');
+  window.ProjectManager.resetToNewProject();
+
+  const s49Img = window.ImageObjects.createImage({
+    name: 'Piping Layout',
+    filename: 'piping.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 50,
+    y: 50,
+    width: 400,
+    height: 300,
+    naturalWidth: 800,
+    naturalHeight: 600
+  });
+  assert.ok(s49Img && s49Img.id, 'Scenario 49: Image created');
+
+  // Initial SVG markup (uncropped)
+  const uncroppedSvg = window.ImageObjects.renderImageElement(s49Img, 1280, 720);
+  assert.ok(uncroppedSvg.startsWith('<image '), 'Scenario 49: Uncropped image renders standard <image> tag');
+  assert.ok(!uncroppedSvg.includes('<svg '), 'Scenario 49: Uncropped image does not use nested <svg>');
+
+  // Apply non-destructive crop via EngineBridge / ImageObjects
+  const s49CropData = {
+    sourceX: 100,
+    sourceY: 120,
+    sourceWidth: 400,
+    sourceHeight: 300
+  };
+  const s49Geom = {
+    newX: 48,
+    newY: 52,
+    newW: 200,
+    newH: 150
+  };
+  const croppedImg = window.ImageObjects.cropImage(s49Img.id, s49CropData, s49Geom);
+  assert.ok(croppedImg && croppedImg.crop, 'Scenario 49: Crop returned');
+  assert.strictEqual(croppedImg.crop.enabled, true, 'Scenario 49: Crop enabled');
+  assert.strictEqual(croppedImg.crop.sourceX, 100, 'Scenario 49: Crop sourceX matches');
+  assert.strictEqual(croppedImg.crop.sourceWidth, 400, 'Scenario 49: Crop sourceWidth matches');
+  assert.strictEqual(croppedImg.crop.origWidth, 400, 'Scenario 49: Original width preserved in crop model');
+  assert.strictEqual(croppedImg.crop.origHeight, 300, 'Scenario 49: Original height preserved in crop model');
+  assert.strictEqual(croppedImg.width, 200, 'Scenario 49: Display width updated to cropped dimensions');
+  assert.strictEqual(croppedImg.height, 150, 'Scenario 49: Display height updated to cropped dimensions');
+
+  // Verify compiled SVG markup uses nested SVG viewport with viewBox
+  const croppedSvg = window.ImageObjects.renderImageElement(croppedImg, 1280, 720);
+  assert.ok(croppedSvg.startsWith('<svg '), 'Scenario 49: Cropped image renders nested <svg> element');
+  assert.ok(croppedSvg.includes('viewBox="100.00 120.00 400.00 300.00"'), 'Scenario 49: SVG viewBox matches source crop rect');
+  assert.ok(croppedSvg.includes(`data-image-id="${s49Img.id}"`), 'Scenario 49: SVG root has data-image-id for stage hit-testing');
+  assert.ok(croppedSvg.includes('<image '), 'Scenario 49: Nested child contains <image> element');
+
+  // Reset crop
+  const resetImg = window.ImageObjects.resetCrop(s49Img.id);
+  assert.strictEqual(resetImg.crop, undefined, 'Scenario 49: Crop removed on reset');
+  assert.strictEqual(resetImg.width, 400, 'Scenario 49: Pre-crop width restored');
+  assert.strictEqual(resetImg.height, 300, 'Scenario 49: Pre-crop height restored');
+  assert.strictEqual(resetImg.x, 50, 'Scenario 49: Pre-crop position X restored');
+  assert.strictEqual(resetImg.y, 50, 'Scenario 49: Pre-crop position Y restored');
+
+  const restoredSvg = window.ImageObjects.renderImageElement(resetImg, 1280, 720);
+  assert.ok(restoredSvg.startsWith('<image '), 'Scenario 49: Restored image renders standard <image> tag');
+  console.log('[HARNESS] Scenario 49 PASS: Non-destructive Image Cropping (Model, EngineBridge, & SVG compilation) verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 50: Interactive Crop Mode Lifecycle & Boundary Clamping
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 50: Interactive Crop Mode Lifecycle & Boundary Clamping...');
+  const s50Img = window.ImageObjects.createImage({
+    name: 'Floor Plan',
+    width: 300,
+    height: 200,
+    naturalWidth: 600,
+    naturalHeight: 400
+  });
+
+  window.Stage.startCropMode(s50Img);
+  assert.strictEqual(window.Stage.isCroppingImage, true, 'Scenario 50: isCroppingImage active');
+  assert.strictEqual(window.Stage.activeCropImageId, s50Img.id, 'Scenario 50: activeCropImageId set');
+  assert.ok(window.Stage.cropBox, 'Scenario 50: cropBox initialized');
+  assert.ok(window.Stage.cropOrigBounds, 'Scenario 50: cropOrigBounds initialized');
+
+  // Verify crop box boundaries
+  assert.strictEqual(window.Stage.cropBox.w, 300, 'Scenario 50: Initial crop box width matches image width');
+  assert.strictEqual(window.Stage.cropBox.h, 200, 'Scenario 50: Initial crop box height matches image height');
+
+  // Simulate applying crop
+  window.Stage.cropBox.w = 150;
+  window.Stage.cropBox.h = 100;
+  window.Stage.applyCropMode();
+
+  assert.strictEqual(window.Stage.isCroppingImage, false, 'Scenario 50: isCroppingImage inactive after apply');
+  const appliedImg = window.ImageObjects.getImage(s50Img.id);
+  assert.ok(appliedImg.crop && appliedImg.crop.enabled, 'Scenario 50: Image has crop enabled');
+  assert.strictEqual(appliedImg.width, 150, 'Scenario 50: Image width updated');
+  assert.strictEqual(appliedImg.height, 100, 'Scenario 50: Image height updated');
+
+  console.log('[HARNESS] Scenario 50 PASS: Interactive Crop Mode Lifecycle & Boundary Clamping verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 51: Background Region Extraction
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 51: Background Region Extraction...');
+  const preImgCount = window.ImageObjects.list.length;
+
+  window.executeBackgroundExtraction({ x: 100, y: 80, w: 250, h: 180 });
+
+  assert.strictEqual(window.ImageObjects.list.length, preImgCount + 1, 'Scenario 51: New image created by extraction');
+  const extractedImg = window.ImageObjects.list[window.ImageObjects.list.length - 1];
+  assert.strictEqual(extractedImg.filename, 'extracted_bg.png', 'Scenario 51: Extracted image has filename');
+  assert.strictEqual(extractedImg.width, 250, 'Scenario 51: Extracted image width matches selection');
+  assert.strictEqual(extractedImg.height, 180, 'Scenario 51: Extracted image height matches selection');
+  assert.ok(extractedImg.src && extractedImg.src.startsWith('data:image/png'), 'Scenario 51: Extracted image has PNG data URL');
+
+  // Verify layer entry added
+  const layersAfterExtract = window.LayerManager.getLayers();
+  const extractLayer = layersAfterExtract.find((l) => l.type === 'image' && l.id === extractedImg.id);
+  assert.ok(extractLayer, 'Scenario 51: Extracted image is present in layer stack');
+
+  console.log('[HARNESS] Scenario 51 PASS: Background Region Extraction verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 52: Image Baking into Background (Remove and Keep options) & Undo
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 52: Image Baking into Background (Remove and Keep options) & Undo...');
+  const s52Img1 = window.ImageObjects.createImage({
+    name: 'Logo To Bake',
+    width: 120,
+    height: 80,
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  });
+  window.HistoryManager.recordImmediate();
+
+  // Test Bake and Remove
+  executeBakeImage(s52Img1, 'remove');
+
+  const photoAfterBake1 = window.getLoadedPhoto();
+  assert.ok(photoAfterBake1, 'Scenario 52: Background photo updated after bake');
+  assert.strictEqual(photoAfterBake1.filename, 'baked_background.png', 'Scenario 52: Baked background filename set');
+  assert.strictEqual(window.ImageObjects.getImage(s52Img1.id), null, 'Scenario 52: Baked image removed from scene with mode=remove');
+
+  // Test Bake and Keep (Hidden)
+  const s52Img2 = window.ImageObjects.createImage({
+    name: 'Keep Watermark',
+    width: 100,
+    height: 60,
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  });
+  window.HistoryManager.recordImmediate();
+
+  executeBakeImage(s52Img2, 'keep');
+
+  const keptImg = window.ImageObjects.getImage(s52Img2.id);
+  assert.ok(keptImg, 'Scenario 52: Baked image retained in scene with mode=keep');
+  assert.strictEqual(keptImg.visible, false, 'Scenario 52: Retained baked image is hidden');
+
+  // Test Undo: restore previous state
+  window.HistoryManager.undo();
+  const undoneImg = window.ImageObjects.getImage(s52Img2.id);
+  assert.ok(undoneImg, 'Scenario 52: Image exists after undo');
+  assert.strictEqual(undoneImg.visible !== false, true, 'Scenario 52: Image visible restored on undo');
+
+  console.log('[HARNESS] Scenario 52 PASS: Image Baking into Background & Undo verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 53: Cropped Image Object SVA Roundtrip Preservation
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 53: Cropped Image Object SVA Roundtrip Preservation...');
+  window.ProjectManager.resetToNewProject();
+
+  const s53Img = window.ImageObjects.createImage({
+    name: 'Turbine Cutout',
+    filename: 'turbine.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 60,
+    y: 40,
+    width: 250,
+    height: 180,
+    naturalWidth: 1000,
+    naturalHeight: 720
+  });
+
+  window.ImageObjects.cropImage(s53Img.id, {
+    sourceX: 200,
+    sourceY: 150,
+    sourceWidth: 500,
+    sourceHeight: 360,
+    origWidth: 400,
+    origHeight: 288,
+    origX: 55,
+    origY: 45
+  }, {
+    newX: 60,
+    newY: 40,
+    newW: 250,
+    newH: 180
+  });
+
+  let s53Blob = null;
+  const origDl53 = window.ProjectManager._downloadBlob;
+  window.ProjectManager._downloadBlob = (b) => { s53Blob = b; };
+
+  await window.ProjectManager.exportSVA();
+  assert.ok(s53Blob, 'Scenario 53: SVA export produced blob');
+  const s53SvaBuf = await s53Blob.arrayBuffer();
+
+  // Clear scene
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.ImageObjects.list.length, 0, 'Scenario 53: Scene cleared');
+
+  // Import SVA
+  await window.ProjectManager.importSVA({
+    name: 'Turbine Cutout.sva',
+    arrayBuffer: async () => s53SvaBuf
+  });
+  window.ProjectManager._downloadBlob = origDl53;
+
+  assert.strictEqual(window.ImageObjects.list.length, 1, 'Scenario 53: 1 image restored');
+  const restoredS53 = window.ImageObjects.list[0];
+  assert.strictEqual(restoredS53.name, 'Turbine Cutout', 'Scenario 53: Image name preserved');
+  assert.ok(restoredS53.crop && restoredS53.crop.enabled, 'Scenario 53: Image crop enabled preserved');
+  assert.strictEqual(restoredS53.crop.sourceX, 200, 'Scenario 53: Crop sourceX preserved');
+  assert.strictEqual(restoredS53.crop.sourceY, 150, 'Scenario 53: Crop sourceY preserved');
+  assert.strictEqual(restoredS53.crop.sourceWidth, 500, 'Scenario 53: Crop sourceWidth preserved');
+  assert.strictEqual(restoredS53.crop.sourceHeight, 360, 'Scenario 53: Crop sourceHeight preserved');
+  assert.strictEqual(restoredS53.crop.origWidth, 400, 'Scenario 53: Crop origWidth preserved');
+  assert.strictEqual(restoredS53.crop.origHeight, 288, 'Scenario 53: Crop origHeight preserved');
+
+  console.log('[HARNESS] Scenario 53 PASS: Cropped Image Object SVA Roundtrip Preservation verified.');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

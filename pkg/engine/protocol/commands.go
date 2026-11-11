@@ -554,6 +554,35 @@ type ImageListResponse struct {
 	ImagesCounter int64         `json:"imagesCounter"`
 }
 
+// ImageCropRequest payload for "Image.Crop".
+type ImageCropRequest struct {
+	ID   scene.StringID  `json:"id"`
+	Crop scene.ImageCrop `json:"crop"`
+	NewX *float64        `json:"newX,omitempty"`
+	NewY *float64        `json:"newY,omitempty"`
+	NewW *float64        `json:"newW,omitempty"`
+	NewH *float64        `json:"newH,omitempty"`
+}
+
+// ImageCropResponse response for "Image.Crop".
+type ImageCropResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageResetCropRequest payload for "Image.ResetCrop".
+type ImageResetCropRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// ImageResetCropResponse response for "Image.ResetCrop".
+type ImageResetCropResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
 // LayerGetResponse response for "Layer.Get".
 type LayerGetResponse struct {
 	Layers []scene.LayerEntry `json:"layers"`
@@ -2220,6 +2249,28 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			Count:         len(images),
 			ImagesCounter: activeScene.ImagesCounter(),
 		})
+
+	case "Image.Crop":
+		var req ImageCropRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageCropRequest: %w", err)
+		}
+		img, err := activeScene.SetImageCrop(req.ID, req.Crop, req.NewX, req.NewY, req.NewW, req.NewH)
+		if err != nil {
+			return json.Marshal(ImageCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageCropResponse{Success: true, Image: img})
+
+	case "Image.ResetCrop":
+		var req ImageResetCropRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageResetCropRequest: %w", err)
+		}
+		img, err := activeScene.ResetImageCrop(req.ID)
+		if err != nil {
+			return json.Marshal(ImageResetCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageResetCropResponse{Success: true, Image: img})
 
 	case "Layer.Get":
 		layers := activeScene.GetLayers()

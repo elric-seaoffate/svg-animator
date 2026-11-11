@@ -282,6 +282,10 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 		if cloned.Name != "" {
 			cloned.Name = cloned.Name + " Copy"
 		}
+		if img.Crop != nil {
+			c := *img.Crop
+			cloned.Crop = &c
+		}
 
 		if s.images == nil {
 			s.images = make(map[StringID]Image)

@@ -220,6 +220,18 @@
               </div>
             </div>
           </div>
+
+          <div id="bgExtractionRow" style="margin-top: 0.65rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <span style="font-size: 0.75rem; font-weight: 600; color: #58a6ff;">BACKGROUND COMPOSITION</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnExtractBackgroundRegion" style="width: 100%; font-size: 0.75rem; padding: 0.35rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem;" title="Draw a marquee box over the background to extract it as a new independent Image Object">
+              <span>✂️ Extract Background Region</span>
+            </button>
+            <div style="font-size: 0.68rem; color: #8b949e; margin-top: 0.25rem;">
+              Draw a rectangular selection on the canvas to turn that background area into an independent Image Object.
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1146,6 +1158,22 @@
                 <button type="button" class="btn btn-secondary btn-sm" id="btnDeleteImage" style="color: #f85149; border-color: rgba(248,81,73,0.4); padding: 0.2rem 0.5rem; font-size: 0.72rem;">&times; Delete Image</button>
               </div>
 
+              <div class="inspector-layer-section" id="imageCropSection">
+                <div class="inspector-section-divider">
+                  <span>COMPOSITION &amp; CROP</span>
+                </div>
+                <div style="display: flex; gap: 4px; margin-bottom: 0.35rem;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCropImage" style="flex: 1; font-size: 0.72rem; padding: 0.25rem 0.4rem;" title="Interactive Non-Destructive Crop">✂️ Crop</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnResetCropImage" style="flex: 1; font-size: 0.72rem; padding: 0.25rem 0.4rem;" title="Reset Crop to Full Image">⟲ Reset</button>
+                </div>
+                <div style="margin-bottom: 0.35rem;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnBakeImage" style="width: 100%; font-size: 0.72rem; padding: 0.25rem 0.4rem; color: #58a6ff; border-color: rgba(88,166,255,0.4);" title="Bake into Background Photo">🍳 Bake into Background...</button>
+                </div>
+                <div class="layer-status-row">
+                  <span class="layer-position-label" id="imageCropStatusLabel">Crop: Full Image</span>
+                </div>
+              </div>
+
               <div class="inspector-layer-section" id="imageLayerSection">
                 <div class="inspector-section-divider">
                   <span>LAYER</span>
@@ -1187,6 +1215,21 @@
             </g>
             <rect id="nodeSelectionBox" x="0" y="0" width="0" height="0" rx="8" fill="none" stroke="#a371f7" stroke-width="2" stroke-dasharray="6,4" style="display:none;" vector-effect="non-scaling-stroke" />
             <rect id="marqueeSelectionBox" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.15)" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,3" style="display:none;" vector-effect="non-scaling-stroke" />
+            <!-- Interactive Crop Overlay for Image Objects -->
+            <g id="cropOverlayGroup" style="display:none;">
+              <path id="cropDimMask" fill="rgba(0, 0, 0, 0.55)" fill-rule="evenodd" />
+              <rect id="cropBoxRect" x="0" y="0" width="0" height="0" fill="none" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6,3" vector-effect="non-scaling-stroke" style="cursor: move;" />
+              <rect class="crop-handle" id="cropHandle-nw" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nwse-resize;" />
+              <rect class="crop-handle" id="cropHandle-n" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ns-resize;" />
+              <rect class="crop-handle" id="cropHandle-ne" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nesw-resize;" />
+              <rect class="crop-handle" id="cropHandle-e" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ew-resize;" />
+              <rect class="crop-handle" id="cropHandle-se" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nwse-resize;" />
+              <rect class="crop-handle" id="cropHandle-s" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ns-resize;" />
+              <rect class="crop-handle" id="cropHandle-sw" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: nesw-resize;" />
+              <rect class="crop-handle" id="cropHandle-w" width="10" height="10" fill="#58a6ff" stroke="#ffffff" stroke-width="1.5" style="cursor: ew-resize;" />
+            </g>
+            <!-- Background Extraction Box -->
+            <rect id="bgExtractBox" x="0" y="0" width="0" height="0" fill="rgba(88, 166, 255, 0.2)" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6,3" style="display:none;" vector-effect="non-scaling-stroke" />
           </svg>
           <div class="reticle reticle-start active-reticle" id="reticleStart">IN</div>
           <div class="reticle reticle-end" id="reticleEnd">OUT</div>
@@ -1194,6 +1237,23 @@
           <div class="reticle active-reticle" id="glowReticleTarget" style="display:none; background:rgba(255, 0, 68, 0.3); border-color:#ff0044; z-index: 12;">GLOW</div>
           <div class="reticle active-reticle" id="rippleReticleTarget" style="display:none; background:rgba(88, 166, 255, 0.2); border-color:#58a6ff; z-index: 12; border-radius: 50%;">WAVE</div>
           <div id="dynamicFlowReticles" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+        </div>
+
+        <!-- CROP & EXTRACTION INTERACTION FLOATING BARS -->
+        <div id="cropBar" class="stage-banner-bar" style="display: none;">
+          <span class="stage-banner-title">✂️ Crop Mode: Drag box or handles. Source: <span id="cropCoordsLabel" style="font-family: monospace; color: #58a6ff;">0, 0 (0 &times; 0)</span></span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-primary btn-sm" id="btnApplyCrop">✓ Apply Crop</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnResetCropInBar">⟲ Reset</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCancelCrop">✕ Cancel</button>
+          </div>
+        </div>
+        <div id="bgExtractBar" class="stage-banner-bar" style="display: none;">
+          <span class="stage-banner-title">✂️ Background Extraction: Drag a rectangle over the canvas background. <span id="bgExtractCoordsLabel" style="font-family: monospace; color: #58a6ff;"></span></span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-primary btn-sm" id="btnConfirmExtract" disabled>✓ Extract Image</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCancelExtract">✕ Cancel</button>
+          </div>
         </div>
       </div>
 
@@ -1691,6 +1751,13 @@
             <div class="slider-row">
               <input type="range" id="fctx-imageOpacitySlider" min="0" max="1.0" step="0.05" value="1.0">
               <input type="number" class="num-input" id="fctx-imageOpacityNum" value="1.0">
+            </div>
+          </div>
+          <div class="floating-prop-row" style="margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+            <div style="display: flex; gap: 4px; width: 100%;">
+              <button type="button" class="btn-floating-action" id="fctx-btnCropImage" style="flex: 1; padding: 0.2rem 0.4rem; font-size: 0.72rem;" title="Interactive Crop">✂️ Crop</button>
+              <button type="button" class="btn-floating-action" id="fctx-btnResetCrop" style="flex: 1; padding: 0.2rem 0.4rem; font-size: 0.72rem;" title="Reset Crop">⟲ Reset</button>
+              <button type="button" class="btn-floating-action" id="fctx-btnBakeImage" style="flex: 1.2; padding: 0.2rem 0.4rem; font-size: 0.72rem; color: #58a6ff;" title="Bake into Background">🍳 Bake...</button>
             </div>
           </div>
         </div>
@@ -2509,6 +2576,37 @@
     <div class="color-picker-footer">
       <button type="button" class="btn-picker-cancel" id="btnColorPickerCancel">Cancel</button>
       <button type="button" class="btn-picker-done" id="btnColorPickerApply">Done</button>
+    </div>
+  </div>
+
+  <!-- BAKE IMAGE INTO BACKGROUND MODAL -->
+  <div id="bakeConfirmModal" class="modal-overlay" style="display: none; z-index: 1050;">
+    <div class="modal-content" style="width: 480px; max-width: 95vw; background: #161b22; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 16px 36px rgba(0,0,0,0.6);">
+      <div class="modal-header" style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 1rem; color: #58a6ff; display: flex; align-items: center; gap: 0.5rem;">🍳 Bake Image into Background</h3>
+        <button type="button" class="floating-editor-close-btn" id="btnBakeModalClose">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1rem; font-size: 0.85rem; color: #c9d1d9; line-height: 1.45;">
+        <p style="margin: 0 0 0.75rem 0;">
+          This will permanently composite <strong id="bakeModalImageName" style="color: #fff;">image</strong> onto the canvas background at its current position, size, opacity, and crop.
+        </p>
+        <p style="margin: 0 0 1rem 0; font-size: 0.78rem; color: #8b949e;">
+          Choose how to handle the original independent image object:
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <button type="button" class="btn btn-primary" id="btnBakeAndRemove" style="padding: 0.5rem 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 2px;">
+            <strong style="font-size: 0.85rem; color: #fff;">Bake and Remove Object</strong>
+            <span style="font-size: 0.72rem; opacity: 0.85;">Composites pixels into background and deletes the image object from the scene.</span>
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnBakeAndKeep" style="padding: 0.5rem 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 2px;">
+            <strong style="font-size: 0.85rem; color: #c9d1d9;">Bake and Keep Object (Hidden)</strong>
+            <span style="font-size: 0.72rem; opacity: 0.85;">Composites pixels into background and retains the object set to hidden to prevent visual doubling.</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 0.6rem 1rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnBakeCancel">Cancel</button>
+      </div>
     </div>
   </div>
 

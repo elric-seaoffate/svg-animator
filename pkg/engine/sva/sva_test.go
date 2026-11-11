@@ -889,6 +889,15 @@ func TestSVAImagesAndLayersRoundtrip(t *testing.T) {
 				"naturalWidth": 1280.0,
 				"naturalHeight": 960.0,
 				"maintainAspectRatio": true,
+				"crop": {
+					"enabled": true,
+					"sourceX": 100.0,
+					"sourceY": 120.0,
+					"sourceWidth": 400.0,
+					"sourceHeight": 300.0,
+					"origWidth": 640.0,
+					"origHeight": 480.0
+				},
 				"opacity": 0.85,
 				"visible": false,
 				"locked": true
@@ -946,6 +955,12 @@ func TestSVAImagesAndLayersRoundtrip(t *testing.T) {
 	}
 	if decImg.IsLocked() != true {
 		t.Errorf("expected locked=true, got %v", decImg.IsLocked())
+	}
+	if decImg.Crop == nil || !decImg.Crop.Enabled {
+		t.Fatalf("expected Crop to be preserved, got %+v", decImg.Crop)
+	}
+	if decImg.Crop.SourceX != 100 || decImg.Crop.SourceWidth != 400 {
+		t.Errorf("expected Crop 100x400, got %fx%f", decImg.Crop.SourceX, decImg.Crop.SourceWidth)
 	}
 
 	// Extract studio state for frontend

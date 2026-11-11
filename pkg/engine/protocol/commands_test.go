@@ -1588,6 +1588,45 @@ func TestDispatchImageAndLayerCommands(t *testing.T) {
 		t.Fatalf("Layer.GetEffective expected visible=false, locked=true, got %+v", effRes)
 	}
 
+	// 8.5. Image.Crop and Image.ResetCrop
+	cropW := 250.0
+	cropH := 180.0
+	cropReq, _ := json.Marshal(ImageCropRequest{
+		ID: imgID,
+		Crop: scene.ImageCrop{
+			SourceX:      50,
+			SourceY:      50,
+			SourceWidth:  300,
+			SourceHeight: 200,
+		},
+		NewW: &cropW,
+		NewH: &cropH,
+	})
+	cropBytes, err := Dispatch("Image.Crop", cropReq)
+	if err != nil {
+		t.Fatalf("Image.Crop failed: %v", err)
+	}
+	var cropRes ImageCropResponse
+	if err := json.Unmarshal(cropBytes, &cropRes); err != nil || !cropRes.Success || cropRes.Image.Crop == nil || !cropRes.Image.Crop.Enabled {
+		t.Fatalf("Image.Crop mismatch: %+v", cropRes)
+	}
+	if cropRes.Image.Width != 250 || cropRes.Image.Height != 180 {
+		t.Fatalf("Image.Crop expected 250x180, got %fx%f", cropRes.Image.Width, cropRes.Image.Height)
+	}
+
+	resetReq, _ := json.Marshal(ImageResetCropRequest{ID: imgID})
+	resetBytes, err := Dispatch("Image.ResetCrop", resetReq)
+	if err != nil {
+		t.Fatalf("Image.ResetCrop failed: %v", err)
+	}
+	var resetRes ImageResetCropResponse
+	if err := json.Unmarshal(resetBytes, &resetRes); err != nil || !resetRes.Success || resetRes.Image.Crop != nil {
+		t.Fatalf("Image.ResetCrop mismatch: %+v", resetRes)
+	}
+	if resetRes.Image.Width != 500 {
+		t.Fatalf("Image.ResetCrop expected restored width 500, got %f", resetRes.Image.Width)
+	}
+
 	// 9. Image.Delete
 	delReq, _ := json.Marshal(ImageDeleteRequest{ID: imgID})
 	delBytes, err := Dispatch("Image.Delete", delReq)

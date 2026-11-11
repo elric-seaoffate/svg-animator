@@ -87,6 +87,12 @@ func (s *Scene) CreateImage(initial Image) (Image, error) {
 		srcVal = initial.Data
 	}
 
+	var cropPtr *ImageCrop
+	if initial.Crop != nil {
+		c := *initial.Crop
+		cropPtr = &c
+	}
+
 	img := Image{
 		ID:                  newID,
 		Name:                displayName,
@@ -102,6 +108,7 @@ func (s *Scene) CreateImage(initial Image) (Image, error) {
 		NaturalWidth:        initial.NaturalWidth,
 		NaturalHeight:       initial.NaturalHeight,
 		MaintainAspectRatio: initial.MaintainAspectRatio,
+		Crop:                cropPtr,
 		Opacity:             opacity,
 		Visible:             initial.Visible,
 		Locked:              initial.Locked,
@@ -177,6 +184,10 @@ func (s *Scene) UpdateImage(id StringID, patch Image) (Image, error) {
 		img.NaturalHeight = patch.NaturalHeight
 	}
 	img.MaintainAspectRatio = patch.MaintainAspectRatio
+	if patch.Crop != nil {
+		c := *patch.Crop
+		img.Crop = &c
+	}
 	if patch.Opacity > 0 {
 		img.Opacity = patch.Opacity
 	}
@@ -233,4 +244,80 @@ func (s *Scene) GetAllImages() []Image {
 		}
 	}
 	return out
+}
+
+// SetImageCrop configures non-destructive rectangular cropping for an image.
+func (s *Scene) SetImageCrop(id StringID, crop ImageCrop, newX, newY, newW, newH *float64) (Image, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	img, exists := s.images[id]
+	if !exists {
+		return Image{}, fmt.Errorf("image not found: %s", id)
+	}
+
+	crop.Enabled = true
+
+	// If original uncropped dimensions are not recorded yet, capture current dimensions
+	if crop.OrigWidth <= 0 {
+		if img.Crop != nil && img.Crop.OrigWidth > 0 {
+			crop.OrigWidth = img.Crop.OrigWidth
+			crop.OrigHeight = img.Crop.OrigHeight
+			crop.OrigX = img.Crop.OrigX
+			crop.OrigY = img.Crop.OrigY
+		} else {
+			crop.OrigWidth = img.Width
+			crop.OrigHeight = img.Height
+			crop.OrigX = img.X
+			crop.OrigY = img.Y
+		}
+	}
+
+	img.Crop = &crop
+
+	if newW != nil && *newW > 0 {
+		img.Width = *newW
+	}
+	if newH != nil && *newH > 0 {
+		img.Height = *newH
+	}
+	if newX != nil {
+		img.X = math.Round(*newX*1000.0) / 1000.0
+	}
+	if newY != nil {
+		img.Y = math.Round(*newY*1000.0) / 1000.0
+	}
+
+	s.images[id] = img
+	s.revision++
+	return img, nil
+}
+
+// ResetImageCrop removes cropping and restores pre-crop dimensions.
+func (s *Scene) ResetImageCrop(id StringID) (Image, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	img, exists := s.images[id]
+	if !exists {
+		return Image{}, fmt.Errorf("image not found: %s", id)
+	}
+
+	if img.Crop != nil {
+		if img.Crop.OrigWidth > 0 {
+			img.Width = img.Crop.OrigWidth
+		}
+		if img.Crop.OrigHeight > 0 {
+			img.Height = img.Crop.OrigHeight
+		}
+		if img.Crop.OrigWidth > 0 && img.Crop.OrigHeight > 0 {
+			img.X = img.Crop.OrigX
+			img.Y = img.Crop.OrigY
+		}
+		img.Crop = nil
+	}
+
+	s.images[id] = img
+	s.revision++
+	return img, nil
 }

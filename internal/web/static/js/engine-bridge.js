@@ -1363,6 +1363,22 @@
       return null;
     },
 
+    cropImage(id, crop, geom) {
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.cropImage(id, crop, geom);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
+    resetCrop(id) {
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.resetCrop(id);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
     deleteImage(id) {
       if (this.isReady()) {
         const res = this.dispatch('Image.Delete', { id: String(id) });
@@ -2933,6 +2949,7 @@
         naturalWidth: Number(initial.naturalWidth) || 0,
         naturalHeight: Number(initial.naturalHeight) || 0,
         maintainAspectRatio: initial.maintainAspectRatio !== undefined ? !!initial.maintainAspectRatio : true,
+        crop: (initial.crop && typeof initial.crop === 'object') ? JSON.parse(JSON.stringify(initial.crop)) : undefined,
         opacity: typeof initial.opacity === 'number' ? initial.opacity : 1.0,
         visible: initial.visible !== undefined ? !!initial.visible : true,
         locked: !!initial.locked,
@@ -2963,10 +2980,93 @@
       if (patch.naturalWidth !== undefined) img.naturalWidth = Number(patch.naturalWidth);
       if (patch.naturalHeight !== undefined) img.naturalHeight = Number(patch.naturalHeight);
       if (patch.maintainAspectRatio !== undefined) img.maintainAspectRatio = !!patch.maintainAspectRatio;
+      if (patch.crop !== undefined) {
+        img.crop = (patch.crop && typeof patch.crop === 'object') ? JSON.parse(JSON.stringify(patch.crop)) : undefined;
+      }
       if (patch.opacity !== undefined) img.opacity = Math.max(0, Math.min(1, Number(patch.opacity)));
       if (patch.visible !== undefined) img.visible = !!patch.visible;
       if (patch.locked !== undefined) img.locked = !!patch.locked;
       if (patch.metadata !== undefined) img.metadata = patch.metadata;
+      return img;
+    },
+
+    cropImage(id, crop = {}, geom = {}) {
+      const strId = String(id);
+      const payload = {
+        id: strId,
+        crop: {
+          enabled: true,
+          sourceX: Number(crop.sourceX) || 0,
+          sourceY: Number(crop.sourceY) || 0,
+          sourceWidth: Number(crop.sourceWidth) || 0,
+          sourceHeight: Number(crop.sourceHeight) || 0,
+          origX: crop.origX !== undefined ? Number(crop.origX) : undefined,
+          origY: crop.origY !== undefined ? Number(crop.origY) : undefined,
+          origWidth: crop.origWidth !== undefined ? Number(crop.origWidth) : undefined,
+          origHeight: crop.origHeight !== undefined ? Number(crop.origHeight) : undefined
+        }
+      };
+      if (geom.newX !== undefined) payload.newX = Number(geom.newX);
+      if (geom.newY !== undefined) payload.newY = Number(geom.newY);
+      if (geom.newW !== undefined) payload.newW = Number(geom.newW);
+      if (geom.newH !== undefined) payload.newH = Number(geom.newH);
+
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Crop', payload);
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      // Fallback JS logic
+      const img = this.getImage(strId);
+      if (!img) return null;
+      if (!payload.crop.origWidth || payload.crop.origWidth <= 0) {
+        if (img.crop && img.crop.origWidth > 0) {
+          payload.crop.origWidth = img.crop.origWidth;
+          payload.crop.origHeight = img.crop.origHeight;
+          payload.crop.origX = img.crop.origX;
+          payload.crop.origY = img.crop.origY;
+        } else {
+          payload.crop.origWidth = img.width;
+          payload.crop.origHeight = img.height;
+          payload.crop.origX = img.x;
+          payload.crop.origY = img.y;
+        }
+      }
+      img.crop = payload.crop;
+      if (geom.newW !== undefined && geom.newW > 0) img.width = geom.newW;
+      if (geom.newH !== undefined && geom.newH > 0) img.height = geom.newH;
+      if (geom.newX !== undefined) img.x = Math.round(geom.newX * 1000) / 1000;
+      if (geom.newY !== undefined) img.y = Math.round(geom.newY * 1000) / 1000;
+      return img;
+    },
+
+    resetCrop(id) {
+      const strId = String(id);
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.ResetCrop', { id: strId });
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      // Fallback JS logic
+      const img = this.getImage(strId);
+      if (!img) return null;
+      if (img.crop) {
+        if (img.crop.origWidth > 0) img.width = img.crop.origWidth;
+        if (img.crop.origHeight > 0) img.height = img.crop.origHeight;
+        if (img.crop.origWidth > 0 && img.crop.origHeight > 0) {
+          img.x = img.crop.origX;
+          img.y = img.crop.origY;
+        }
+        delete img.crop;
+      }
       return img;
     },
 
@@ -3065,6 +3165,14 @@
       const op = typeof img.opacity === 'number' ? img.opacity : 1.0;
       const par = img.maintainAspectRatio !== false ? 'xMidYMid meet' : 'none';
       const href = img.src || img.assetRef || '';
+
+      if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+        const crop = img.crop;
+        const natW = Number(img.naturalWidth) || Number(crop.origWidth) || w;
+        const natH = Number(img.naturalHeight) || Number(crop.origHeight) || h;
+        const vb = `${crop.sourceX.toFixed(2)} ${crop.sourceY.toFixed(2)} ${crop.sourceWidth.toFixed(2)} ${crop.sourceHeight.toFixed(2)}`;
+        return `<svg id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
+      }
 
       return `<image id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
     },
