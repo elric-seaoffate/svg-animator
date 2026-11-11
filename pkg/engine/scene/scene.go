@@ -915,24 +915,28 @@ func (s *Scene) SetBackground(bg *BackgroundConfig) {
 	}
 
 	b := *bg
-	sw := b.SourceWidth
-	if sw <= 0 {
-		sw = b.NaturalWidth
+	nw := b.NaturalWidth
+	if nw <= 0 {
+		nw = b.SourceWidth
 	}
-	if sw <= 0 {
-		sw = 1280
+	if nw <= 0 {
+		nw = 1280
 	}
-	sh := b.SourceHeight
-	if sh <= 0 {
-		sh = b.NaturalHeight
+	nh := b.NaturalHeight
+	if nh <= 0 {
+		nh = b.SourceHeight
 	}
-	if sh <= 0 {
-		sh = 720
+	if nh <= 0 {
+		nh = 720
 	}
-	b.SourceWidth = sw
-	b.SourceHeight = sh
-	b.NaturalWidth = sw
-	b.NaturalHeight = sh
+	b.NaturalWidth = nw
+	b.NaturalHeight = nh
+	if b.SourceWidth <= 0 {
+		b.SourceWidth = nw
+	}
+	if b.SourceHeight <= 0 {
+		b.SourceHeight = nh
+	}
 
 	if len(b.CropVersions) == 0 {
 		b.CropVersions = []BackgroundCropVersion{
@@ -941,8 +945,8 @@ func (s *Scene) SetBackground(bg *BackgroundConfig) {
 				Name:         "Original",
 				SourceX:      0,
 				SourceY:      0,
-				SourceWidth:  sw,
-				SourceHeight: sh,
+				SourceWidth:  nw,
+				SourceHeight: nh,
 			},
 		}
 		b.ActiveCropVersionID = "original"
@@ -987,25 +991,26 @@ func (s *Scene) CropBackground(crop BackgroundCrop, name string) (*BackgroundCon
 		return nil, errors.New("no background image loaded in scene")
 	}
 
-	natW := s.background.SourceWidth
+	natW := s.background.NaturalWidth
 	if natW <= 0 {
-		natW = s.background.NaturalWidth
+		natW = s.background.SourceWidth
 	}
 	if natW <= 0 {
 		natW = 1280
 	}
-	natH := s.background.SourceHeight
+	natH := s.background.NaturalHeight
 	if natH <= 0 {
-		natH = s.background.NaturalHeight
+		natH = s.background.SourceHeight
 	}
 	if natH <= 0 {
 		natH = 720
 	}
 
-	sx := math.Max(0, math.Min(crop.SourceX, natW-10))
-	sy := math.Max(0, math.Min(crop.SourceY, natH-10))
-	sw := math.Max(10, math.Min(crop.SourceWidth, natW-sx))
-	sh := math.Max(10, math.Min(crop.SourceHeight, natH-sy))
+	// Clamp cleanly to image boundaries without arbitrary shrinking
+	sx := math.Max(0, math.Min(crop.SourceX, natW-1))
+	sy := math.Max(0, math.Min(crop.SourceY, natH-1))
+	sw := math.Max(1, math.Min(crop.SourceWidth, natW-sx))
+	sh := math.Max(1, math.Min(crop.SourceHeight, natH-sy))
 
 	// Ensure Original version is present at index 0
 	if len(s.background.CropVersions) == 0 {

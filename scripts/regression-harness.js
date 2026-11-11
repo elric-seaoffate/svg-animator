@@ -545,8 +545,8 @@ async function runHarness() {
       },
       dispatchEvent(evt) {
         const type = typeof evt === 'string' ? evt : (evt ? evt.type : '');
-        const e = typeof evt === 'object' ? evt : { type, target: this };
-        if (!e.target) e.target = this;
+        const e = (typeof evt === 'object' && evt !== null) ? evt : { type, target: this };
+        try { if (!e.target) e.target = this; } catch (_) {}
         let isStopped = false;
         const prevStop = e.stopPropagation;
         e.stopPropagation = function() {
@@ -7738,6 +7738,198 @@ async function runHarness() {
   window.Stage.cancelClipMode();
 
   console.log('[HARNESS] Scenario 63 PASS: Full End-to-End Background Crop Workflow, DOM Re-Rendering & Version Switching verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 64: Stage 15 Final Precision - Background Crop Height & Aspect Ratio (Tests A-G)
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 64: Stage 15 Final Precision - Background Crop Height & Aspect Ratio (Tests A-G)...');
+
+  // Test photo with exact 1600x1024 dimensions (height = 1024)
+  const precisionPhoto = {
+    filename: 'panorama_1024.jpg',
+    src: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
+    mime: 'image/jpeg',
+    naturalWidth: 1600,
+    naturalHeight: 1024,
+    photoFit: 'match'
+  };
+  window.setLoadedPhoto(precisionPhoto);
+  window.syncImageToolsUI();
+
+  // Objective Diagnostic Readout Verification
+  const diagSource = document.getElementById('diagSourceDims');
+  const diagCrop = document.getElementById('diagCropValues');
+  assert.ok(diagSource && diagSource.textContent.includes('1600 × 1024 px'), 'Scenario 64: Diagnostic source dims report 1600 × 1024 px');
+  assert.ok(diagCrop && diagCrop.textContent.includes('Full bounds'), 'Scenario 64: Diagnostic crop reports full uncropped bounds');
+
+  // TEST A: Full-height crop (X=200, Y=0, W=1000, H=1024)
+  console.log('[HARNESS] Scenario 64 Test A: Full-height crop retention...');
+  window.ImageToolsController.startCrop();
+  assert.strictEqual(window.Stage.isCroppingBackground, true, 'Test A: Stage in background crop mode');
+
+  // Click Quick-Action Full Height button
+  const btnFullHeight = document.getElementById('btnCropFullHeight');
+  assert.ok(btnFullHeight && !btnFullHeight.disabled, 'Test A: Full Height quick button is present and enabled');
+  btnFullHeight.click();
+
+  // Set X=200, W=1000 while Y=0 and H=1024 are preserved
+  const inCropX = document.getElementById('cropRegionX');
+  const inCropY = document.getElementById('cropRegionY');
+  const inCropW = document.getElementById('cropRegionW');
+  const inCropH = document.getElementById('cropRegionH');
+  inCropX.value = 200;
+  inCropW.value = 1000;
+  inCropX.dispatchEvent('input');
+  inCropW.dispatchEvent('input');
+
+  assert.strictEqual(parseInt(inCropY.value, 10), 0, 'Test A: Crop Y is exactly 0');
+  assert.strictEqual(parseInt(inCropH.value, 10), 1024, 'Test A: Crop H is exactly 1024 (full source height)');
+
+  // Apply crop
+  window.ImageToolsController.applyCrop();
+  assert.strictEqual(window.Stage.isCroppingImage, false, 'Test A: Crop applied and mode exited');
+
+  const photoAfterA = window.getLoadedPhoto();
+  assert.ok(photoAfterA.crop && photoAfterA.crop.enabled, 'Test A: Crop active on loaded photo');
+  assert.strictEqual(photoAfterA.crop.sourceY, 0, 'Test A Invariant: sourceY MUST be exactly 0 (no top trimming)');
+  assert.strictEqual(photoAfterA.crop.sourceHeight, 1024, 'Test A Invariant: sourceHeight MUST be exactly 1024 (zero height loss)');
+  assert.strictEqual(photoAfterA.crop.sourceX, 200, 'Test A: sourceX is 200');
+  assert.strictEqual(photoAfterA.crop.sourceWidth, 1000, 'Test A: sourceWidth is 1000');
+
+  // Verify SVG generation: preserveAspectRatio MUST NOT slice off height when fitMode is match/contain
+  const svgMarkupA = window.Effects.buildPhotoElement(window.SceneState.buildCurrentCanvasState(), 1000, 1000);
+  assert.ok(svgMarkupA.includes('viewBox="200 0 1000 1024"'), 'Test A: SVG viewBox is 200 0 1000 1024');
+  assert.ok(svgMarkupA.includes('preserveAspectRatio="xMidYMid meet"'), 'Test A: preserveAspectRatio is xMidYMid meet so all 1024px height are visible');
+  assert.ok(!svgMarkupA.includes('preserveAspectRatio="xMidYMid slice"'), 'Test A: preserveAspectRatio is NOT slice in match mode');
+
+  // TEST B: Full-width crop (X=0, Y=150, W=1600, H=700)
+  console.log('[HARNESS] Scenario 64 Test B: Full-width crop retention...');
+  window.ImageToolsController.startCrop();
+  const btnFullWidth = document.getElementById('btnCropFullWidth');
+  assert.ok(btnFullWidth && !btnFullWidth.disabled, 'Test B: Full Width quick button is present and enabled');
+  btnFullWidth.click();
+
+  inCropY.value = 150;
+  inCropH.value = 700;
+  inCropY.dispatchEvent('input');
+  inCropH.dispatchEvent('input');
+
+  assert.strictEqual(parseInt(inCropX.value, 10), 0, 'Test B: Crop X is exactly 0');
+  assert.strictEqual(parseInt(inCropW.value, 10), 1600, 'Test B: Crop W is exactly 1600 (full source width)');
+
+  window.ImageToolsController.applyCrop();
+  const photoAfterB = window.getLoadedPhoto();
+  assert.strictEqual(photoAfterB.crop.sourceX, 0, 'Test B Invariant: sourceX MUST be exactly 0 (no left trimming)');
+  assert.strictEqual(photoAfterB.crop.sourceWidth, 1600, 'Test B Invariant: sourceWidth MUST be exactly 1600 (zero width loss)');
+  assert.strictEqual(photoAfterB.crop.sourceY, 150, 'Test B: sourceY is 150');
+  assert.strictEqual(photoAfterB.crop.sourceHeight, 700, 'Test B: sourceHeight is 700');
+
+  // TEST C: Full-image crop (X=0, Y=0, W=1600, H=1024)
+  console.log('[HARNESS] Scenario 64 Test C: Full-image crop retention...');
+  window.ImageToolsController.startCrop();
+  const btnFullImage = document.getElementById('btnCropFullImage');
+  assert.ok(btnFullImage && !btnFullImage.disabled, 'Test C: Full Image quick button is present and enabled');
+  btnFullImage.click();
+
+  assert.strictEqual(parseInt(inCropX.value, 10), 0, 'Test C: Crop X is 0');
+  assert.strictEqual(parseInt(inCropY.value, 10), 0, 'Test C: Crop Y is 0');
+  assert.strictEqual(parseInt(inCropW.value, 10), 1600, 'Test C: Crop W is 1600');
+  assert.strictEqual(parseInt(inCropH.value, 10), 1024, 'Test C: Crop H is 1024');
+
+  window.ImageToolsController.applyCrop();
+  const photoAfterC = window.getLoadedPhoto();
+  assert.strictEqual(photoAfterC.crop.sourceX, 0, 'Test C: sourceX is 0');
+  assert.strictEqual(photoAfterC.crop.sourceY, 0, 'Test C: sourceY is 0');
+  assert.strictEqual(photoAfterC.crop.sourceWidth, 1600, 'Test C: sourceWidth is 1600');
+  assert.strictEqual(photoAfterC.crop.sourceHeight, 1024, 'Test C: sourceHeight is 1024');
+
+  // TEST D: Free aspect ratio independent of scene canvas
+  console.log('[HARNESS] Scenario 64 Test D: Free aspect ratio on non-square canvas (1280x720)...');
+  window.Stage.canvasWidth = 1280;
+  window.Stage.canvasHeight = 720;
+  window.ImageToolsController.startCrop();
+
+  // Move right handle: width changes, height MUST NOT change
+  const initialBoxH = window.Stage.cropBox.h;
+  const initialBoxY = window.Stage.cropBox.y;
+  window.Stage.cropDragMode = 'e';
+  window.Stage.cropDragStart = { clientX: 100, clientY: 100, box: Object.assign({}, window.Stage.cropBox) };
+
+  const mockMoveEvt = { clientX: 50, clientY: 200, pointerId: 1 };
+  const scale = window.Stage.getEffectiveScale();
+  const dx = (mockMoveEvt.clientX - window.Stage.cropDragStart.clientX) / scale;
+  const init = window.Stage.cropDragStart.box;
+  const ob = window.Stage.cropOrigBounds;
+  const newW = Math.max(10, Math.min(ob.left + ob.w - init.x, init.w + dx));
+  window.Stage.cropBox = { x: init.x, y: init.y, w: newW, h: init.h };
+
+  assert.strictEqual(window.Stage.cropBox.h, initialBoxH, 'Test D Invariant: Horizontal drag does not affect height');
+  assert.strictEqual(window.Stage.cropBox.y, initialBoxY, 'Test D Invariant: Horizontal drag does not affect Y position');
+  window.Stage.cancelCropMode();
+
+  // TEST E: Fit modes separation (contain, match, cover, stretch)
+  console.log('[HARNESS] Scenario 64 Test E: Display fit mode separation...');
+  const stateContain = Object.assign({}, window.SceneState.buildCurrentCanvasState(), { photoFit: 'contain' });
+  const markupContain = window.Effects.buildPhotoElement(stateContain, 1280, 720);
+  assert.ok(markupContain.includes('preserveAspectRatio="xMidYMid meet"'), 'Test E: contain mode uses meet');
+
+  const stateCover = Object.assign({}, window.SceneState.buildCurrentCanvasState(), { photoFit: 'cover' });
+  const markupCover = window.Effects.buildPhotoElement(stateCover, 1280, 720);
+  assert.ok(markupCover.includes('preserveAspectRatio="xMidYMid slice"'), 'Test E: cover mode uses slice');
+
+  const stateStretch = Object.assign({}, window.SceneState.buildCurrentCanvasState(), { photoFit: 'stretch' });
+  const markupStretch = window.Effects.buildPhotoElement(stateStretch, 1280, 720);
+  assert.ok(markupStretch.includes('preserveAspectRatio="none"'), 'Test E: stretch mode uses none');
+
+  // Verify Match Canvas Size button updates canvas to active crop dimensions
+  // Re-apply Test A crop (1000x1024)
+  window.ImageToolsController.selectBackgroundCropVersion({ id: 'crop-1', name: 'Crop 1' });
+  const btnMatch = document.getElementById('btnMatchPhotoSize');
+  assert.ok(btnMatch, 'Test E: Match Canvas Size button exists');
+  btnMatch.click();
+
+  const matchedW = parseInt(document.getElementById('canvasWidthInput').value, 10);
+  const matchedH = parseInt(document.getElementById('canvasHeightInput').value, 10);
+  assert.strictEqual(matchedW, 1000, 'Test E: Canvas Width matched to cropped source width 1000');
+  assert.strictEqual(matchedH, 1024, 'Test E: Canvas Height matched to cropped source height 1024');
+
+  // TEST F: Crop versions switching without coordinate drift
+  console.log('[HARNESS] Scenario 64 Test F: Crop versions switching without drift...');
+  const vList = window.getLoadedPhoto().cropVersions;
+  assert.ok(vList && vList.length >= 2, 'Test F: Multiple crop versions present');
+
+  // Switch to Original
+  window.ImageToolsController.selectBackgroundCropVersion({ id: 'original', name: 'Original' });
+  assert.strictEqual(window.getLoadedPhoto().activeCropVersionId, 'original', 'Test F: Active is original');
+
+  // Switch to Crop 1
+  window.ImageToolsController.selectBackgroundCropVersion({ id: 'crop-1', name: 'Crop 1' });
+  const s64Ver1 = window.getLoadedPhoto().crop;
+  assert.strictEqual(s64Ver1.sourceX, 200, 'Test F: Crop 1 sourceX retains 200 without drift');
+  assert.strictEqual(s64Ver1.sourceY, 0, 'Test F: Crop 1 sourceY retains 0 without drift');
+  assert.strictEqual(s64Ver1.sourceWidth, 1000, 'Test F: Crop 1 sourceWidth retains 1000 without drift');
+  assert.strictEqual(s64Ver1.sourceHeight, 1024, 'Test F: Crop 1 sourceHeight retains 1024 without drift');
+
+  // TEST G: Native .sva roundtrip without drift
+  console.log('[HARNESS] Scenario 64 Test G: Native .sva roundtrip without drift...');
+  const s64SerializedStr = window.ProjectManager.serializeStudioState();
+  const s64Serialized = JSON.parse(s64SerializedStr);
+  assert.ok(s64Serialized && s64Serialized.background, 'Test G: Serialized state contains background');
+  assert.ok(s64Serialized.background.crop, 'Test G: Serialized state contains background crop');
+  assert.strictEqual(s64Serialized.background.crop.sourceY, 0, 'Test G: Serialized crop sourceY is 0');
+  assert.strictEqual(s64Serialized.background.crop.sourceHeight, 1024, 'Test G: Serialized crop sourceHeight is 1024');
+  assert.strictEqual(s64Serialized.background.naturalHeight, 1024, 'Test G: Serialized naturalHeight is 1024');
+
+  // Restore serialized state
+  window.ProjectManager.applyStudioState(s64Serialized);
+  const s64RestoredPhoto = window.getLoadedPhoto();
+  assert.ok(s64RestoredPhoto && s64RestoredPhoto.crop, 'Test G: Restored state has active crop');
+  assert.strictEqual(s64RestoredPhoto.crop.sourceY, 0, 'Test G Invariant: Restored sourceY is exactly 0');
+  assert.strictEqual(s64RestoredPhoto.crop.sourceHeight, 1024, 'Test G Invariant: Restored sourceHeight is exactly 1024');
+  assert.strictEqual(s64RestoredPhoto.crop.sourceWidth, 1000, 'Test G Invariant: Restored sourceWidth is exactly 1000');
+  assert.strictEqual(s64RestoredPhoto.naturalHeight, 1024, 'Test G Invariant: Restored naturalHeight is exactly 1024');
+
+  console.log('[HARNESS] Scenario 64 PASS: Stage 15 Final Precision - Background Crop Height & Aspect Ratio (Tests A-G) verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }

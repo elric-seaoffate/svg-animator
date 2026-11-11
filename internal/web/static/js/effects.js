@@ -25,11 +25,13 @@ window.Effects = {
       const sw = crop.sourceWidth !== undefined ? crop.sourceWidth : (crop.width || natW);
       const sh = crop.sourceHeight !== undefined ? crop.sourceHeight : (crop.height || natH);
 
-      let par = 'xMidYMid slice';
-      if (fitMode === 'contain') {
-        par = 'xMidYMid meet';
+      let par = 'xMidYMid meet';
+      if (fitMode === 'cover') {
+        par = 'xMidYMid slice';
       } else if (fitMode === 'stretch') {
         par = 'none';
+      } else if (fitMode === 'contain' || fitMode === 'match') {
+        par = 'xMidYMid meet';
       }
 
       return `<svg x="0" y="0" width="${w}" height="${h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="${par}" ${extraAttrs} overflow="hidden"><image href="${imgSrc}" xlink:href="${imgSrc}" x="0" y="0" width="${natW}" height="${natH}" /></svg>`;

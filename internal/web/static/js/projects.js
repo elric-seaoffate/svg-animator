@@ -125,6 +125,7 @@ window.ProjectManager = {
       version: '1.2.0',
       controls: controls,
       loadedPhoto: loadedPhoto,
+      background: loadedPhoto,
       presets: presetState.preset,
       autoApplyPreset: presetState.autoApplyToNewNodes,
       nodes: nodeState.nodes,

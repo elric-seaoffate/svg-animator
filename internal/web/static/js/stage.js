@@ -1497,34 +1497,60 @@ window.Stage = {
       const natW = Number(photo.naturalWidth) || canvasW;
       const natH = Number(photo.naturalHeight) || canvasH;
 
-      let boxX = Math.round(canvasW * 0.05);
-      let boxY = Math.round(canvasH * 0.05);
-      let boxW = Math.round(canvasW * 0.9);
-      let boxH = Math.round(canvasH * 0.9);
+      const fitMode = photo.photoFit || (document.getElementById('photoFitSelect') ? document.getElementById('photoFitSelect').value : 'match');
+      let dispLeft = 0;
+      let dispTop = 0;
+      let dispW = canvasW;
+      let dispH = canvasH;
 
-      if (photo.crop && photo.crop.enabled && photo.crop.sourceWidth > 0 && photo.crop.sourceHeight > 0) {
-        const scaleX = canvasW / natW;
-        const scaleY = canvasH / natH;
-        boxX = Math.round(photo.crop.sourceX * scaleX);
-        boxY = Math.round(photo.crop.sourceY * scaleY);
-        boxW = Math.round(photo.crop.sourceWidth * scaleX);
-        boxH = Math.round(photo.crop.sourceHeight * scaleY);
+      if (fitMode === 'contain' || fitMode === 'match') {
+        const s = Math.min(canvasW / natW, canvasH / natH);
+        dispW = natW * s;
+        dispH = natH * s;
+        dispLeft = (canvasW - dispW) / 2;
+        dispTop = (canvasH - dispH) / 2;
+      } else if (fitMode === 'cover') {
+        const s = Math.max(canvasW / natW, canvasH / natH);
+        dispW = natW * s;
+        dispH = natH * s;
+        dispLeft = (canvasW - dispW) / 2;
+        dispTop = (canvasH - dispH) / 2;
+      } else if (fitMode === 'stretch') {
+        dispLeft = 0;
+        dispTop = 0;
+        dispW = canvasW;
+        dispH = canvasH;
       }
 
       this.cropOrigBounds = {
-        left: 0,
-        top: 0,
-        w: canvasW,
-        h: canvasH,
+        left: dispLeft,
+        top: dispTop,
+        w: dispW,
+        h: dispH,
         natW: natW,
         natH: natH
       };
 
+      const scaleX = dispW / natW;
+      const scaleY = dispH / natH;
+
+      let boxX = dispLeft;
+      let boxY = dispTop;
+      let boxW = dispW;
+      let boxH = dispH;
+
+      if (photo.crop && photo.crop.enabled && photo.crop.sourceWidth > 0 && photo.crop.sourceHeight > 0) {
+        boxX = dispLeft + (photo.crop.sourceX || 0) * scaleX;
+        boxY = dispTop + (photo.crop.sourceY || 0) * scaleY;
+        boxW = photo.crop.sourceWidth * scaleX;
+        boxH = photo.crop.sourceHeight * scaleY;
+      }
+
       this.cropBox = {
-        x: Math.max(0, boxX),
-        y: Math.max(0, boxY),
-        w: Math.max(20, Math.min(canvasW - boxX, boxW)),
-        h: Math.max(20, Math.min(canvasH - boxY, boxH))
+        x: Math.max(dispLeft, Math.min(dispLeft + dispW - 10, boxX)),
+        y: Math.max(dispTop, Math.min(dispTop + dispH - 10, boxY)),
+        w: Math.max(10, Math.min(dispW, boxW)),
+        h: Math.max(10, Math.min(dispH, boxH))
       };
     } else {
       this.activeCropImage = img;
@@ -1651,10 +1677,20 @@ window.Stage = {
 
     const scaleX = ob.w / ob.natW;
     const scaleY = ob.h / ob.natH;
-    const srcX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
-    const srcY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
-    const srcW = Math.round(b.w / scaleX);
-    const srcH = Math.round(b.h / scaleY);
+    let srcX = Math.round((b.x - ob.left) / scaleX);
+    let srcY = Math.round((b.y - ob.top) / scaleY);
+    let srcW = Math.round(b.w / scaleX);
+    let srcH = Math.round(b.h / scaleY);
+
+    if (Math.abs(b.x - ob.left) <= 1.5 || srcX <= 1) srcX = 0;
+    if (Math.abs(b.y - ob.top) <= 1.5 || srcY <= 1) srcY = 0;
+    if (Math.abs((b.x + b.w) - (ob.left + ob.w)) <= 1.5 || (srcX + srcW >= ob.natW - 1)) srcW = ob.natW - srcX;
+    if (Math.abs((b.y + b.h) - (ob.top + ob.h)) <= 1.5 || (srcY + srcH >= ob.natH - 1)) srcH = ob.natH - srcY;
+
+    srcX = Math.max(0, Math.min(ob.natW - 1, srcX));
+    srcY = Math.max(0, Math.min(ob.natH - 1, srcY));
+    srcW = Math.max(1, Math.min(ob.natW - srcX, srcW));
+    srcH = Math.max(1, Math.min(ob.natH - srcY, srcH));
 
     const lbl = document.getElementById('cropCoordsLabel');
     if (lbl) {
@@ -1674,10 +1710,20 @@ window.Stage = {
       const scaleX = ob.w / ob.natW;
       const scaleY = ob.h / ob.natH;
 
-      const sourceX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
-      const sourceY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
-      const sourceWidth = Math.max(10, Math.min(ob.natW - sourceX, Math.round(b.w / scaleX)));
-      const sourceHeight = Math.max(10, Math.min(ob.natH - sourceY, Math.round(b.h / scaleY)));
+      let sourceX = Math.round((b.x - ob.left) / scaleX);
+      let sourceY = Math.round((b.y - ob.top) / scaleY);
+      let sourceWidth = Math.round(b.w / scaleX);
+      let sourceHeight = Math.round(b.h / scaleY);
+
+      if (Math.abs(b.x - ob.left) <= 1.5 || sourceX <= 1) sourceX = 0;
+      if (Math.abs(b.y - ob.top) <= 1.5 || sourceY <= 1) sourceY = 0;
+      if (Math.abs((b.x + b.w) - (ob.left + ob.w)) <= 1.5 || (sourceX + sourceWidth >= ob.natW - 1)) sourceWidth = ob.natW - sourceX;
+      if (Math.abs((b.y + b.h) - (ob.top + ob.h)) <= 1.5 || (sourceY + sourceHeight >= ob.natH - 1)) sourceHeight = ob.natH - sourceY;
+
+      sourceX = Math.max(0, Math.min(ob.natW - 1, sourceX));
+      sourceY = Math.max(0, Math.min(ob.natH - 1, sourceY));
+      sourceWidth = Math.max(1, Math.min(ob.natW - sourceX, sourceWidth));
+      sourceHeight = Math.max(1, Math.min(ob.natH - sourceY, sourceHeight));
 
       const cropData = {
         enabled: true,

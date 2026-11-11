@@ -4473,6 +4473,29 @@ if (typeof window !== 'undefined') {
   };
 }
 
+window.matchCanvasToPhoto = function() {
+  const loadedPhoto = (window.getLoadedPhoto && typeof window.getLoadedPhoto === 'function')
+    ? window.getLoadedPhoto()
+    : (window.SceneState ? window.SceneState.getLoadedPhoto() : null);
+  if (!loadedPhoto) return;
+  const crop = loadedPhoto.crop;
+  const hasCrop = crop && crop.enabled !== false && (crop.sourceWidth || crop.width) > 0;
+  const targetW = hasCrop ? (crop.sourceWidth || crop.width) : (loadedPhoto.naturalWidth || 1280);
+  const targetH = hasCrop ? (crop.sourceHeight || crop.height) : (loadedPhoto.naturalHeight || 720);
+  const wIn = document.getElementById('canvasWidthInput');
+  const hIn = document.getElementById('canvasHeightInput');
+  if (wIn) wIn.value = Math.round(targetW);
+  if (hIn) hIn.value = Math.round(targetH);
+  const fitSel = document.getElementById('photoFitSelect');
+  if (fitSel) fitSel.value = 'match';
+  if (typeof syncPresetDropdownFromInputs === 'function') syncPresetDropdownFromInputs();
+  if (typeof updateOrientationAndPaperUI === 'function') updateOrientationAndPaperUI();
+  if (typeof syncBackgroundUIVisibility === 'function') syncBackgroundUIVisibility();
+  if (typeof render === 'function') render();
+  else if (window.triggerRender) window.triggerRender();
+  if (typeof recordImmediate === 'function') recordImmediate();
+};
+
 window.ImageToolsController = {
   clipSnipSource: 'background', // 'background' | 'image'
   currentMode: 'crop',          // Legacy compatibility
@@ -4666,6 +4689,33 @@ window.ImageToolsController = {
     if (btnResetC && !btnResetC._hasBound) {
       btnResetC._hasBound = true;
       btnResetC.addEventListener('click', () => this.resetCropToOriginal());
+    }
+
+    // Quick Crop Preset Buttons (Full Height, Full Width, Full Image)
+    const btnFullH = document.getElementById('btnCropFullHeight');
+    if (btnFullH && !btnFullH._hasBound) {
+      btnFullH._hasBound = true;
+      btnFullH.addEventListener('click', () => this.setCropFullHeight());
+    }
+    const btnFullW = document.getElementById('btnCropFullWidth');
+    if (btnFullW && !btnFullW._hasBound) {
+      btnFullW._hasBound = true;
+      btnFullW.addEventListener('click', () => this.setCropFullWidth());
+    }
+    const btnFullImg = document.getElementById('btnCropFullImage');
+    if (btnFullImg && !btnFullImg._hasBound) {
+      btnFullImg._hasBound = true;
+      btnFullImg.addEventListener('click', () => this.setCropFullImage());
+    }
+
+    const btnMatchPhoto = document.getElementById('btnMatchPhotoSize');
+    if (btnMatchPhoto && !btnMatchPhoto._hasBoundMatch) {
+      btnMatchPhoto._hasBoundMatch = true;
+      btnMatchPhoto.addEventListener('click', () => {
+        if (typeof window.matchCanvasToPhoto === 'function') {
+          window.matchCanvasToPhoto();
+        }
+      });
     }
 
     // Crop Region coordinate inputs
@@ -4890,6 +4940,31 @@ window.ImageToolsController = {
 
       this._renderBackgroundCropVersionsList(photo);
       this._syncBackgroundCropInputs(photo);
+
+      // Diagnostic readout reflecting actual source and crop state
+      const diagSourceDims = document.getElementById('diagSourceDims');
+      const diagCropValues = document.getElementById('diagCropValues');
+      if (diagSourceDims) {
+        diagSourceDims.textContent = `${Math.round(nw)} × ${Math.round(nh)} px`;
+      }
+      if (diagCropValues) {
+        if (photo.crop && photo.crop.enabled && photo.crop.sourceWidth > 0 && photo.crop.sourceHeight > 0) {
+          const cx = Math.round(photo.crop.sourceX || 0);
+          const cy = Math.round(photo.crop.sourceY || 0);
+          const cw = Math.round(photo.crop.sourceWidth);
+          const ch = Math.round(photo.crop.sourceHeight);
+          diagCropValues.textContent = `X: ${cx}, Y: ${cy}, W: ${cw}, H: ${ch}`;
+        } else {
+          diagCropValues.textContent = 'Full bounds (uncropped)';
+        }
+      }
+
+      const btnFullH = document.getElementById('btnCropFullHeight');
+      const btnFullW = document.getElementById('btnCropFullWidth');
+      const btnFullImg = document.getElementById('btnCropFullImage');
+      if (btnFullH) btnFullH.disabled = false;
+      if (btnFullW) btnFullW.disabled = false;
+      if (btnFullImg) btnFullImg.disabled = false;
     } else {
       if (cropBgName) cropBgName.textContent = 'No Background Image';
       if (cropBgDims) cropBgDims.textContent = '—';
@@ -4897,6 +4972,18 @@ window.ImageToolsController = {
       if (cropDims) cropDims.textContent = '—';
       if (cropNoBgWarn) cropNoBgWarn.style.display = 'block';
       if (cropNoImgWarn) cropNoImgWarn.style.display = 'none';
+
+      const diagSourceDims = document.getElementById('diagSourceDims');
+      const diagCropValues = document.getElementById('diagCropValues');
+      if (diagSourceDims) diagSourceDims.textContent = '—';
+      if (diagCropValues) diagCropValues.textContent = '—';
+
+      const btnFullH = document.getElementById('btnCropFullHeight');
+      const btnFullW = document.getElementById('btnCropFullWidth');
+      const btnFullImg = document.getElementById('btnCropFullImage');
+      if (btnFullH) btnFullH.disabled = true;
+      if (btnFullW) btnFullW.disabled = true;
+      if (btnFullImg) btnFullImg.disabled = true;
 
       if (btnStartC) btnStartC.disabled = true;
       if (btnApplyC) btnApplyC.disabled = true;
@@ -4967,10 +5054,24 @@ window.ImageToolsController = {
     const photo = this._getBackgroundPhoto();
     if (!photo) return;
 
-    const x = Math.max(0, parseInt(document.getElementById('cropRegionX')?.value || document.getElementById('toolRegionX')?.value, 10) || 0);
-    const y = Math.max(0, parseInt(document.getElementById('cropRegionY')?.value || document.getElementById('toolRegionY')?.value, 10) || 0);
-    const w = Math.max(10, parseInt(document.getElementById('cropRegionW')?.value || document.getElementById('toolRegionW')?.value, 10) || 10);
-    const h = Math.max(10, parseInt(document.getElementById('cropRegionH')?.value || document.getElementById('toolRegionH')?.value, 10) || 10);
+    const parseCoord = (id1, id2, def) => {
+      const v1 = document.getElementById(id1)?.value;
+      if (v1 !== undefined && v1 !== null && v1 !== '') {
+        const n = parseInt(v1, 10);
+        if (!isNaN(n)) return n;
+      }
+      const v2 = document.getElementById(id2)?.value;
+      if (v2 !== undefined && v2 !== null && v2 !== '') {
+        const n = parseInt(v2, 10);
+        if (!isNaN(n)) return n;
+      }
+      return def;
+    };
+
+    const x = Math.max(0, parseCoord('cropRegionX', 'toolRegionX', 0));
+    const y = Math.max(0, parseCoord('cropRegionY', 'toolRegionY', 0));
+    const w = Math.max(1, parseCoord('cropRegionW', 'toolRegionW', 10));
+    const h = Math.max(1, parseCoord('cropRegionH', 'toolRegionH', 10));
 
     const vCount = (photo.cropVersions ? photo.cropVersions.filter(v => v.id && v.id.startsWith('crop-')).length : 0);
     const versionName = `Crop ${vCount + 1}`;
@@ -5507,10 +5608,20 @@ window.ImageToolsController = {
       const ob = window.Stage.cropOrigBounds;
       const scaleX = ob.w / ob.natW;
       const scaleY = ob.h / ob.natH;
-      const srcX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
-      const srcY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
-      const srcW = Math.round(b.w / scaleX);
-      const srcH = Math.round(b.h / scaleY);
+      let srcX = Math.round((b.x - ob.left) / scaleX);
+      let srcY = Math.round((b.y - ob.top) / scaleY);
+      let srcW = Math.round(b.w / scaleX);
+      let srcH = Math.round(b.h / scaleY);
+
+      if (Math.abs(b.x - ob.left) <= 1.5 || srcX <= 1) srcX = 0;
+      if (Math.abs(b.y - ob.top) <= 1.5 || srcY <= 1) srcY = 0;
+      if (Math.abs((b.x + b.w) - (ob.left + ob.w)) <= 1.5 || (srcX + srcW >= ob.natW - 1)) srcW = ob.natW - srcX;
+      if (Math.abs((b.y + b.h) - (ob.top + ob.h)) <= 1.5 || (srcY + srcH >= ob.natH - 1)) srcH = ob.natH - srcY;
+
+      srcX = Math.max(0, Math.min(ob.natW - 1, srcX));
+      srcY = Math.max(0, Math.min(ob.natH - 1, srcY));
+      srcW = Math.max(1, Math.min(ob.natW - srcX, srcW));
+      srcH = Math.max(1, Math.min(ob.natH - srcY, srcH));
 
       const rx = document.getElementById('cropRegionX');
       const ry = document.getElementById('cropRegionY');
@@ -5520,6 +5631,20 @@ window.ImageToolsController = {
       if (ry && document.activeElement !== ry) ry.value = srcY;
       if (rw && document.activeElement !== rw) rw.value = srcW;
       if (rh && document.activeElement !== rh) rh.value = srcH;
+
+      const tx = document.getElementById('toolRegionX');
+      const ty = document.getElementById('toolRegionY');
+      const tw = document.getElementById('toolRegionW');
+      const th = document.getElementById('toolRegionH');
+      if (tx) tx.value = srcX;
+      if (ty) ty.value = srcY;
+      if (tw) tw.value = srcW;
+      if (th) th.value = srcH;
+
+      const diagCropValues = document.getElementById('diagCropValues');
+      if (diagCropValues) {
+        diagCropValues.textContent = `X: ${srcX}, Y: ${srcY}, W: ${srcW}, H: ${srcH} (live)`;
+      }
       return;
     }
     const sel = window.AppCoordinator?.getActiveSelection();
@@ -5530,28 +5655,131 @@ window.ImageToolsController = {
   },
 
   _onCropInputChange() {
-    const x = Math.max(0, parseInt(document.getElementById('cropRegionX')?.value || document.getElementById('toolRegionX')?.value, 10) || 0);
-    const y = Math.max(0, parseInt(document.getElementById('cropRegionY')?.value || document.getElementById('toolRegionY')?.value, 10) || 0);
-    const w = Math.max(10, parseInt(document.getElementById('cropRegionW')?.value || document.getElementById('toolRegionW')?.value, 10) || 10);
-    const h = Math.max(10, parseInt(document.getElementById('cropRegionH')?.value || document.getElementById('toolRegionH')?.value, 10) || 10);
-
-    const sel = window.AppCoordinator?.getActiveSelection();
-    if (sel && sel.type === 'image' && window.ImageObjects) {
-      const img = window.ImageObjects.getImage(sel.id);
-      if (img && window.Stage && window.Stage.isCroppingImage && window.Stage.cropOrigBounds) {
-        const ob = window.Stage.cropOrigBounds;
-        const nw = img.naturalWidth || img.width;
-        const nh = img.naturalHeight || img.height;
-        const scaleX = ob.w / nw;
-        const scaleY = ob.h / nh;
-        window.Stage.cropBox = {
-          x: ob.left + x * scaleX,
-          y: ob.top + y * scaleY,
-          w: Math.min(ob.w, w * scaleX),
-          h: Math.min(ob.h, h * scaleY)
-        };
-        window.Stage.updateCropOverlayUI();
+    const parseCoord = (id1, id2, def) => {
+      const v1 = document.getElementById(id1)?.value;
+      if (v1 !== undefined && v1 !== null && v1 !== '') {
+        const n = parseInt(v1, 10);
+        if (!isNaN(n)) return n;
       }
+      const v2 = document.getElementById(id2)?.value;
+      if (v2 !== undefined && v2 !== null && v2 !== '') {
+        const n = parseInt(v2, 10);
+        if (!isNaN(n)) return n;
+      }
+      return def;
+    };
+
+    const x = Math.max(0, parseCoord('cropRegionX', 'toolRegionX', 0));
+    const y = Math.max(0, parseCoord('cropRegionY', 'toolRegionY', 0));
+    const w = Math.max(1, parseCoord('cropRegionW', 'toolRegionW', 10));
+    const h = Math.max(1, parseCoord('cropRegionH', 'toolRegionH', 10));
+
+    const tx = document.getElementById('toolRegionX');
+    const ty = document.getElementById('toolRegionY');
+    const tw = document.getElementById('toolRegionW');
+    const th = document.getElementById('toolRegionH');
+    if (tx) tx.value = x;
+    if (ty) ty.value = y;
+    if (tw) tw.value = w;
+    if (th) th.value = h;
+
+    if (window.Stage && window.Stage.isCroppingImage && window.Stage.cropOrigBounds) {
+      const ob = window.Stage.cropOrigBounds;
+      const nw = ob.natW || 1280;
+      const nh = ob.natH || 720;
+      const scaleX = ob.w / nw;
+      const scaleY = ob.h / nh;
+      window.Stage.cropBox = {
+        x: ob.left + x * scaleX,
+        y: ob.top + y * scaleY,
+        w: Math.min(ob.w - (x * scaleX), w * scaleX),
+        h: Math.min(ob.h - (y * scaleY), h * scaleY)
+      };
+      window.Stage.updateCropOverlayUI();
+
+      const diagCropValues = document.getElementById('diagCropValues');
+      if (diagCropValues) {
+        diagCropValues.textContent = `X: ${x}, Y: ${y}, W: ${w}, H: ${h} (editing)`;
+      }
+    }
+  },
+
+  setCropFullHeight() {
+    const photo = this._getBackgroundPhoto();
+    if (!photo) return;
+    const nh = photo.naturalHeight || 720;
+    const ry = document.getElementById('cropRegionY');
+    const rh = document.getElementById('cropRegionH');
+    const ty = document.getElementById('toolRegionY');
+    const th = document.getElementById('toolRegionH');
+    if (ry) ry.value = 0;
+    if (rh) rh.value = Math.round(nh);
+    if (ty) ty.value = 0;
+    if (th) th.value = Math.round(nh);
+
+    if (window.Stage && window.Stage.isCroppingImage && window.Stage.cropOrigBounds) {
+      const ob = window.Stage.cropOrigBounds;
+      window.Stage.cropBox.y = ob.top;
+      window.Stage.cropBox.h = ob.h;
+      window.Stage.updateCropOverlayUI();
+      this.syncFromStageCrop();
+    }
+  },
+
+  setCropFullWidth() {
+    const photo = this._getBackgroundPhoto();
+    if (!photo) return;
+    const nw = photo.naturalWidth || 1280;
+    const rx = document.getElementById('cropRegionX');
+    const rw = document.getElementById('cropRegionW');
+    const tx = document.getElementById('toolRegionX');
+    const tw = document.getElementById('toolRegionW');
+    if (rx) rx.value = 0;
+    if (rw) rw.value = Math.round(nw);
+    if (tx) tx.value = 0;
+    if (tw) tw.value = Math.round(nw);
+
+    if (window.Stage && window.Stage.isCroppingImage && window.Stage.cropOrigBounds) {
+      const ob = window.Stage.cropOrigBounds;
+      window.Stage.cropBox.x = ob.left;
+      window.Stage.cropBox.w = ob.w;
+      window.Stage.updateCropOverlayUI();
+      this.syncFromStageCrop();
+    }
+  },
+
+  setCropFullImage() {
+    const photo = this._getBackgroundPhoto();
+    if (!photo) return;
+    const nw = photo.naturalWidth || 1280;
+    const nh = photo.naturalHeight || 720;
+    const rx = document.getElementById('cropRegionX');
+    const ry = document.getElementById('cropRegionY');
+    const rw = document.getElementById('cropRegionW');
+    const rh = document.getElementById('cropRegionH');
+    const tx = document.getElementById('toolRegionX');
+    const ty = document.getElementById('toolRegionY');
+    const tw = document.getElementById('toolRegionW');
+    const th = document.getElementById('toolRegionH');
+    if (rx) rx.value = 0;
+    if (ry) ry.value = 0;
+    if (rw) rw.value = Math.round(nw);
+    if (rh) rh.value = Math.round(nh);
+    if (tx) tx.value = 0;
+    if (ty) ty.value = 0;
+    if (tw) tw.value = Math.round(nw);
+    if (th) th.value = Math.round(nh);
+
+    if (window.Stage && window.Stage.isCroppingImage && window.Stage.cropOrigBounds) {
+      const ob = window.Stage.cropOrigBounds;
+      window.Stage.cropBox = {
+        x: ob.left,
+        y: ob.top,
+        w: ob.w,
+        h: ob.h
+      };
+      window.Stage.updateCropOverlayUI();
+      this.syncFromStageCrop();
     }
   },
 
@@ -6832,8 +7060,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btnMatch.addEventListener('click', () => {
       const loadedPhoto = window.getLoadedPhoto();
       if (!loadedPhoto) return;
-      document.getElementById('canvasWidthInput').value = loadedPhoto.naturalWidth;
-      document.getElementById('canvasHeightInput').value = loadedPhoto.naturalHeight;
+      const crop = loadedPhoto.crop;
+      const hasCrop = crop && crop.enabled !== false && (crop.sourceWidth || crop.width) > 0;
+      const targetW = hasCrop ? (crop.sourceWidth || crop.width) : (loadedPhoto.naturalWidth || 1280);
+      const targetH = hasCrop ? (crop.sourceHeight || crop.height) : (loadedPhoto.naturalHeight || 720);
+      document.getElementById('canvasWidthInput').value = Math.round(targetW);
+      document.getElementById('canvasHeightInput').value = Math.round(targetH);
       document.getElementById('photoFitSelect').value = 'match';
       syncPresetDropdownFromInputs();
       updateOrientationAndPaperUI();

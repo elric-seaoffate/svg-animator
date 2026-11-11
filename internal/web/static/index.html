@@ -1357,6 +1357,13 @@
                 <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.15rem;">CANVAS BACKGROUND</div>
                 <div id="cropBackgroundName" style="font-weight: 700; color: #58a6ff; font-size: 0.82rem; word-break: break-all;">Background Photo</div>
                 <div id="cropBackgroundDims" style="font-size: 0.72rem; color: #8b949e; margin-top: 0.1rem;">1280 &times; 720 px</div>
+
+                <!-- Objective Diagnostic Readout -->
+                <div id="cropDiagnosticReadout" style="margin-top: 0.35rem; padding: 0.35rem 0.45rem; background: rgba(0,0,0,0.35); border: 1px solid #30363d; border-radius: 4px; font-family: monospace; font-size: 0.7rem;">
+                  <div style="color: #8b949e;">Source: <span id="diagSourceDims" style="color: #f0f6fc; font-weight: 600;">—</span></div>
+                  <div style="color: #8b949e; margin-top: 2px;">Crop: <span id="diagCropValues" style="color: #7ee787; font-weight: 600;">Full bounds (uncropped)</span></div>
+                </div>
+
                 <div id="cropNoBackgroundWarning" style="margin-top: 0.35rem; font-size: 0.72rem; color: #e3b341; display: none;">Add a background image in Canvas &amp; Background to enable cropping.</div>
                 <!-- Compatibility Aliases for scripts/tests -->
                 <div id="cropSelectedImageName" style="display: none;"></div>
@@ -1382,6 +1389,12 @@
                   <span style="font-size: 0.68rem; color: #8b949e;">source px</span>
                   <span id="imageToolsRegionTitle" style="display: none;"></span>
                   <span id="imageToolsRegionUnit" style="display: none;"></span>
+                </div>
+                <!-- Quick Preset Action Buttons -->
+                <div style="display: flex; gap: 4px; margin-bottom: 0.4rem;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCropFullHeight" style="flex: 1; font-size: 0.68rem; padding: 0.2rem;" title="Preserve 100% of source image height (Y=0, Height=Max)">↕ Full Height</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCropFullWidth" style="flex: 1; font-size: 0.68rem; padding: 0.2rem;" title="Preserve 100% of source image width (X=0, Width=Max)">↔ Full Width</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCropFullImage" style="flex: 1; font-size: 0.68rem; padding: 0.2rem;" title="Reset crop frame to full source dimensions">⤢ Full Image</button>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0.4rem;">
                   <div>
