@@ -771,7 +771,21 @@ async function runHarness() {
   // UI presentation callbacks stubbed as no-ops for Stage 3 operational testing
   window.syncUIAfterHistoryRestore = function() {};
   window.openAccordionById = function() {};
-  window.triggerAppRender = function() {};
+  const harnessSvgRenderer = function() {
+    const el = document.getElementById('svgContainer');
+    if (el && window.SceneState && typeof window.SceneState.buildFullSVG === 'function') {
+      try {
+        const state = (window.SceneState && typeof window.SceneState.buildRenderState === 'function') ? window.SceneState.buildRenderState() : null;
+        el.innerHTML = window.SceneState.buildFullSVG(state);
+      } catch (e) {
+        console.error('harnessSvgRenderer error:', e);
+      }
+    }
+  };
+  window.triggerAppRender = harnessSvgRenderer;
+  if (window.AppCoordinator) {
+    window.AppCoordinator.registerRenderHandler(harnessSvgRenderer);
+  }
   window.getLoadedPhoto = function() { return window.SceneState ? window.SceneState.getLoadedPhoto() : null; };
   window.setLoadedPhoto = function(p) { return window.SceneState ? window.SceneState.setLoadedPhoto(p) : null; };
 
@@ -7156,6 +7170,38 @@ async function runHarness() {
   assert.ok(accTools, 'Scenario 55: #acc-image-tools exists in DOM');
   assert.ok(railBtnTools, 'Scenario 55: #railBtn-image-tools exists on rail');
 
+  // Verify dedicated top/bottom section separation and simultaneous visibility
+  const topSec = document.getElementById('imageToolsClipSnipTopSection');
+  const btmSec = document.getElementById('imageToolsCropBottomSection');
+  const divider = document.getElementById('imageToolsDivider');
+  assert.ok(topSec, 'Scenario 55: Top Clip & Snip section exists in DOM');
+  assert.ok(btmSec, 'Scenario 55: Bottom Crop section exists in DOM');
+  assert.ok(divider, 'Scenario 55: Visual divider exists between sections');
+  assert.notStrictEqual(topSec.style.display, 'none', 'Scenario 55: Top section is simultaneously visible');
+  assert.notStrictEqual(btmSec.style.display, 'none', 'Scenario 55: Bottom section is simultaneously visible');
+
+  // Verify elements exist and are positioned within top and bottom sections in index.html
+  assert.ok(document.getElementById('btnStartClipSnip'), 'Scenario 55: Start Clip/Snip button exists');
+  assert.ok(document.getElementById('imageToolsPreviewCanvas'), 'Scenario 55: Preview Canvas exists');
+  assert.ok(document.getElementById('btnStartCrop'), 'Scenario 55: Start Crop button exists');
+  assert.ok(document.getElementById('btnApplyCropInTools'), 'Scenario 55: Apply Crop button exists');
+  assert.ok(document.getElementById('cropVersionsList'), 'Scenario 55: Crop Versions list exists');
+
+  const topPos = htmlSource.indexOf('id="imageToolsClipSnipTopSection"');
+  const dividerPos = htmlSource.indexOf('id="imageToolsDivider"');
+  const btmPos = htmlSource.indexOf('id="imageToolsCropBottomSection"');
+  const btnStartClipPos = htmlSource.indexOf('id="btnStartClipSnip"');
+  const previewCanvasPos = htmlSource.indexOf('id="imageToolsPreviewCanvas"');
+  const btnStartCropPos = htmlSource.indexOf('id="btnStartCrop"');
+  const btnApplyCropPos = htmlSource.indexOf('id="btnApplyCropInTools"');
+
+  assert.ok(topPos !== -1 && dividerPos !== -1 && btmPos !== -1, 'Scenario 55: Top section, divider and bottom section found in HTML');
+  assert.ok(topPos < dividerPos && dividerPos < btmPos, 'Scenario 55: Top section precedes divider precedes bottom section');
+  assert.ok(btnStartClipPos > topPos && btnStartClipPos < dividerPos, 'Scenario 55: Start Clip/Snip is inside top section');
+  assert.ok(previewCanvasPos > topPos && previewCanvasPos < dividerPos, 'Scenario 55: Preview Canvas is inside top section');
+  assert.ok(btnStartCropPos > btmPos, 'Scenario 55: Start Crop is inside bottom section');
+  assert.ok(btnApplyCropPos > btmPos, 'Scenario 55: Apply Crop is inside bottom section');
+
   // Verify default mode
   assert.ok(window.ImageToolsController, 'Scenario 55: ImageToolsController is initialized');
   window.ImageToolsController.init();
@@ -7580,6 +7626,115 @@ async function runHarness() {
   assert.ok(!svgOrigActive.includes('<svg '), 'Scenario 62: Original rendered without nested svg viewport');
 
   console.log('[HARNESS] Scenario 62 PASS: Scene Exports Render the Currently Active Crop Version verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 63: Full End-to-End Image Crop Workflow, DOM Re-Rendering & Version Switching
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 63: Full End-to-End Image Crop Workflow, DOM Re-Rendering & Version Switching...');
+
+  // 1. Create a dedicated test image object
+  const s63Img = window.ImageObjects.createImage({
+    name: 'E2E Hero Asset',
+    filename: 'hero.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 100,
+    y: 100,
+    width: 400,
+    height: 300,
+    naturalWidth: 800,
+    naturalHeight: 600
+  });
+  if (window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
+    window.LayerManager.addEntry('image', s63Img.id);
+  }
+
+  // 2. Select image via AppCoordinator and verify UI synchronization
+  window.AppCoordinator.selectObject('image', s63Img.id, { openAccordionId: 'acc-image-tools' });
+  assert.strictEqual(window.AppCoordinator.activeSelection.type, 'image', 'Scenario 63: Image selected');
+  assert.strictEqual(window.AppCoordinator.activeSelection.id, s63Img.id, 'Scenario 63: Correct image ID selected');
+
+  const cropSelectedName = document.getElementById('cropSelectedImageName');
+  assert.strictEqual(cropSelectedName.textContent, 'E2E Hero Asset', 'Scenario 63: Bottom section displays selected image name');
+  const btnStartCrop = document.getElementById('btnStartCrop');
+  assert.strictEqual(btnStartCrop.disabled, false, 'Scenario 63: Start Crop button is enabled for selected image');
+
+  // Verify initial crop versions list has "Original"
+  const listEl63 = document.getElementById('cropVersionsList');
+  assert.ok(listEl63 && listEl63.children.length >= 1, 'Scenario 63: At least Original version pill exists in crop list');
+
+  // 3. Enter interactive crop mode via Start Crop button click
+  btnStartCrop.click();
+  assert.ok(window.Stage && window.Stage.isCroppingImage, 'Scenario 63: Stage entered interactive crop mode');
+  assert.strictEqual(window.Stage.activeCropImage.id, s63Img.id, 'Scenario 63: Stage crop target matches selected image');
+
+  // 4. Simulate user dragging crop handles to select a sub-rectangle
+  // Stage coordinates for 400x300 image at x=100, y=100: bounds are (100, 100, 500, 400)
+  // Sub-rectangle on canvas: x=150, y=150, w=200, h=150 (offset dx=50, dy=50 from image top-left)
+  // Natural image size is 800x600, so scaleX = scaleY = 2, yielding sourceX=100, sourceY=100, sourceW=400, sourceH=300
+  window.Stage.cropBox = { x: 150, y: 150, w: 200, h: 150 };
+  window.Stage.cropOrigBounds = { left: 100, top: 100, right: 500, bottom: 400, w: 400, h: 300, natW: 800, natH: 600 };
+  window.syncImageToolsFromCrop();
+
+  const rx = parseInt(document.getElementById('cropRegionX').value, 10);
+  const ry = parseInt(document.getElementById('cropRegionY').value, 10);
+  const rw = parseInt(document.getElementById('cropRegionW').value, 10);
+  const rh = parseInt(document.getElementById('cropRegionH').value, 10);
+  assert.strictEqual(rx, 100, 'Scenario 63: Crop X input updated to 100 in natural image coordinates');
+  assert.strictEqual(ry, 100, 'Scenario 63: Crop Y input updated to 100 in natural image coordinates');
+  assert.strictEqual(rw, 400, 'Scenario 63: Crop W input updated to 400');
+  assert.strictEqual(rh, 300, 'Scenario 63: Crop H input updated to 300');
+
+  // 5. Apply Crop via bottom section button click
+  const btnApplyCrop = document.getElementById('btnApplyCropInTools');
+  btnApplyCrop.click();
+  assert.strictEqual(window.Stage.isCroppingImage, false, 'Scenario 63: Stage exited interactive crop mode after Apply Crop');
+
+  // Verify cropped object state
+  const updatedImg = window.ImageObjects.getImage(s63Img.id);
+  assert.ok(updatedImg.crop && updatedImg.crop.enabled, 'Scenario 63: Image object has active crop enabled');
+  assert.strictEqual(updatedImg.cropVersions.length, 2, 'Scenario 63: Two crop versions recorded (Original + Crop 1)');
+  assert.strictEqual(updatedImg.activeCropVersionId, 'crop-1', 'Scenario 63: Active crop version is crop-1');
+
+  // Verify SVG markup compilation for cropped image uses nested <svg ... viewBox="...">
+  const cropSvgMarkup = window.ImageObjects.renderImageElement(updatedImg, 1280, 720);
+  assert.ok(cropSvgMarkup.startsWith('<svg '), 'Scenario 63: Cropped image compiles to nested SVG element');
+  assert.ok(cropSvgMarkup.includes('viewBox="100.00 100.00 400.00 300.00"'), 'Scenario 63: Nested SVG has viewBox matching natural source coordinates');
+
+  // Verify DOM container re-rendering via triggerRender
+  const svgContainer = document.getElementById('svgContainer');
+  window.triggerRender();
+  assert.ok(svgContainer.innerHTML.includes('viewBox="100.00 100.00 400.00 300.00"'), 'Scenario 63: DOM svgContainer contains cropped image with viewBox');
+
+  // 6. Test version switching to "Original" via pill click
+  const origPill = listEl63.children.find((c) => c.getAttribute('data-version-id') === 'original');
+  assert.ok(origPill, 'Scenario 63: Original version pill exists in DOM');
+  origPill.click();
+
+  const imgAtOrig = window.ImageObjects.getImage(s63Img.id);
+  assert.strictEqual(imgAtOrig.activeCropVersionId, 'original', 'Scenario 63: Switched back to original version');
+  assert.ok(!imgAtOrig.crop || !imgAtOrig.crop.enabled, 'Scenario 63: Crop is disabled or removed when Original is active');
+
+  window.triggerRender();
+  const origSvgMarkup = window.ImageObjects.renderImageElement(imgAtOrig, 1280, 720);
+  assert.ok(origSvgMarkup.startsWith('<image '), 'Scenario 63: Original version compiles to standard image tag');
+  assert.ok(!origSvgMarkup.includes('<svg '), 'Scenario 63: Original version does not use nested SVG element');
+
+  // 7. Test re-selecting "Crop 1" via pill click
+  const crop1Pill = listEl63.children.find((c) => c.getAttribute('data-version-id') === 'crop-1');
+  assert.ok(crop1Pill, 'Scenario 63: Crop 1 pill exists in DOM');
+  crop1Pill.click();
+
+  const imgAtCrop1 = window.ImageObjects.getImage(s63Img.id);
+  assert.strictEqual(imgAtCrop1.activeCropVersionId, 'crop-1', 'Scenario 63: Switched back to crop-1');
+  assert.strictEqual(imgAtCrop1.crop.enabled, true, 'Scenario 63: Crop re-enabled when crop-1 is active');
+
+  // 8. Test Clip/Snip isolation: starting Clip cancels Crop and does not overwrite crop versions
+  window.ImageToolsController.startClipSnip();
+  assert.strictEqual(window.Stage.isCroppingImage, false, 'Scenario 63: Starting clip cancels crop mode');
+  assert.strictEqual(imgAtCrop1.cropVersions.length, 2, 'Scenario 63: Crop versions untouched by clip initiation');
+  window.Stage.cancelClipMode();
+
+  console.log('[HARNESS] Scenario 63 PASS: Full End-to-End Image Crop Workflow, DOM Re-Rendering & Version Switching verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }

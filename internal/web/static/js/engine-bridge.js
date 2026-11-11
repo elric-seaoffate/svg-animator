@@ -1367,7 +1367,7 @@
       if (this.isReady()) {
         const payload = {
           id: String(id),
-          crop: crop,
+          crop: Object.assign({ enabled: true }, crop),
           name: name ? String(name) : ''
         };
         if (geom) {
@@ -3571,7 +3571,7 @@
       const y = cy - h / 2;
       const op = typeof img.opacity === 'number' ? img.opacity : 1.0;
       const par = img.maintainAspectRatio !== false ? 'xMidYMid meet' : 'none';
-      const href = img.src || img.assetRef || '';
+      const href = img.src || img.data || img.assetRef || '';
 
       let innerSvg = '';
       if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
@@ -3579,9 +3579,9 @@
         const natW = Number(img.naturalWidth) || Number(crop.origWidth) || w;
         const natH = Number(img.naturalHeight) || Number(crop.origHeight) || h;
         const vb = `${crop.sourceX.toFixed(2)} ${crop.sourceY.toFixed(2)} ${crop.sourceWidth.toFixed(2)} ${crop.sourceHeight.toFixed(2)}`;
-        innerSvg = `<svg id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
+        innerSvg = `<svg id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" xlink:href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
       } else {
-        innerSvg = `<image id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
+        innerSvg = `<image id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" xlink:href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
       }
 
       if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {

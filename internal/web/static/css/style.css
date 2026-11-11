@@ -775,6 +775,38 @@ header h1 {
   font-weight: 600;
 }
 
+.image-tools-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.image-tools-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 1rem 0;
+  border: none;
+}
+
+.clip-snip-source-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clip-snip-source-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.clip-snip-source-btn.active {
+  background: rgba(56, 211, 159, 0.2) !important;
+  border-color: #38d39f !important;
+  color: #38d39f !important;
+  font-weight: 600;
+}
+
 #bgExtractBox {
   pointer-events: none;
 }

@@ -8,6 +8,17 @@
  *   Layer 1 (UI Presentation) -> Layer 2 (AppCoordinator) -> Layer 3 (Operational Functionality)
  */
 (function() {
+  // Global render trigger helper ensuring any presentation module can request an authoritative scene render
+  if (typeof window !== 'undefined') {
+    window.triggerRender = function() {
+      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+        window.AppCoordinator.requestRender();
+      } else if (typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
+    };
+  }
+
   window.AppCoordinator = {
     activeSelection: { type: null, id: null, items: [] },
     groupEditModeGroupId: null,

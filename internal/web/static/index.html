@@ -1212,172 +1212,250 @@
         </div>
         <div class="accordion-body">
           <div class="control-group">
-            <!-- Mode Switcher -->
-            <label class="control-label" style="font-weight: 600; color: #c9d1d9; margin-bottom: 0.35rem; display: block;">Editing Mode</label>
-            <div class="image-tools-mode-bar" role="group" aria-label="Image Tool Mode" style="display: flex; gap: 4px; margin-bottom: 0.75rem;">
-              <button type="button" class="btn btn-secondary btn-sm image-tools-mode-btn active" id="btnModeCrop" data-mode="crop" title="Non-destructive Source Cropping" style="flex: 1; font-size: 0.72rem; padding: 0.3rem 0.2rem;">✂ Crop</button>
-              <button type="button" class="btn btn-secondary btn-sm image-tools-mode-btn" id="btnModeClip" data-mode="clip" title="Non-destructive Area Extraction / Clipping" style="flex: 1; font-size: 0.72rem; padding: 0.3rem 0.2rem;">◩ Clip</button>
-              <button type="button" class="btn btn-secondary btn-sm image-tools-mode-btn" id="btnModeSnip" data-mode="snip" title="Copy Background Region into Image Object" style="flex: 1.2; font-size: 0.72rem; padding: 0.3rem 0.2rem;">📸 Snip BG</button>
-            </div>
 
-            <!-- Source Info Card -->
-            <div id="imageToolsSourceCard" class="image-tools-card" style="padding: 0.5rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem;">
-              <div style="font-size: 0.72rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Source Target</div>
-              <div id="imageToolsSelectedName" style="font-weight: bold; color: #58a6ff; font-size: 0.85rem; word-break: break-all;">No Image Selected</div>
-              <div id="imageToolsOriginalDims" style="font-size: 0.75rem; color: #8b949e; margin-top: 0.15rem;">Select an image on canvas or switch to Snip BG</div>
-              <div id="imageToolsNoImageWarning" style="margin-top: 0.4rem; display: flex; gap: 6px; align-items: center;">
-                <button type="button" class="btn btn-primary btn-sm" id="btnToolsImportImage" style="font-size: 0.75rem; padding: 0.2rem 0.6rem;">+ Import Image</button>
-                <span style="font-size: 0.72rem; color: #8b949e;">or switch to Snip BG</span>
+            <!-- ============================================================== -->
+            <!-- TOP SECTION: CLIP & SNIP                                       -->
+            <!-- ============================================================== -->
+            <div id="imageToolsClipSnipTopSection" class="image-tools-section" style="margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: #38d39f; text-transform: uppercase; letter-spacing: 0.5px;">◩ Clip &amp; Snip</span>
+                <span id="clipSnipStatusBadge" class="badge" style="background: rgba(56, 211, 159, 0.15); color: #38d39f; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px;">Ready</span>
               </div>
-            </div>
+              <p style="font-size: 0.72rem; color: #8b949e; margin: 0 0 0.5rem 0; line-height: 1.35;">
+                Capture pixel sub-regions from the canvas background or selected image as new independent image assets.
+              </p>
 
-            <!-- SECTION 1: CROP IMAGE MODE -->
-            <div id="imageToolsCropSection">
-              <div class="image-tools-card" style="padding: 0.5rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                  <span id="imageToolsRegionTitle" style="font-size: 0.72rem; color: #8b949e; text-transform: uppercase; font-weight: 600;">Crop Region</span>
-                  <span id="imageToolsRegionUnit" style="font-size: 0.7rem; color: #8b949e;">source px</span>
+              <!-- Source Selector -->
+              <label class="control-label" style="font-size: 0.72rem; color: #8b949e; font-weight: 600; margin-bottom: 0.25rem; display: block;">CAPTURE SOURCE</label>
+              <div class="image-tools-source-bar" role="group" aria-label="Clip/Snip Source" style="display: flex; gap: 4px; margin-bottom: 0.5rem;">
+                <button type="button" class="btn btn-secondary btn-sm clip-snip-source-btn active" id="btnSourceBg" data-source="background" style="flex: 1; font-size: 0.72rem; padding: 0.3rem 0.2rem;" title="Capture region of canvas background">📸 Background</button>
+                <button type="button" class="btn btn-secondary btn-sm clip-snip-source-btn" id="btnSourceImage" data-source="image" style="flex: 1; font-size: 0.72rem; padding: 0.3rem 0.2rem;" title="Capture region of selected image">🖼️ Selected Image</button>
+              </div>
+
+              <!-- Source Target Info -->
+              <div id="clipSnipSourceCard" class="image-tools-card" style="padding: 0.45rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.6rem;">
+                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.15rem;">Source Info</div>
+                <div id="clipSnipSourceTitle" style="font-weight: 600; color: #c9d1d9; font-size: 0.8rem; word-break: break-all;">Background Photo / Canvas</div>
+                <div id="clipSnipSourceDims" style="font-size: 0.72rem; color: #8b949e; margin-top: 0.1rem;">1280 &times; 720 px</div>
+              </div>
+
+              <!-- Start Button -->
+              <div style="margin-bottom: 0.5rem;">
+                <button type="button" class="btn btn-primary btn-sm" id="btnStartClipSnip" style="width: 100%; font-size: 0.76rem; padding: 0.35rem;">📸 Select Background Region</button>
+                <!-- Hidden button aliases for compatibility with tests/scripts -->
+                <button type="button" id="btnStartClip" style="display: none;"></button>
+                <button type="button" id="btnStartBgSnip" style="display: none;"></button>
+                <button type="button" id="btnModeClip" style="display: none;"></button>
+                <button type="button" id="btnModeSnip" style="display: none;"></button>
+              </div>
+
+              <!-- Selection Coordinates -->
+              <div class="image-tools-card" style="padding: 0.45rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.55rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span id="clipRegionTitle" style="font-size: 0.7rem; color: #8b949e; text-transform: uppercase; font-weight: 600;">Selection Bounds</span>
+                  <span id="clipRegionUnit" style="font-size: 0.68rem; color: #8b949e;">pixels</span>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0.5rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0.4rem;">
                   <div>
-                    <label style="font-size: 0.72rem; color: #8b949e; display: block; margin-bottom: 2px;">X</label>
-                    <input type="number" id="toolRegionX" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="0" min="0">
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">X</label>
+                    <input type="number" id="clipRegionX" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="0" min="0">
                   </div>
                   <div>
-                    <label style="font-size: 0.72rem; color: #8b949e; display: block; margin-bottom: 2px;">Y</label>
-                    <input type="number" id="toolRegionY" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="0" min="0">
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Y</label>
+                    <input type="number" id="clipRegionY" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="0" min="0">
                   </div>
                   <div>
-                    <label style="font-size: 0.72rem; color: #8b949e; display: block; margin-bottom: 2px;">Width</label>
-                    <input type="number" id="toolRegionW" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="200" min="10">
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Width</label>
+                    <input type="number" id="clipRegionW" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="200" min="10">
                   </div>
                   <div>
-                    <label style="font-size: 0.72rem; color: #8b949e; display: block; margin-bottom: 2px;">Height</label>
-                    <input type="number" id="toolRegionH" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="150" min="10">
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Height</label>
+                    <input type="number" id="clipRegionH" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="150" min="10">
                   </div>
-                </div>
-                <div style="display: flex; gap: 6px; margin-bottom: 0.5rem;">
-                  <button type="button" class="btn btn-secondary btn-sm" id="btnToolSelectOnCanvas" style="flex: 1; font-size: 0.75rem; padding: 0.3rem;" title="Drag interactive frame on canvas">✏️ Select Crop Area</button>
-                  <button type="button" class="btn btn-primary btn-sm" id="btnToolApply" style="flex: 1; font-size: 0.75rem; padding: 0.3rem;">✓ Apply Crop</button>
                 </div>
                 <div style="display: flex; gap: 6px;">
-                  <button type="button" class="btn btn-secondary btn-sm" id="btnToolCancel" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;">Cancel Overlay</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btnToolReset" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;" title="Reset to Original uncropped">⟲ Reset to Original</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCaptureSelectedArea" style="flex: 1.3; font-size: 0.75rem; padding: 0.32rem; color: #38d39f; border-color: rgba(56,211,159,0.4);" disabled>📸 Capture Selected Area</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCancelClipSelection" style="flex: 0.7; font-size: 0.72rem; padding: 0.32rem;">✕ Cancel</button>
+                  <!-- Legacy ID aliases -->
+                  <button type="button" id="btnConfirmClipArea" style="display: none;"></button>
+                  <button type="button" id="btnConfirmBgSnip" style="display: none;"></button>
+                  <span id="imageToolsClipStatus" style="display: none;"></span>
+                  <span id="imageToolsSnipStatus" style="display: none;"></span>
                 </div>
               </div>
 
-              <!-- Crop Versions History Card -->
-              <div class="image-tools-card" id="imageToolsCropVersionsCard" style="padding: 0.5rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                  <span style="font-size: 0.72rem; color: #58a6ff; text-transform: uppercase; font-weight: 600;">Crop Versions</span>
-                  <span id="imageToolsCurrentCropLabel" style="font-size: 0.7rem; color: #8b949e;">Active: Original</span>
+              <!-- Capture Preview Workspace -->
+              <div class="image-tools-card" id="imageToolsPreviewSection" style="padding: 0.45rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.6rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                  <span style="font-size: 0.7rem; color: #8b949e; text-transform: uppercase; font-weight: 600;">Capture Preview</span>
+                  <span id="clipPreviewDims" style="font-size: 0.7rem; color: #38d39f; font-weight: 600;">—</span>
+                  <span id="imageToolsPreviewDims" style="display: none;"></span>
                 </div>
-                <div id="imageToolsPreviousCropsList" class="crop-versions-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; margin-bottom: 0.4rem;">
+                <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 110px; max-height: 160px; position: relative;">
+                  <canvas id="imageToolsPreviewCanvas" width="320" height="180" style="max-width: 100%; max-height: 160px; object-fit: contain; display: block;"></canvas>
+                  <div id="imageToolsPreviewEmptyMsg" style="position: absolute; color: #8b949e; font-size: 0.75rem; text-align: center; pointer-events: none; padding: 0.5rem;">Capture an area to preview</div>
+                </div>
+                <div id="imageToolsPreviewNote" style="font-size: 0.68rem; color: #8b949e; margin-top: 0.2rem; font-style: italic;">No region captured yet</div>
+
+                <!-- Preview Name for Creation or Export -->
+                <div style="margin-top: 0.4rem;">
+                  <label style="font-size: 0.68rem; color: #8b949e; display: block; margin-bottom: 2px;">Name</label>
+                  <input type="text" id="imageToolsPreviewName" class="text-field-input" style="width: 100%; box-sizing: border-box; font-size: 0.75rem; padding: 0.22rem 0.4rem;" placeholder="e.g. Background Snip 1">
+                </div>
+
+                <!-- Create Image Object -->
+                <div style="margin-top: 0.4rem;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnCreateImageFromPreview" style="width: 100%; font-size: 0.76rem; padding: 0.35rem;" disabled>➕ Create Image Object</button>
+                </div>
+
+                <!-- Direct Export Controls -->
+                <div style="display: flex; gap: 4px; margin-top: 0.4rem;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnExportClipPng" style="flex: 1; font-size: 0.7rem; padding: 0.22rem;" disabled>Export PNG</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnExportClipJpeg" style="flex: 0.9; font-size: 0.7rem; padding: 0.22rem;" disabled>JPEG</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnExportClipWebp" style="flex: 0.9; font-size: 0.7rem; padding: 0.22rem;" disabled>WebP</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnDiscardPreview" style="font-size: 0.7rem; padding: 0.22rem 0.4rem;" title="Clear preview" disabled>✕</button>
+                  <!-- Legacy Export Select Alias -->
+                  <select id="selPreviewExportFormat" style="display: none;"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select>
+                  <button type="button" id="btnExportPreview" style="display: none;"></button>
+                </div>
+              </div>
+
+              <!-- Optional Masking Sub-Action -->
+              <div id="clipMaskOriginalRow" style="display: none; border-top: 1px solid var(--border); padding-top: 0.35rem; margin-top: 0.35rem; margin-bottom: 0.6rem;">
+                <div style="font-size: 0.68rem; color: #8b949e; margin-bottom: 0.25rem;">Optional: Mask Original Object</div>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnApplyClipToOriginal" style="flex: 1; font-size: 0.7rem; padding: 0.22rem;">Apply Clip to Original</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnResetAppliedClip" style="flex: 1; font-size: 0.7rem; padding: 0.22rem;">Reset Applied Clip</button>
+                </div>
+              </div>
+
+              <!-- Result Inspector -->
+              <div id="imageToolsResultCard" class="image-tools-card" style="display: none; padding: 0.45rem; background: rgba(56, 211, 159, 0.08); border: 1px solid rgba(56, 211, 159, 0.3); border-radius: 6px; margin-bottom: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                  <span style="font-size: 0.7rem; color: #38d39f; text-transform: uppercase; font-weight: 600;">Last Result</span>
+                  <span id="imageToolsResultBadge" class="badge" style="background: rgba(56, 211, 159, 0.2); color: #38d39f; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px;">Created</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 0.35rem;">
+                  <canvas id="imageToolsResultThumb" width="56" height="42" style="width: 56px; height: 42px; object-fit: cover; border: 1px solid var(--border); border-radius: 4px; background: #000; flex-shrink: 0;"></canvas>
+                  <div style="flex: 1; min-width: 0;">
+                    <div id="imageToolsResultName" style="font-weight: bold; font-size: 0.8rem; color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Background Snip 1</div>
+                    <div id="imageToolsResultDetails" style="font-size: 0.7rem; color: #8b949e;">320 &times; 180 px &bull; PNG</div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnToolSelectResult" style="flex: 1; font-size: 0.7rem; padding: 0.22rem;">🎯 Select Result</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnToolShowInLayers" style="flex: 1; font-size: 0.7rem; padding: 0.22rem;">☰ Show in Layers</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- PERMANENT SECTION DIVIDER -->
+            <div id="imageToolsDivider" class="image-tools-divider" style="height: 1px; background: var(--border); margin: 0.9rem 0; border: none;"></div>
+
+            <!-- ============================================================== -->
+            <!-- BOTTOM SECTION: CROP IMAGE                                     -->
+            <!-- ============================================================== -->
+            <div id="imageToolsCropBottomSection" class="image-tools-section">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.5px;">✂ Crop Image</span>
+                <span id="cropStatusBadge" class="badge" style="background: rgba(88, 166, 255, 0.15); color: #58a6ff; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px;">Non-Destructive</span>
+              </div>
+              <p style="font-size: 0.72rem; color: #8b949e; margin: 0 0 0.5rem 0; line-height: 1.35;">
+                Selectively display rectangular regions of an imported image object while preserving original pixels.
+              </p>
+
+              <!-- Selected Image Target Card -->
+              <div id="cropImageSelectedCard" class="image-tools-card" style="padding: 0.45rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.6rem;">
+                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.15rem;">SELECTED IMAGE</div>
+                <div id="cropSelectedImageName" style="font-weight: 700; color: #58a6ff; font-size: 0.82rem; word-break: break-all;">No Image Selected</div>
+                <div id="cropSelectedImageDims" style="font-size: 0.72rem; color: #8b949e; margin-top: 0.1rem;">Select an Image Object from the canvas or Layers drawer to crop it.</div>
+                <div id="cropNoImageWarning" style="margin-top: 0.35rem; display: flex; gap: 6px; align-items: center;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnCropImportImage" style="font-size: 0.72rem; padding: 0.2rem 0.55rem;">+ Import Image</button>
+                  <span style="font-size: 0.7rem; color: #8b949e;">or select existing in Layers</span>
+                </div>
+                <!-- Legacy Card Aliases -->
+                <div id="imageToolsSelectedName" style="display: none;"></div>
+                <div id="imageToolsOriginalDims" style="display: none;"></div>
+                <div id="imageToolsNoImageWarning" style="display: none;"></div>
+                <button type="button" id="btnToolsImportImage" style="display: none;"></button>
+              </div>
+
+              <!-- Start Crop Button -->
+              <div style="margin-bottom: 0.5rem;">
+                <button type="button" class="btn btn-primary btn-sm" id="btnStartCrop" style="width: 100%; font-size: 0.76rem; padding: 0.35rem;" disabled>✂️ Start Crop</button>
+                <!-- Legacy alias -->
+                <button type="button" id="btnToolSelectOnCanvas" style="display: none;"></button>
+                <button type="button" id="btnModeCrop" style="display: none;"></button>
+              </div>
+
+              <!-- Crop Region Inputs -->
+              <div class="image-tools-card" style="padding: 0.45rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.55rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span style="font-size: 0.7rem; color: #8b949e; text-transform: uppercase; font-weight: 600;">Crop Region</span>
+                  <span style="font-size: 0.68rem; color: #8b949e;">source px</span>
+                  <span id="imageToolsRegionTitle" style="display: none;"></span>
+                  <span id="imageToolsRegionUnit" style="display: none;"></span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0.4rem;">
+                  <div>
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">X</label>
+                    <input type="number" id="cropRegionX" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="0" min="0">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Y</label>
+                    <input type="number" id="cropRegionY" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="0" min="0">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Width</label>
+                    <input type="number" id="cropRegionW" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="200" min="10">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Height</label>
+                    <input type="number" id="cropRegionH" class="num-input text-field-input" style="width: 100%; box-sizing: border-box;" value="150" min="10">
+                  </div>
+                  <!-- Legacy input IDs -->
+                  <input type="hidden" id="toolRegionX" value="0">
+                  <input type="hidden" id="toolRegionY" value="0">
+                  <input type="hidden" id="toolRegionW" value="200">
+                  <input type="hidden" id="toolRegionH" value="150">
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnApplyCropInTools" style="flex: 1.3; font-size: 0.75rem; padding: 0.32rem;" disabled>✓ Apply Crop</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnCancelCropInTools" style="flex: 0.7; font-size: 0.72rem; padding: 0.32rem;">✕ Cancel Crop</button>
+                  <!-- Legacy button aliases -->
+                  <button type="button" id="btnToolApply" style="display: none;"></button>
+                  <button type="button" id="btnToolCancel" style="display: none;"></button>
+                </div>
+              </div>
+
+              <!-- Crop Versions Collection -->
+              <div class="image-tools-card" id="imageToolsCropVersionsCard" style="padding: 0.45rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.55rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span style="font-size: 0.7rem; color: #58a6ff; text-transform: uppercase; font-weight: 600;">Crop Versions</span>
+                  <span id="cropCurrentVersionLabel" style="font-size: 0.68rem; color: #8b949e;">Active: Original</span>
+                  <span id="imageToolsCurrentCropLabel" style="display: none;"></span>
+                </div>
+                <div id="cropVersionsList" class="crop-versions-list" style="display: flex; flex-direction: column; gap: 4px; max-height: 130px; overflow-y: auto; margin-bottom: 0.35rem;">
                   <!-- Rendered dynamically: .crop-version-pill -->
                 </div>
+                <!-- Legacy container alias -->
+                <div id="imageToolsPreviousCropsList" style="display: none;"></div>
+              </div>
+
+              <!-- Secondary Actions: Edit Crop & Reset to Original -->
+              <div style="display: flex; gap: 6px; margin-bottom: 0.55rem;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnEditCurrentCrop" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;" title="Adjust current crop frame on canvas" disabled>✏️ Edit Current Crop</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnResetCropToOriginal" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;" title="Restore original uncropped view" disabled>⟲ Reset to Original</button>
+                <button type="button" id="btnToolReset" style="display: none;"></button>
               </div>
 
               <!-- Commit & Bake Controls -->
-              <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0.75rem;">
-                <button type="button" class="btn btn-secondary btn-sm" id="btnCommitCropModalTrigger" style="width: 100%; font-size: 0.75rem; padding: 0.35rem; color: #38d39f; border-color: rgba(56,211,159,0.4);" title="Permanently bake current crop into new source raster">💾 Commit Current Crop...</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnToolBake" style="width: 100%; font-size: 0.75rem; padding: 0.35rem; color: #58a6ff; border-color: rgba(88,166,255,0.4);" title="Bake into Background Photo">🍳 Bake into Background Photo...</button>
+              <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 0.5rem;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnCommitCropModalTrigger" style="width: 100%; font-size: 0.74rem; padding: 0.32rem; color: #38d39f; border-color: rgba(56,211,159,0.4);" title="Permanently bake current crop into new base raster" disabled>💾 Commit Current Crop...</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnToolBake" style="width: 100%; font-size: 0.74rem; padding: 0.32rem; color: #58a6ff; border-color: rgba(88,166,255,0.4);" title="Bake into Background Photo" disabled>🍳 Bake into Background Photo...</button>
               </div>
             </div>
 
-            <!-- SECTION 2: CLIP AREA MODE (Two-step Workflow) -->
-            <div id="imageToolsClipSection" style="display: none;">
-              <div class="image-tools-card" style="padding: 0.5rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                  <span style="font-size: 0.72rem; color: #38d39f; text-transform: uppercase; font-weight: 600;">Clip Selected Area</span>
-                  <span id="imageToolsClipStatus" style="font-size: 0.7rem; color: #8b949e;">Step 1: Start</span>
-                </div>
-                <p style="font-size: 0.72rem; color: #8b949e; margin: 0 0 0.5rem 0;">
-                  Non-destructively extract a sub-area into the preview workspace without modifying the source image.
-                </p>
-                <div style="display: flex; gap: 6px; margin-bottom: 0.5rem;">
-                  <button type="button" class="btn btn-primary btn-sm" id="btnStartClip" style="flex: 1; font-size: 0.75rem; padding: 0.35rem;">✏️ Start Clipping</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btnConfirmClipArea" style="flex: 1.2; font-size: 0.75rem; padding: 0.35rem; color: #38d39f; border-color: rgba(56,211,159,0.4);" disabled>📸 Clip Selected Area</button>
-                </div>
-                <div style="border-top: 1px solid var(--border); padding-top: 0.4rem; margin-top: 0.4rem;">
-                  <div style="font-size: 0.68rem; color: #8b949e; margin-bottom: 0.3rem;">Optional: Mask Original Object</div>
-                  <div style="display: flex; gap: 6px;">
-                    <button type="button" class="btn btn-secondary btn-sm" id="btnApplyClipToOriginal" style="flex: 1; font-size: 0.7rem; padding: 0.25rem;">Apply Clip to Original</button>
-                    <button type="button" class="btn btn-secondary btn-sm" id="btnResetAppliedClip" style="flex: 1; font-size: 0.7rem; padding: 0.25rem;">Reset Applied Clip</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- SECTION 3: SNIP BACKGROUND MODE (Two-step Workflow) -->
-            <div id="imageToolsSnipSection" style="display: none;">
-              <div class="image-tools-card" style="padding: 0.5rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                  <span style="font-size: 0.72rem; color: #58a6ff; text-transform: uppercase; font-weight: 600;">Snip Canvas Background</span>
-                  <span id="imageToolsSnipStatus" style="font-size: 0.7rem; color: #8b949e;">Step 1: Select</span>
-                </div>
-                <p style="font-size: 0.72rem; color: #8b949e; margin: 0 0 0.5rem 0;">
-                  Drag a rectangular marquee on the background, capture pixels to preview, and create a new Image Object.
-                </p>
-                <div style="display: flex; gap: 6px; margin-bottom: 0.25rem;">
-                  <button type="button" class="btn btn-primary btn-sm" id="btnStartBgSnip" style="flex: 1; font-size: 0.75rem; padding: 0.35rem;">📸 Select Background Region</button>
-                  <button type="button" class="btn btn-secondary btn-sm" id="btnConfirmBgSnip" style="flex: 1; font-size: 0.75rem; padding: 0.35rem; color: #58a6ff; border-color: rgba(88,166,255,0.4);" disabled>✂️ Capture Snip</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- SHARED PREVIEW WORKSPACE & EXPORT -->
-            <div class="image-tools-card" id="imageToolsPreviewSection" style="padding: 0.5rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <span style="font-size: 0.72rem; color: #8b949e; text-transform: uppercase; font-weight: 600;">Preview &amp; Export</span>
-                <span id="imageToolsPreviewDims" style="font-size: 0.7rem; color: #58a6ff; font-weight: 600;">—</span>
-              </div>
-              <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 120px; max-height: 180px; position: relative;">
-                <canvas id="imageToolsPreviewCanvas" width="320" height="180" style="max-width: 100%; max-height: 180px; object-fit: contain; display: block;"></canvas>
-                <div id="imageToolsPreviewEmptyMsg" style="position: absolute; color: #8b949e; font-size: 0.75rem; text-align: center; pointer-events: none; padding: 0.5rem;">Capture an area to preview</div>
-              </div>
-              <div id="imageToolsPreviewNote" style="font-size: 0.7rem; color: #8b949e; margin-top: 0.25rem; font-style: italic;">No region captured yet</div>
-
-              <!-- Preview Name for Creation or Export -->
-              <div style="margin-top: 0.5rem;">
-                <label style="font-size: 0.7rem; color: #8b949e; display: block; margin-bottom: 2px;">Name</label>
-                <input type="text" id="imageToolsPreviewName" class="text-field-input" style="width: 100%; box-sizing: border-box; font-size: 0.75rem; padding: 0.25rem 0.4rem;" placeholder="e.g. Image Clip 1">
-              </div>
-
-              <!-- Primary Action: Create Image Object -->
-              <div style="margin-top: 0.5rem;">
-                <button type="button" class="btn btn-primary btn-sm" id="btnCreateImageFromPreview" style="width: 100%; font-size: 0.78rem; padding: 0.4rem;" disabled>➕ Create Image Object</button>
-              </div>
-
-              <!-- Export Controls -->
-              <div style="display: flex; gap: 4px; margin-top: 0.4rem;">
-                <select id="selPreviewExportFormat" class="select-input" style="width: 78px; font-size: 0.72rem; padding: 0.25rem;">
-                  <option value="png">PNG</option>
-                  <option value="jpeg">JPEG</option>
-                  <option value="webp">WebP</option>
-                </select>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnExportPreview" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;" disabled>💾 Save / Export Preview</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnDiscardPreview" style="font-size: 0.72rem; padding: 0.25rem 0.4rem;" title="Clear preview" disabled>✕</button>
-              </div>
-            </div>
-
-            <!-- Result Inspector (Retains useful summary of created snip / edited object) -->
-            <div id="imageToolsResultCard" class="image-tools-card" style="display: none; padding: 0.5rem; background: rgba(56, 211, 159, 0.08); border: 1px solid rgba(56, 211, 159, 0.3); border-radius: 6px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <span style="font-size: 0.72rem; color: #38d39f; text-transform: uppercase; font-weight: 600;">Result</span>
-                <span id="imageToolsResultBadge" class="badge" style="background: rgba(56, 211, 159, 0.2); color: #38d39f; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px;">Created</span>
-              </div>
-              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 0.4rem;">
-                <canvas id="imageToolsResultThumb" width="56" height="42" style="width: 56px; height: 42px; object-fit: cover; border: 1px solid var(--border); border-radius: 4px; background: #000; flex-shrink: 0;"></canvas>
-                <div style="flex: 1; min-width: 0;">
-                  <div id="imageToolsResultName" style="font-weight: bold; font-size: 0.82rem; color: #c9d1d9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Background Snip 1</div>
-                  <div id="imageToolsResultDetails" style="font-size: 0.72rem; color: #8b949e;">320 &times; 180 px &bull; PNG</div>
-                </div>
-              </div>
-              <div style="display: flex; gap: 6px;">
-                <button type="button" class="btn btn-secondary btn-sm" id="btnToolSelectResult" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;">🎯 Select Result</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnToolShowInLayers" style="flex: 1; font-size: 0.72rem; padding: 0.25rem;">☰ Show in Layers</button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

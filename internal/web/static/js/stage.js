@@ -1468,6 +1468,9 @@ window.Stage = {
       : imageObj;
     if (!img) return;
 
+    if (this.isClippingImage) this.cancelClipMode();
+    if (this.isExtractingBg) this.cancelBgExtractMode();
+
     this.isCroppingImage = true;
     this.activeCropImage = img;
     this.activeCropImageId = img.id;
@@ -1626,6 +1629,7 @@ window.Stage = {
     const newYPct = (newCY / canvasH) * 100;
 
     const cropData = {
+      enabled: true,
       sourceX,
       sourceY,
       sourceWidth,
@@ -1645,22 +1649,30 @@ window.Stage = {
 
     this.cancelCropMode();
 
-    if (window.ImageObjects) {
+    if (window.EngineBridge && typeof window.EngineBridge.cropImage === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.cropImage(imgId, cropData, geom);
+    } else if (window.ImageObjects) {
       window.ImageObjects.cropImage(imgId, cropData, geom);
     }
+
     if (window.HistoryManager) {
       window.HistoryManager.recordImmediate();
     }
-    if (typeof window.triggerRender === 'function') {
-      window.triggerRender();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-image-tools' });
       window.AppCoordinator.updateActiveOverlays();
       window.AppCoordinator.showNotification('Image crop applied.', 'success', 2500);
     }
     if (typeof window.syncImageEditorUI === 'function') {
       window.syncImageEditorUI();
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
     }
   },
 
@@ -1684,17 +1696,21 @@ window.Stage = {
     if (!this.activeCropImage) return;
     const imgId = this.activeCropImage.id;
     this.cancelCropMode();
-    if (window.ImageObjects) {
+    if (window.EngineBridge && typeof window.EngineBridge.resetCrop === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.resetCrop(imgId);
+    } else if (window.ImageObjects) {
       window.ImageObjects.resetCrop(imgId);
     }
     if (window.HistoryManager) {
       window.HistoryManager.recordImmediate();
     }
-    if (typeof window.triggerRender === 'function') {
-      window.triggerRender();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-image-tools' });
       window.AppCoordinator.updateActiveOverlays();
       window.AppCoordinator.showNotification('Image crop reset to full bounds.', 'info', 2500);
     }
@@ -1880,11 +1896,13 @@ window.Stage = {
     if (window.HistoryManager) {
       window.HistoryManager.recordImmediate();
     }
-    if (typeof window.triggerRender === 'function') {
-      window.triggerRender();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-image-tools' });
       window.AppCoordinator.updateActiveOverlays();
       window.AppCoordinator.showNotification('Image clip applied.', 'success', 2500);
     }
@@ -1925,11 +1943,13 @@ window.Stage = {
     if (window.HistoryManager) {
       window.HistoryManager.recordImmediate();
     }
-    if (typeof window.triggerRender === 'function') {
-      window.triggerRender();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-image-tools' });
       window.AppCoordinator.updateActiveOverlays();
       window.AppCoordinator.showNotification('Image clip reset.', 'info', 2500);
     }
@@ -1942,6 +1962,9 @@ window.Stage = {
   },
 
   startBgExtractMode() {
+    if (this.isCroppingImage) this.cancelCropMode();
+    if (this.isClippingImage) this.cancelClipMode();
+
     this.isExtractingBg = true;
     this.isDraggingBgExtract = false;
     this.bgExtractBox = null;
