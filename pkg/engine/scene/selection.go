@@ -87,7 +87,7 @@ func (s *Scene) SetSelection(selType SelectionType, id StringID) (SelectionState
 		s.selection = SelectionState{Type: SelectionNone, ID: "", Items: nil}
 		return s.selection, nil
 
-	case SelectionNode, SelectionFlow, SelectionGlow, SelectionRipple:
+	case SelectionNode, SelectionFlow, SelectionGlow, SelectionRipple, SelectionImage:
 		if !s.objectExistsLocked(selType, id) {
 			return s.selection, errors.New(string(selType) + " not found: " + string(id))
 		}
@@ -165,6 +165,63 @@ func (s *Scene) SetMultiSelection(items []SelectionItem, primary *SelectionItem)
 		Items: validItems,
 	}
 	return s.selection, nil
+}
+
+// restoreSelectionLocked restores the selection from a history snapshot, preserving multi-selection
+// and filtering out any objects that no longer exist in the scene.
+func (s *Scene) restoreSelectionLocked(sel SelectionState) {
+	if len(sel.Items) > 1 {
+		seen := make(map[string]bool, len(sel.Items))
+		validItems := make([]SelectionItem, 0, len(sel.Items))
+		for _, item := range sel.Items {
+			key := string(item.Type) + ":" + string(item.ID)
+			if seen[key] || !s.objectExistsLocked(item.Type, item.ID) {
+				continue
+			}
+			seen[key] = true
+			validItems = append(validItems, item)
+		}
+		if len(validItems) > 1 {
+			primaryType := validItems[0].Type
+			primaryID := validItems[0].ID
+			if sel.ID != "" && s.objectExistsLocked(sel.Type, sel.ID) {
+				primaryType = sel.Type
+				primaryID = sel.ID
+			}
+			s.selection = SelectionState{
+				Type:  primaryType,
+				ID:    primaryID,
+				Items: validItems,
+			}
+			return
+		} else if len(validItems) == 1 {
+			s.selection = SelectionState{
+				Type:  validItems[0].Type,
+				ID:    validItems[0].ID,
+				Items: validItems,
+			}
+			return
+		}
+	} else if len(sel.Items) == 1 {
+		if s.objectExistsLocked(sel.Items[0].Type, sel.Items[0].ID) {
+			s.selection = SelectionState{
+				Type:  sel.Items[0].Type,
+				ID:    sel.Items[0].ID,
+				Items: []SelectionItem{sel.Items[0]},
+			}
+			return
+		}
+	} else if sel.Type != SelectionNone && sel.ID != "" {
+		if s.objectExistsLocked(sel.Type, sel.ID) {
+			s.selection = SelectionState{
+				Type:  sel.Type,
+				ID:    sel.ID,
+				Items: []SelectionItem{{Type: sel.Type, ID: sel.ID}},
+			}
+			return
+		}
+	}
+	s.selection = SelectionState{Type: SelectionNone, ID: "", Items: nil}
 }
 
 // AddToSelection adds an item to the selection set if it exists and is not already selected.

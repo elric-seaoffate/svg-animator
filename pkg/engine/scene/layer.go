@@ -63,6 +63,75 @@ func (s *Scene) ensureLayersInitializedLocked() {
 	s.layers = validEntries
 }
 
+// getLayersSnapshotLocked returns an isolated copy of layers with effective visibility
+// and locked state evaluated, without mutating s.layers (safe for read lock / GetSnapshot).
+func (s *Scene) getLayersSnapshotLocked() []LayerEntry {
+	existingKeys := make(map[string]bool)
+	validEntries := make([]LayerEntry, 0, len(s.layers))
+
+	for _, entry := range s.layers {
+		key := string(entry.Type) + ":" + string(entry.ID)
+		if existingKeys[key] {
+			continue // deduplicate
+		}
+		if s.objectExistsLocked(entry.Type, entry.ID) {
+			existingKeys[key] = true
+			validEntries = append(validEntries, entry)
+		}
+	}
+
+	for _, id := range s.rippleIDs {
+		key := "ripple:" + string(id)
+		if !existingKeys[key] {
+			existingKeys[key] = true
+			validEntries = append(validEntries, LayerEntry{Type: SelectionRipple, ID: id})
+		}
+	}
+	for _, id := range s.glowIDs {
+		key := "glow:" + string(id)
+		if !existingKeys[key] {
+			existingKeys[key] = true
+			validEntries = append(validEntries, LayerEntry{Type: SelectionGlow, ID: id})
+		}
+	}
+	for _, id := range s.flowIDs {
+		key := "flow:" + string(id)
+		if !existingKeys[key] {
+			existingKeys[key] = true
+			validEntries = append(validEntries, LayerEntry{Type: SelectionFlow, ID: id})
+		}
+	}
+	for _, id := range s.imageIDs {
+		key := "image:" + string(id)
+		if !existingKeys[key] {
+			existingKeys[key] = true
+			validEntries = append(validEntries, LayerEntry{Type: SelectionImage, ID: id})
+		}
+	}
+	for _, id := range s.nodeIDs {
+		key := "node:" + string(id)
+		if !existingKeys[key] {
+			existingKeys[key] = true
+			validEntries = append(validEntries, LayerEntry{Type: SelectionNode, ID: id})
+		}
+	}
+
+	layers := make([]LayerEntry, len(validEntries))
+	for i := range validEntries {
+		v := s.getEffectiveVisibilityLocked(validEntries[i].Type, validEntries[i].ID)
+		l := s.getEffectiveLockedLocked(validEntries[i].Type, validEntries[i].ID)
+		vCopy := v
+		lCopy := l
+		layers[i] = LayerEntry{
+			Type:    validEntries[i].Type,
+			ID:      validEntries[i].ID,
+			Visible: &vCopy,
+			Locked:  &lCopy,
+		}
+	}
+	return layers
+}
+
 // removeLayerEntryLocked removes an object entry from s.layers.
 func (s *Scene) removeLayerEntryLocked(selType SelectionType, id StringID) {
 	if len(s.layers) == 0 {

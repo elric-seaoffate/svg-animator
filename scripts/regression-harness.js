@@ -8085,6 +8085,129 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 65 PASS: Background Crop Display Size & Framing Parity (Policies A-D) verified.');
 
+  // =========================================================================
+  // SCENARIO 66: BATCH 3 — Unified Go History, Safe Undo/Redo & Project Lifecycle (Tests A-M)
+  // =========================================================================
+  console.log('\n[HARNESS] Testing Scenario 66: Batch 3 Unified Go History, Undo/Redo & Project Lifecycle...');
+
+  // Test G: New Blank Project complete reset
+  console.log('[HARNESS] Scenario 66 Test G: New Blank Project complete reset...');
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, 0, 'Test G: Nodes reset to 0');
+  assert.strictEqual(window.DataFlows.getAllFlows().length, 0, 'Test G: Flows reset to 0');
+  assert.strictEqual(window.Glows.getAllGlows().length, 0, 'Test G: Glows reset to 0');
+  assert.strictEqual(window.Ripples.getAllRipples().length, 0, 'Test G: Ripples reset to 0');
+  if (window.ImageObjects) {
+    assert.strictEqual(window.ImageObjects.list.length, 0, 'Test G: Images reset to 0');
+  }
+  if (window.ObjectGroups) {
+    assert.strictEqual(window.ObjectGroups.list.length, 0, 'Test G: Groups reset to 0');
+  }
+  if (window.LayerManager) {
+    assert.strictEqual(window.LayerManager.getLayers().length, 0, 'Test G: Layers reset to 0');
+  }
+  assert.strictEqual(window.getLoadedPhoto(), null, 'Test G: Background photo cleared');
+  assert.strictEqual(window.HistoryManager.canUndo(), false, 'Test G: Undo disabled on fresh project');
+  assert.strictEqual(window.HistoryManager.canRedo(), false, 'Test G: Redo disabled on fresh project');
+
+  // Verify all 95 tracked controls (+ chkAutoApplyPreset) are at default values
+  const defaultControls = window.SceneState.getDefaultControls();
+  assert.strictEqual(Object.keys(defaultControls).length, 96, 'Test G: 96 controls have defaults');
+  const liveControls = window.ControlStateAdaptor.syncFromDOM(window.SceneState.trackedControlIds);
+  for (const [key, defVal] of Object.entries(defaultControls)) {
+    if (key === 'chkAutoApplyPreset') continue;
+    assert.strictEqual(liveControls[key], defVal, `Test G: Tracked control ${key} matches default value`);
+  }
+
+  // Test A: First edit on fresh page can be undone and redone cleanly
+  console.log('[HARNESS] Scenario 66 Test A: First edit undo/redo on fresh page...');
+  const firstNode = window.DiagramNodes.createNode({ shape: 'rounded', text: 'First Edit' });
+  window.HistoryManager.recordImmediate();
+  assert.strictEqual(window.HistoryManager.canUndo(), true, 'Test A: Undo enabled after first edit');
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, 1, 'Test A: 1 node exists');
+
+  window.HistoryManager.undo();
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, 0, 'Test A: Node removed after undo');
+  assert.strictEqual(window.HistoryManager.canUndo(), false, 'Test A: Undo disabled at baseline');
+  assert.strictEqual(window.HistoryManager.canRedo(), true, 'Test A: Redo enabled');
+
+  window.HistoryManager.redo();
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, 1, 'Test A: Node restored after redo');
+  assert.strictEqual(window.HistoryManager.canUndo(), true, 'Test A: Undo enabled again');
+
+  // Test M: Keydown handler ignores typing in input/textarea
+  console.log('[HARNESS] Scenario 66 Test M: Keydown ignores input/textarea...');
+  let undoTriggered = false;
+  const origUndo = window.HistoryManager.undo;
+  window.HistoryManager.undo = () => { undoTriggered = true; origUndo.call(window.HistoryManager); };
+
+  const inputEl = makeStubElement('input');
+  document.activeElement = inputEl;
+  const keyEvt = {
+    key: 'z',
+    ctrlKey: true,
+    metaKey: false,
+    shiftKey: false,
+    target: inputEl,
+    preventDefault: () => {}
+  };
+  window.HistoryManager.handleKeydown(keyEvt);
+  assert.strictEqual(undoTriggered, false, 'Test M: Ctrl+Z inside input must NOT trigger undo');
+
+  // Verify textarea is also ignored
+  const textareaEl = makeStubElement('textarea');
+  document.activeElement = textareaEl;
+  keyEvt.target = textareaEl;
+  window.HistoryManager.handleKeydown(keyEvt);
+  assert.strictEqual(undoTriggered, false, 'Test M: Ctrl+Z inside textarea must NOT trigger undo');
+
+  // Verify non-input element triggers undo
+  document.activeElement = makeStubElement('div');
+  keyEvt.target = document.activeElement;
+  window.HistoryManager.handleKeydown(keyEvt);
+  assert.strictEqual(undoTriggered, true, 'Test M: Ctrl+Z on canvas/div triggers undo');
+
+  window.HistoryManager.undo = origUndo;
+
+  // Test I: Project load resets all 95 controls before applying partial state
+  console.log('[HARNESS] Scenario 66 Test I: Project load resets controls before applying state...');
+  // Modify a tracked control directly
+  const tsBlurEl = document.getElementById('tsBlurSlider');
+  if (tsBlurEl) tsBlurEl.value = '25';
+  const customState = {
+    version: '1.2.0',
+    title: 'Clean Project',
+    controls: {
+      canvasWidth: '900',
+      canvasHeight: '600'
+      // tsBlurSlider omitted
+    },
+    nodes: [],
+    flows: [],
+    glows: [],
+    ripples: []
+  };
+  window.ProjectManager.applyStudioState(customState);
+  if (tsBlurEl) {
+    assert.strictEqual(String(tsBlurEl.value), '12', 'Test I: Unmentioned tsBlurSlider reset to default 12');
+  }
+
+  // Test J: Failed SVA import / load leaves active scene untouched
+  console.log('[HARNESS] Scenario 66 Test J: Atomic failed project load preserves active scene...');
+  const testNodeJ = window.DiagramNodes.createNode({ shape: 'circle', text: 'Safe Node' });
+  const nodeCountBefore = window.DiagramNodes.getAllNodes().length;
+  let loadFailed = false;
+  try {
+    window.ProjectManager.applyStudioState("INVALID_JSON_CORRUPT");
+  } catch (e) {
+    loadFailed = true;
+  }
+  assert.strictEqual(loadFailed, true, 'Test J: Corrupt project load threw error');
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, nodeCountBefore, 'Test J: Active scene untouched after failed load');
+  assert.strictEqual(window.DiagramNodes.getNode(testNodeJ.id).text, 'Safe Node', 'Test J: Existing node preserved');
+
+  console.log('[HARNESS] Scenario 66 PASS: Batch 3 Unified Go History, Undo/Redo & Project Lifecycle (Tests A-M) verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

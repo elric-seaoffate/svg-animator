@@ -1188,10 +1188,27 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			}
 		}
 		activeScene.SetFromSnapshot(snap)
+		activeScene.History().Clear()
+		activeScene.History().Record(activeScene.GetSnapshot(), activeScene.GetSelection())
 		return json.Marshal(SetSceneStateResponse{
 			Revision:   activeScene.Revision(),
 			FlowsCount: len(snap.Flows),
 			Status:     "ok",
+		})
+
+	case "Scene.Reset", "Scene.New":
+		activeScene.Reset()
+		snap := activeScene.GetSnapshot()
+		sel := activeScene.GetSelection()
+		uCount, rCount, canUndo, canRedo := activeScene.History().GetState()
+		return json.Marshal(map[string]any{
+			"success":   true,
+			"snapshot":  snap,
+			"selection": sel,
+			"undoCount": uCount,
+			"redoCount": rCount,
+			"canUndo":   canUndo,
+			"canRedo":   canRedo,
 		})
 
 	case "Scene.GetState":

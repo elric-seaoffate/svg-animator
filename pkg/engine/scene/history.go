@@ -40,20 +40,23 @@ func (h *HistoryManager) Record(snap Snapshot, sel SelectionState) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	normSnap := DeepCopySnapshot(snap)
+	normSel := DeepCopySelection(sel)
+
 	// Check if identical to top
 	if len(h.undoStack) > 0 {
 		top := h.undoStack[len(h.undoStack)-1]
-		if top.Snapshot.Revision == snap.Revision &&
-			len(top.Snapshot.Nodes) == len(snap.Nodes) &&
-			len(top.Snapshot.Flows) == len(snap.Flows) &&
-			len(top.Snapshot.Glows) == len(snap.Glows) &&
-			len(top.Snapshot.Ripples) == len(snap.Ripples) &&
-			len(top.Snapshot.Groups) == len(snap.Groups) &&
-			len(top.Snapshot.Images) == len(snap.Images) &&
-			len(top.Snapshot.Layers) == len(snap.Layers) &&
-			top.Selection.Equal(sel) {
+		if top.Snapshot.Revision == normSnap.Revision &&
+			len(top.Snapshot.Nodes) == len(normSnap.Nodes) &&
+			len(top.Snapshot.Flows) == len(normSnap.Flows) &&
+			len(top.Snapshot.Glows) == len(normSnap.Glows) &&
+			len(top.Snapshot.Ripples) == len(normSnap.Ripples) &&
+			len(top.Snapshot.Groups) == len(normSnap.Groups) &&
+			len(top.Snapshot.Images) == len(normSnap.Images) &&
+			len(top.Snapshot.Layers) == len(normSnap.Layers) &&
+			top.Selection.Equal(normSel) {
 			topB, _ := json.Marshal(top.Snapshot)
-			curB, _ := json.Marshal(snap)
+			curB, _ := json.Marshal(normSnap)
 			if string(topB) == string(curB) {
 				return false
 			}
@@ -61,8 +64,8 @@ func (h *HistoryManager) Record(snap Snapshot, sel SelectionState) bool {
 	}
 
 	entry := HistoryEntry{
-		Snapshot:  snap,
-		Selection: sel,
+		Snapshot:  normSnap,
+		Selection: normSel,
 		Timestamp: time.Now().UnixMilli(),
 	}
 
@@ -84,11 +87,22 @@ func (h *HistoryManager) Undo(currentSnap Snapshot, currentSel SelectionState) (
 	}
 
 	current := h.undoStack[len(h.undoStack)-1]
+	if currentSnap.Revision > current.Snapshot.Revision {
+		current = HistoryEntry{
+			Snapshot:  DeepCopySnapshot(currentSnap),
+			Selection: DeepCopySelection(currentSel),
+			Timestamp: time.Now().UnixMilli(),
+		}
+	}
 	h.undoStack = h.undoStack[:len(h.undoStack)-1]
 	h.redoStack = append(h.redoStack, current)
 
 	restored := h.undoStack[len(h.undoStack)-1]
-	return restored, nil
+	return HistoryEntry{
+		Snapshot:  DeepCopySnapshot(restored.Snapshot),
+		Selection: DeepCopySelection(restored.Selection),
+		Timestamp: restored.Timestamp,
+	}, nil
 }
 
 // Redo pops from redoStack, pushes onto undoStack, and returns the restored entry.
@@ -104,7 +118,11 @@ func (h *HistoryManager) Redo() (HistoryEntry, error) {
 	h.redoStack = h.redoStack[:len(h.redoStack)-1]
 	h.undoStack = append(h.undoStack, next)
 
-	return next, nil
+	return HistoryEntry{
+		Snapshot:  DeepCopySnapshot(next.Snapshot),
+		Selection: DeepCopySelection(next.Selection),
+		Timestamp: next.Timestamp,
+	}, nil
 }
 
 // CanUndo returns true if there is an earlier state to restore.

@@ -3,6 +3,8 @@ package scene
 import (
 	"fmt"
 	"testing"
+
+	"gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry"
 )
 
 func TestHistoryManagerDirect(t *testing.T) {
@@ -164,5 +166,204 @@ func TestHistoryDepthFifty(t *testing.T) {
 	uCount, _, _, _ := s.History().GetState()
 	if uCount != 50 {
 		t.Errorf("expected exactly 50 history entries, got %d", uCount)
+	}
+}
+
+func TestBatch3_DeepSnapshotIsolation(t *testing.T) {
+	s := NewScene()
+
+	// 1. Create a node with metadata and waypoints flow
+	node := s.CreateNode(Node{Shape: "rounded", Text: "Original Text", Metadata: map[string]any{"key": "val1"}}, nil, false)
+	flow := s.CreateFlow(Flow{
+		Nodes: []geometry.Point{{X: 10, Y: 20}, {X: 30, Y: 40}},
+	})
+	img, err := s.CreateImage(Image{
+		Filename: "diagram.png",
+		Crop:     &ImageCrop{Enabled: true, SourceX: 10, SourceY: 10, SourceWidth: 100, SourceHeight: 100},
+	})
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+	s.RecordHistory() // Baseline state with original values
+
+	// 2. Mutate live objects
+	node.Text = "Mutated Live Text"
+	node.Metadata["key"] = "mutated"
+	s.UpdateNode(node)
+
+	flow.Nodes = []geometry.Point{{X: 99, Y: 99}}
+	s.UpdateFlow(flow)
+
+	img.Crop = &ImageCrop{Enabled: true, SourceX: 50, SourceY: 50, SourceWidth: 200, SourceHeight: 200}
+	s.UpdateImage(img.ID, img)
+	s.RecordHistory() // Second state with mutated values
+
+	// Undo back to step 1
+	restored, err := s.UndoHistory()
+	if err != nil {
+		t.Fatalf("Undo failed: %v", err)
+	}
+	if len(restored.Snapshot.Nodes) == 0 || restored.Snapshot.Nodes[0].Text != "Original Text" {
+		t.Errorf("expected Original Text, got %+v", restored.Snapshot.Nodes)
+	}
+	if restored.Snapshot.Nodes[0].Metadata["key"] != "val1" {
+		t.Errorf("expected val1, got %v", restored.Snapshot.Nodes[0].Metadata["key"])
+	}
+	if len(restored.Snapshot.Flows) == 0 || len(restored.Snapshot.Flows[0].Nodes) == 0 || restored.Snapshot.Flows[0].Nodes[0].X != 10 {
+		t.Errorf("expected flow point X=10, got %+v", restored.Snapshot.Flows)
+	}
+	if len(restored.Snapshot.Images) == 0 || restored.Snapshot.Images[0].Crop.SourceX != 10 {
+		t.Errorf("expected image crop SourceX=10, got %+v", restored.Snapshot.Images)
+	}
+
+	// Redo and verify the mutated state was preserved in redo stack
+	redoEntry, err := s.RedoHistory()
+	if err != nil {
+		t.Fatalf("Redo failed: %v", err)
+	}
+	if len(redoEntry.Snapshot.Nodes) == 0 || redoEntry.Snapshot.Nodes[0].Text != "Mutated Live Text" {
+		t.Errorf("expected Mutated Live Text in redo, got %+v", redoEntry.Snapshot.Nodes)
+	}
+	if len(redoEntry.Snapshot.Flows) == 0 || len(redoEntry.Snapshot.Flows[0].Nodes) == 0 || redoEntry.Snapshot.Flows[0].Nodes[0].X != 99 {
+		t.Errorf("expected flow point X=99 in redo, got %+v", redoEntry.Snapshot.Flows)
+	}
+}
+
+func TestBatch3_SelectionRestoration(t *testing.T) {
+	s := NewScene()
+	s.RecordHistory()
+
+	n1 := s.CreateNode(Node{Shape: "rounded", Text: "N1"}, nil, false)
+	n2 := s.CreateNode(Node{Shape: "circle", Text: "N2"}, nil, false)
+	img, err := s.CreateImage(Image{Filename: "photo.png"})
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+
+	// Step 1: select node 1
+	_, _ = s.SetSelection(SelectionNode, n1.ID)
+	s.RecordHistory()
+
+	// Step 2: multi-select node 1 and node 2
+	items := []SelectionItem{
+		{Type: SelectionNode, ID: n1.ID},
+		{Type: SelectionNode, ID: n2.ID},
+	}
+	_, _ = s.SetMultiSelection(items, &items[0])
+	s.RecordHistory()
+
+	// Step 3: select image
+	_, _ = s.SetSelection(SelectionImage, img.ID)
+	s.RecordHistory()
+
+	// Undo to Step 2 (multi-selection)
+	_, err = s.UndoHistory()
+	if err != nil {
+		t.Fatalf("Undo failed: %v", err)
+	}
+	sel := s.GetSelection()
+	if len(sel.Items) != 2 || sel.ID != n1.ID {
+		t.Errorf("expected multi-selection with 2 items, primary %s, got: %+v", n1.ID, sel)
+	}
+
+	// Undo to Step 1 (single node selection)
+	_, err = s.UndoHistory()
+	if err != nil {
+		t.Fatalf("Undo failed: %v", err)
+	}
+	sel = s.GetSelection()
+	if sel.Type != SelectionNode || sel.ID != n1.ID || len(sel.Items) != 1 {
+		t.Errorf("expected single selection of %s, got: %+v", n1.ID, sel)
+	}
+
+	// Redo to Step 2
+	_, err = s.RedoHistory()
+	if err != nil {
+		t.Fatalf("Redo failed: %v", err)
+	}
+	sel = s.GetSelection()
+	if len(sel.Items) != 2 {
+		t.Errorf("expected multi-selection on redo, got: %+v", sel)
+	}
+
+	// Redo to Step 3 (image selection)
+	_, err = s.RedoHistory()
+	if err != nil {
+		t.Fatalf("Redo failed: %v", err)
+	}
+	sel = s.GetSelection()
+	if sel.Type != SelectionImage || sel.ID != img.ID {
+		t.Errorf("expected image selection on redo, got: %+v", sel)
+	}
+
+	// Delete image and verify restoration handles deleted object gracefully
+	s.DeleteImage(img.ID)
+	s.restoreSelectionLocked(SelectionState{Type: SelectionImage, ID: img.ID})
+	sel = s.GetSelection()
+	if sel.Type != SelectionNone || sel.ID != "" {
+		t.Errorf("expected selection cleared when target deleted, got: %+v", sel)
+	}
+}
+
+func TestBatch3_SceneReset(t *testing.T) {
+	s := NewScene()
+	n := s.CreateNode(Node{Shape: "rounded", Text: "Hello"}, nil, false)
+	s.CreateFlow(Flow{FromNodeID: n.ID})
+	s.CreateGlow(Glow{Shape: "radar"})
+	s.CreateRipple(Ripple{Rings: 3})
+	_, _ = s.CreateImage(Image{Filename: "diagram.png"})
+	s.UpdateCamera(CameraConfig{Motion: "ken-burns", Duration: 5.0})
+	s.UpdateOptical(OpticalConfig{Type: "focus-pull", FocusDur: 3.0})
+	s.UpdateFrame(FrameConfig{Enabled: true, Style: "rounded"})
+	s.SetBackground(&BackgroundConfig{Filename: "bg.jpg", SourceWidth: 800, SourceHeight: 600})
+	_, _ = s.SetSelection(SelectionNode, n.ID)
+	s.RecordHistory()
+
+	// Reset scene
+	s.Reset()
+
+	snap := s.GetSnapshot()
+	if snap.Canvas.Width != 1280 || snap.Canvas.Height != 720 {
+		t.Errorf("expected canvas 1280x720, got %vx%v", snap.Canvas.Width, snap.Canvas.Height)
+	}
+	if len(snap.Nodes) != 0 || len(snap.Flows) != 0 || len(snap.Glows) != 0 || len(snap.Ripples) != 0 || len(snap.Images) != 0 || len(snap.Groups) != 0 || len(snap.Layers) != 0 {
+		t.Errorf("expected all objects cleared, got %+v", snap)
+	}
+	if snap.Background != nil {
+		t.Errorf("expected nil background, got %+v", snap.Background)
+	}
+	if snap.Frame.Enabled {
+		t.Errorf("expected frame disabled, got %+v", snap.Frame)
+	}
+	sel := s.GetSelection()
+	if sel.Type != SelectionNone || sel.ID != "" {
+		t.Errorf("expected selection none, got %+v", sel)
+	}
+	uCount, rCount, canUndo, canRedo := s.History().GetState()
+	if uCount != 1 || rCount != 0 || canUndo || canRedo {
+		t.Errorf("expected 1 baseline history entry with undo/redo disabled, got uCount=%d rCount=%d canUndo=%v canRedo=%v", uCount, rCount, canUndo, canRedo)
+	}
+}
+
+func TestBatch3_EmptyGroupsAndDisabledFrameSnapshotRoundtrip(t *testing.T) {
+	s := NewScene()
+	// Explicitly empty groups and disabled frame
+	snap := Snapshot{
+		Canvas:  CanvasConfig{Width: 1000, Height: 700},
+		Groups:  []Group{},
+		Images:  []Image{},
+		Frame:   FrameConfig{Enabled: false, Style: "none"},
+		Optical: OpticalConfig{Type: "none"},
+	}
+	s.SetFromSnapshot(snap)
+
+	outSnap := s.GetSnapshot()
+	if len(outSnap.Groups) != 0 || outSnap.Groups == nil {
+		if outSnap.Groups == nil {
+			t.Errorf("expected non-nil empty slice for Groups, got nil")
+		}
+	}
+	if outSnap.Frame.Enabled {
+		t.Errorf("expected frame disabled in snapshot")
 	}
 }

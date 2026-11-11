@@ -225,17 +225,25 @@ window.HistoryManager = {
     });
   },
 
-  notifyStackChange() {
+  notifyStackChange(overrideState = null) {
     const payload = {
-      canUndo: this.undoStack.length > 1,
-      canRedo: this.redoStack.length > 0,
-      undoCount: this.undoStack.length,
-      redoCount: this.redoStack.length
+      canUndo: overrideState && typeof overrideState.canUndo === 'boolean' ? overrideState.canUndo : (this.undoStack.length > 1),
+      canRedo: overrideState && typeof overrideState.canRedo === 'boolean' ? overrideState.canRedo : (this.redoStack.length > 0),
+      undoCount: overrideState && typeof overrideState.undoCount === 'number' ? overrideState.undoCount : this.undoStack.length,
+      redoCount: overrideState && typeof overrideState.redoCount === 'number' ? overrideState.redoCount : this.redoStack.length
     };
     if (window.AppCoordinator && typeof window.AppCoordinator.emit === 'function') {
       window.AppCoordinator.emit('history:changed', payload);
     }
     return payload;
+  },
+
+  canUndo() {
+    return this.undoStack.length > 1;
+  },
+
+  canRedo() {
+    return this.redoStack.length > 0;
   },
 
   record() {
@@ -248,6 +256,21 @@ window.HistoryManager = {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+
+    if (window.EngineBridge && typeof window.EngineBridge.recordHistory === 'function' && window.EngineBridge.isReady()) {
+      const res = window.EngineBridge.recordHistory();
+      if (res && res.recorded) {
+        this.undoStack.push('go-state-' + Date.now());
+        if (this.undoStack.length > this.maxDepth) {
+          this.undoStack.shift();
+        }
+        this.redoStack = [];
+      }
+      this.notifyStackChange(res);
+      return;
+    }
+
+    // Fallback if WASM is offline
     const snap = this.captureSnapshot();
     if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === snap) {
       return;
@@ -257,11 +280,6 @@ window.HistoryManager = {
       this.undoStack.shift();
     }
     this.redoStack = [];
-
-    if (window.EngineBridge && typeof window.EngineBridge.recordHistory === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.recordHistory();
-    }
-
     this.notifyStackChange();
   },
 
@@ -383,10 +401,6 @@ window.HistoryManager = {
           window.LayerManager.list = data.layers || [];
         }
       }
-
-      if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.syncScene();
-      }
     } catch (err) {
       console.error('History restore error:', err);
     } finally {
@@ -396,43 +410,105 @@ window.HistoryManager = {
   },
 
   undo() {
+    if (this.isRestoring) return;
+
+    if (window.EngineBridge && typeof window.EngineBridge.undoHistory === 'function' && window.EngineBridge.isReady()) {
+      const res = window.EngineBridge.undoHistory();
+      if (res && res.success && res.snapshot) {
+        this.isRestoring = true;
+        try {
+          window.EngineBridge.syncFromEngineSnapshot(res.snapshot);
+        } finally {
+          this.isRestoring = false;
+        }
+
+        if (this.undoStack.length > 1) {
+          const popped = this.undoStack.pop();
+          this.redoStack.push(popped);
+        }
+
+        this.notifyStackChange({
+          canUndo: res.canUndo,
+          canRedo: res.canRedo,
+          undoCount: res.undoCount,
+          redoCount: res.redoCount
+        });
+
+        if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+          window.AppCoordinator.coordinatePostRestore({
+            source: 'undo',
+            restoredSelection: res.selection || null
+          });
+        }
+        if (typeof window.triggerRender === 'function') {
+          window.triggerRender();
+        }
+        return;
+      } else if (res && !res.success) {
+        return;
+      }
+    }
+
+    // Fallback if WASM is offline
     if (this.undoStack.length <= 1) return;
     const current = this.undoStack.pop();
     this.redoStack.push(current);
     const prev = this.undoStack[this.undoStack.length - 1];
     this.applySnapshot(prev);
-
-    let bridgeRes = null;
-    if (window.EngineBridge && typeof window.EngineBridge.undoHistory === 'function' && window.EngineBridge.isReady()) {
-      bridgeRes = window.EngineBridge.undoHistory();
-    }
-
     this.notifyStackChange();
     if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
-      window.AppCoordinator.coordinatePostRestore({
-        source: 'undo',
-        restoredSelection: bridgeRes && bridgeRes.selection ? bridgeRes.selection : null
-      });
+      window.AppCoordinator.coordinatePostRestore({ source: 'undo' });
     }
   },
 
   redo() {
+    if (this.isRestoring) return;
+
+    if (window.EngineBridge && typeof window.EngineBridge.redoHistory === 'function' && window.EngineBridge.isReady()) {
+      const res = window.EngineBridge.redoHistory();
+      if (res && res.success && res.snapshot) {
+        this.isRestoring = true;
+        try {
+          window.EngineBridge.syncFromEngineSnapshot(res.snapshot);
+        } finally {
+          this.isRestoring = false;
+        }
+
+        if (this.redoStack.length > 0) {
+          const popped = this.redoStack.pop();
+          this.undoStack.push(popped);
+        }
+
+        this.notifyStackChange({
+          canUndo: res.canUndo,
+          canRedo: res.canRedo,
+          undoCount: res.undoCount,
+          redoCount: res.redoCount
+        });
+
+        if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
+          window.AppCoordinator.coordinatePostRestore({
+            source: 'redo',
+            restoredSelection: res.selection || null
+          });
+        }
+        if (typeof window.triggerRender === 'function') {
+          window.triggerRender();
+        }
+        return;
+      } else if (res && !res.success) {
+        return;
+      }
+    }
+
+    // Fallback if WASM is offline
     if (this.redoStack.length === 0) return;
     const next = this.redoStack.pop();
     this.undoStack.push(next);
     this.applySnapshot(next);
-
-    let bridgeRes = null;
-    if (window.EngineBridge && typeof window.EngineBridge.redoHistory === 'function' && window.EngineBridge.isReady()) {
-      bridgeRes = window.EngineBridge.redoHistory();
-    }
-
     this.notifyStackChange();
     if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
-      window.AppCoordinator.coordinatePostRestore({
-        source: 'redo',
-        restoredSelection: bridgeRes && bridgeRes.selection ? bridgeRes.selection : null
-      });
+      window.AppCoordinator.coordinatePostRestore({ source: 'redo' });
     }
   },
 
@@ -454,24 +530,29 @@ window.HistoryManager = {
       window.AppCoordinator.on('state:restored', () => this.updateButtonsUI());
     }
 
-    window.addEventListener('keydown', (e) => {
-      const tag = document.activeElement ? document.activeElement.tagName : '';
-      if (tag === 'INPUT' || tag === 'TEXTAREA') {
-        const type = document.activeElement.type;
-        if (type === 'text') return;
-      }
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        this.undo();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-        e.preventDefault();
-        this.redo();
-      }
-    });
+    window.addEventListener('keydown', (e) => this.handleKeydown(e));
 
-    setTimeout(() => {
-      this.recordImmediate();
-    }, 80);
+    if (this.undoStack.length === 0) {
+      this.undoStack = ['initial-state'];
+      this.redoStack = [];
+      this.notifyStackChange({ canUndo: false, canRedo: false, undoCount: 1, redoCount: 0 });
+    }
+  },
+
+  handleKeydown(e) {
+    if (!e) return;
+    const targetTag = e.target && e.target.tagName ? e.target.tagName.toUpperCase() : '';
+    const activeTag = typeof document !== 'undefined' && document.activeElement && document.activeElement.tagName ? document.activeElement.tagName.toUpperCase() : '';
+    if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key && e.key.toLowerCase() === 'z') {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      this.undo();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')))) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      this.redo();
+    }
   },
 
   updateButtonsUI(e) {

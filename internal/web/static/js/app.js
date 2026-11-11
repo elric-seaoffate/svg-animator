@@ -7445,6 +7445,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (window.EngineBridge && typeof window.EngineBridge.init === 'function') {
     window.EngineBridge.init('wasm/engine.wasm').then((ready) => {
+      if (ready && window.HistoryManager) {
+        window.HistoryManager.undoStack = ['initial-state'];
+        window.HistoryManager.redoStack = [];
+        window.HistoryManager.notifyStackChange({ canUndo: false, canRedo: false, undoCount: 1, redoCount: 0 });
+      }
       if (window.TimelinePlayer && typeof window.TimelinePlayer.init === 'function') {
         window.TimelinePlayer.init();
       }
@@ -7560,11 +7565,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   syncBackgroundUIVisibility();
   updateOrientationAndPaperUI();
+  if (window.HistoryManager) window.HistoryManager.isRestoring = true;
   if (camMotionSel) camMotionSel.dispatchEvent(new Event('change'));
   if (effSel) effSel.dispatchEvent(new Event('change'));
   if (chkFrame) chkFrame.dispatchEvent(new Event('change'));
   if (window.FloatingPropertiesEditor) window.FloatingPropertiesEditor.init();
-  if (window.HistoryManager) window.HistoryManager.init();
+  if (window.HistoryManager) {
+    window.HistoryManager.init();
+    window.HistoryManager.isRestoring = false;
+  }
   if (window.ProjectManager) window.ProjectManager.init();
   if (window.ImageToolsController && typeof window.ImageToolsController.init === 'function') {
     window.ImageToolsController.init();

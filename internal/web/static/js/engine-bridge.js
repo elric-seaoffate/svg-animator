@@ -1215,10 +1215,12 @@
 
       if (snap.background) {
         this._applyBackgroundUpdate(snap.background);
+      } else {
+        this._applyBackgroundUpdate(null);
       }
 
-      if (snap.nodes && window.DiagramNodes) {
-        const mappedNodes = snap.nodes.map((n) => {
+      if (window.DiagramNodes) {
+        const mappedNodes = (snap.nodes || []).map((n) => {
           const item = Object.assign({}, n);
           if (!item.text && item.label) item.text = item.label;
           if (!item.label && item.text) item.label = item.text;
@@ -1230,56 +1232,83 @@
           if (!item.animation && item.anim) item.animation = item.anim;
           return item;
         });
-        window.DiagramNodes.setState({ nodes: mappedNodes, nodesCounter: snap.nodesCounter || window.DiagramNodes.counter });
+        window.DiagramNodes.setState({ nodes: mappedNodes, nodesCounter: snap.nodesCounter || (snap.nodes ? snap.nodes.length : 0) });
       }
 
-      if (snap.flows && window.DataFlows) {
-        const mappedFlows = snap.flows.map((f) => {
+      if (window.DataFlows) {
+        const mappedFlows = (snap.flows || []).map((f) => {
           const item = Object.assign({}, f);
           if (!item.route && item.routeMode) item.route = item.routeMode;
           if (!item.routeMode && item.route) item.routeMode = item.route;
           return item;
         });
-        window.DataFlows.setState({ flows: mappedFlows, flowsCounter: snap.flowsCounter || window.DataFlows.counter });
+        window.DataFlows.setState({ flows: mappedFlows, flowsCounter: snap.flowsCounter || (snap.flows ? snap.flows.length : 0) });
       }
 
-      if (snap.glows && window.Glows) {
-        const mappedGlows = snap.glows.map((g) => {
+      if (window.Glows) {
+        const mappedGlows = (snap.glows || []).map((g) => {
           const item = Object.assign({}, g);
           if (item.radarRings && !item.rings) item.rings = item.radarRings;
           if (item.rings && !item.radarRings) item.radarRings = item.rings;
           item.isRadar = (item.shape === 'radar') || !!item.isRadar;
           return item;
         });
-        window.Glows.setState({ glows: mappedGlows, glowsCounter: snap.glowsCounter || window.Glows.counter });
+        window.Glows.setState({ glows: mappedGlows, glowsCounter: snap.glowsCounter || (snap.glows ? snap.glows.length : 0) });
       }
 
-      if (snap.ripples && window.Ripples) {
-        const mappedRipples = snap.ripples.map((r) => {
+      if (window.Ripples) {
+        const mappedRipples = (snap.ripples || []).map((r) => {
           const item = Object.assign({}, r);
           if (item.waveCount && !item.rings) item.rings = item.waveCount;
           if (item.rings && !item.waveCount) item.waveCount = item.rings;
           return item;
         });
-        window.Ripples.setState({ ripples: mappedRipples, ripplesCounter: snap.ripplesCounter || window.Ripples.counter });
+        window.Ripples.setState({ ripples: mappedRipples, ripplesCounter: snap.ripplesCounter || (snap.ripples ? snap.ripples.length : 0) });
       }
 
-      if (snap.groups && window.ObjectGroups) {
-        window.ObjectGroups.setState({ groups: snap.groups, groupsCounter: snap.groupsCounter || window.ObjectGroups.counter });
+      if (window.ObjectGroups) {
+        window.ObjectGroups.setState({ groups: snap.groups || [], groupsCounter: snap.groupsCounter || 0 });
       }
 
-      if (snap.images && window.ImageObjects) {
-        const mappedImages = snap.images.map((img) => {
+      if (window.ImageObjects) {
+        const mappedImages = (snap.images || []).map((img) => {
           const item = Object.assign({}, img);
           if (!item.data && item.src) item.data = item.src;
           if (!item.src && item.data) item.src = item.data;
           return item;
         });
-        window.ImageObjects.setState({ images: mappedImages, imagesCounter: snap.imagesCounter || window.ImageObjects.counter });
+        window.ImageObjects.setState({ images: mappedImages, imagesCounter: snap.imagesCounter || 0 });
       }
 
-      if (snap.layers && window.LayerManager) {
-        window.LayerManager.setLayers(snap.layers, { skipBridge: true, skipEngineSync: true });
+      if (window.LayerManager) {
+        window.LayerManager.setLayers(snap.layers || [], { skipBridge: true, skipEngineSync: true });
+      }
+
+      if (snap.canvas) {
+        if (snap.canvas.width && document.getElementById('canvasWidthInput')) {
+          document.getElementById('canvasWidthInput').value = snap.canvas.width;
+        }
+        if (snap.canvas.height && document.getElementById('canvasHeightInput')) {
+          document.getElementById('canvasHeightInput').value = snap.canvas.height;
+        }
+        if (snap.canvas.pattern && document.getElementById('canvasPatternSelect')) {
+          document.getElementById('canvasPatternSelect').value = snap.canvas.pattern;
+        }
+      }
+      if (snap.camera && snap.camera.motion && document.getElementById('cameraMotionSelect')) {
+        document.getElementById('cameraMotionSelect').value = snap.camera.motion;
+      }
+      if (snap.optical && snap.optical.type && document.getElementById('effectSelect')) {
+        document.getElementById('effectSelect').value = snap.optical.type;
+      }
+      if (snap.frame) {
+        const frameChk = document.getElementById('chkModuleFrame');
+        if (frameChk) frameChk.checked = !!snap.frame.enabled;
+        const styleSel = document.getElementById('frameStyleSelect');
+        if (styleSel && snap.frame.style) styleSel.value = snap.frame.style;
+      }
+      if (window.ControlStateAdaptor && window.SceneState) {
+        window.ControlStateAdaptor.syncFromDOM(window.SceneState.trackedControlIds);
       }
     },
 
@@ -1951,6 +1980,19 @@
       if (this.isReady()) {
         const res = this.dispatch('History.Clear', {});
         if (res) return res;
+      }
+      return null;
+    },
+
+    resetScene() {
+      if (this.isReady()) {
+        const res = this.dispatch('Scene.Reset', {});
+        if (res && res.success) {
+          if (res.snapshot) {
+            this.syncFromEngineSnapshot(res.snapshot);
+          }
+          return res;
+        }
       }
       return null;
     },

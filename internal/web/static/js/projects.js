@@ -215,6 +215,11 @@ window.ProjectManager = {
     const data = typeof schemaJsonStr === 'string' ? JSON.parse(schemaJsonStr) : schemaJsonStr;
     if (!data || typeof data !== 'object') return;
 
+    // Reset all 95 tracked controls to defaults first so omitted controls never leak across projects
+    if (window.SceneState && typeof window.SceneState.getDefaultControls === 'function' && window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.syncToDOM(window.SceneState.getDefaultControls());
+    }
+
     if (typeof window.setLoadedPhoto === 'function') {
       window.setLoadedPhoto(data.loadedPhoto || null);
     } else if (window.SceneState) {
@@ -326,14 +331,19 @@ window.ProjectManager = {
       }
     }
 
-    if (window.HistoryManager) {
-      window.HistoryManager.undoStack = [];
-      window.HistoryManager.redoStack = [];
-      window.HistoryManager.recordImmediate();
-    }
-
     if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
       window.EngineBridge.syncScene();
+    }
+
+    if (window.HistoryManager) {
+      window.HistoryManager.undoStack = ['loaded-baseline'];
+      window.HistoryManager.redoStack = [];
+      window.HistoryManager.notifyStackChange({
+        canUndo: false,
+        canRedo: false,
+        undoCount: 1,
+        redoCount: 0
+      });
     }
 
     if (options && options.coordinate !== false && window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
@@ -711,78 +721,85 @@ window.ProjectManager = {
     this.currentProjectName = 'Untitled Project';
     this.currentProjectDesc = '';
 
-    if (typeof window.setLoadedPhoto === 'function') window.setLoadedPhoto(null);
-    if (window.ControlStateAdaptor) {
-      window.ControlStateAdaptor.syncToDOM({
-        canvasPatternSelect: 'blueprint',
-        canvasWidthInput: 1280,
-        canvasHeightInput: 720
-      });
-    } else {
-      const patSel = document.getElementById('canvasPatternSelect');
-      if (patSel) patSel.value = 'blueprint';
-      const wIn = document.getElementById('canvasWidthInput');
-      const hIn = document.getElementById('canvasHeightInput');
-      if (wIn) wIn.value = 1280;
-      if (hIn) hIn.value = 720;
+    // 1. Reset Go authoritative scene and history
+    if (window.EngineBridge && typeof window.EngineBridge.resetScene === 'function' && window.EngineBridge.isReady()) {
+      window.EngineBridge.resetScene();
     }
 
+    // 2. Reset loaded background photo
+    if (typeof window.setLoadedPhoto === 'function') {
+      window.setLoadedPhoto(null);
+    } else if (window.SceneState) {
+      window.SceneState.setLoadedPhoto(null);
+    }
+
+    // 3. Reset all 95 tracked controls to defaults
+    if (window.SceneState && typeof window.SceneState.getDefaultControls === 'function' && window.ControlStateAdaptor) {
+      window.ControlStateAdaptor.syncToDOM(window.SceneState.getDefaultControls());
+    }
+
+    // 4. Reset JavaScript presentation state
     if (window.DiagramNodes) {
       if (typeof window.DiagramNodes.setState === 'function') window.DiagramNodes.setState({ nodes: [], nodesCounter: 0 });
+      else { window.DiagramNodes.list = []; window.DiagramNodes.counter = 0; }
     }
     if (window.DataFlows) {
       if (typeof window.DataFlows.setState === 'function') window.DataFlows.setState({ flows: [], flowsCounter: 0 });
+      else { window.DataFlows.list = []; window.DataFlows.counter = 0; }
     }
     if (window.Glows) {
       if (typeof window.Glows.setState === 'function') window.Glows.setState({ glows: [], glowsCounter: 0 });
+      else { window.Glows.list = []; window.Glows.counter = 0; }
     }
     if (window.Ripples) {
       if (typeof window.Ripples.setState === 'function') window.Ripples.setState({ ripples: [], ripplesCounter: 0 });
+      else { window.Ripples.list = []; window.Ripples.counter = 0; }
     }
     if (window.ObjectGroups) {
-      if (typeof window.ObjectGroups.setState === 'function') {
-        window.ObjectGroups.setState({ groups: [], groupsCounter: 0 });
-      } else {
-        window.ObjectGroups.list = [];
-        window.ObjectGroups.counter = 0;
-      }
+      if (typeof window.ObjectGroups.setState === 'function') window.ObjectGroups.setState({ groups: [], groupsCounter: 0 });
+      else { window.ObjectGroups.list = []; window.ObjectGroups.counter = 0; }
     }
     if (window.ImageObjects) {
-      if (typeof window.ImageObjects.setState === 'function') {
-        window.ImageObjects.setState({ images: [], imagesCounter: 0 });
-      } else {
-        window.ImageObjects.list = [];
-        window.ImageObjects.counter = 0;
-      }
+      if (typeof window.ImageObjects.setState === 'function') window.ImageObjects.setState({ images: [], imagesCounter: 0 });
+      else { window.ImageObjects.list = []; window.ImageObjects.counter = 0; }
     }
     if (window.LayerManager) {
-      if (typeof window.LayerManager.setLayers === 'function') {
-        window.LayerManager.setLayers([]);
-      } else {
-        window.LayerManager.list = [];
-      }
+      if (typeof window.LayerManager.setLayers === 'function') window.LayerManager.setLayers([]);
+      else { window.LayerManager.list = []; }
     }
     if (window.NodePresets) {
-      if (typeof window.NodePresets.resetToDefaults === 'function') {
-        window.NodePresets.resetToDefaults();
+      if (typeof window.NodePresets.resetToDefaults === 'function') window.NodePresets.resetToDefaults();
+    }
+
+    // 5. Reset coordination, group edit mode and selection
+    if (window.AppCoordinator) {
+      window.AppCoordinator.groupEditModeGroupId = null;
+      if (typeof window.AppCoordinator.selectNone === 'function') {
+        window.AppCoordinator.selectNone();
       }
     }
 
+    // 6. Reset HistoryManager to clean initial baseline
     if (window.HistoryManager) {
-      window.HistoryManager.undoStack = [];
+      window.HistoryManager.undoStack = ['blank-baseline'];
       window.HistoryManager.redoStack = [];
-      window.HistoryManager.recordImmediate();
+      window.HistoryManager.notifyStackChange({
+        canUndo: false,
+        canRedo: false,
+        undoCount: 1,
+        redoCount: 0
+      });
     }
 
     this.updateHeaderBadge();
     this.renderProjectsList();
 
-    if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.syncScene();
-    }
-
     if (window.AppCoordinator && typeof window.AppCoordinator.coordinatePostRestore === 'function') {
       window.AppCoordinator.coordinatePostRestore({ source: 'new_project' });
+    }
+
+    if (window.triggerRender) {
+      window.triggerRender();
     }
 
     this.setStatusMessage('Started a new blank project.');

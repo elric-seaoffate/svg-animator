@@ -685,54 +685,61 @@ func (s *Scene) RecordHistory() bool {
 
 // UndoHistory restores the previous scene snapshot and selection.
 func (s *Scene) UndoHistory() (HistoryEntry, error) {
-	currentSnap := s.GetSnapshot()
-	currentSel := s.GetSelection()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	currentSnap := s.getSnapshotLocked()
+	currentSel := s.selection
 	entry, err := s.history.Undo(currentSnap, currentSel)
 	if err != nil {
 		return HistoryEntry{}, err
 	}
-	s.SetFromSnapshot(entry.Snapshot)
-	_, _ = s.SetSelection(entry.Selection.Type, entry.Selection.ID)
-	return entry, nil
+	s.setFromSnapshotLocked(entry.Snapshot)
+	s.restoreSelectionLocked(entry.Selection)
+	return HistoryEntry{
+		Snapshot:  DeepCopySnapshot(entry.Snapshot),
+		Selection: DeepCopySelection(s.selection),
+		Timestamp: entry.Timestamp,
+	}, nil
 }
 
 // RedoHistory restores the next undone scene snapshot and selection.
 func (s *Scene) RedoHistory() (HistoryEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	entry, err := s.history.Redo()
 	if err != nil {
 		return HistoryEntry{}, err
 	}
-	s.SetFromSnapshot(entry.Snapshot)
-	_, _ = s.SetSelection(entry.Selection.Type, entry.Selection.ID)
-	return entry, nil
+	s.setFromSnapshotLocked(entry.Snapshot)
+	s.restoreSelectionLocked(entry.Selection)
+	return HistoryEntry{
+		Snapshot:  DeepCopySnapshot(entry.Snapshot),
+		Selection: DeepCopySelection(s.selection),
+		Timestamp: entry.Timestamp,
+	}, nil
 }
 
 // SetFromSnapshot replaces the scene contents with a full snapshot.
 func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.setFromSnapshotLocked(snap)
+}
 
+func (s *Scene) setFromSnapshotLocked(snap Snapshot) {
 	s.canvas = snap.Canvas
-	if snap.Background != nil {
-		bgCopy := *snap.Background
-		if snap.Background.Crop != nil {
-			c := *snap.Background.Crop
-			bgCopy.Crop = &c
-		}
-		if len(snap.Background.CropVersions) > 0 {
-			bgCopy.CropVersions = make([]BackgroundCropVersion, len(snap.Background.CropVersions))
-			copy(bgCopy.CropVersions, snap.Background.CropVersions)
-		}
-		s.background = &bgCopy
-	} else {
-		s.background = nil
-	}
+	s.background = DeepCopyBackground(snap.Background)
 	s.camera = snap.Camera
 	s.optical = snap.Optical
+
 	if snap.Frame.Style != "" || snap.Frame.Enabled {
 		s.frame = snap.Frame
 	} else if snap.Overlays.Style != "" || snap.Overlays.Enabled {
 		s.frame = snap.Overlays
+	} else {
+		s.frame = FrameConfig{}
 	}
 
 	s.nodes = make(map[StringID]Node, len(snap.Nodes))
@@ -753,7 +760,7 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		if n.Animation == "" && n.Anim != "" {
 			n.Animation = n.Anim
 		}
-		s.nodes[n.ID] = n
+		s.nodes[n.ID] = DeepCopyNode(n)
 		s.nodeIDs = append(s.nodeIDs, n.ID)
 	}
 
@@ -766,7 +773,7 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		if f.RouteMode == "" && f.Route != "" {
 			f.RouteMode = f.Route
 		}
-		s.flows[f.ID] = f
+		s.flows[f.ID] = DeepCopyFlow(f)
 		s.flowIDs = append(s.flowIDs, f.ID)
 	}
 
@@ -782,7 +789,7 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		if g.RadarRings <= 0 && g.Rings > 0 {
 			g.RadarRings = g.Rings
 		}
-		s.glows[g.ID] = g
+		s.glows[g.ID] = DeepCopyGlow(g)
 		s.glowIDs = append(s.glowIDs, g.ID)
 	}
 
@@ -795,62 +802,47 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 		if r.WaveCount <= 0 && r.Rings > 0 {
 			r.WaveCount = r.Rings
 		}
-		s.ripples[r.ID] = r
+		s.ripples[r.ID] = DeepCopyRipple(r)
 		s.rippleIDs = append(s.rippleIDs, r.ID)
 	}
 
-	if snap.Groups != nil {
-		s.groups = make(map[StringID]Group, len(snap.Groups))
-		s.groupIDs = make([]StringID, 0, len(snap.Groups))
-		if len(snap.Groups) == 0 {
-			s.groupsCounter = snap.GroupsCounter
-		}
-		for _, g := range snap.Groups {
-			rawID := string(g.ID)
-			if strings.HasPrefix(rawID, "group-") {
-				if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "group-"), 10, 64); err == nil && idNum > s.groupsCounter {
-					s.groupsCounter = idNum
-				}
-			} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.groupsCounter {
+	s.groups = make(map[StringID]Group, len(snap.Groups))
+	s.groupIDs = make([]StringID, 0, len(snap.Groups))
+	s.groupsCounter = snap.GroupsCounter
+	for _, g := range snap.Groups {
+		rawID := string(g.ID)
+		if strings.HasPrefix(rawID, "group-") {
+			if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "group-"), 10, 64); err == nil && idNum > s.groupsCounter {
 				s.groupsCounter = idNum
 			}
-			s.groups[g.ID] = g
-			s.groupIDs = append(s.groupIDs, g.ID)
+		} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.groupsCounter {
+			s.groupsCounter = idNum
 		}
-		if snap.GroupsCounter > s.groupsCounter {
-			s.groupsCounter = snap.GroupsCounter
-		}
+		s.groups[g.ID] = DeepCopyGroup(g)
+		s.groupIDs = append(s.groupIDs, g.ID)
 	}
 
-	if snap.Images != nil {
-		s.images = make(map[StringID]Image, len(snap.Images))
-		s.imageIDs = make([]StringID, 0, len(snap.Images))
-		if len(snap.Images) == 0 {
-			s.imagesCounter = snap.ImagesCounter
-		}
-		for _, img := range snap.Images {
-			rawID := string(img.ID)
-			if strings.HasPrefix(rawID, "image-") {
-				if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "image-"), 10, 64); err == nil && idNum > s.imagesCounter {
-					s.imagesCounter = idNum
-				}
-			} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.imagesCounter {
+	s.images = make(map[StringID]Image, len(snap.Images))
+	s.imageIDs = make([]StringID, 0, len(snap.Images))
+	s.imagesCounter = snap.ImagesCounter
+	for _, img := range snap.Images {
+		rawID := string(img.ID)
+		if strings.HasPrefix(rawID, "image-") {
+			if idNum, err := strconv.ParseInt(strings.TrimPrefix(rawID, "image-"), 10, 64); err == nil && idNum > s.imagesCounter {
 				s.imagesCounter = idNum
 			}
-			s.images[img.ID] = img
-			s.imageIDs = append(s.imageIDs, img.ID)
+		} else if idNum, err := strconv.ParseInt(rawID, 10, 64); err == nil && idNum > s.imagesCounter {
+			s.imagesCounter = idNum
 		}
-		if snap.ImagesCounter > s.imagesCounter {
-			s.imagesCounter = snap.ImagesCounter
-		}
-	} else {
-		s.images = make(map[StringID]Image)
-		s.imageIDs = make([]StringID, 0)
+		s.images[img.ID] = DeepCopyImage(img)
+		s.imageIDs = append(s.imageIDs, img.ID)
 	}
 
-	if snap.Layers != nil && len(snap.Layers) > 0 {
+	if len(snap.Layers) > 0 {
 		s.layers = make([]LayerEntry, len(snap.Layers))
-		copy(s.layers, snap.Layers)
+		for i, l := range snap.Layers {
+			s.layers[i] = DeepCopyLayerEntry(l)
+		}
 		s.ensureLayersInitializedLocked()
 	} else {
 		s.layers = nil
@@ -864,55 +856,118 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	}
 }
 
-// GetSnapshot exports an immutable snapshot of current scene state.
-func (s *Scene) GetSnapshot() Snapshot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// Reset clears all scene objects, layers, groups, images, resets configuration to defaults,
+// resets all counters to 0, clears history, and records the initial clean baseline state.
+func (s *Scene) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
+	s.revision = 1
+	s.canvas = CanvasConfig{
+		Width:        1280,
+		Height:       720,
+		Duration:     7.0,
+		PlaybackMode: "once",
+	}
+	s.camera = CameraConfig{
+		Motion:    "static",
+		Duration:  7.0,
+		Loop:      "once",
+		StartX:    50,
+		StartY:    50,
+		StartZoom: 1.0,
+		EndX:      60,
+		EndY:      40,
+		EndZoom:   1.3,
+		Sway:      1.4,
+		Breathe:   1.8,
+	}
+	s.optical = OpticalConfig{
+		Type:     "none",
+		FocusDur: 4.0,
+		TSBlur:   12.0,
+		TSWidth:  20.0,
+		TSPos:    50.0,
+		TSPosX:   50.0,
+		MBInt:    15.0,
+	}
+	s.frame = FrameConfig{
+		Enabled:  false,
+		Style:    "walnut",
+		Depth:    44.0,
+		Lighting: true,
+		LightDir: "tl",
+		LightInt: 70.0,
+		Shadow:   0.55,
+		Fillet:   true,
+	}
+	s.background = nil
+
+	s.nodes = make(map[StringID]Node)
+	s.flows = make(map[StringID]Flow)
+	s.glows = make(map[StringID]Glow)
+	s.ripples = make(map[StringID]Ripple)
+	s.groups = make(map[StringID]Group)
+	s.images = make(map[StringID]Image)
+
+	s.nodeIDs = make([]StringID, 0)
+	s.flowIDs = make([]StringID, 0)
+	s.glowIDs = make([]StringID, 0)
+	s.rippleIDs = make([]StringID, 0)
+	s.groupIDs = make([]StringID, 0)
+	s.imageIDs = make([]StringID, 0)
+
+	s.nodesCounter = 0
+	s.flowsCounter = 0
+	s.glowsCounter = 0
+	s.ripplesCounter = 0
+	s.groupsCounter = 0
+	s.imagesCounter = 0
+
+	s.layers = make([]LayerEntry, 0)
+	s.selection = SelectionState{Type: SelectionNone, ID: ""}
+
+	s.history.Clear()
+	s.history.Record(s.getSnapshotLocked(), s.selection)
+}
+
+func (s *Scene) getSnapshotLocked() Snapshot {
 	nodes := make([]Node, len(s.nodeIDs))
 	for i, id := range s.nodeIDs {
-		nodes[i] = s.nodes[id]
+		nodes[i] = DeepCopyNode(s.nodes[id])
 	}
 
 	flows := make([]Flow, len(s.flowIDs))
 	for i, id := range s.flowIDs {
-		flows[i] = s.flows[id]
+		flows[i] = DeepCopyFlow(s.flows[id])
 	}
 
 	glows := make([]Glow, len(s.glowIDs))
 	for i, id := range s.glowIDs {
-		glows[i] = s.glows[id]
+		glows[i] = DeepCopyGlow(s.glows[id])
 	}
 
 	ripples := make([]Ripple, len(s.rippleIDs))
 	for i, id := range s.rippleIDs {
-		ripples[i] = s.ripples[id]
+		ripples[i] = DeepCopyRipple(s.ripples[id])
 	}
 
 	groups := make([]Group, len(s.groupIDs))
 	for i, id := range s.groupIDs {
-		groups[i] = s.groups[id]
+		groups[i] = DeepCopyGroup(s.groups[id])
 	}
 
 	images := make([]Image, len(s.imageIDs))
 	for i, id := range s.imageIDs {
-		images[i] = s.images[id]
+		images[i] = DeepCopyImage(s.images[id])
 	}
 
-	s.ensureLayersInitializedLocked()
-	layers := make([]LayerEntry, len(s.layers))
-	copy(layers, s.layers)
-	for i := range layers {
-		v := s.getEffectiveVisibilityLocked(layers[i].Type, layers[i].ID)
-		l := s.getEffectiveLockedLocked(layers[i].Type, layers[i].ID)
-		layers[i].Visible = &v
-		layers[i].Locked = &l
-	}
+	layers := s.getLayersSnapshotLocked()
 
 	return Snapshot{
 		Revision:      s.revision,
 		Canvas:        s.canvas,
-		Background:    s.getBackgroundLocked(),
+		Background:    DeepCopyBackground(s.background),
 		Camera:        s.camera,
 		Optical:       s.optical,
 		Frame:         s.frame,
@@ -927,6 +982,13 @@ func (s *Scene) GetSnapshot() Snapshot {
 		ImagesCounter: s.imagesCounter,
 		Layers:        layers,
 	}
+}
+
+// GetSnapshot exports an immutable, deep-copied snapshot of current scene state.
+func (s *Scene) GetSnapshot() Snapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getSnapshotLocked()
 }
 
 // SetBackground sets or replaces the authoritative background configuration.
