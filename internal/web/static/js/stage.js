@@ -44,6 +44,13 @@ window.Stage = {
   cropOrigBounds: null,
   cropDragMode: null,
   cropDragStart: null,
+  isClippingImage: false,
+  activeClipImage: null,
+  activeClipImageId: null,
+  clipBox: null,
+  clipOrigBounds: null,
+  clipDragMode: null,
+  clipDragStart: null,
   isExtractingBg: false,
   isDraggingBgExtract: false,
   bgExtractStartCanvas: null,
@@ -306,6 +313,34 @@ window.Stage = {
               clientX: e.clientX,
               clientY: e.clientY,
               box: Object.assign({}, this.cropBox)
+            };
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          }
+          return;
+        }
+
+        if (this.isClippingImage) {
+          const handleEl = e.target.closest ? e.target.closest('.clip-handle') : null;
+          const boxEl = e.target.closest ? e.target.closest('#clipBoxRect') : null;
+          if (handleEl) {
+            e.stopPropagation();
+            const hId = handleEl.id.replace('clipHandle-', '');
+            this.clipDragMode = hId;
+            this.clipDragStart = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              box: Object.assign({}, this.clipBox)
+            };
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
+          } else if (boxEl) {
+            e.stopPropagation();
+            this.clipDragMode = 'move';
+            this.clipDragStart = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              box: Object.assign({}, this.clipBox)
             };
             try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
             return;
@@ -746,6 +781,52 @@ window.Stage = {
 
           this.cropBox = { x: newX, y: newY, w: newW, h: newH };
           this.updateCropOverlayUI();
+          if (typeof window.syncImageToolsFromCrop === 'function') {
+            window.syncImageToolsFromCrop();
+          }
+          return;
+        }
+
+        if (this.isClippingImage && this.clipDragMode && this.clipDragStart && this.clipOrigBounds) {
+          const dx = (e.clientX - this.clipDragStart.clientX) / this.zoomScale;
+          const dy = (e.clientY - this.clipDragStart.clientY) / this.zoomScale;
+          const init = this.clipDragStart.box;
+          const ob = this.clipOrigBounds;
+
+          let newX = init.x;
+          let newY = init.y;
+          let newW = init.w;
+          let newH = init.h;
+
+          if (this.clipDragMode === 'move') {
+            newX = Math.max(ob.left, Math.min(ob.left + ob.w - init.w, init.x + dx));
+            newY = Math.max(ob.top, Math.min(ob.top + ob.h - init.h, init.y + dy));
+          } else {
+            if (this.clipDragMode.includes('w')) {
+              const maxLeft = init.x + init.w - 10;
+              newX = Math.max(ob.left, Math.min(maxLeft, init.x + dx));
+              newW = init.w - (newX - init.x);
+            }
+            if (this.clipDragMode.includes('e')) {
+              const maxW = ob.left + ob.w - init.x;
+              newW = Math.max(10, Math.min(maxW, init.w + dx));
+            }
+            if (this.clipDragMode.includes('n')) {
+              const maxTop = init.y + init.h - 10;
+              newY = Math.max(ob.top, Math.min(maxTop, init.y + dy));
+              newH = init.h - (newY - init.y);
+            }
+            if (this.clipDragMode.includes('s')) {
+              const maxH = ob.top + ob.h - init.y;
+              newH = Math.max(10, Math.min(maxH, init.h + dy));
+            }
+          }
+
+          this.clipBox = { x: newX, y: newY, w: newW, h: newH };
+          this.updateClipOverlayUI();
+          if (typeof window.syncImageToolsFromClip === 'function') {
+            window.syncImageToolsFromClip();
+          }
           return;
         }
 
@@ -774,6 +855,9 @@ window.Stage = {
           const btn = document.getElementById('btnConfirmExtract');
           if (btn) {
             btn.disabled = !(w >= 10 && h >= 10);
+          }
+          if (typeof window.syncImageToolsFromSnip === 'function') {
+            window.syncImageToolsFromSnip();
           }
           return;
         }
@@ -899,6 +983,12 @@ window.Stage = {
 
         if (this.isCroppingImage) {
           this.cropDragMode = null;
+          try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
+          return;
+        }
+
+        if (this.isClippingImage) {
+          this.clipDragMode = null;
           try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
           return;
         }
@@ -1606,6 +1696,219 @@ window.Stage = {
     }
     if (typeof window.syncImageEditorUI === 'function') {
       window.syncImageEditorUI();
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
+    }
+  },
+
+  startClipMode(imageObj) {
+    if (!imageObj) return;
+    const img = (typeof imageObj === 'string' || typeof imageObj === 'number')
+      ? (window.ImageObjects ? window.ImageObjects.getImage(imageObj) : null)
+      : imageObj;
+    if (!img) return;
+
+    if (this.isCroppingImage) this.cancelCropMode();
+    if (this.isExtractingBg) this.cancelBgExtractMode();
+
+    this.isClippingImage = true;
+    this.activeClipImage = img;
+    this.activeClipImageId = img.id;
+
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', img.id, { skipRender: true });
+    }
+
+    const canvasW = this.canvasWidth;
+    const canvasH = this.canvasHeight;
+    const cx = (img.x / 100) * canvasW;
+    const cy = (img.y / 100) * canvasH;
+    const w = Number(img.width) || 200;
+    const h = Number(img.height) || 150;
+    const left = cx - w / 2;
+    const top = cy - h / 2;
+
+    let clipX = left;
+    let clipY = top;
+    let clipW = w;
+    let clipH = h;
+
+    if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {
+      clipX = left + Number(img.clip.x);
+      clipY = top + Number(img.clip.y);
+      clipW = Number(img.clip.width);
+      clipH = Number(img.clip.height);
+    }
+
+    this.clipOrigBounds = {
+      left: left,
+      top: top,
+      w: w,
+      h: h
+    };
+
+    this.clipBox = {
+      x: clipX,
+      y: clipY,
+      w: clipW,
+      h: clipH
+    };
+
+    if (this.previewBox) this.previewBox.classList.add('crop-mode-active');
+    if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'auto';
+
+    const selBox = document.getElementById('nodeSelectionBox');
+    if (selBox) selBox.style.display = 'none';
+
+    const clipBar = document.getElementById('clipBar');
+    if (clipBar) clipBar.style.display = 'flex';
+
+    const groupEl = document.getElementById('clipOverlayGroup');
+    if (groupEl) groupEl.style.display = 'block';
+
+    this.updateClipOverlayUI();
+    if (typeof window.syncImageToolsFromClip === 'function') {
+      window.syncImageToolsFromClip();
+    }
+  },
+
+  updateClipOverlayUI() {
+    if (!this.isClippingImage || !this.clipBox || !this.clipOrigBounds) return;
+    const b = this.clipBox;
+    const ob = this.clipOrigBounds;
+
+    const boxRect = document.getElementById('clipBoxRect');
+    if (boxRect) {
+      boxRect.setAttribute('x', b.x.toFixed(1));
+      boxRect.setAttribute('y', b.y.toFixed(1));
+      boxRect.setAttribute('width', b.w.toFixed(1));
+      boxRect.setAttribute('height', b.h.toFixed(1));
+    }
+
+    const mask = document.getElementById('clipDimMask');
+    if (mask) {
+      const d = `M ${ob.left.toFixed(1)} ${ob.top.toFixed(1)} h ${ob.w.toFixed(1)} v ${ob.h.toFixed(1)} h -${ob.w.toFixed(1)} Z M ${b.x.toFixed(1)} ${b.y.toFixed(1)} v ${b.h.toFixed(1)} h ${b.w.toFixed(1)} v -${b.h.toFixed(1)} Z`;
+      mask.setAttribute('d', d);
+    }
+
+    const hw = 7;
+    const setH = (id, x, y) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.setAttribute('x', (x - hw).toFixed(1));
+        el.setAttribute('y', (y - hw).toFixed(1));
+      }
+    };
+
+    setH('clipHandle-nw', b.x, b.y);
+    setH('clipHandle-n',  b.x + b.w / 2, b.y);
+    setH('clipHandle-ne', b.x + b.w, b.y);
+    setH('clipHandle-e',  b.x + b.w, b.y + b.h / 2);
+    setH('clipHandle-se', b.x + b.w, b.y + b.h);
+    setH('clipHandle-s',  b.x + b.w / 2, b.y + b.h);
+    setH('clipHandle-sw', b.x, b.y + b.h);
+    setH('clipHandle-w',  b.x, b.y + b.h / 2);
+
+    const localX = Math.round(Math.max(0, b.x - ob.left));
+    const localY = Math.round(Math.max(0, b.y - ob.top));
+    const localW = Math.round(b.w);
+    const localH = Math.round(b.h);
+
+    const lbl = document.getElementById('clipCoordsLabel');
+    if (lbl) {
+      lbl.innerText = `${localX}, ${localY} (${localW} × ${localH} px)`;
+    }
+  },
+
+  applyClipMode() {
+    if (!this.isClippingImage || !this.activeClipImage || !this.clipBox || !this.clipOrigBounds) {
+      this.cancelClipMode();
+      return;
+    }
+
+    const imgId = this.activeClipImage.id;
+    const b = this.clipBox;
+    const ob = this.clipOrigBounds;
+
+    const localX = Math.round(Math.max(0, b.x - ob.left));
+    const localY = Math.round(Math.max(0, b.y - ob.top));
+    const localW = Math.max(10, Math.min(ob.w - localX, Math.round(b.w)));
+    const localH = Math.max(10, Math.min(ob.h - localY, Math.round(b.h)));
+
+    const clipData = {
+      x: localX,
+      y: localY,
+      width: localW,
+      height: localH
+    };
+
+    this.cancelClipMode();
+
+    if (window.ImageObjects) {
+      window.ImageObjects.clipImage(imgId, clipData);
+    }
+    if (window.HistoryManager) {
+      window.HistoryManager.recordImmediate();
+    }
+    if (typeof window.triggerRender === 'function') {
+      window.triggerRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.updateActiveOverlays();
+      window.AppCoordinator.showNotification('Image clip applied.', 'success', 2500);
+    }
+    if (typeof window.syncImageEditorUI === 'function') {
+      window.syncImageEditorUI();
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
+    }
+  },
+
+  cancelClipMode() {
+    this.isClippingImage = false;
+    this.activeClipImage = null;
+    this.activeClipImageId = null;
+    this.clipDragMode = null;
+    if (this.previewBox) this.previewBox.classList.remove('crop-mode-active');
+    if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'none';
+    const clipBar = document.getElementById('clipBar');
+    if (clipBar) clipBar.style.display = 'none';
+    const groupEl = document.getElementById('clipOverlayGroup');
+    if (groupEl) groupEl.style.display = 'none';
+    if (window.AppCoordinator) {
+      window.AppCoordinator.updateActiveOverlays();
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
+    }
+  },
+
+  resetClipMode() {
+    if (!this.activeClipImage) return;
+    const imgId = this.activeClipImage.id;
+    this.cancelClipMode();
+    if (window.ImageObjects) {
+      window.ImageObjects.resetClip(imgId);
+    }
+    if (window.HistoryManager) {
+      window.HistoryManager.recordImmediate();
+    }
+    if (typeof window.triggerRender === 'function') {
+      window.triggerRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.selectObject('image', imgId, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.updateActiveOverlays();
+      window.AppCoordinator.showNotification('Image clip reset.', 'info', 2500);
+    }
+    if (typeof window.syncImageEditorUI === 'function') {
+      window.syncImageEditorUI();
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
     }
   },
 

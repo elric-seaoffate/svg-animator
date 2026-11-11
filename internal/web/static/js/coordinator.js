@@ -1040,6 +1040,9 @@
           window.Ripples.updateUIOverlay(activeRipple);
         }
       }
+      if (typeof window.syncImageToolsUI === 'function') {
+        window.syncImageToolsUI();
+      }
     },
 
     /**

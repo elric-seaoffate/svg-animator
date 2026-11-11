@@ -93,6 +93,12 @@ func (s *Scene) CreateImage(initial Image) (Image, error) {
 		cropPtr = &c
 	}
 
+	var clipPtr *ImageClip
+	if initial.Clip != nil {
+		cl := *initial.Clip
+		clipPtr = &cl
+	}
+
 	img := Image{
 		ID:                  newID,
 		Name:                displayName,
@@ -109,6 +115,7 @@ func (s *Scene) CreateImage(initial Image) (Image, error) {
 		NaturalHeight:       initial.NaturalHeight,
 		MaintainAspectRatio: initial.MaintainAspectRatio,
 		Crop:                cropPtr,
+		Clip:                clipPtr,
 		Opacity:             opacity,
 		Visible:             initial.Visible,
 		Locked:              initial.Locked,
@@ -187,6 +194,10 @@ func (s *Scene) UpdateImage(id StringID, patch Image) (Image, error) {
 	if patch.Crop != nil {
 		c := *patch.Crop
 		img.Crop = &c
+	}
+	if patch.Clip != nil {
+		cl := *patch.Clip
+		img.Clip = &cl
 	}
 	if patch.Opacity > 0 {
 		img.Opacity = patch.Opacity
@@ -317,6 +328,39 @@ func (s *Scene) ResetImageCrop(id StringID) (Image, error) {
 		img.Crop = nil
 	}
 
+	s.images[id] = img
+	s.revision++
+	return img, nil
+}
+
+// SetImageClip configures non-destructive object-local rectangular clipping for an image.
+func (s *Scene) SetImageClip(id StringID, clip ImageClip) (Image, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	img, exists := s.images[id]
+	if !exists {
+		return Image{}, fmt.Errorf("image not found: %s", id)
+	}
+
+	clip.Enabled = true
+	img.Clip = &clip
+	s.images[id] = img
+	s.revision++
+	return img, nil
+}
+
+// ResetImageClip removes object-local clipping from an image.
+func (s *Scene) ResetImageClip(id StringID) (Image, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	img, exists := s.images[id]
+	if !exists {
+		return Image{}, fmt.Errorf("image not found: %s", id)
+	}
+
+	img.Clip = nil
 	s.images[id] = img
 	s.revision++
 	return img, nil

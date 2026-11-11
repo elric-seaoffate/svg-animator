@@ -170,6 +170,7 @@ window.WorkspaceController = {
     'acc-glows': 'Hotspots & Glows',
     'acc-ripples': 'Water Ripples',
     'acc-layers': 'Layers & Objects',
+    'acc-image-tools': 'Crop, Clip & Snip',
     'acc-playback': 'Scene & Timeline',
     'acc-camera': 'Camera Rig & Motion',
     'acc-optics': 'Optical Effects',
@@ -179,7 +180,7 @@ window.WorkspaceController = {
 
   showToolPanel(toolId) {
     if (!toolId) return;
-    const isLeft = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers'].includes(toolId);
+    const isLeft = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers', 'acc-image-tools'].includes(toolId);
     const isRight = ['acc-playback', 'acc-camera', 'acc-optics', 'acc-frame', 'acc-export'].includes(toolId);
     if (!isLeft && !isRight) return;
 
@@ -192,7 +193,7 @@ window.WorkspaceController = {
         titleEl.textContent = this.toolTitles[toolId];
       }
 
-      const objectTools = ['acc-nodes', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers'];
+      const objectTools = ['acc-nodes', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers', 'acc-image-tools'];
       const leftDrawer = document.getElementById('leftDrawer');
       if (leftDrawer && leftDrawer.classList) {
         leftDrawer.classList.toggle('expanded-inspector', objectTools.includes(toolId));
@@ -204,14 +205,15 @@ window.WorkspaceController = {
           'acc-flows': 'flow',
           'acc-glows': 'glow',
           'acc-ripples': 'ripple',
-          'acc-layers': 'image'
+          'acc-layers': 'image',
+          'acc-image-tools': 'image'
         };
         if (typeMap[toolId] !== window.FloatingPropertiesEditor.activeType) {
           window.FloatingPropertiesEditor.close();
         }
       }
 
-      const leftSections = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers'];
+      const leftSections = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers', 'acc-image-tools'];
       leftSections.forEach((secId) => {
         const sec = document.getElementById(secId);
         if (sec && sec.classList) {
@@ -222,6 +224,9 @@ window.WorkspaceController = {
       });
       if (toolId === 'acc-layers' && typeof window.renderLayersList === 'function') {
         window.renderLayersList();
+      }
+      if (toolId === 'acc-image-tools' && typeof window.syncImageToolsUI === 'function') {
+        window.syncImageToolsUI();
       }
       this.syncRailForAccordion(toolId);
     } else if (isRight) {
@@ -427,7 +432,7 @@ window.WorkspaceController = {
 
   syncRailForAccordion(accId) {
     if (!accId) return;
-    const isLeftSection = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples'].includes(accId);
+    const isLeftSection = ['acc-background', 'acc-nodes', 'acc-presets', 'acc-flows', 'acc-glows', 'acc-ripples', 'acc-layers', 'acc-image-tools'].includes(accId);
     const isRightSection = ['acc-playback', 'acc-camera', 'acc-optics', 'acc-frame', 'acc-export'].includes(accId);
     if (isLeftSection) this.lastLeftAccId = accId;
     if (isRightSection) this.lastRightAccId = accId;
@@ -2208,15 +2213,28 @@ window.FloatingPropertiesEditor = {
       });
     }
 
+    const fctxBtnClip = document.getElementById('fctx-btnClipImage');
+    if (fctxBtnClip) {
+      fctxBtnClip.addEventListener('click', () => {
+        if (this.activeType === 'image' && this.activeId !== null && window.Stage) {
+          const id = this.activeId;
+          this.close();
+          window.Stage.startClipMode(id);
+        }
+      });
+    }
+
     const fctxBtnResetCrop = document.getElementById('fctx-btnResetCrop');
     if (fctxBtnResetCrop) {
       fctxBtnResetCrop.addEventListener('click', () => {
         if (this.activeType === 'image' && this.activeId !== null && window.ImageObjects) {
           const id = this.activeId;
           window.ImageObjects.resetCrop(id);
+          window.ImageObjects.resetClip(id);
           if (window.HistoryManager) window.HistoryManager.recordImmediate();
           if (typeof window.triggerRender === 'function') window.triggerRender();
           if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+          if (typeof window.syncImageToolsUI === 'function') window.syncImageToolsUI();
           this.openFor('image', id);
         }
       });
@@ -2245,15 +2263,34 @@ window.FloatingPropertiesEditor = {
       }
     }
 
+    // Selection box resolution
+    if (target.closest('#nodeSelectionBox')) {
+      if (window.AppCoordinator && window.AppCoordinator.activeSelection) {
+        const sel = window.AppCoordinator.activeSelection;
+        if (sel.type === 'image' && sel.id !== null) {
+          return { type: 'image', id: sel.id };
+        }
+        if (sel.type === 'node' && sel.id !== null) {
+          return { type: 'node', id: sel.id };
+        }
+      }
+      if (window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+        return { type: 'node', id: window.DiagramNodes.activeId };
+      }
+    }
+
+    if (target.closest('#cropOverlayGroup') || target.closest('#cropBoxRect')) {
+      if (window.Stage && window.Stage.activeCropImageId) {
+        return { type: 'image', id: window.Stage.activeCropImageId };
+      }
+    }
+
     // 1. Nodes: SVG node group or child elements, or active node selection box
     const nodeEl = target.closest('[data-node-id]');
     if (nodeEl && nodeEl.getAttribute) {
       const rawId = nodeEl.getAttribute('data-node-id');
       const id = parseInt(rawId, 10);
       return { type: 'node', id: !isNaN(id) ? id : rawId };
-    }
-    if (target.closest('#nodeSelectionBox') && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
-      return { type: 'node', id: window.DiagramNodes.activeId };
     }
 
     // 2. Flows: flow instance group, connector path, flow badge, or flow reticles
@@ -2312,7 +2349,7 @@ window.FloatingPropertiesEditor = {
     if (imgEl && imgEl.getAttribute) {
       const rawId = imgEl.getAttribute('data-image-id');
       const iid = parseInt(rawId, 10);
-      return { type: 'image', id: !isNaN(iid) ? iid : rawId };
+      return { type: 'image', id: (!isNaN(iid) && String(iid) === rawId) ? iid : rawId };
     }
 
     return null;
@@ -3989,16 +4026,40 @@ function initImageEditorEvents() {
     });
   }
 
+  const btnClip = document.getElementById('btnClipImage');
+  if (btnClip && !btnClip._hasBound) {
+    btnClip._hasBound = true;
+    btnClip.addEventListener('click', () => {
+      const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+      if (!sel || sel.type !== 'image' || !sel.id || !window.Stage) return;
+      window.Stage.startClipMode(sel.id);
+    });
+  }
+
+  const btnOpenTools = document.getElementById('btnOpenImageTools');
+  if (btnOpenTools && !btnOpenTools._hasBound) {
+    btnOpenTools._hasBound = true;
+    btnOpenTools.addEventListener('click', () => {
+      if (window.WorkspaceController) {
+        window.WorkspaceController.showToolPanel('acc-image-tools');
+      }
+    });
+  }
+
   const btnResetCrop = document.getElementById('btnResetCropImage');
   if (btnResetCrop && !btnResetCrop._hasBound) {
     btnResetCrop._hasBound = true;
     btnResetCrop.addEventListener('click', () => {
       const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
       if (!sel || sel.type !== 'image' || !sel.id) return;
-      if (window.ImageObjects) window.ImageObjects.resetCrop(sel.id);
+      if (window.ImageObjects) {
+        window.ImageObjects.resetCrop(sel.id);
+        window.ImageObjects.resetClip(sel.id);
+      }
       if (window.HistoryManager) window.HistoryManager.recordImmediate();
       if (typeof window.triggerRender === 'function') window.triggerRender();
       syncImageEditorUI();
+      if (typeof window.syncImageToolsUI === 'function') window.syncImageToolsUI();
     });
   }
 
@@ -4326,9 +4387,9 @@ window.executeBackgroundExtraction = function(box) {
     const xPct = ((box.x + box.w / 2) / canvasW) * 100;
     const yPct = ((box.y + box.h / 2) / canvasH) * 100;
 
-    window._bgExtractCounter = (window._bgExtractCounter || 0) + 1;
-    const extractName = `Background Extract ${window._bgExtractCounter}`;
-    const filename = `bg_extract_${window._bgExtractCounter}.png`;
+    window._bgSnipCounter = (window._bgSnipCounter || 0) + 1;
+    const extractName = `Background Snip ${window._bgSnipCounter}`;
+    const filename = `bg_snip_${window._bgSnipCounter}.png`;
 
     const imgPayload = {
       name: extractName,
@@ -4377,11 +4438,11 @@ window.executeBackgroundExtraction = function(box) {
       window.triggerRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', created.id, { openAccordionId: 'acc-layers' });
+      window.AppCoordinator.selectObject('image', created.id, { openAccordionId: 'acc-image-tools' });
       window.AppCoordinator.requestRender();
       window.AppCoordinator.updateActiveOverlays();
       window.AppCoordinator.showNotification(
-        'Background region extracted as an editable image. Drag to reposition.',
+        `Created "${extractName}". Drag to reposition.`,
         'success',
         4000
       );
@@ -4392,23 +4453,746 @@ window.executeBackgroundExtraction = function(box) {
     if (typeof window.renderLayersList === 'function') {
       window.renderLayersList();
     }
+    if (window.ImageToolsController && typeof window.ImageToolsController.showResult === 'function') {
+      window.ImageToolsController.showResult(created);
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
+    }
   });
+};
+
+window.ImageToolsController = {
+  currentMode: 'crop', // 'crop' | 'clip' | 'snip'
+  lastExtractedResult: null,
+  _imageCache: new Map(),
+  _snipDebounce: null,
+
+  init() {
+    this._bindEvents();
+    this.syncUI();
+  },
+
+  setMode(mode) {
+    if (!['crop', 'clip', 'snip'].includes(mode)) return;
+    this.currentMode = mode;
+
+    if (window.Stage) {
+      if (window.Stage.isCroppingImage) window.Stage.cancelCropMode();
+      if (window.Stage.isClippingImage) window.Stage.cancelClipMode();
+      if (window.Stage.isExtractingBg) window.Stage.cancelBgExtractMode();
+    }
+
+    this.syncUI();
+  },
+
+  _bindEvents() {
+    const btnCrop = document.getElementById('btnModeCrop');
+    const btnClip = document.getElementById('btnModeClip');
+    const btnSnip = document.getElementById('btnModeSnip');
+    if (btnCrop && !btnCrop._hasBound) {
+      btnCrop._hasBound = true;
+      btnCrop.addEventListener('click', () => this.setMode('crop'));
+    }
+    if (btnClip && !btnClip._hasBound) {
+      btnClip._hasBound = true;
+      btnClip.addEventListener('click', () => this.setMode('clip'));
+    }
+    if (btnSnip && !btnSnip._hasBound) {
+      btnSnip._hasBound = true;
+      btnSnip.addEventListener('click', () => this.setMode('snip'));
+    }
+
+    const onNumInput = () => this._onInputChange();
+    ['toolRegionX', 'toolRegionY', 'toolRegionW', 'toolRegionH'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && !el._hasBound) {
+        el._hasBound = true;
+        el.addEventListener('input', onNumInput);
+        el.addEventListener('change', onNumInput);
+      }
+    });
+
+    const btnSelect = document.getElementById('btnToolSelectOnCanvas');
+    if (btnSelect && !btnSelect._hasBound) {
+      btnSelect._hasBound = true;
+      btnSelect.addEventListener('click', () => this.startCanvasSelection());
+    }
+
+    const btnApply = document.getElementById('btnToolApply');
+    if (btnApply && !btnApply._hasBound) {
+      btnApply._hasBound = true;
+      btnApply.addEventListener('click', () => this.applyAction());
+    }
+
+    const btnCancel = document.getElementById('btnToolCancel');
+    if (btnCancel && !btnCancel._hasBound) {
+      btnCancel._hasBound = true;
+      btnCancel.addEventListener('click', () => this.cancelAction());
+    }
+
+    const btnReset = document.getElementById('btnToolReset');
+    if (btnReset && !btnReset._hasBound) {
+      btnReset._hasBound = true;
+      btnReset.addEventListener('click', () => this.resetAction());
+    }
+
+    const btnBake = document.getElementById('btnToolBake');
+    if (btnBake && !btnBake._hasBound) {
+      btnBake._hasBound = true;
+      btnBake.addEventListener('click', () => {
+        const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
+        if (sel && sel.type === 'image' && sel.id && window.ImageObjects) {
+          const img = window.ImageObjects.getImage(sel.id);
+          if (img && typeof window.openBakeModal === 'function') {
+            window.openBakeModal(img);
+          }
+        }
+      });
+    }
+
+    const btnSelRes = document.getElementById('btnToolSelectResult');
+    if (btnSelRes && !btnSelRes._hasBound) {
+      btnSelRes._hasBound = true;
+      btnSelRes.addEventListener('click', () => {
+        if (this.lastExtractedResult && this.lastExtractedResult.id && window.AppCoordinator) {
+          window.AppCoordinator.selectObject('image', this.lastExtractedResult.id);
+          window.AppCoordinator.updateActiveOverlays();
+        }
+      });
+    }
+
+    const btnShowLayers = document.getElementById('btnToolShowInLayers');
+    if (btnShowLayers && !btnShowLayers._hasBound) {
+      btnShowLayers._hasBound = true;
+      btnShowLayers.addEventListener('click', () => {
+        if (window.WorkspaceController) {
+          window.WorkspaceController.showToolPanel('acc-layers');
+        }
+        if (this.lastExtractedResult && this.lastExtractedResult.id) {
+          setTimeout(() => {
+            const row = document.querySelector(`.layer-item[data-layer-id="${this.lastExtractedResult.id}"]`);
+            if (row) {
+              row.scrollIntoView({ block: 'nearest' });
+              row.classList.add('layer-row-selected');
+            }
+          }, 60);
+        }
+      });
+    }
+
+    const btnImport = document.getElementById('btnToolsImportImage');
+    if (btnImport && !btnImport._hasBound) {
+      btnImport._hasBound = true;
+      btnImport.addEventListener('click', () => {
+        const fileIn = document.getElementById('inputImportImageObject');
+        if (fileIn) fileIn.click();
+      });
+    }
+  },
+
+  syncUI() {
+    const btnCrop = document.getElementById('btnModeCrop');
+    const btnClip = document.getElementById('btnModeClip');
+    const btnSnip = document.getElementById('btnModeSnip');
+    if (btnCrop) btnCrop.classList.toggle('active', this.currentMode === 'crop');
+    if (btnClip) btnClip.classList.toggle('active', this.currentMode === 'clip');
+    if (btnSnip) btnSnip.classList.toggle('active', this.currentMode === 'snip');
+
+    const regionTitle = document.getElementById('imageToolsRegionTitle');
+    const regionUnit = document.getElementById('imageToolsRegionUnit');
+    const btnApply = document.getElementById('btnToolApply');
+    const btnReset = document.getElementById('btnToolReset');
+    const btnSelectOnCanvas = document.getElementById('btnToolSelectOnCanvas');
+    const bakeRow = document.getElementById('imageToolsBakeRow');
+    const sourceCard = document.getElementById('imageToolsSourceCard');
+    const noImgAlert = document.getElementById('imageToolsNoImageAlert');
+    const sourceTitle = document.getElementById('imageToolsSourceTitle');
+    const selName = document.getElementById('imageToolsSelectedName');
+    const origDims = document.getElementById('imageToolsOriginalDims');
+
+    const sel = (window.AppCoordinator && typeof window.AppCoordinator.getActiveSelection === 'function')
+      ? window.AppCoordinator.getActiveSelection()
+      : null;
+    const isImageSelected = sel && sel.type === 'image' && sel.id !== null;
+    const currentImg = isImageSelected && window.ImageObjects ? window.ImageObjects.getImage(sel.id) : null;
+
+    if (this.currentMode === 'crop') {
+      if (regionTitle) regionTitle.textContent = 'Crop Region';
+      if (regionUnit) regionUnit.textContent = 'source px';
+      if (btnApply) btnApply.textContent = 'Apply Crop';
+      if (btnReset) btnReset.textContent = '⟲ Reset';
+      if (btnSelectOnCanvas) btnSelectOnCanvas.textContent = '✏️ Select Crop Region on Canvas';
+      if (bakeRow) bakeRow.style.display = isImageSelected ? 'block' : 'none';
+      if (sourceTitle) sourceTitle.textContent = 'Selected Image Object';
+
+      if (isImageSelected && currentImg) {
+        if (sourceCard) sourceCard.style.display = 'block';
+        if (noImgAlert) noImgAlert.style.display = 'none';
+        if (selName) selName.textContent = currentImg.name || `Image ${currentImg.id}`;
+        if (origDims) {
+          const nw = currentImg.naturalWidth || currentImg.width || 0;
+          const nh = currentImg.naturalHeight || currentImg.height || 0;
+          origDims.textContent = `${Math.round(nw)} × ${Math.round(nh)} px`;
+        }
+        this._syncCropInputsAndPreview(currentImg);
+      } else {
+        if (sourceCard) sourceCard.style.display = 'none';
+        if (noImgAlert) noImgAlert.style.display = 'block';
+        this._clearPreview('Select an image on the canvas or layers to crop');
+      }
+    } else if (this.currentMode === 'clip') {
+      if (regionTitle) regionTitle.textContent = 'Clip Boundary';
+      if (regionUnit) regionUnit.textContent = 'object px';
+      if (btnApply) btnApply.textContent = 'Apply Clip';
+      if (btnReset) btnReset.textContent = '⟲ Reset';
+      if (btnSelectOnCanvas) btnSelectOnCanvas.textContent = '✏️ Select Clip Region on Canvas';
+      if (bakeRow) bakeRow.style.display = isImageSelected ? 'block' : 'none';
+      if (sourceTitle) sourceTitle.textContent = 'Selected Image Object';
+
+      if (isImageSelected && currentImg) {
+        if (sourceCard) sourceCard.style.display = 'block';
+        if (noImgAlert) noImgAlert.style.display = 'none';
+        if (selName) selName.textContent = currentImg.name || `Image ${currentImg.id}`;
+        if (origDims) {
+          origDims.textContent = `${Math.round(currentImg.width)} × ${Math.round(currentImg.height)} px`;
+        }
+        this._syncClipInputsAndPreview(currentImg);
+      } else {
+        if (sourceCard) sourceCard.style.display = 'none';
+        if (noImgAlert) noImgAlert.style.display = 'block';
+        this._clearPreview('Select an image on the canvas or layers to clip');
+      }
+    } else if (this.currentMode === 'snip') {
+      if (regionTitle) regionTitle.textContent = 'Background Region';
+      if (regionUnit) regionUnit.textContent = 'canvas px';
+      if (btnApply) btnApply.textContent = '✂ Snip to New Image';
+      if (btnReset) btnReset.textContent = '⟲ Clear Box';
+      if (btnSelectOnCanvas) btnSelectOnCanvas.textContent = '✏️ Draw Box on Canvas';
+      if (bakeRow) bakeRow.style.display = 'none';
+      if (sourceTitle) sourceTitle.textContent = 'Canvas Background';
+
+      if (sourceCard) sourceCard.style.display = 'block';
+      if (noImgAlert) noImgAlert.style.display = 'none';
+
+      const cw = (window.Stage && window.Stage.canvasWidth) || 1280;
+      const ch = (window.Stage && window.Stage.canvasHeight) || 720;
+      const patSelect = document.getElementById('canvasPatternSelect');
+      const bgType = patSelect ? patSelect.value : 'blueprint';
+      if (selName) selName.textContent = `Background (${bgType})`;
+      if (origDims) origDims.textContent = `${cw} × ${ch} px`;
+
+      this._syncSnipInputsAndPreview();
+    }
+  },
+
+  _syncCropInputsAndPreview(img) {
+    let srcX = 0, srcY = 0;
+    let srcW = img.naturalWidth || img.width || 200;
+    let srcH = img.naturalHeight || img.height || 150;
+
+    if (window.Stage && window.Stage.isCroppingImage && window.Stage.cropBox && window.Stage.cropOrigBounds) {
+      const b = window.Stage.cropBox;
+      const ob = window.Stage.cropOrigBounds;
+      const scaleX = (img.naturalWidth || img.width) / ob.w;
+      const scaleY = (img.naturalHeight || img.height) / ob.h;
+      srcX = Math.round(Math.max(0, (b.x - ob.left) * scaleX));
+      srcY = Math.round(Math.max(0, (b.y - ob.top) * scaleY));
+      srcW = Math.max(10, Math.min(img.naturalWidth || img.width, Math.round(b.w * scaleX)));
+      srcH = Math.max(10, Math.min(img.naturalHeight || img.height, Math.round(b.h * scaleY)));
+    } else if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+      srcX = Math.round(img.crop.sourceX);
+      srcY = Math.round(img.crop.sourceY);
+      srcW = Math.round(img.crop.sourceWidth);
+      srcH = Math.round(img.crop.sourceHeight);
+    }
+
+    this._setRegionInputValues(srcX, srcY, srcW, srcH);
+    this.renderCropPreview(img, { x: srcX, y: srcY, w: srcW, h: srcH });
+  },
+
+  _syncClipInputsAndPreview(img) {
+    let clipX = 0, clipY = 0;
+    let clipW = Math.round(img.width || 200);
+    let clipH = Math.round(img.height || 150);
+
+    if (window.Stage && window.Stage.isClippingImage && window.Stage.clipBox && window.Stage.clipOrigBounds) {
+      const b = window.Stage.clipBox;
+      const ob = window.Stage.clipOrigBounds;
+      clipX = Math.round(Math.max(0, b.x - ob.left));
+      clipY = Math.round(Math.max(0, b.y - ob.top));
+      clipW = Math.round(b.w);
+      clipH = Math.round(b.h);
+    } else if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {
+      clipX = Math.round(img.clip.x);
+      clipY = Math.round(img.clip.y);
+      clipW = Math.round(img.clip.width);
+      clipH = Math.round(img.clip.height);
+    }
+
+    this._setRegionInputValues(clipX, clipY, clipW, clipH);
+    this.renderClipPreview(img, { x: clipX, y: clipY, w: clipW, h: clipH });
+  },
+
+  _syncSnipInputsAndPreview() {
+    const cw = (window.Stage && window.Stage.canvasWidth) || 1280;
+    const ch = (window.Stage && window.Stage.canvasHeight) || 720;
+
+    let x = 0, y = 0, w = Math.round(cw / 2), h = Math.round(ch / 2);
+    if (window.Stage && window.Stage.bgExtractBox && window.Stage.bgExtractBox.w >= 10 && window.Stage.bgExtractBox.h >= 10) {
+      const b = window.Stage.bgExtractBox;
+      x = Math.round(b.x);
+      y = Math.round(b.y);
+      w = Math.round(b.w);
+      h = Math.round(b.h);
+    } else {
+      const rx = parseInt(document.getElementById('toolRegionX')?.value, 10);
+      const ry = parseInt(document.getElementById('toolRegionY')?.value, 10);
+      const rw = parseInt(document.getElementById('toolRegionW')?.value, 10);
+      const rh = parseInt(document.getElementById('toolRegionH')?.value, 10);
+      if (!isNaN(rx) && !isNaN(ry) && rw >= 10 && rh >= 10) {
+        x = rx; y = ry; w = rw; h = rh;
+      }
+    }
+
+    this._setRegionInputValues(x, y, w, h);
+    this.renderSnipPreview({ x, y, w, h });
+  },
+
+  _setRegionInputValues(x, y, w, h) {
+    const ix = document.getElementById('toolRegionX');
+    const iy = document.getElementById('toolRegionY');
+    const iw = document.getElementById('toolRegionW');
+    const ih = document.getElementById('toolRegionH');
+    if (ix && document.activeElement !== ix) ix.value = Math.round(x);
+    if (iy && document.activeElement !== iy) iy.value = Math.round(y);
+    if (iw && document.activeElement !== iw) iw.value = Math.round(w);
+    if (ih && document.activeElement !== ih) ih.value = Math.round(h);
+  },
+
+  syncFromStageCrop() {
+    if (this.currentMode !== 'crop') return;
+    const sel = window.AppCoordinator?.getActiveSelection();
+    if (sel && sel.type === 'image' && window.ImageObjects) {
+      const img = window.ImageObjects.getImage(sel.id);
+      if (img) this._syncCropInputsAndPreview(img);
+    }
+  },
+
+  syncFromStageClip() {
+    if (this.currentMode !== 'clip') return;
+    const sel = window.AppCoordinator?.getActiveSelection();
+    if (sel && sel.type === 'image' && window.ImageObjects) {
+      const img = window.ImageObjects.getImage(sel.id);
+      if (img) this._syncClipInputsAndPreview(img);
+    }
+  },
+
+  syncFromStageSnip() {
+    if (this.currentMode !== 'snip') return;
+    this._syncSnipInputsAndPreview();
+  },
+
+  _onInputChange() {
+    const x = Math.max(0, parseInt(document.getElementById('toolRegionX')?.value, 10) || 0);
+    const y = Math.max(0, parseInt(document.getElementById('toolRegionY')?.value, 10) || 0);
+    const w = Math.max(10, parseInt(document.getElementById('toolRegionW')?.value, 10) || 10);
+    const h = Math.max(10, parseInt(document.getElementById('toolRegionH')?.value, 10) || 10);
+
+    if (this.currentMode === 'crop') {
+      const sel = window.AppCoordinator?.getActiveSelection();
+      if (sel && sel.type === 'image' && window.ImageObjects) {
+        const img = window.ImageObjects.getImage(sel.id);
+        if (img) {
+          if (window.Stage && window.Stage.isCroppingImage && window.Stage.cropOrigBounds) {
+            const ob = window.Stage.cropOrigBounds;
+            const nw = img.naturalWidth || img.width;
+            const nh = img.naturalHeight || img.height;
+            const scaleX = ob.w / nw;
+            const scaleY = ob.h / nh;
+            window.Stage.cropBox = {
+              x: ob.left + x * scaleX,
+              y: ob.top + y * scaleY,
+              w: Math.min(ob.w, w * scaleX),
+              h: Math.min(ob.h, h * scaleY)
+            };
+            window.Stage.updateCropOverlayUI();
+          }
+          this.renderCropPreview(img, { x, y, w, h });
+        }
+      }
+    } else if (this.currentMode === 'clip') {
+      const sel = window.AppCoordinator?.getActiveSelection();
+      if (sel && sel.type === 'image' && window.ImageObjects) {
+        const img = window.ImageObjects.getImage(sel.id);
+        if (img) {
+          if (window.Stage && window.Stage.isClippingImage && window.Stage.clipOrigBounds) {
+            const ob = window.Stage.clipOrigBounds;
+            window.Stage.clipBox = {
+              x: ob.left + x,
+              y: ob.top + y,
+              w: Math.min(ob.w - x, w),
+              h: Math.min(ob.h - y, h)
+            };
+            window.Stage.updateClipOverlayUI();
+          }
+          this.renderClipPreview(img, { x, y, w, h });
+        }
+      }
+    } else if (this.currentMode === 'snip') {
+      if (window.Stage) {
+        window.Stage.bgExtractBox = { x, y, w, h };
+        const boxEl = document.getElementById('bgExtractBox');
+        if (boxEl) {
+          boxEl.setAttribute('x', x.toFixed(1));
+          boxEl.setAttribute('y', y.toFixed(1));
+          boxEl.setAttribute('width', w.toFixed(1));
+          boxEl.setAttribute('height', h.toFixed(1));
+          boxEl.style.display = 'block';
+        }
+        const lbl = document.getElementById('bgExtractCoordsLabel');
+        if (lbl) lbl.innerText = `${x}, ${y} (${w} × ${h} px)`;
+        const btn = document.getElementById('btnConfirmExtract');
+        if (btn) btn.disabled = (w < 10 || h < 10);
+      }
+      this.renderSnipPreview({ x, y, w, h });
+    }
+  },
+
+  renderCropPreview(img, rect) {
+    const canvas = document.getElementById('imageToolsPreviewCanvas');
+    if (!canvas || !img) return;
+
+    this._getImageElement(img, (imgEl) => {
+      if (!imgEl) return;
+      const sx = Math.max(0, Math.min(imgEl.naturalWidth - 10, rect.x));
+      const sy = Math.max(0, Math.min(imgEl.naturalHeight - 10, rect.y));
+      const sw = Math.max(10, Math.min(imgEl.naturalWidth - sx, rect.w));
+      const sh = Math.max(10, Math.min(imgEl.naturalHeight - sy, rect.h));
+
+      this._drawCentered(imgEl, canvas, sx, sy, sw, sh);
+      this._updatePreviewMeta(sw, sh, `Crop: ${Math.round(sw)} × ${Math.round(sh)} px (source)`);
+    });
+  },
+
+  renderClipPreview(img, rect) {
+    const canvas = document.getElementById('imageToolsPreviewCanvas');
+    if (!canvas || !img) return;
+
+    this._getImageElement(img, (imgEl) => {
+      if (!imgEl) return;
+      const nw = imgEl.naturalWidth || img.width;
+      const nh = imgEl.naturalHeight || img.height;
+      const scaleX = nw / (img.width || nw);
+      const scaleY = nh / (img.height || nh);
+
+      const sx = Math.max(0, Math.min(nw - 10, rect.x * scaleX));
+      const sy = Math.max(0, Math.min(nh - 10, rect.y * scaleY));
+      const sw = Math.max(10, Math.min(nw - sx, rect.w * scaleX));
+      const sh = Math.max(10, Math.min(nh - sy, rect.h * scaleY));
+
+      this._drawCentered(imgEl, canvas, sx, sy, sw, sh);
+      this._updatePreviewMeta(rect.w, rect.h, `Clip: ${Math.round(rect.w)} × ${Math.round(rect.h)} px (boundary)`);
+    });
+  },
+
+  renderSnipPreview(box) {
+    const canvas = document.getElementById('imageToolsPreviewCanvas');
+    if (!canvas || !box || box.w < 10 || box.h < 10) return;
+
+    if (this._snipDebounce) clearTimeout(this._snipDebounce);
+    this._snipDebounce = setTimeout(() => {
+      const cw = (window.Stage && window.Stage.canvasWidth) || 1280;
+      const ch = (window.Stage && window.Stage.canvasHeight) || 720;
+      if (typeof window.renderBackgroundToOffscreenCanvas === 'function') {
+        window.renderBackgroundToOffscreenCanvas(cw, ch, (bgCanvas) => {
+          if (!bgCanvas) return;
+          const sx = Math.max(0, Math.min(cw - 10, box.x));
+          const sy = Math.max(0, Math.min(ch - 10, box.y));
+          const sw = Math.max(10, Math.min(cw - sx, box.w));
+          const sh = Math.max(10, Math.min(ch - sy, box.h));
+
+          this._drawCentered(bgCanvas, canvas, sx, sy, sw, sh);
+          this._updatePreviewMeta(sw, sh, `Snip: ${Math.round(sw)} × ${Math.round(sh)} px (background)`);
+        });
+      }
+    }, 40);
+  },
+
+  _drawCentered(src, canvas, sx, sy, sw, sh) {
+    if (!canvas || typeof canvas.getContext !== 'function') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || typeof ctx.drawImage !== 'function') return;
+    const cw = canvas.width || 320;
+    const ch = canvas.height || 180;
+    if (typeof ctx.clearRect === 'function') ctx.clearRect(0, 0, cw, ch);
+
+    if (sw <= 0 || sh <= 0) return;
+
+    if (typeof ctx.fillRect === 'function') {
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, cw, ch);
+    }
+
+    const scale = Math.min((cw - 16) / sw, (ch - 16) / sh);
+    const dw = Math.round(sw * scale);
+    const dh = Math.round(sh * scale);
+    const dx = Math.round((cw - dw) / 2);
+    const dy = Math.round((ch - dh) / 2);
+
+    ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
+
+    if (typeof ctx.strokeRect === 'function') {
+      ctx.strokeStyle = '#58a6ff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(dx, dy, dw, dh);
+    }
+  },
+
+  _updatePreviewMeta(w, h, note) {
+    const dims = document.getElementById('imageToolsPreviewDims');
+    const noteEl = document.getElementById('imageToolsPreviewNote');
+    const msg = document.getElementById('imageToolsPreviewEmptyMsg');
+    if (dims) dims.textContent = `${Math.round(w)} × ${Math.round(h)} px`;
+    if (noteEl) noteEl.textContent = note;
+    if (msg) msg.style.display = 'none';
+  },
+
+  _clearPreview(msgText) {
+    const canvas = document.getElementById('imageToolsPreviewCanvas');
+    if (canvas && typeof canvas.getContext === 'function') {
+      const ctx = canvas.getContext('2d');
+      if (ctx && typeof ctx.clearRect === 'function') {
+        ctx.clearRect(0, 0, canvas.width || 320, canvas.height || 180);
+      }
+    }
+    const dims = document.getElementById('imageToolsPreviewDims');
+    const noteEl = document.getElementById('imageToolsPreviewNote');
+    const msg = document.getElementById('imageToolsPreviewEmptyMsg');
+    if (dims) dims.textContent = '—';
+    if (noteEl) noteEl.textContent = 'No region captured yet';
+    if (msg) {
+      msg.textContent = msgText || 'Select an image or draw a region on canvas to preview';
+      msg.style.display = 'block';
+    }
+  },
+
+  _getImageElement(img, cb) {
+    const src = img.src || img.data || img.assetRef || '';
+    if (!src) { cb(null); return; }
+    if (this._imageCache.has(src)) {
+      const cached = this._imageCache.get(src);
+      if (cached.complete && cached.naturalWidth > 0) {
+        cb(cached);
+        return;
+      }
+    }
+    if (typeof Image === 'undefined') { cb(null); return; }
+    const el = new Image();
+    el.onload = () => {
+      this._imageCache.set(src, el);
+      cb(el);
+    };
+    el.onerror = () => cb(null);
+    el.src = src;
+  },
+
+  showResult(imgObj) {
+    if (!imgObj) return;
+    this.lastExtractedResult = imgObj;
+    const card = document.getElementById('imageToolsResultCard');
+    const nameEl = document.getElementById('imageToolsResultName');
+    const detEl = document.getElementById('imageToolsResultDetails');
+    const thumb = document.getElementById('imageToolsResultThumb');
+
+    if (nameEl) nameEl.textContent = imgObj.name || `Image ${imgObj.id}`;
+    if (detEl) {
+      const w = Math.round(imgObj.width || 0);
+      const h = Math.round(imgObj.height || 0);
+      const mime = (imgObj.mime || 'image/png').replace('image/', '').toUpperCase();
+      detEl.textContent = `${w} × ${h} px • ${mime}`;
+    }
+
+    if (thumb && (imgObj.src || imgObj.data) && typeof thumb.getContext === 'function' && typeof Image !== 'undefined') {
+      const tImg = new Image();
+      tImg.onload = () => {
+        const tCtx = thumb.getContext('2d');
+        if (tCtx && typeof tCtx.drawImage === 'function') {
+          if (typeof tCtx.clearRect === 'function') tCtx.clearRect(0, 0, thumb.width || 56, thumb.height || 42);
+          tCtx.drawImage(tImg, 0, 0, thumb.width || 56, thumb.height || 42);
+        }
+      };
+      tImg.src = imgObj.src || imgObj.data;
+    }
+
+    if (card) card.style.display = 'block';
+  },
+
+  startCanvasSelection() {
+    if (this.currentMode === 'crop') {
+      const sel = window.AppCoordinator?.getActiveSelection();
+      if (sel && sel.type === 'image' && sel.id && window.Stage) {
+        window.Stage.startCropMode(sel.id);
+      } else if (window.AppCoordinator) {
+        window.AppCoordinator.showNotification('Select an image object first to crop on canvas.', 'warning', 2500);
+      }
+    } else if (this.currentMode === 'clip') {
+      const sel = window.AppCoordinator?.getActiveSelection();
+      if (sel && sel.type === 'image' && sel.id && window.Stage) {
+        window.Stage.startClipMode(sel.id);
+      } else if (window.AppCoordinator) {
+        window.AppCoordinator.showNotification('Select an image object first to clip on canvas.', 'warning', 2500);
+      }
+    } else if (this.currentMode === 'snip') {
+      if (window.Stage && typeof window.Stage.startBgExtractMode === 'function') {
+        window.Stage.startBgExtractMode();
+      }
+    }
+  },
+
+  applyAction() {
+    if (this.currentMode === 'crop') {
+      if (window.Stage && window.Stage.isCroppingImage) {
+        window.Stage.applyCropMode();
+      } else {
+        const sel = window.AppCoordinator?.getActiveSelection();
+        if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) return;
+        const x = Math.max(0, parseInt(document.getElementById('toolRegionX')?.value, 10) || 0);
+        const y = Math.max(0, parseInt(document.getElementById('toolRegionY')?.value, 10) || 0);
+        const w = Math.max(10, parseInt(document.getElementById('toolRegionW')?.value, 10) || 10);
+        const h = Math.max(10, parseInt(document.getElementById('toolRegionH')?.value, 10) || 10);
+        window.ImageObjects.cropImage(sel.id, { sourceX: x, sourceY: y, sourceWidth: w, sourceHeight: h });
+        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        if (typeof window.triggerRender === 'function') window.triggerRender();
+        if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+        this.syncUI();
+        if (window.AppCoordinator) window.AppCoordinator.showNotification('Crop applied.', 'success', 2500);
+      }
+    } else if (this.currentMode === 'clip') {
+      if (window.Stage && window.Stage.isClippingImage) {
+        window.Stage.applyClipMode();
+      } else {
+        const sel = window.AppCoordinator?.getActiveSelection();
+        if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) return;
+        const x = Math.max(0, parseInt(document.getElementById('toolRegionX')?.value, 10) || 0);
+        const y = Math.max(0, parseInt(document.getElementById('toolRegionY')?.value, 10) || 0);
+        const w = Math.max(10, parseInt(document.getElementById('toolRegionW')?.value, 10) || 10);
+        const h = Math.max(10, parseInt(document.getElementById('toolRegionH')?.value, 10) || 10);
+        window.ImageObjects.clipImage(sel.id, { x, y, width: w, height: h });
+        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        if (typeof window.triggerRender === 'function') window.triggerRender();
+        if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+        this.syncUI();
+        if (window.AppCoordinator) window.AppCoordinator.showNotification('Clip applied.', 'success', 2500);
+      }
+    } else if (this.currentMode === 'snip') {
+      const x = Math.max(0, parseInt(document.getElementById('toolRegionX')?.value, 10) || 0);
+      const y = Math.max(0, parseInt(document.getElementById('toolRegionY')?.value, 10) || 0);
+      const w = Math.max(10, parseInt(document.getElementById('toolRegionW')?.value, 10) || 10);
+      const h = Math.max(10, parseInt(document.getElementById('toolRegionH')?.value, 10) || 10);
+      if (window.Stage && window.Stage.isExtractingBg) {
+        window.Stage.cancelBgExtractMode();
+      }
+      if (typeof window.executeBackgroundExtraction === 'function') {
+        window.executeBackgroundExtraction({ x, y, w, h });
+      }
+    }
+  },
+
+  cancelAction() {
+    if (this.currentMode === 'crop') {
+      if (window.Stage && window.Stage.isCroppingImage) window.Stage.cancelCropMode();
+    } else if (this.currentMode === 'clip') {
+      if (window.Stage && window.Stage.isClippingImage) window.Stage.cancelClipMode();
+    } else if (this.currentMode === 'snip') {
+      if (window.Stage && window.Stage.isExtractingBg) window.Stage.cancelBgExtractMode();
+    }
+    this.syncUI();
+  },
+
+  resetAction() {
+    if (this.currentMode === 'crop') {
+      if (window.Stage && window.Stage.isCroppingImage) {
+        window.Stage.resetCropMode();
+      } else {
+        const sel = window.AppCoordinator?.getActiveSelection();
+        if (sel && sel.type === 'image' && sel.id && window.ImageObjects) {
+          window.ImageObjects.resetCrop(sel.id);
+          if (window.HistoryManager) window.HistoryManager.recordImmediate();
+          if (typeof window.triggerRender === 'function') window.triggerRender();
+          if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+          this.syncUI();
+          if (window.AppCoordinator) window.AppCoordinator.showNotification('Crop reset.', 'info', 2500);
+        }
+      }
+    } else if (this.currentMode === 'clip') {
+      if (window.Stage && window.Stage.isClippingImage) {
+        window.Stage.resetClipMode();
+      } else {
+        const sel = window.AppCoordinator?.getActiveSelection();
+        if (sel && sel.type === 'image' && sel.id && window.ImageObjects) {
+          window.ImageObjects.resetClip(sel.id);
+          if (window.HistoryManager) window.HistoryManager.recordImmediate();
+          if (typeof window.triggerRender === 'function') window.triggerRender();
+          if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+          this.syncUI();
+          if (window.AppCoordinator) window.AppCoordinator.showNotification('Clip reset.', 'info', 2500);
+        }
+      }
+    } else if (this.currentMode === 'snip') {
+      if (window.Stage) {
+        if (window.Stage.isExtractingBg) window.Stage.cancelBgExtractMode();
+        window.Stage.bgExtractBox = null;
+      }
+      const cw = (window.Stage && window.Stage.canvasWidth) || 1280;
+      const ch = (window.Stage && window.Stage.canvasHeight) || 720;
+      this._setRegionInputValues(0, 0, Math.round(cw / 2), Math.round(ch / 2));
+      this.renderSnipPreview({ x: 0, y: 0, w: Math.round(cw / 2), h: Math.round(ch / 2) });
+    }
+  }
+};
+
+window.syncImageToolsUI = function() {
+  if (window.ImageToolsController && typeof window.ImageToolsController.syncUI === 'function') {
+    window.ImageToolsController.syncUI();
+  }
+};
+
+window.syncImageToolsFromCrop = function() {
+  if (window.ImageToolsController && typeof window.ImageToolsController.syncFromStageCrop === 'function') {
+    window.ImageToolsController.syncFromStageCrop();
+  }
+};
+
+window.syncImageToolsFromClip = function() {
+  if (window.ImageToolsController && typeof window.ImageToolsController.syncFromStageClip === 'function') {
+    window.ImageToolsController.syncFromStageClip();
+  }
+};
+
+window.syncImageToolsFromSnip = function() {
+  if (window.ImageToolsController && typeof window.ImageToolsController.syncFromStageSnip === 'function') {
+    window.ImageToolsController.syncFromStageSnip();
+  }
 };
 
 if (window.AppCoordinator) {
   window.AppCoordinator.on('layers:changed', () => {
     if (typeof window.renderLayersList === 'function') window.renderLayersList();
     if (typeof window.syncInspectorLayerSections === 'function') window.syncInspectorLayerSections();
+    if (typeof window.syncImageToolsUI === 'function') window.syncImageToolsUI();
   });
   window.AppCoordinator.on('selection:changed', () => {
     if (typeof window.renderLayersList === 'function') window.renderLayersList();
     if (typeof window.syncInspectorLayerSections === 'function') window.syncInspectorLayerSections();
     if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+    if (typeof window.syncImageToolsUI === 'function') window.syncImageToolsUI();
   });
   window.AppCoordinator.on('state:restored', () => {
     if (typeof window.renderLayersList === 'function') window.renderLayersList();
     if (typeof window.syncInspectorLayerSections === 'function') window.syncInspectorLayerSections();
     if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+    if (typeof window.syncImageToolsUI === 'function') window.syncImageToolsUI();
   });
 }
 
@@ -4504,6 +5288,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') {
         e.preventDefault();
         window.Stage.applyCropMode();
+        return;
+      }
+    }
+
+    if (window.Stage && window.Stage.isClippingImage) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        window.Stage.cancelClipMode();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.Stage.applyClipMode();
         return;
       }
     }
@@ -5428,5 +6225,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.FloatingPropertiesEditor) window.FloatingPropertiesEditor.init();
   if (window.HistoryManager) window.HistoryManager.init();
   if (window.ProjectManager) window.ProjectManager.init();
+  if (window.ImageToolsController && typeof window.ImageToolsController.init === 'function') {
+    window.ImageToolsController.init();
+  }
   renderLayersList();
 });

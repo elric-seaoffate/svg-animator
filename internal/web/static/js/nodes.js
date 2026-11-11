@@ -747,8 +747,8 @@ window.DiagramNodes = {
         selBox.style.display = 'block';
       } else if (!targetNode && window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'image' && window.ImageObjects) {
         const img = window.ImageObjects.getImage(window.AppCoordinator.activeSelection.id);
-        const isCropping = window.Stage && window.Stage.isCroppingImage;
-        if (img && !isCropping) {
+        const isInteractiveImage = window.Stage && (window.Stage.isCroppingImage || window.Stage.isClippingImage);
+        if (img && !isInteractiveImage) {
           const cx = (img.x / 100) * dims.width;
           const cy = (img.y / 100) * dims.height;
           const w = (img.width || 200) + pad * 2;

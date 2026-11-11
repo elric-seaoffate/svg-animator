@@ -313,6 +313,15 @@ type ImageCrop struct {
 	OrigHeight   float64 `json:"origHeight,omitempty"`
 }
 
+// ImageClip defines non-destructive object-local rectangular clipping boundary parameters.
+type ImageClip struct {
+	Enabled bool    `json:"enabled"`
+	X       float64 `json:"x"`      // Object-local X (pixels from top-left of image)
+	Y       float64 `json:"y"`      // Object-local Y (pixels from top-left of image)
+	Width   float64 `json:"width"`  // Clipping rect width in pixels
+	Height  float64 `json:"height"` // Clipping rect height in pixels
+}
+
 // Image represents an independently positioned image object on the canvas.
 type Image struct {
 	ID                  StringID       `json:"id"`
@@ -330,6 +339,7 @@ type Image struct {
 	NaturalHeight       float64        `json:"naturalHeight,omitempty"` // Source image height (for non-destructive crop in Stage 15)
 	MaintainAspectRatio bool           `json:"maintainAspectRatio"`
 	Crop                *ImageCrop     `json:"crop,omitempty"` // Non-destructive crop parameters
+	Clip                *ImageClip     `json:"clip,omitempty"` // Non-destructive object-local clipping boundary
 	Opacity             float64        `json:"opacity"`
 	Visible             *bool          `json:"visible,omitempty"`
 	Locked              bool           `json:"locked,omitempty"`

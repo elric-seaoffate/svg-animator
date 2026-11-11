@@ -1379,6 +1379,22 @@
       return null;
     },
 
+    clipImage(id, clip) {
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.clipImage(id, clip);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
+    resetClip(id) {
+      if (window.ImageObjects) {
+        const res = window.ImageObjects.resetClip(id);
+        return { success: !!res, image: res };
+      }
+      return null;
+    },
+
     deleteImage(id) {
       if (this.isReady()) {
         const res = this.dispatch('Image.Delete', { id: String(id) });
@@ -2983,6 +2999,9 @@
       if (patch.crop !== undefined) {
         img.crop = (patch.crop && typeof patch.crop === 'object') ? JSON.parse(JSON.stringify(patch.crop)) : undefined;
       }
+      if (patch.clip !== undefined) {
+        img.clip = (patch.clip && typeof patch.clip === 'object') ? JSON.parse(JSON.stringify(patch.clip)) : undefined;
+      }
       if (patch.opacity !== undefined) img.opacity = Math.max(0, Math.min(1, Number(patch.opacity)));
       if (patch.visible !== undefined) img.visible = !!patch.visible;
       if (patch.locked !== undefined) img.locked = !!patch.locked;
@@ -3068,6 +3087,55 @@
         delete img.crop;
       }
       return img;
+    },
+
+    clipImage(id, clip = {}) {
+      const strId = String(id);
+      const payload = {
+        id: strId,
+        clip: {
+          enabled: true,
+          x: Math.max(0, Number(clip.x) || 0),
+          y: Math.max(0, Number(clip.y) || 0),
+          width: Math.max(10, Number(clip.width) || 10),
+          height: Math.max(10, Number(clip.height) || 10)
+        }
+      };
+
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Clip', payload);
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      // Fallback JS logic
+      const img = this.getImage(strId);
+      if (!img) return null;
+      img.clip = payload.clip;
+      return img;
+    },
+
+    resetClip(id) {
+      const strId = String(id);
+      const existing = this.getImage(strId);
+      if (existing) {
+        if (existing.clip) existing.clip.enabled = false;
+        delete existing.clip;
+      }
+
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.ResetClip', { id: strId });
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) this.list[idx] = res.image;
+          return res.image;
+        }
+      }
+
+      return existing;
     },
 
     deleteImage(id) {
@@ -3166,15 +3234,24 @@
       const par = img.maintainAspectRatio !== false ? 'xMidYMid meet' : 'none';
       const href = img.src || img.assetRef || '';
 
+      let innerSvg = '';
       if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
         const crop = img.crop;
         const natW = Number(img.naturalWidth) || Number(crop.origWidth) || w;
         const natH = Number(img.naturalHeight) || Number(crop.origHeight) || h;
         const vb = `${crop.sourceX.toFixed(2)} ${crop.sourceY.toFixed(2)} ${crop.sourceWidth.toFixed(2)} ${crop.sourceHeight.toFixed(2)}`;
-        return `<svg id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
+        innerSvg = `<svg id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
+      } else {
+        innerSvg = `<image id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
       }
 
-      return `<image id="img-${img.id}" data-image-id="${img.id}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
+      if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {
+        const clip = img.clip;
+        const clipId = `clip-${img.id}`;
+        return `<g id="clip-group-${img.id}" data-image-id="${img.id}"><defs><clipPath id="${clipId}"><rect x="${(x + clip.x).toFixed(2)}" y="${(y + clip.y).toFixed(2)}" width="${clip.width.toFixed(2)}" height="${clip.height.toFixed(2)}" /></clipPath></defs><g clip-path="url(#${clipId})">${innerSvg}</g></g>`;
+      }
+
+      return innerSvg;
     },
 
     injectIntoSVG(svgString, state) {

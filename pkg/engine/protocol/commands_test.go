@@ -1627,6 +1627,38 @@ func TestDispatchImageAndLayerCommands(t *testing.T) {
 		t.Fatalf("Image.ResetCrop expected restored width 500, got %f", resetRes.Image.Width)
 	}
 
+	// 8.6. Image.Clip and Image.ResetClip
+	clipReq, _ := json.Marshal(ImageClipRequest{
+		ID: imgID,
+		Clip: scene.ImageClip{
+			X:      20,
+			Y:      15,
+			Width:  180,
+			Height: 120,
+		},
+	})
+	clipBytes, err := Dispatch("Image.Clip", clipReq)
+	if err != nil {
+		t.Fatalf("Image.Clip failed: %v", err)
+	}
+	var clipRes ImageClipResponse
+	if err := json.Unmarshal(clipBytes, &clipRes); err != nil || !clipRes.Success || clipRes.Image.Clip == nil || !clipRes.Image.Clip.Enabled {
+		t.Fatalf("Image.Clip mismatch: %+v", clipRes)
+	}
+	if clipRes.Image.Clip.Width != 180 || clipRes.Image.Clip.Height != 120 {
+		t.Fatalf("Image.Clip expected 180x120, got %fx%f", clipRes.Image.Clip.Width, clipRes.Image.Clip.Height)
+	}
+
+	resetClipReq, _ := json.Marshal(ImageResetClipRequest{ID: imgID})
+	resetClipBytes, err := Dispatch("Image.ResetClip", resetClipReq)
+	if err != nil {
+		t.Fatalf("Image.ResetClip failed: %v", err)
+	}
+	var resetClipRes ImageResetClipResponse
+	if err := json.Unmarshal(resetClipBytes, &resetClipRes); err != nil || !resetClipRes.Success || resetClipRes.Image.Clip != nil {
+		t.Fatalf("Image.ResetClip mismatch: %+v", resetClipRes)
+	}
+
 	// 9. Image.Delete
 	delReq, _ := json.Marshal(ImageDeleteRequest{ID: imgID})
 	delBytes, err := Dispatch("Image.Delete", delReq)

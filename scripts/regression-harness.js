@@ -6961,8 +6961,8 @@ async function runHarness() {
 
   assert.strictEqual(window.ImageObjects.list.length, preImgCount + 1, 'Scenario 51: New image created by extraction');
   const extractedImg = window.ImageObjects.list[window.ImageObjects.list.length - 1];
-  assert.strictEqual(extractedImg.filename, 'bg_extract_1.png', 'Scenario 51: Extracted image has filename');
-  assert.strictEqual(extractedImg.name, 'Background Extract 1', 'Scenario 51: Extracted image has meaningful name');
+  assert.strictEqual(extractedImg.filename, 'bg_snip_1.png', 'Scenario 51: Extracted image has filename');
+  assert.strictEqual(extractedImg.name, 'Background Snip 1', 'Scenario 51: Extracted image has meaningful name');
   assert.strictEqual(extractedImg.width, 250, 'Scenario 51: Extracted image width matches selection');
   assert.strictEqual(extractedImg.height, 180, 'Scenario 51: Extracted image height matches selection');
   assert.ok(extractedImg.src && extractedImg.src.startsWith('data:image/png'), 'Scenario 51: Extracted image has PNG data URL');
@@ -7097,7 +7097,7 @@ async function runHarness() {
   // 1. Extract region from background
   window.executeBackgroundExtraction({ x: 40, y: 50, w: 200, h: 150 });
   const s54Extracted = window.ImageObjects.list[window.ImageObjects.list.length - 1];
-  assert.strictEqual(s54Extracted.name, 'Background Extract 2', 'Scenario 54: Extracted image numbered name generated');
+  assert.strictEqual(s54Extracted.name, 'Background Snip 2', 'Scenario 54: Extracted image numbered name generated');
 
   // 2. Drag / reposition extracted object
   s54Extracted.x = 35;
@@ -7120,7 +7120,7 @@ async function runHarness() {
   // 5. Extract another region and bake with mode='remove'
   window.executeBackgroundExtraction({ x: 10, y: 10, w: 100, h: 100 });
   const s54Extracted2 = window.ImageObjects.list[window.ImageObjects.list.length - 1];
-  assert.strictEqual(s54Extracted2.name, 'Background Extract 3', 'Scenario 54: Third extract numbered name generated');
+  assert.strictEqual(s54Extracted2.name, 'Background Snip 3', 'Scenario 54: Third extract numbered name generated');
   const s54Extracted2Id = s54Extracted2.id;
   executeBakeImage(s54Extracted2, 'remove');
   assert.strictEqual(window.ImageObjects.getImage(s54Extracted2Id), null, 'Scenario 54: Baked object removed with mode=remove');
@@ -7146,7 +7146,153 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 54 PASS: Background Extraction -> Drag -> Bake -> Undo/Redo & SVA Roundtrip verified.');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
+  // ---------------------------------------------------------------------------
+  // SCENARIO 55: Dedicated Crop, Clip & Snip Workspace Lifecycle & UI Modes
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 55: Dedicated Crop, Clip & Snip Workspace Lifecycle & UI Modes...');
+
+  const accTools = document.getElementById('acc-image-tools');
+  const railBtnTools = document.getElementById('railBtn-image-tools');
+  assert.ok(accTools, 'Scenario 55: #acc-image-tools exists in DOM');
+  assert.ok(railBtnTools, 'Scenario 55: #railBtn-image-tools exists on rail');
+
+  // Verify default mode
+  assert.ok(window.ImageToolsController, 'Scenario 55: ImageToolsController is initialized');
+  window.ImageToolsController.init();
+  assert.strictEqual(window.ImageToolsController.currentMode, 'crop', 'Scenario 55: Default mode is crop');
+
+  // Test mode switching to Clip
+  window.ImageToolsController.setMode('clip');
+  assert.strictEqual(window.ImageToolsController.currentMode, 'clip', 'Scenario 55: Mode switched to clip');
+  const clipTitle = document.getElementById('imageToolsRegionTitle');
+  assert.strictEqual(clipTitle.textContent, 'Clip Boundary', 'Scenario 55: Region title matches clip');
+  const btnClipMode = document.getElementById('btnModeClip');
+  assert.ok(btnClipMode.classList.contains('active'), 'Scenario 55: Clip mode button is active');
+
+  // Test mode switching to Snip
+  window.ImageToolsController.setMode('snip');
+  assert.strictEqual(window.ImageToolsController.currentMode, 'snip', 'Scenario 55: Mode switched to snip');
+  const snipTitle = document.getElementById('imageToolsRegionTitle');
+  assert.strictEqual(snipTitle.textContent, 'Background Region', 'Scenario 55: Region title matches snip');
+  const btnSnipMode = document.getElementById('btnModeSnip');
+  assert.ok(btnSnipMode.classList.contains('active'), 'Scenario 55: Snip mode button is active');
+
+  // Test extraction updating Result Card
+  window.executeBackgroundExtraction({ x: 25, y: 30, w: 220, h: 140 });
+  const resultImg = window.ImageObjects.list[window.ImageObjects.list.length - 1];
+  const resCard = document.getElementById('imageToolsResultCard');
+  assert.strictEqual(resCard.style.display, 'block', 'Scenario 55: Result Card is visible after extraction');
+  const resName = document.getElementById('imageToolsResultName');
+  assert.strictEqual(resName.textContent, resultImg.name, 'Scenario 55: Result Card displays extracted image name');
+
+  // Test Select Result button
+  window.AppCoordinator.clearSelection();
+  assert.strictEqual(window.AppCoordinator.activeSelection.type, null, 'Scenario 55: Selection cleared');
+  const btnSelectRes = document.getElementById('btnToolSelectResult');
+  btnSelectRes.click();
+  assert.strictEqual(window.AppCoordinator.activeSelection.type, 'image', 'Scenario 55: Select Result button re-selected image');
+  assert.strictEqual(window.AppCoordinator.activeSelection.id, resultImg.id, 'Scenario 55: Select Result button selected correct ID');
+
+  console.log('[HARNESS] Scenario 55 PASS: Dedicated Crop, Clip & Snip Workspace Lifecycle & UI Modes verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 56: Non-Destructive Object-Local Image Clipping & SVG Compilation
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 56: Non-Destructive Object-Local Image Clipping & SVG Compilation...');
+
+  const s56Img = window.ImageObjects.createImage({
+    name: 'Circuit Board',
+    filename: 'circuit.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 45,
+    y: 35,
+    width: 280,
+    height: 190
+  });
+
+  // Apply clip
+  window.ImageObjects.clipImage(s56Img.id, {
+    x: 25,
+    y: 20,
+    width: 180,
+    height: 120
+  });
+
+  const clippedObj = window.ImageObjects.getImage(s56Img.id);
+  assert.ok(clippedObj.clip && clippedObj.clip.enabled, 'Scenario 56: Clip enabled on image');
+  assert.strictEqual(clippedObj.clip.x, 25, 'Scenario 56: Clip x preserved');
+  assert.strictEqual(clippedObj.clip.y, 20, 'Scenario 56: Clip y preserved');
+  assert.strictEqual(clippedObj.clip.width, 180, 'Scenario 56: Clip width preserved');
+  assert.strictEqual(clippedObj.clip.height, 120, 'Scenario 56: Clip height preserved');
+
+  // Verify compiled SVG output includes <clipPath> with exact bounds
+  const svgOut = window.ImageObjects.renderImageElement(clippedObj, 1280, 720);
+  assert.ok(svgOut.includes(`<clipPath id="clip-${clippedObj.id}">`), 'Scenario 56: SVG contains clipPath definition');
+  assert.ok(svgOut.includes(`width="180.00" height="120.00"`), 'Scenario 56: SVG clipPath rect has exact width and height');
+  assert.ok(svgOut.includes(`clip-path="url(#clip-${clippedObj.id})"`), 'Scenario 56: Group element references clipPath URL');
+
+  // Verify SVA persistence round-trip of clip data
+  let s56Blob = null;
+  const origDl56 = window.ProjectManager._downloadBlob;
+  window.ProjectManager._downloadBlob = (b) => { s56Blob = b; };
+  await window.ProjectManager.exportSVA();
+  assert.ok(s56Blob, 'Scenario 56: SVA export produced blob');
+  const s56SvaBuf = await s56Blob.arrayBuffer();
+
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.ImageObjects.list.length, 0, 'Scenario 56: Project reset');
+
+  await window.ProjectManager.importSVA({
+    name: 'ClipTest.sva',
+    arrayBuffer: async () => s56SvaBuf
+  });
+  window.ProjectManager._downloadBlob = origDl56;
+
+  const restoredClipped = window.ImageObjects.list.find((im) => im.name === 'Circuit Board');
+  assert.ok(restoredClipped, 'Scenario 56: Image restored from SVA');
+  assert.ok(restoredClipped.clip && restoredClipped.clip.enabled, 'Scenario 56: Clip enabled restored from SVA');
+  assert.strictEqual(restoredClipped.clip.width, 180, 'Scenario 56: Clip width restored from SVA');
+  assert.strictEqual(restoredClipped.clip.height, 120, 'Scenario 56: Clip height restored from SVA');
+
+  // Test reset clip
+  const s56ResetImg = window.ImageObjects.resetClip(restoredClipped.id);
+  assert.ok(!s56ResetImg.clip || !s56ResetImg.clip.enabled, 'Scenario 56: Reset clip disables clip');
+  const unclippedSvg = window.ImageObjects.renderImageElement(s56ResetImg, 1280, 720);
+  assert.ok(!unclippedSvg.includes(`<clipPath id="clip-${s56ResetImg.id}">`), 'Scenario 56: ClipPath removed when disabled');
+
+  console.log('[HARNESS] Scenario 56 PASS: Non-Destructive Object-Local Image Clipping & SVG Compilation verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 57: Selection Box Context-Menu Target Resolution for Image Objects
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Scenario 57: Selection Box Context-Menu Target Resolution for Image Objects...');
+
+  const s57Img = window.ImageObjects.createImage({
+    name: 'Target Resolution Test',
+    filename: 'target.png',
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    x: 50,
+    y: 50,
+    width: 200,
+    height: 150
+  });
+
+  window.AppCoordinator.selectObject('image', s57Img.id);
+  assert.strictEqual(window.AppCoordinator.activeSelection.type, 'image', 'Scenario 57: Image is selected');
+  assert.strictEqual(window.AppCoordinator.activeSelection.id, s57Img.id, 'Scenario 57: Correct image ID selected');
+
+  const selBoxEl = document.getElementById('nodeSelectionBox');
+  assert.ok(selBoxEl, 'Scenario 57: #nodeSelectionBox exists');
+
+  // Resolve target on #nodeSelectionBox
+  const resolvedS57 = window.FloatingPropertiesEditor._resolveTargetObject(selBoxEl);
+  assert.ok(resolvedS57, 'Scenario 57: Target resolved when clicking selection box on active image');
+  assert.strictEqual(resolvedS57.type, 'image', 'Scenario 57: Resolved target is image');
+  assert.strictEqual(resolvedS57.id, s57Img.id, 'Scenario 57: Resolved target matches image ID');
+
+  console.log('[HARNESS] Scenario 57 PASS: Selection Box Context-Menu Target Resolution for Image Objects verified.');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 
 runHarness()

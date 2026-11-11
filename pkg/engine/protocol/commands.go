@@ -583,6 +583,31 @@ type ImageResetCropResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// ImageClipRequest payload for "Image.Clip".
+type ImageClipRequest struct {
+	ID   scene.StringID  `json:"id"`
+	Clip scene.ImageClip `json:"clip"`
+}
+
+// ImageClipResponse response for "Image.Clip".
+type ImageClipResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// ImageResetClipRequest payload for "Image.ResetClip".
+type ImageResetClipRequest struct {
+	ID scene.StringID `json:"id"`
+}
+
+// ImageResetClipResponse response for "Image.ResetClip".
+type ImageResetClipResponse struct {
+	Success bool        `json:"success"`
+	Image   scene.Image `json:"image,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
 // LayerGetResponse response for "Layer.Get".
 type LayerGetResponse struct {
 	Layers []scene.LayerEntry `json:"layers"`
@@ -2271,6 +2296,28 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return json.Marshal(ImageResetCropResponse{Success: false, Error: err.Error()})
 		}
 		return json.Marshal(ImageResetCropResponse{Success: true, Image: img})
+
+	case "Image.Clip":
+		var req ImageClipRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageClipRequest: %w", err)
+		}
+		img, err := activeScene.SetImageClip(req.ID, req.Clip)
+		if err != nil {
+			return json.Marshal(ImageClipResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageClipResponse{Success: true, Image: img})
+
+	case "Image.ResetClip":
+		var req ImageResetClipRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageResetClipRequest: %w", err)
+		}
+		img, err := activeScene.ResetImageClip(req.ID)
+		if err != nil {
+			return json.Marshal(ImageResetClipResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageResetClipResponse{Success: true, Image: img})
 
 	case "Layer.Get":
 		layers := activeScene.GetLayers()
