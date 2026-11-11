@@ -224,18 +224,6 @@
               </div>
             </div>
           </div>
-
-          <div id="bgExtractionRow" style="margin-top: 0.65rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-              <span style="font-size: 0.75rem; font-weight: 600; color: #58a6ff;">BACKGROUND COMPOSITION</span>
-            </div>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnExtractBackgroundRegion" style="width: 100%; font-size: 0.75rem; padding: 0.35rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem;" title="Draw a marquee box over the background to extract it as a new independent Image Object">
-              <span>✂️ Extract Background Region</span>
-            </button>
-            <div style="font-size: 0.68rem; color: #8b949e; margin-top: 0.25rem;">
-              Draw a rectangular selection on the canvas to turn that background area into an independent Image Object.
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1353,36 +1341,35 @@
             <div id="imageToolsDivider" class="image-tools-divider" style="height: 1px; background: var(--border); margin: 0.9rem 0; border: none;"></div>
 
             <!-- ============================================================== -->
-            <!-- BOTTOM SECTION: CROP IMAGE                                     -->
+            <!-- BOTTOM SECTION: CROP BACKGROUND                                 -->
             <!-- ============================================================== -->
             <div id="imageToolsCropBottomSection" class="image-tools-section">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <span style="font-size: 0.8rem; font-weight: 700; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.5px;">✂ Crop Image</span>
+                <span style="font-size: 0.8rem; font-weight: 700; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.5px;">✂ Crop Background</span>
                 <span id="cropStatusBadge" class="badge" style="background: rgba(88, 166, 255, 0.15); color: #58a6ff; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px;">Non-Destructive</span>
               </div>
               <p style="font-size: 0.72rem; color: #8b949e; margin: 0 0 0.5rem 0; line-height: 1.35;">
-                Selectively display rectangular regions of an imported image object while preserving original pixels.
+                Non-destructively crop and reframe the canvas background photograph while preserving original pixels and named crop versions.
               </p>
 
-              <!-- Selected Image Target Card -->
-              <div id="cropImageSelectedCard" class="image-tools-card" style="padding: 0.45rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.6rem;">
-                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.15rem;">SELECTED IMAGE</div>
-                <div id="cropSelectedImageName" style="font-weight: 700; color: #58a6ff; font-size: 0.82rem; word-break: break-all;">No Image Selected</div>
-                <div id="cropSelectedImageDims" style="font-size: 0.72rem; color: #8b949e; margin-top: 0.1rem;">Select an Image Object from the canvas or Layers drawer to crop it.</div>
-                <div id="cropNoImageWarning" style="margin-top: 0.35rem; display: flex; gap: 6px; align-items: center;">
-                  <button type="button" class="btn btn-primary btn-sm" id="btnCropImportImage" style="font-size: 0.72rem; padding: 0.2rem 0.55rem;">+ Import Image</button>
-                  <span style="font-size: 0.7rem; color: #8b949e;">or select existing in Layers</span>
-                </div>
-                <!-- Legacy Card Aliases -->
+              <!-- Canvas Background Target Card -->
+              <div id="cropBackgroundCard" class="image-tools-card" style="padding: 0.45rem; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 0.6rem;">
+                <div style="font-size: 0.68rem; color: #8b949e; text-transform: uppercase; font-weight: 600; margin-bottom: 0.15rem;">CANVAS BACKGROUND</div>
+                <div id="cropBackgroundName" style="font-weight: 700; color: #58a6ff; font-size: 0.82rem; word-break: break-all;">Background Photo</div>
+                <div id="cropBackgroundDims" style="font-size: 0.72rem; color: #8b949e; margin-top: 0.1rem;">1280 &times; 720 px</div>
+                <div id="cropNoBackgroundWarning" style="margin-top: 0.35rem; font-size: 0.72rem; color: #e3b341; display: none;">Add a background image in Canvas &amp; Background to enable cropping.</div>
+                <!-- Compatibility Aliases for scripts/tests -->
+                <div id="cropSelectedImageName" style="display: none;"></div>
+                <div id="cropSelectedImageDims" style="display: none;"></div>
+                <div id="cropNoImageWarning" style="display: none;"></div>
                 <div id="imageToolsSelectedName" style="display: none;"></div>
                 <div id="imageToolsOriginalDims" style="display: none;"></div>
                 <div id="imageToolsNoImageWarning" style="display: none;"></div>
-                <button type="button" id="btnToolsImportImage" style="display: none;"></button>
               </div>
 
               <!-- Start Crop Button -->
               <div style="margin-bottom: 0.5rem;">
-                <button type="button" class="btn btn-primary btn-sm" id="btnStartCrop" style="width: 100%; font-size: 0.76rem; padding: 0.35rem;" disabled>✂️ Start Crop</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnStartCrop" style="width: 100%; font-size: 0.76rem; padding: 0.35rem;">✂️ Start Crop</button>
                 <!-- Legacy alias -->
                 <button type="button" id="btnToolSelectOnCanvas" style="display: none;"></button>
                 <button type="button" id="btnModeCrop" style="display: none;"></button>
@@ -2039,8 +2026,6 @@
           </div>
           <div class="floating-prop-row" style="margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
             <div style="display: flex; gap: 4px; width: 100%;">
-              <button type="button" class="btn-floating-action" id="fctx-btnCropImage" style="flex: 1; padding: 0.2rem 0.35rem; font-size: 0.72rem;" title="Interactive Crop">✂️ Crop</button>
-              <button type="button" class="btn-floating-action" id="fctx-btnClipImage" style="flex: 1; padding: 0.2rem 0.35rem; font-size: 0.72rem;" title="Interactive Clip">◩ Clip</button>
               <button type="button" class="btn-floating-action" id="fctx-btnResetCrop" style="flex: 1; padding: 0.2rem 0.35rem; font-size: 0.72rem;" title="Reset Crop / Clip">⟲ Reset</button>
               <button type="button" class="btn-floating-action" id="fctx-btnBakeImage" style="flex: 1.1; padding: 0.2rem 0.35rem; font-size: 0.72rem; color: #58a6ff;" title="Bake into Background">🍳 Bake...</button>
             </div>

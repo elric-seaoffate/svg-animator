@@ -255,11 +255,14 @@ func ExtractStudioState(proj *Project) ([]byte, error) {
 		b64 := base64.StdEncoding.EncodeToString(assetBytes)
 
 		loadedPhoto = map[string]any{
-			"filename":      s.Photo.Filename,
-			"mime":          mime,
-			"b64":           b64, // Raw base64 string matching Studio state convention
-			"naturalWidth":  s.Photo.NaturalWidth,
-			"naturalHeight": s.Photo.NaturalHeight,
+			"filename":            s.Photo.Filename,
+			"mime":                mime,
+			"b64":                 b64, // Raw base64 string matching Studio state convention
+			"naturalWidth":        s.Photo.NaturalWidth,
+			"naturalHeight":       s.Photo.NaturalHeight,
+			"crop":                s.Photo.Crop,
+			"cropVersions":        s.Photo.CropVersions,
+			"activeCropVersionId": s.Photo.ActiveCropVersionID,
 		}
 	}
 

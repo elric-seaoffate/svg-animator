@@ -1119,3 +1119,103 @@ func TestSVACropVersionsRoundtrip(t *testing.T) {
 		t.Fatalf("expected 2 cropVersions in extracted state, got %v", imgObj["cropVersions"])
 	}
 }
+
+func TestSVABackgroundCropVersionsRoundtrip(t *testing.T) {
+	fakePhotoBytes := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4")
+	fakePhotoB64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(fakePhotoBytes)
+
+	schemaJSON := fmt.Sprintf(`{
+		"version": "1.2.0",
+		"controls": {"canvasWidthInput": "1280", "canvasHeightInput": "720", "canvasPatternSelect": "photo"},
+		"loadedPhoto": {
+			"filename": "scenery.png",
+			"mime": "image/png",
+			"b64": %q,
+			"naturalWidth": 1920,
+			"naturalHeight": 1080,
+			"activeCropVersionId": "crop-1",
+			"crop": {
+				"enabled": true,
+				"sourceX": 500,
+				"sourceY": 200,
+				"sourceWidth": 800,
+				"sourceHeight": 600
+			},
+			"cropVersions": [
+				{
+					"id": "original",
+					"name": "Original",
+					"sourceX": 0,
+					"sourceY": 0,
+					"sourceWidth": 1920,
+					"sourceHeight": 1080
+				},
+				{
+					"id": "crop-1",
+					"name": "Mountain Vista",
+					"sourceX": 500,
+					"sourceY": 200,
+					"sourceWidth": 800,
+					"sourceHeight": 600
+				}
+			]
+		},
+		"nodes": [],
+		"flows": [],
+		"glows": [],
+		"ripples": []
+	}`, fakePhotoB64)
+
+	proj, err := BuildProjectFromStudioState("Background Crop Project", "Testing SVA background crop roundtrip", []byte(schemaJSON))
+	if err != nil {
+		t.Fatalf("BuildProjectFromStudioState failed: %v", err)
+	}
+
+	if proj.Scene.Photo == nil {
+		t.Fatalf("expected Photo to be populated")
+	}
+	if len(proj.Scene.Photo.CropVersions) != 2 {
+		t.Fatalf("expected 2 crop versions in Photo, got %d", len(proj.Scene.Photo.CropVersions))
+	}
+	if proj.Scene.Photo.ActiveCropVersionID != "crop-1" {
+		t.Errorf("expected active crop 'crop-1', got %q", proj.Scene.Photo.ActiveCropVersionID)
+	}
+
+	svaBytes, err := Encode(proj)
+	if err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	decodedProj, err := Decode(svaBytes)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if decodedProj.Scene.Photo == nil {
+		t.Fatalf("expected Photo in decoded project")
+	}
+	if len(decodedProj.Scene.Photo.CropVersions) != 2 {
+		t.Fatalf("expected 2 crop versions in decoded project, got %d", len(decodedProj.Scene.Photo.CropVersions))
+	}
+
+	stateBytes, err := ExtractStudioState(decodedProj)
+	if err != nil {
+		t.Fatalf("ExtractStudioState failed: %v", err)
+	}
+
+	var stateMap map[string]any
+	if err := json.Unmarshal(stateBytes, &stateMap); err != nil {
+		t.Fatalf("Unmarshal stateBytes failed: %v", err)
+	}
+	lp, ok := stateMap["loadedPhoto"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected loadedPhoto in extracted stateMap")
+	}
+	if lp["activeCropVersionId"] != "crop-1" {
+		t.Errorf("expected activeCropVersionId 'crop-1', got %v", lp["activeCropVersionId"])
+	}
+	vers, ok := lp["cropVersions"].([]any)
+	if !ok || len(vers) != 2 {
+		t.Errorf("expected 2 cropVersions in extracted loadedPhoto, got %v", lp["cropVersions"])
+	}
+}

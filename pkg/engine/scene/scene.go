@@ -2,6 +2,8 @@ package scene
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,8 +16,9 @@ type Scene struct {
 	mu       sync.RWMutex
 	revision int64
 
-	canvas CanvasConfig
-	camera CameraConfig
+	canvas     CanvasConfig
+	background *BackgroundConfig
+	camera     CameraConfig
 
 	nodesCounter int64
 	nodes        map[StringID]Node
@@ -690,6 +693,20 @@ func (s *Scene) SetFromSnapshot(snap Snapshot) {
 	defer s.mu.Unlock()
 
 	s.canvas = snap.Canvas
+	if snap.Background != nil {
+		bgCopy := *snap.Background
+		if snap.Background.Crop != nil {
+			c := *snap.Background.Crop
+			bgCopy.Crop = &c
+		}
+		if len(snap.Background.CropVersions) > 0 {
+			bgCopy.CropVersions = make([]BackgroundCropVersion, len(snap.Background.CropVersions))
+			copy(bgCopy.CropVersions, snap.Background.CropVersions)
+		}
+		s.background = &bgCopy
+	} else {
+		s.background = nil
+	}
 	s.camera = snap.Camera
 	s.optical = snap.Optical
 	if snap.Frame.Style != "" || snap.Frame.Enabled {
@@ -869,6 +886,7 @@ func (s *Scene) GetSnapshot() Snapshot {
 	return Snapshot{
 		Revision:      s.revision,
 		Canvas:        s.canvas,
+		Background:    s.getBackgroundLocked(),
 		Camera:        s.camera,
 		Optical:       s.optical,
 		Frame:         s.frame,
@@ -883,4 +901,343 @@ func (s *Scene) GetSnapshot() Snapshot {
 		ImagesCounter: s.imagesCounter,
 		Layers:        layers,
 	}
+}
+
+// SetBackground sets or replaces the authoritative background configuration.
+func (s *Scene) SetBackground(bg *BackgroundConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if bg == nil {
+		s.background = nil
+		s.revision++
+		return
+	}
+
+	b := *bg
+	sw := b.SourceWidth
+	if sw <= 0 {
+		sw = b.NaturalWidth
+	}
+	if sw <= 0 {
+		sw = 1280
+	}
+	sh := b.SourceHeight
+	if sh <= 0 {
+		sh = b.NaturalHeight
+	}
+	if sh <= 0 {
+		sh = 720
+	}
+	b.SourceWidth = sw
+	b.SourceHeight = sh
+	b.NaturalWidth = sw
+	b.NaturalHeight = sh
+
+	if len(b.CropVersions) == 0 {
+		b.CropVersions = []BackgroundCropVersion{
+			{
+				ID:           "original",
+				Name:         "Original",
+				SourceX:      0,
+				SourceY:      0,
+				SourceWidth:  sw,
+				SourceHeight: sh,
+			},
+		}
+		b.ActiveCropVersionID = "original"
+	}
+	if b.ActiveCropVersionID == "" {
+		b.ActiveCropVersionID = "original"
+	}
+
+	s.background = &b
+	s.revision++
+}
+
+// GetBackground returns a copy of the authoritative background configuration.
+func (s *Scene) GetBackground() *BackgroundConfig {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getBackgroundLocked()
+}
+
+func (s *Scene) getBackgroundLocked() *BackgroundConfig {
+	if s.background == nil {
+		return nil
+	}
+	b := *s.background
+	if b.Crop != nil {
+		c := *b.Crop
+		b.Crop = &c
+	}
+	if len(b.CropVersions) > 0 {
+		b.CropVersions = make([]BackgroundCropVersion, len(s.background.CropVersions))
+		copy(b.CropVersions, s.background.CropVersions)
+	}
+	return &b
+}
+
+// CropBackground applies a non-destructive crop to the background image and saves it as a version.
+func (s *Scene) CropBackground(crop BackgroundCrop, name string) (*BackgroundConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.background == nil {
+		return nil, errors.New("no background image loaded in scene")
+	}
+
+	natW := s.background.SourceWidth
+	if natW <= 0 {
+		natW = s.background.NaturalWidth
+	}
+	if natW <= 0 {
+		natW = 1280
+	}
+	natH := s.background.SourceHeight
+	if natH <= 0 {
+		natH = s.background.NaturalHeight
+	}
+	if natH <= 0 {
+		natH = 720
+	}
+
+	sx := math.Max(0, math.Min(crop.SourceX, natW-10))
+	sy := math.Max(0, math.Min(crop.SourceY, natH-10))
+	sw := math.Max(10, math.Min(crop.SourceWidth, natW-sx))
+	sh := math.Max(10, math.Min(crop.SourceHeight, natH-sy))
+
+	// Ensure Original version is present at index 0
+	if len(s.background.CropVersions) == 0 {
+		s.background.CropVersions = []BackgroundCropVersion{
+			{
+				ID:           "original",
+				Name:         "Original",
+				SourceX:      0,
+				SourceY:      0,
+				SourceWidth:  natW,
+				SourceHeight: natH,
+			},
+		}
+	} else if s.background.CropVersions[0].ID != "original" {
+		orig := BackgroundCropVersion{
+			ID:           "original",
+			Name:         "Original",
+			SourceX:      0,
+			SourceY:      0,
+			SourceWidth:  natW,
+			SourceHeight: natH,
+		}
+		s.background.CropVersions = append([]BackgroundCropVersion{orig}, s.background.CropVersions...)
+	}
+
+	cropCount := 0
+	for _, v := range s.background.CropVersions {
+		if strings.HasPrefix(v.ID, "crop-") {
+			cropCount++
+		}
+	}
+	verID := fmt.Sprintf("crop-%d", cropCount+1)
+	verName := strings.TrimSpace(name)
+	if verName == "" {
+		verName = fmt.Sprintf("Crop %d", cropCount+1)
+	}
+
+	newVersion := BackgroundCropVersion{
+		ID:           verID,
+		Name:         verName,
+		SourceX:      sx,
+		SourceY:      sy,
+		SourceWidth:  sw,
+		SourceHeight: sh,
+	}
+	s.background.CropVersions = append(s.background.CropVersions, newVersion)
+	s.background.ActiveCropVersionID = verID
+	s.background.Crop = &BackgroundCrop{
+		Enabled:      true,
+		SourceX:      sx,
+		SourceY:      sy,
+		SourceWidth:  sw,
+		SourceHeight: sh,
+	}
+
+	s.revision++
+
+	return s.getBackgroundLocked(), nil
+}
+
+// SelectBackgroundCropVersion activates a specific crop version or "original".
+func (s *Scene) SelectBackgroundCropVersion(versionID string) (*BackgroundConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.background == nil {
+		return nil, errors.New("no background image loaded in scene")
+	}
+
+	cleanID := strings.TrimSpace(versionID)
+	if cleanID == "" {
+		cleanID = "original"
+	}
+
+	var found *BackgroundCropVersion
+	for i := range s.background.CropVersions {
+		if s.background.CropVersions[i].ID == cleanID {
+			found = &s.background.CropVersions[i]
+			break
+		}
+	}
+	if found == nil {
+		return nil, fmt.Errorf("crop version %q not found", cleanID)
+	}
+
+	s.background.ActiveCropVersionID = cleanID
+	if cleanID == "original" {
+		s.background.Crop = nil
+	} else {
+		s.background.Crop = &BackgroundCrop{
+			Enabled:      true,
+			SourceX:      found.SourceX,
+			SourceY:      found.SourceY,
+			SourceWidth:  found.SourceWidth,
+			SourceHeight: found.SourceHeight,
+		}
+	}
+
+	s.revision++
+
+	return s.getBackgroundLocked(), nil
+}
+
+// RenameBackgroundCropVersion renames a crop version.
+func (s *Scene) RenameBackgroundCropVersion(versionID, newName string) (*BackgroundConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.background == nil {
+		return nil, errors.New("no background image loaded in scene")
+	}
+
+	cleanName := strings.TrimSpace(newName)
+	if cleanName == "" {
+		return nil, errors.New("crop version name cannot be empty")
+	}
+
+	idx := -1
+	for i := range s.background.CropVersions {
+		if s.background.CropVersions[i].ID == versionID {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return nil, fmt.Errorf("crop version %q not found", versionID)
+	}
+
+	s.background.CropVersions[idx].Name = cleanName
+	s.revision++
+	return s.getBackgroundLocked(), nil
+}
+
+// DeleteBackgroundCropVersion removes a crop version (cannot delete "original").
+func (s *Scene) DeleteBackgroundCropVersion(versionID string) (*BackgroundConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.background == nil {
+		return nil, errors.New("no background image loaded in scene")
+	}
+	if versionID == "original" {
+		return nil, errors.New("cannot delete original background version")
+	}
+
+	idx := -1
+	for i := range s.background.CropVersions {
+		if s.background.CropVersions[i].ID == versionID {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return nil, fmt.Errorf("crop version %q not found", versionID)
+	}
+
+	s.background.CropVersions = append(s.background.CropVersions[:idx], s.background.CropVersions[idx+1:]...)
+
+	if s.background.ActiveCropVersionID == versionID {
+		fallbackID := "original"
+		if len(s.background.CropVersions) > 0 {
+			fallbackID = s.background.CropVersions[len(s.background.CropVersions)-1].ID
+		}
+		s.background.ActiveCropVersionID = fallbackID
+		if fallbackID == "original" {
+			s.background.Crop = nil
+		} else {
+			for _, v := range s.background.CropVersions {
+				if v.ID == fallbackID {
+					s.background.Crop = &BackgroundCrop{
+						Enabled:      true,
+						SourceX:      v.SourceX,
+						SourceY:      v.SourceY,
+						SourceWidth:  v.SourceWidth,
+						SourceHeight: v.SourceHeight,
+					}
+					break
+				}
+			}
+		}
+	}
+
+	s.revision++
+
+	return s.getBackgroundLocked(), nil
+}
+
+// ResetBackgroundCrop restores the full uncropped "original" background view.
+func (s *Scene) ResetBackgroundCrop() (*BackgroundConfig, error) {
+	return s.SelectBackgroundCropVersion("original")
+}
+
+// CommitBackgroundCrop bakes the current background crop into a new base raster asset.
+func (s *Scene) CommitBackgroundCrop(newB64 string, discardVersions bool) (*BackgroundConfig, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.background == nil {
+		return nil, errors.New("no background image loaded in scene")
+	}
+
+	if newB64 != "" {
+		s.background.B64 = newB64
+		s.background.Src = newB64
+		s.background.Data = newB64
+	}
+
+	if s.background.Crop != nil && s.background.Crop.Enabled {
+		if discardVersions {
+			sw := s.background.Crop.SourceWidth
+			sh := s.background.Crop.SourceHeight
+			s.background.SourceWidth = sw
+			s.background.SourceHeight = sh
+			s.background.NaturalWidth = sw
+			s.background.NaturalHeight = sh
+
+			s.background.Crop = nil
+			s.background.ActiveCropVersionID = "original"
+			s.background.CropVersions = []BackgroundCropVersion{
+				{
+					ID:           "original",
+					Name:         "Original",
+					SourceX:      0,
+					SourceY:      0,
+					SourceWidth:  sw,
+					SourceHeight: sh,
+				},
+			}
+		}
+	}
+
+	s.revision++
+
+	return s.getBackgroundLocked(), nil
 }

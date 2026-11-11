@@ -4483,6 +4483,12 @@ window.ImageToolsController = {
   _snipCounter: 0,
   _clipCounter: 0,
 
+  _getBackgroundPhoto() {
+    return (window.getLoadedPhoto && typeof window.getLoadedPhoto === 'function')
+      ? window.getLoadedPhoto()
+      : (window.SceneState ? window.SceneState.getLoadedPhoto() : null);
+  },
+
   init() {
     this._bindEvents();
     this.syncUI();
@@ -4841,7 +4847,10 @@ window.ImageToolsController = {
 
     this._syncPreviewButtons();
 
-    // --- 2. BOTTOM SECTION (Crop Image) SYNC ---
+    // --- 2. BOTTOM SECTION (Crop Background) SYNC ---
+    const cropBgName = document.getElementById('cropBackgroundName');
+    const cropBgDims = document.getElementById('cropBackgroundDims');
+    const cropNoBgWarn = document.getElementById('cropNoBackgroundWarning');
     const cropName = document.getElementById('cropSelectedImageName');
     const cropDims = document.getElementById('cropSelectedImageDims');
     const cropNoImgWarn = document.getElementById('cropNoImageWarning');
@@ -4853,29 +4862,42 @@ window.ImageToolsController = {
     const btnCommitC = document.getElementById('btnCommitCropModalTrigger');
     const btnBakeC = document.getElementById('btnToolBake');
 
-    if (currentImg) {
-      if (cropName) cropName.textContent = currentImg.name || `Image ${currentImg.id}`;
-      if (cropDims) {
-        const nw = currentImg.naturalWidth || currentImg.width || 0;
-        const nh = currentImg.naturalHeight || currentImg.height || 0;
-        cropDims.textContent = `Original: ${Math.round(nw)} × ${Math.round(nh)} px`;
-      }
+    const photo = this._getBackgroundPhoto();
+    const hasPhoto = !!(photo && (photo.src || photo.b64 || photo.dataUrl || photo.naturalWidth));
+
+    if (hasPhoto) {
+      const bgTitle = photo.filename || 'Background Photo';
+      const nw = photo.naturalWidth || 1280;
+      const nh = photo.naturalHeight || 720;
+      const dimsStr = `Original: ${Math.round(nw)} × ${Math.round(nh)} px`;
+
+      if (cropBgName) cropBgName.textContent = bgTitle;
+      if (cropBgDims) cropBgDims.textContent = dimsStr;
+      if (cropName) cropName.textContent = bgTitle;
+      if (cropDims) cropDims.textContent = dimsStr;
+      if (cropNoBgWarn) cropNoBgWarn.style.display = 'none';
       if (cropNoImgWarn) cropNoImgWarn.style.display = 'none';
+
       if (btnStartC) btnStartC.disabled = false;
       if (btnApplyC) btnApplyC.disabled = false;
       if (btnCancelC) btnCancelC.disabled = !(window.Stage && window.Stage.isCroppingImage);
       if (btnEditC) btnEditC.disabled = false;
-      const isCropped = !!(currentImg.crop && currentImg.crop.enabled);
+
+      const isCropped = !!(photo.crop && photo.crop.enabled);
       if (btnResetC) btnResetC.disabled = !isCropped;
       if (btnCommitC) btnCommitC.disabled = !isCropped;
-      if (btnBakeC) btnBakeC.disabled = false;
+      if (btnBakeC) btnBakeC.disabled = !currentImg;
 
-      this._renderCropVersionsList(currentImg);
-      this._syncCropInputs(currentImg);
+      this._renderBackgroundCropVersionsList(photo);
+      this._syncBackgroundCropInputs(photo);
     } else {
-      if (cropName) cropName.textContent = 'No Image Selected';
-      if (cropDims) cropDims.textContent = 'Select an Image Object from the canvas or Layers drawer to crop it.';
-      if (cropNoImgWarn) cropNoImgWarn.style.display = 'flex';
+      if (cropBgName) cropBgName.textContent = 'No Background Image';
+      if (cropBgDims) cropBgDims.textContent = '—';
+      if (cropName) cropName.textContent = 'No Background Image';
+      if (cropDims) cropDims.textContent = '—';
+      if (cropNoBgWarn) cropNoBgWarn.style.display = 'block';
+      if (cropNoImgWarn) cropNoImgWarn.style.display = 'none';
+
       if (btnStartC) btnStartC.disabled = true;
       if (btnApplyC) btnApplyC.disabled = true;
       if (btnCancelC) btnCancelC.disabled = true;
@@ -4889,9 +4911,9 @@ window.ImageToolsController = {
 
     // Mirror legacy card/label aliases
     const legacyName = document.getElementById('imageToolsSelectedName');
-    if (legacyName && cropName) legacyName.textContent = cropName.textContent;
+    if (legacyName && (cropBgName || cropName)) legacyName.textContent = (cropBgName || cropName).textContent;
     const legacyDims = document.getElementById('imageToolsOriginalDims');
-    if (legacyDims && cropDims) legacyDims.textContent = cropDims.textContent;
+    if (legacyDims && (cropBgDims || cropDims)) legacyDims.textContent = (cropBgDims || cropDims).textContent;
     const legacyRegTitle = document.getElementById('imageToolsRegionTitle');
     if (legacyRegTitle) {
       legacyRegTitle.textContent = (this.currentMode === 'clip') ? 'Clip Boundary' : ((this.currentMode === 'snip') ? 'Background Region' : 'Crop Region');
@@ -4923,11 +4945,15 @@ window.ImageToolsController = {
 
   // --- CROP WORKFLOW METHODS ---
   startCrop() {
-    const sel = window.AppCoordinator?.getActiveSelection();
-    if (sel && sel.type === 'image' && sel.id && window.Stage) {
-      window.Stage.startCropMode(sel.id);
-    } else if (window.AppCoordinator) {
-      window.AppCoordinator.showNotification('Select an Image Object from the canvas or Layers drawer to crop it.', 'warning', 2500);
+    const photo = this._getBackgroundPhoto();
+    if (!photo) {
+      if (window.AppCoordinator) {
+        window.AppCoordinator.showNotification('Add a background image in Canvas & Background to enable cropping.', 'warning', 2500);
+      }
+      return;
+    }
+    if (window.Stage) {
+      window.Stage.startBackgroundCropMode();
     }
     this.syncUI();
   },
@@ -4938,50 +4964,27 @@ window.ImageToolsController = {
       return;
     }
 
-    const sel = window.AppCoordinator?.getActiveSelection();
-    if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) return;
-    const img = window.ImageObjects.getImage(sel.id);
-    if (!img) return;
+    const photo = this._getBackgroundPhoto();
+    if (!photo) return;
 
     const x = Math.max(0, parseInt(document.getElementById('cropRegionX')?.value || document.getElementById('toolRegionX')?.value, 10) || 0);
     const y = Math.max(0, parseInt(document.getElementById('cropRegionY')?.value || document.getElementById('toolRegionY')?.value, 10) || 0);
     const w = Math.max(10, parseInt(document.getElementById('cropRegionW')?.value || document.getElementById('toolRegionW')?.value, 10) || 10);
     const h = Math.max(10, parseInt(document.getElementById('cropRegionH')?.value || document.getElementById('toolRegionH')?.value, 10) || 10);
 
-    const vCount = (img.cropVersions ? img.cropVersions.length : 1);
-    const versionName = `Crop ${vCount}`;
-
-    const nw = img.naturalWidth || img.width || 200;
-    const nh = img.naturalHeight || img.height || 150;
-    const origW = (img.crop && img.crop.origWidth) ? img.crop.origWidth : img.width;
-    const origH = (img.crop && img.crop.origHeight) ? img.crop.origHeight : img.height;
-    const scaleX = origW / nw;
-    const scaleY = origH / nh;
-
-    const targetW = Math.round(w * scaleX);
-    const targetH = Math.round(h * scaleY);
+    const vCount = (photo.cropVersions ? photo.cropVersions.filter(v => v.id && v.id.startsWith('crop-')).length : 0);
+    const versionName = `Crop ${vCount + 1}`;
 
     const cropData = {
       enabled: true,
       sourceX: x,
       sourceY: y,
       sourceWidth: w,
-      sourceHeight: h,
-      origWidth: origW,
-      origHeight: origH,
-      origX: (img.crop && img.crop.origX !== undefined) ? img.crop.origX : img.x,
-      origY: (img.crop && img.crop.origY !== undefined) ? img.crop.origY : img.y
+      sourceHeight: h
     };
 
-    const geom = {
-      newW: targetW,
-      newH: targetH
-    };
-
-    if (window.EngineBridge && typeof window.EngineBridge.cropImage === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.cropImage(sel.id, cropData, geom, versionName);
-    } else {
-      window.ImageObjects.cropImage(sel.id, cropData, geom, versionName);
+    if (window.EngineBridge && typeof window.EngineBridge.cropBackground === 'function') {
+      window.EngineBridge.cropBackground(cropData, versionName);
     }
 
     if (window.HistoryManager) window.HistoryManager.recordImmediate();
@@ -4991,11 +4994,8 @@ window.ImageToolsController = {
       window.triggerAppRender();
     }
     if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', sel.id, { openAccordionId: 'acc-image-tools' });
-      window.AppCoordinator.updateActiveOverlays();
-      window.AppCoordinator.showNotification(`Applied ${versionName}.`, 'success', 2500);
+      window.AppCoordinator.showNotification(`Applied background ${versionName}.`, 'success', 2500);
     }
-    if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
     this.syncUI();
   },
 
@@ -5007,39 +5007,194 @@ window.ImageToolsController = {
   },
 
   editCurrentCrop() {
-    const sel = window.AppCoordinator?.getActiveSelection();
-    if (sel && sel.type === 'image' && sel.id && window.Stage) {
-      window.Stage.startCropMode(sel.id);
+    const photo = this._getBackgroundPhoto();
+    if (photo && window.Stage) {
+      window.Stage.startBackgroundCropMode();
     }
     this.syncUI();
   },
 
   resetCropToOriginal() {
     if (window.Stage && window.Stage.isCroppingImage) {
-      window.Stage.resetCropMode();
-      return;
+      window.Stage.cancelCropMode();
     }
-    const sel = window.AppCoordinator?.getActiveSelection();
-    if (sel && sel.type === 'image' && sel.id && window.ImageObjects) {
-      if (window.EngineBridge && typeof window.EngineBridge.resetCrop === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.resetCrop(sel.id);
-      } else {
-        window.ImageObjects.resetCrop(sel.id);
+    if (window.EngineBridge && typeof window.EngineBridge.resetBackgroundCrop === 'function') {
+      window.EngineBridge.resetBackgroundCrop();
+    }
+    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.showNotification('Background crop reset to Original.', 'info', 2500);
+    }
+    this.syncUI();
+  },
+
+  _renderBackgroundCropVersionsList(photo) {
+    const listEl = document.getElementById('cropVersionsList') || document.getElementById('imageToolsPreviousCropsList');
+    const currentLbl = document.getElementById('cropCurrentVersionLabel');
+    const legacyLbl = document.getElementById('imageToolsCurrentCropLabel');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    const natW = photo.naturalWidth || 1280;
+    const natH = photo.naturalHeight || 720;
+
+    if (!photo.cropVersions || !photo.cropVersions.length) {
+      photo.cropVersions = [{
+        id: 'original',
+        name: 'Original',
+        sourceX: 0,
+        sourceY: 0,
+        sourceWidth: natW,
+        sourceHeight: natH
+      }];
+      photo.activeCropVersionId = 'original';
+    }
+
+    const activeId = photo.activeCropVersionId || 'original';
+    const activeVer = photo.cropVersions.find((v) => v.id === activeId) || photo.cropVersions[0];
+    const activeText = `Active: ${activeVer ? activeVer.name : 'Original'}`;
+    if (currentLbl) currentLbl.textContent = activeText;
+    if (legacyLbl) legacyLbl.textContent = activeText;
+
+    photo.cropVersions.forEach((ver) => {
+      const pill = document.createElement('div');
+      pill.className = 'crop-version-pill' + (ver.id === activeId ? ' active' : '');
+      pill.setAttribute('data-version-id', ver.id);
+      if (pill.dataset) pill.dataset.versionId = ver.id;
+
+      const info = document.createElement('div');
+      info.className = 'crop-version-info';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'crop-version-name';
+      nameSpan.textContent = ver.name || ver.id;
+
+      const dimsSpan = document.createElement('span');
+      dimsSpan.className = 'crop-version-dims';
+      const w = Math.round(ver.sourceWidth || 0);
+      const h = Math.round(ver.sourceHeight || 0);
+      dimsSpan.textContent = `${w} × ${h} px` + (ver.id === 'original' ? ' (full)' : '');
+
+      info.appendChild(nameSpan);
+      info.appendChild(dimsSpan);
+      pill.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'crop-version-actions';
+
+      const btnRename = document.createElement('button');
+      btnRename.type = 'button';
+      btnRename.className = 'crop-version-btn';
+      btnRename.title = 'Rename crop version';
+      btnRename.textContent = '✏️';
+      btnRename.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.renameBackgroundCropVersion(ver);
+      });
+      actions.appendChild(btnRename);
+
+      if (ver.id !== 'original') {
+        const btnDel = document.createElement('button');
+        btnDel.type = 'button';
+        btnDel.className = 'crop-version-btn crop-version-del';
+        btnDel.title = 'Delete crop version';
+        btnDel.textContent = '✕';
+        btnDel.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.deleteBackgroundCropVersion(ver);
+        });
+        actions.appendChild(btnDel);
+      }
+
+      pill.appendChild(actions);
+
+      pill.addEventListener('click', () => {
+        this.selectBackgroundCropVersion(ver);
+      });
+
+      listEl.appendChild(pill);
+    });
+  },
+
+  selectBackgroundCropVersion(ver) {
+    if (!ver) return;
+    if (window.EngineBridge && typeof window.EngineBridge.selectBackgroundCropVersion === 'function') {
+      window.EngineBridge.selectBackgroundCropVersion(ver.id);
+    }
+    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.showNotification(`Switched to crop "${ver.name}".`, 'info', 2000);
+    }
+    this.syncUI();
+  },
+
+  renameBackgroundCropVersion(ver) {
+    if (!ver) return;
+    const newName = prompt('Enter new name for crop version:', ver.name);
+    if (newName && newName.trim() && newName.trim() !== ver.name) {
+      const cleanName = newName.trim();
+      if (window.EngineBridge && typeof window.EngineBridge.renameBackgroundCropVersion === 'function') {
+        window.EngineBridge.renameBackgroundCropVersion(ver.id, cleanName);
       }
       if (window.HistoryManager) window.HistoryManager.recordImmediate();
-      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-        window.AppCoordinator.requestRender();
-      } else if (typeof window.triggerAppRender === 'function') {
-        window.triggerAppRender();
-      }
-      if (window.AppCoordinator) {
-        window.AppCoordinator.selectObject('image', sel.id, { openAccordionId: 'acc-image-tools' });
-        window.AppCoordinator.updateActiveOverlays();
-        window.AppCoordinator.showNotification('Crop reset to Original.', 'info', 2500);
-      }
-      if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
       this.syncUI();
     }
+  },
+
+  deleteBackgroundCropVersion(ver) {
+    if (!ver || ver.id === 'original') return;
+    if (window.EngineBridge && typeof window.EngineBridge.deleteBackgroundCropVersion === 'function') {
+      window.EngineBridge.deleteBackgroundCropVersion(ver.id);
+    }
+    if (window.HistoryManager) window.HistoryManager.recordImmediate();
+    if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+      window.AppCoordinator.requestRender();
+    } else if (typeof window.triggerAppRender === 'function') {
+      window.triggerAppRender();
+    }
+    if (window.AppCoordinator) {
+      window.AppCoordinator.showNotification(`Deleted crop "${ver.name}".`, 'info', 2000);
+    }
+    this.syncUI();
+  },
+
+  _syncBackgroundCropInputs(photo) {
+    const rx = document.getElementById('cropRegionX');
+    const ry = document.getElementById('cropRegionY');
+    const rw = document.getElementById('cropRegionW');
+    const rh = document.getElementById('cropRegionH');
+
+    let x = 0, y = 0, w = photo.naturalWidth || 1280, h = photo.naturalHeight || 720;
+    if (photo.crop && photo.crop.enabled && photo.crop.sourceWidth > 0 && photo.crop.sourceHeight > 0) {
+      x = photo.crop.sourceX || 0;
+      y = photo.crop.sourceY || 0;
+      w = photo.crop.sourceWidth;
+      h = photo.crop.sourceHeight;
+    }
+
+    if (rx) rx.value = Math.round(x);
+    if (ry) ry.value = Math.round(y);
+    if (rw) rw.value = Math.round(w);
+    if (rh) rh.value = Math.round(h);
+
+    const tx = document.getElementById('toolRegionX');
+    const ty = document.getElementById('toolRegionY');
+    const tw = document.getElementById('toolRegionW');
+    const th = document.getElementById('toolRegionH');
+    if (tx) tx.value = Math.round(x);
+    if (ty) ty.value = Math.round(y);
+    if (tw) tw.value = Math.round(w);
+    if (th) th.value = Math.round(h);
   },
 
   _renderCropVersionsList(img) {
@@ -5206,9 +5361,17 @@ window.ImageToolsController = {
   },
 
   openCommitCropModal() {
+    const photo = this._getBackgroundPhoto();
+    if (photo) {
+      const modal = document.getElementById('commitCropModal');
+      const nameEl = document.getElementById('commitCropModalImageName');
+      if (nameEl) nameEl.textContent = photo.filename || 'Canvas Background Photo';
+      if (modal) modal.style.display = 'flex';
+      return;
+    }
     const sel = window.AppCoordinator?.getActiveSelection();
     if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) {
-      if (window.AppCoordinator) window.AppCoordinator.showNotification('Select an image to commit crop.', 'warning', 2500);
+      if (window.AppCoordinator) window.AppCoordinator.showNotification('Add a background image to commit crop.', 'warning', 2500);
       return;
     }
     const img = window.ImageObjects.getImage(sel.id);
@@ -5226,6 +5389,24 @@ window.ImageToolsController = {
   },
 
   commitCurrentCrop(discardVersions = false) {
+    const photo = this._getBackgroundPhoto();
+    if (photo) {
+      this.closeCommitCropModal();
+      if (window.EngineBridge && typeof window.EngineBridge.commitBackgroundCrop === 'function') {
+        window.EngineBridge.commitBackgroundCrop({ discardVersions: !!discardVersions });
+      }
+      if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+        window.AppCoordinator.requestRender();
+      } else if (typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
+      if (window.AppCoordinator) {
+        window.AppCoordinator.showNotification('Background crop committed.', 'success', 2500);
+      }
+      this.syncUI();
+      return;
+    }
     const sel = window.AppCoordinator?.getActiveSelection();
     if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) {
       this.closeCommitCropModal();
@@ -5321,6 +5502,26 @@ window.ImageToolsController = {
   },
 
   syncFromStageCrop() {
+    if (window.Stage && window.Stage.isCroppingBackground && window.Stage.cropBox && window.Stage.cropOrigBounds) {
+      const b = window.Stage.cropBox;
+      const ob = window.Stage.cropOrigBounds;
+      const scaleX = ob.w / ob.natW;
+      const scaleY = ob.h / ob.natH;
+      const srcX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
+      const srcY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
+      const srcW = Math.round(b.w / scaleX);
+      const srcH = Math.round(b.h / scaleY);
+
+      const rx = document.getElementById('cropRegionX');
+      const ry = document.getElementById('cropRegionY');
+      const rw = document.getElementById('cropRegionW');
+      const rh = document.getElementById('cropRegionH');
+      if (rx && document.activeElement !== rx) rx.value = srcX;
+      if (ry && document.activeElement !== ry) ry.value = srcY;
+      if (rw && document.activeElement !== rw) rw.value = srcW;
+      if (rh && document.activeElement !== rh) rh.value = srcH;
+      return;
+    }
     const sel = window.AppCoordinator?.getActiveSelection();
     if (sel && sel.type === 'image' && window.ImageObjects) {
       const img = window.ImageObjects.getImage(sel.id);
@@ -6064,6 +6265,22 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       if (dropLabel) dropLabel.innerText = 'Upload Background Photo';
       if (dropMeta) dropMeta.innerText = 'Drop JPEG, PNG, or WebP here';
+    }
+    if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+      window.EngineBridge.setBackground(normalized ? {
+        filename: normalized.filename,
+        mime: normalized.mime,
+        src: normalized.src || normalized.dataUrl || '',
+        b64: normalized.b64 || '',
+        naturalWidth: normalized.naturalWidth,
+        naturalHeight: normalized.naturalHeight,
+        crop: normalized.crop || null,
+        cropVersions: normalized.cropVersions || null,
+        activeCropVersionId: normalized.activeCropVersionId || 'original'
+      } : null);
+    }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
     }
   };
 

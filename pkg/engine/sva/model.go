@@ -36,12 +36,15 @@ type Manifest struct {
 
 // PhotoAssetInfo holds metadata for a bundled background image.
 type PhotoAssetInfo struct {
-	AssetID      string `json:"assetId,omitempty"`
-	AssetPath    string `json:"assetPath,omitempty"`
-	Filename     string `json:"filename,omitempty"`
-	MIME         string `json:"mime,omitempty"`
-	NaturalWidth int    `json:"naturalWidth,omitempty"`
-	NaturalHeight int   `json:"naturalHeight,omitempty"`
+	AssetID             string                        `json:"assetId,omitempty"`
+	AssetPath           string                        `json:"assetPath,omitempty"`
+	Filename            string                        `json:"filename,omitempty"`
+	MIME                string                        `json:"mime,omitempty"`
+	NaturalWidth        int                           `json:"naturalWidth,omitempty"`
+	NaturalHeight       int                           `json:"naturalHeight,omitempty"`
+	Crop                *scene.BackgroundCrop         `json:"crop,omitempty"`
+	CropVersions        []scene.BackgroundCropVersion `json:"cropVersions,omitempty"`
+	ActiveCropVersionID string                        `json:"activeCropVersionId,omitempty"`
 }
 
 // SceneData represents the comprehensive, editable scene description in scene.json.
@@ -50,6 +53,7 @@ type PhotoAssetInfo struct {
 type SceneData struct {
 	SchemaVersion   string                 `json:"schemaVersion"`
 	Canvas          scene.CanvasConfig     `json:"canvas"`
+	Background      *scene.BackgroundConfig `json:"background,omitempty"`
 	Camera          scene.CameraConfig     `json:"camera"`
 	Optical         scene.OpticalConfig    `json:"optical,omitempty"`
 	Frame           scene.FrameConfig      `json:"frame,omitempty"`

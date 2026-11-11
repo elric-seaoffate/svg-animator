@@ -671,6 +671,46 @@ type ImageResetClipResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// BackgroundCropRequest payload for "Background.CropCreate", "Background.CropUpdate", "Background.Crop".
+type BackgroundCropRequest struct {
+	Name string               `json:"name,omitempty"`
+	Crop scene.BackgroundCrop `json:"crop"`
+}
+
+// BackgroundCropResponse response for background crop commands.
+type BackgroundCropResponse struct {
+	Success    bool                    `json:"success"`
+	Background *scene.BackgroundConfig `json:"background,omitempty"`
+	Error      string                  `json:"error,omitempty"`
+}
+
+// BackgroundCropVersionSelectRequest payload for "Background.CropSelect".
+type BackgroundCropVersionSelectRequest struct {
+	VersionID string `json:"versionId"`
+}
+
+// BackgroundCropVersionRenameRequest payload for "Background.CropRename".
+type BackgroundCropVersionRenameRequest struct {
+	VersionID string `json:"versionId"`
+	Name      string `json:"name"`
+}
+
+// BackgroundCropVersionDeleteRequest payload for "Background.CropDelete".
+type BackgroundCropVersionDeleteRequest struct {
+	VersionID string `json:"versionId"`
+}
+
+// BackgroundCropCommitRequest payload for "Background.CropCommit".
+type BackgroundCropCommitRequest struct {
+	NewB64          string `json:"newB64,omitempty"`
+	DiscardVersions bool   `json:"discardVersions"`
+}
+
+// BackgroundSetRequest payload for "Background.Set".
+type BackgroundSetRequest struct {
+	Background *scene.BackgroundConfig `json:"background"`
+}
+
 // LayerGetResponse response for "Layer.Get".
 type LayerGetResponse struct {
 	Layers []scene.LayerEntry `json:"layers"`
@@ -2536,6 +2576,87 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		vis := activeScene.GetEffectiveVisibility(req.Type, req.ID)
 		locked := activeScene.GetEffectiveLocked(req.Type, req.ID)
 		return json.Marshal(LayerEffectiveResponse{Visible: vis, Locked: locked})
+
+	case "Background.Set":
+		var req BackgroundSetRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding BackgroundSetRequest: %w", err)
+		}
+		activeScene.SetBackground(req.Background)
+		return json.Marshal(map[string]any{
+			"success":    true,
+			"background": activeScene.GetBackground(),
+			"revision":   activeScene.Revision(),
+		})
+
+	case "Background.Get":
+		bg := activeScene.GetBackground()
+		return json.Marshal(map[string]any{
+			"background": bg,
+			"hasPhoto":   bg != nil && (bg.Src != "" || bg.Data != "" || bg.B64 != ""),
+		})
+
+	case "Background.Crop", "Background.CropCreate", "Background.CropUpdate":
+		var req BackgroundCropRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding BackgroundCropRequest: %w", err)
+		}
+		bg, err := activeScene.CropBackground(req.Crop, req.Name)
+		if err != nil {
+			return json.Marshal(BackgroundCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(BackgroundCropResponse{Success: true, Background: bg})
+
+	case "Background.CropSelect":
+		var req BackgroundCropVersionSelectRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding BackgroundCropVersionSelectRequest: %w", err)
+		}
+		bg, err := activeScene.SelectBackgroundCropVersion(req.VersionID)
+		if err != nil {
+			return json.Marshal(BackgroundCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(BackgroundCropResponse{Success: true, Background: bg})
+
+	case "Background.CropRename":
+		var req BackgroundCropVersionRenameRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding BackgroundCropVersionRenameRequest: %w", err)
+		}
+		bg, err := activeScene.RenameBackgroundCropVersion(req.VersionID, req.Name)
+		if err != nil {
+			return json.Marshal(BackgroundCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(BackgroundCropResponse{Success: true, Background: bg})
+
+	case "Background.CropDelete":
+		var req BackgroundCropVersionDeleteRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding BackgroundCropVersionDeleteRequest: %w", err)
+		}
+		bg, err := activeScene.DeleteBackgroundCropVersion(req.VersionID)
+		if err != nil {
+			return json.Marshal(BackgroundCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(BackgroundCropResponse{Success: true, Background: bg})
+
+	case "Background.CropReset":
+		bg, err := activeScene.ResetBackgroundCrop()
+		if err != nil {
+			return json.Marshal(BackgroundCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(BackgroundCropResponse{Success: true, Background: bg})
+
+	case "Background.CropCommit":
+		var req BackgroundCropCommitRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding BackgroundCropCommitRequest: %w", err)
+		}
+		bg, err := activeScene.CommitBackgroundCrop(req.NewB64, req.DiscardVersions)
+		if err != nil {
+			return json.Marshal(BackgroundCropResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(BackgroundCropResponse{Success: true, Background: bg})
 
 	default:
 		return nil, errors.New("unknown engine command: " + command)

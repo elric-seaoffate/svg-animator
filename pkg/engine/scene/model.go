@@ -377,21 +377,58 @@ func (img Image) IsLocked() bool {
 	return img.Locked
 }
 
+// BackgroundCrop defines non-destructive source rectangular cropping parameters for the background.
+type BackgroundCrop struct {
+	Enabled      bool    `json:"enabled"`
+	SourceX      float64 `json:"sourceX"`
+	SourceY      float64 `json:"sourceY"`
+	SourceWidth  float64 `json:"sourceWidth"`
+	SourceHeight float64 `json:"sourceHeight"`
+}
+
+// BackgroundCropVersion represents a named, persistent crop state for the background.
+type BackgroundCropVersion struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	SourceX      float64 `json:"sourceX"`
+	SourceY      float64 `json:"sourceY"`
+	SourceWidth  float64 `json:"sourceWidth"`
+	SourceHeight float64 `json:"sourceHeight"`
+}
+
+// BackgroundConfig defines authoritative metadata and non-destructive crop state for the scene background.
+type BackgroundConfig struct {
+	AssetRef            string                  `json:"assetRef,omitempty"`
+	Filename            string                  `json:"filename,omitempty"`
+	Mime                string                  `json:"mime,omitempty"`
+	Src                 string                  `json:"src,omitempty"`
+	Data                string                  `json:"data,omitempty"`
+	B64                 string                  `json:"b64,omitempty"`
+	SourceWidth         float64                 `json:"sourceWidth,omitempty"`
+	SourceHeight        float64                 `json:"sourceHeight,omitempty"`
+	NaturalWidth        float64                 `json:"naturalWidth,omitempty"`
+	NaturalHeight       float64                 `json:"naturalHeight,omitempty"`
+	Crop                *BackgroundCrop         `json:"crop,omitempty"`
+	CropVersions        []BackgroundCropVersion `json:"cropVersions,omitempty"`
+	ActiveCropVersionID string                  `json:"activeCropVersionId,omitempty"`
+}
+
 // Snapshot is a serialized snapshot of the scene for import/export across boundaries.
 type Snapshot struct {
-	Revision      int64         `json:"revision"`
-	Canvas        CanvasConfig  `json:"canvas"`
-	Camera        CameraConfig  `json:"camera"`
-	Optical       OpticalConfig `json:"optical,omitempty"`
-	Frame         FrameConfig   `json:"frame,omitempty"`
-	Overlays      FrameConfig   `json:"overlays,omitempty"` // Alias for JS state.overlays compatibility
-	Nodes         []Node        `json:"nodes"`
-	Flows         []Flow        `json:"flows"`
-	Glows         []Glow        `json:"glows"`
-	Ripples       []Ripple      `json:"ripples"`
-	Groups        []Group       `json:"groups,omitempty"`
-	GroupsCounter int64         `json:"groupsCounter,omitempty"`
-	Images        []Image       `json:"images,omitempty"`
-	ImagesCounter int64         `json:"imagesCounter,omitempty"`
-	Layers        []LayerEntry  `json:"layers,omitempty"`
+	Revision      int64             `json:"revision"`
+	Canvas        CanvasConfig      `json:"canvas"`
+	Background    *BackgroundConfig `json:"background,omitempty"`
+	Camera        CameraConfig      `json:"camera"`
+	Optical       OpticalConfig     `json:"optical,omitempty"`
+	Frame         FrameConfig       `json:"frame,omitempty"`
+	Overlays      FrameConfig       `json:"overlays,omitempty"` // Alias for JS state.overlays compatibility
+	Nodes         []Node            `json:"nodes"`
+	Flows         []Flow            `json:"flows"`
+	Glows         []Glow            `json:"glows"`
+	Ripples       []Ripple          `json:"ripples"`
+	Groups        []Group           `json:"groups,omitempty"`
+	GroupsCounter int64             `json:"groupsCounter,omitempty"`
+	Images        []Image           `json:"images,omitempty"`
+	ImagesCounter int64             `json:"imagesCounter,omitempty"`
+	Layers        []LayerEntry      `json:"layers,omitempty"`
 }

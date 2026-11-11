@@ -1461,77 +1461,133 @@ window.Stage = {
     reader.readAsDataURL(file);
   },
 
+  startBackgroundCropMode() {
+    this.startCropMode('background');
+  },
+
   startCropMode(imageObj) {
-    if (!imageObj) return;
-    const img = (typeof imageObj === 'string' || typeof imageObj === 'number')
-      ? (window.ImageObjects ? window.ImageObjects.getImage(imageObj) : null)
-      : imageObj;
-    if (!img) return;
+    const isBg = (imageObj === 'background') || (!imageObj && !this.activeCropImage);
+    let photo = null;
+    let img = null;
+
+    if (isBg) {
+      photo = (window.getLoadedPhoto && typeof window.getLoadedPhoto === 'function')
+        ? window.getLoadedPhoto()
+        : (window.SceneState ? window.SceneState.getLoadedPhoto() : null);
+      if (!photo) return;
+    } else {
+      img = (typeof imageObj === 'string' || typeof imageObj === 'number')
+        ? (window.ImageObjects ? window.ImageObjects.getImage(imageObj) : null)
+        : imageObj;
+      if (!img) return;
+    }
 
     if (this.isClippingImage) this.cancelClipMode();
     if (this.isExtractingBg) this.cancelBgExtractMode();
 
     this.isCroppingImage = true;
-    this.activeCropImage = img;
-    this.activeCropImageId = img.id;
+    this.isCroppingBackground = !!isBg;
 
-    if (window.AppCoordinator) {
-      window.AppCoordinator.selectObject('image', img.id, { skipRender: true });
+    if (isBg) {
+      this.activeCropImage = null;
+      this.activeCropImageId = null;
+
+      const canvasW = this.canvasWidth;
+      const canvasH = this.canvasHeight;
+      const natW = Number(photo.naturalWidth) || canvasW;
+      const natH = Number(photo.naturalHeight) || canvasH;
+
+      let boxX = Math.round(canvasW * 0.05);
+      let boxY = Math.round(canvasH * 0.05);
+      let boxW = Math.round(canvasW * 0.9);
+      let boxH = Math.round(canvasH * 0.9);
+
+      if (photo.crop && photo.crop.enabled && photo.crop.sourceWidth > 0 && photo.crop.sourceHeight > 0) {
+        const scaleX = canvasW / natW;
+        const scaleY = canvasH / natH;
+        boxX = Math.round(photo.crop.sourceX * scaleX);
+        boxY = Math.round(photo.crop.sourceY * scaleY);
+        boxW = Math.round(photo.crop.sourceWidth * scaleX);
+        boxH = Math.round(photo.crop.sourceHeight * scaleY);
+      }
+
+      this.cropOrigBounds = {
+        left: 0,
+        top: 0,
+        w: canvasW,
+        h: canvasH,
+        natW: natW,
+        natH: natH
+      };
+
+      this.cropBox = {
+        x: Math.max(0, boxX),
+        y: Math.max(0, boxY),
+        w: Math.max(20, Math.min(canvasW - boxX, boxW)),
+        h: Math.max(20, Math.min(canvasH - boxY, boxH))
+      };
+    } else {
+      this.activeCropImage = img;
+      this.activeCropImageId = img.id;
+
+      if (window.AppCoordinator) {
+        window.AppCoordinator.selectObject('image', img.id, { skipRender: true });
+      }
+
+      const canvasW = this.canvasWidth;
+      const canvasH = this.canvasHeight;
+      const cx = (img.x / 100) * canvasW;
+      const cy = (img.y / 100) * canvasH;
+      const w = Number(img.width) || 200;
+      const h = Number(img.height) || 150;
+      const left = cx - w / 2;
+      const top = cy - h / 2;
+
+      const natW = Number(img.naturalWidth) || w;
+      const natH = Number(img.naturalHeight) || h;
+
+      let origW = w;
+      let origH = h;
+      let origLeft = left;
+      let origTop = top;
+
+      let boxX = left;
+      let boxY = top;
+      let boxW = w;
+      let boxH = h;
+
+      if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+        origW = Number(img.crop.origWidth) || w;
+        origH = Number(img.crop.origHeight) || h;
+
+        const scaleX = origW / natW;
+        const scaleY = origH / natH;
+
+        origLeft = left - img.crop.sourceX * scaleX;
+        origTop = top - img.crop.sourceY * scaleY;
+
+        boxX = left;
+        boxY = top;
+        boxW = w;
+        boxH = h;
+      }
+
+      this.cropOrigBounds = {
+        left: origLeft,
+        top: origTop,
+        w: origW,
+        h: origH,
+        natW: natW,
+        natH: natH
+      };
+
+      this.cropBox = {
+        x: boxX,
+        y: boxY,
+        w: boxW,
+        h: boxH
+      };
     }
-
-    const canvasW = this.canvasWidth;
-    const canvasH = this.canvasHeight;
-    const cx = (img.x / 100) * canvasW;
-    const cy = (img.y / 100) * canvasH;
-    const w = Number(img.width) || 200;
-    const h = Number(img.height) || 150;
-    const left = cx - w / 2;
-    const top = cy - h / 2;
-
-    const natW = Number(img.naturalWidth) || w;
-    const natH = Number(img.naturalHeight) || h;
-
-    let origW = w;
-    let origH = h;
-    let origLeft = left;
-    let origTop = top;
-
-    let boxX = left;
-    let boxY = top;
-    let boxW = w;
-    let boxH = h;
-
-    if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
-      origW = Number(img.crop.origWidth) || w;
-      origH = Number(img.crop.origHeight) || h;
-
-      const scaleX = origW / natW;
-      const scaleY = origH / natH;
-
-      origLeft = left - img.crop.sourceX * scaleX;
-      origTop = top - img.crop.sourceY * scaleY;
-
-      boxX = left;
-      boxY = top;
-      boxW = w;
-      boxH = h;
-    }
-
-    this.cropOrigBounds = {
-      left: origLeft,
-      top: origTop,
-      w: origW,
-      h: origH,
-      natW: natW,
-      natH: natH
-    };
-
-    this.cropBox = {
-      x: boxX,
-      y: boxY,
-      w: boxW,
-      h: boxH
-    };
 
     if (this.previewBox) this.previewBox.classList.add('crop-mode-active');
     if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'auto';
@@ -1540,7 +1596,15 @@ window.Stage = {
     if (selBox) selBox.style.display = 'none';
 
     const cropBar = document.getElementById('cropBar');
-    if (cropBar) cropBar.style.display = 'flex';
+    if (cropBar) {
+      cropBar.style.display = 'flex';
+      const guideText = cropBar.querySelector('.crop-bar-guidance');
+      if (guideText) {
+        guideText.innerText = isBg
+          ? 'Select the background area to keep. Press Enter to apply, Esc to cancel.'
+          : 'Drag handles to adjust crop rectangle. Press Enter to apply, Esc to cancel.';
+      }
+    }
 
     const groupEl = document.getElementById('cropOverlayGroup');
     if (groupEl) groupEl.style.display = 'block';
@@ -1599,7 +1663,54 @@ window.Stage = {
   },
 
   applyCropMode() {
-    if (!this.isCroppingImage || !this.activeCropImage || !this.cropBox || !this.cropOrigBounds) {
+    if (!this.isCroppingImage || !this.cropBox || !this.cropOrigBounds) {
+      this.cancelCropMode();
+      return;
+    }
+
+    if (this.isCroppingBackground) {
+      const b = this.cropBox;
+      const ob = this.cropOrigBounds;
+      const scaleX = ob.w / ob.natW;
+      const scaleY = ob.h / ob.natH;
+
+      const sourceX = Math.round(Math.max(0, b.x - ob.left) / scaleX);
+      const sourceY = Math.round(Math.max(0, b.y - ob.top) / scaleY);
+      const sourceWidth = Math.max(10, Math.min(ob.natW - sourceX, Math.round(b.w / scaleX)));
+      const sourceHeight = Math.max(10, Math.min(ob.natH - sourceY, Math.round(b.h / scaleY)));
+
+      const cropData = {
+        enabled: true,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight
+      };
+
+      this.cancelCropMode();
+
+      if (window.EngineBridge && typeof window.EngineBridge.cropBackground === 'function') {
+        window.EngineBridge.cropBackground(cropData);
+      }
+
+      if (window.HistoryManager) {
+        window.HistoryManager.recordImmediate();
+      }
+      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+        window.AppCoordinator.requestRender();
+      } else if (typeof window.triggerAppRender === 'function') {
+        window.triggerAppRender();
+      }
+      if (window.AppCoordinator) {
+        window.AppCoordinator.showNotification('Background crop applied.', 'success', 2500);
+      }
+      if (typeof window.syncImageToolsUI === 'function') {
+        window.syncImageToolsUI();
+      }
+      return;
+    }
+
+    if (!this.activeCropImage) {
       this.cancelCropMode();
       return;
     }
@@ -1678,6 +1789,7 @@ window.Stage = {
 
   cancelCropMode() {
     this.isCroppingImage = false;
+    this.isCroppingBackground = false;
     this.activeCropImage = null;
     this.activeCropImageId = null;
     this.cropDragMode = null;

@@ -1833,3 +1833,116 @@ func TestLayerReorderProtocolPayloads(t *testing.T) {
 		t.Fatalf("Duplicate ID reorder failed: %+v", dupResp)
 	}
 }
+
+func TestDispatchBackgroundCropLifecycle(t *testing.T) {
+	// Set background
+	bgReq := BackgroundSetRequest{
+		Background: &scene.BackgroundConfig{
+			Filename:      "landscape.png",
+			Src:           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+			NaturalWidth:  1920,
+			NaturalHeight: 1080,
+		},
+	}
+	bgJSON, _ := json.Marshal(bgReq)
+	respBytes, err := Dispatch("Background.Set", bgJSON)
+	if err != nil {
+		t.Fatalf("Background.Set failed: %v", err)
+	}
+
+	// Background.Get
+	respBytes, err = Dispatch("Background.Get", nil)
+	if err != nil {
+		t.Fatalf("Background.Get failed: %v", err)
+	}
+	var getResp struct {
+		Background *scene.BackgroundConfig `json:"background"`
+		HasPhoto   bool                    `json:"hasPhoto"`
+	}
+	if err := json.Unmarshal(respBytes, &getResp); err != nil || !getResp.HasPhoto || getResp.Background == nil {
+		t.Fatalf("Background.Get invalid response: %+v", getResp)
+	}
+
+	// Background.Crop
+	cropReq := BackgroundCropRequest{
+		Name: "Banner Crop",
+		Crop: scene.BackgroundCrop{
+			Enabled:      true,
+			SourceX:      100,
+			SourceY:      50,
+			SourceWidth:  1200,
+			SourceHeight: 600,
+		},
+	}
+	cropJSON, _ := json.Marshal(cropReq)
+	respBytes, err = Dispatch("Background.Crop", cropJSON)
+	if err != nil {
+		t.Fatalf("Background.Crop failed: %v", err)
+	}
+	var cropResp BackgroundCropResponse
+	if err := json.Unmarshal(respBytes, &cropResp); err != nil || !cropResp.Success {
+		t.Fatalf("Background.Crop unmarshal error: %+v", cropResp)
+	}
+	if len(cropResp.Background.CropVersions) != 2 {
+		t.Fatalf("Expected 2 crop versions (Original + Banner Crop), got %d", len(cropResp.Background.CropVersions))
+	}
+	bannerID := cropResp.Background.ActiveCropVersionID
+
+	// Background.CropRename
+	renameReq := BackgroundCropVersionRenameRequest{
+		VersionID: bannerID,
+		Name:      "Hero Header",
+	}
+	renameJSON, _ := json.Marshal(renameReq)
+	respBytes, err = Dispatch("Background.CropRename", renameJSON)
+	if err != nil {
+		t.Fatalf("Background.CropRename failed: %v", err)
+	}
+	if err := json.Unmarshal(respBytes, &cropResp); err != nil || !cropResp.Success {
+		t.Fatalf("Background.CropRename unmarshal error: %+v", cropResp)
+	}
+	if cropResp.Background.CropVersions[1].Name != "Hero Header" {
+		t.Errorf("Expected renamed 'Hero Header', got %s", cropResp.Background.CropVersions[1].Name)
+	}
+
+	// Background.CropSelect Original
+	origID := cropResp.Background.CropVersions[0].ID
+	selReq := BackgroundCropVersionSelectRequest{VersionID: origID}
+	selJSON, _ := json.Marshal(selReq)
+	respBytes, err = Dispatch("Background.CropSelect", selJSON)
+	if err != nil {
+		t.Fatalf("Background.CropSelect failed: %v", err)
+	}
+	cropResp = BackgroundCropResponse{}
+	if err := json.Unmarshal(respBytes, &cropResp); err != nil || !cropResp.Success {
+		t.Fatalf("Background.CropSelect unmarshal error: %+v", cropResp)
+	}
+	if cropResp.Background.Crop != nil && cropResp.Background.Crop.Enabled {
+		t.Errorf("Expected disabled crop on Original selection, got %+v", cropResp.Background.Crop)
+	}
+
+	// Background.CropReset
+	respBytes, err = Dispatch("Background.CropReset", nil)
+	if err != nil {
+		t.Fatalf("Background.CropReset failed: %v", err)
+	}
+	cropResp = BackgroundCropResponse{}
+	if err := json.Unmarshal(respBytes, &cropResp); err != nil || !cropResp.Success {
+		t.Fatalf("Background.CropReset unmarshal error: %+v", cropResp)
+	}
+
+	// Background.CropDelete
+	delReq := BackgroundCropVersionDeleteRequest{VersionID: bannerID}
+	delJSON, _ := json.Marshal(delReq)
+	respBytes, err = Dispatch("Background.CropDelete", delJSON)
+	if err != nil {
+		t.Fatalf("Background.CropDelete failed: %v", err)
+	}
+	cropResp = BackgroundCropResponse{}
+	if err := json.Unmarshal(respBytes, &cropResp); err != nil || !cropResp.Success {
+		t.Fatalf("Background.CropDelete unmarshal error: %+v", cropResp)
+	}
+	if len(cropResp.Background.CropVersions) != 1 {
+		t.Fatalf("Expected 1 crop version remaining, got %d", len(cropResp.Background.CropVersions))
+	}
+}

@@ -180,8 +180,9 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 	var raw struct {
 		Version         string                 `json:"version"`
 		Controls        map[string]any         `json:"controls"`
-		LoadedPhoto     map[string]any         `json:"loadedPhoto"`
-		Presets         map[string]any         `json:"presets"`
+		LoadedPhoto     map[string]any          `json:"loadedPhoto"`
+		Background      *scene.BackgroundConfig `json:"background"`
+		Presets         map[string]any          `json:"presets"`
 		AutoApplyPreset *bool                  `json:"autoApplyPreset"`
 		Nodes           []scene.Node           `json:"nodes"`
 		NodesCounter    int                    `json:"nodesCounter"`
@@ -251,6 +252,33 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 				MIME:          cleanMime,
 				NaturalWidth:  int(w),
 				NaturalHeight: int(h),
+			}
+
+			if raw.Background != nil {
+				photoInfo.Crop = raw.Background.Crop
+				photoInfo.CropVersions = raw.Background.CropVersions
+				photoInfo.ActiveCropVersionID = raw.Background.ActiveCropVersionID
+			}
+			if photoInfo.Crop == nil && raw.LoadedPhoto["crop"] != nil {
+				if cropBytes, err := json.Marshal(raw.LoadedPhoto["crop"]); err == nil {
+					var crop scene.BackgroundCrop
+					if err := json.Unmarshal(cropBytes, &crop); err == nil && crop.Enabled {
+						photoInfo.Crop = &crop
+					}
+				}
+			}
+			if len(photoInfo.CropVersions) == 0 && raw.LoadedPhoto["cropVersions"] != nil {
+				if versBytes, err := json.Marshal(raw.LoadedPhoto["cropVersions"]); err == nil {
+					var vers []scene.BackgroundCropVersion
+					if err := json.Unmarshal(versBytes, &vers); err == nil {
+						photoInfo.CropVersions = vers
+					}
+				}
+			}
+			if photoInfo.ActiveCropVersionID == "" {
+				if actId, ok := raw.LoadedPhoto["activeCropVersionId"].(string); ok {
+					photoInfo.ActiveCropVersionID = actId
+				}
 			}
 		}
 	}

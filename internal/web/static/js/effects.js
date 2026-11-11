@@ -13,6 +13,28 @@ window.Effects = {
     const natW = imgInfo.naturalWidth || w;
     const natH = imgInfo.naturalHeight || h;
 
+    const crop = imgInfo.crop;
+    const hasCrop = crop && crop.enabled !== false && (
+      (crop.sourceWidth || crop.width) > 0 &&
+      (crop.sourceHeight || crop.height) > 0
+    );
+
+    if (hasCrop) {
+      const sx = Math.max(0, crop.sourceX !== undefined ? crop.sourceX : (crop.x || 0));
+      const sy = Math.max(0, crop.sourceY !== undefined ? crop.sourceY : (crop.y || 0));
+      const sw = crop.sourceWidth !== undefined ? crop.sourceWidth : (crop.width || natW);
+      const sh = crop.sourceHeight !== undefined ? crop.sourceHeight : (crop.height || natH);
+
+      let par = 'xMidYMid slice';
+      if (fitMode === 'contain') {
+        par = 'xMidYMid meet';
+      } else if (fitMode === 'stretch') {
+        par = 'none';
+      }
+
+      return `<svg x="0" y="0" width="${w}" height="${h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="${par}" ${extraAttrs} overflow="hidden"><image href="${imgSrc}" xlink:href="${imgSrc}" x="0" y="0" width="${natW}" height="${natH}" /></svg>`;
+    }
+
     if (fitMode === 'contain') {
       return `<image href="${imgSrc}" xlink:href="${imgSrc}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" ${extraAttrs} />`;
     }

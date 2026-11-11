@@ -234,3 +234,131 @@ func TestNodeCRUDAndHitTesting(t *testing.T) {
 		t.Errorf("Expected 1 node remaining, got %d", len(s.GetAllNodes()))
 	}
 }
+
+func TestBackgroundCropLifecycle(t *testing.T) {
+	s := NewScene()
+
+	// 1. Initial State without background
+	if s.GetBackground() != nil {
+		t.Fatalf("Expected nil background on fresh scene")
+	}
+
+	// 2. Set Background
+	bg := &BackgroundConfig{
+		Filename:      "photo.jpg",
+		NaturalWidth:  1920,
+		NaturalHeight: 1080,
+		Mime:          "image/jpeg",
+		B64:           "data:image/jpeg;base64,fakebytes",
+	}
+	s.SetBackground(bg)
+
+	retrieved := s.GetBackground()
+	if retrieved == nil {
+		t.Fatalf("Expected background to be set")
+	}
+	if len(retrieved.CropVersions) != 1 || retrieved.CropVersions[0].ID != "original" {
+		t.Fatalf("Expected original crop version initialized, got %+v", retrieved.CropVersions)
+	}
+	if retrieved.ActiveCropVersionID != "original" {
+		t.Errorf("Expected active crop version 'original', got %q", retrieved.ActiveCropVersionID)
+	}
+
+	// 3. Crop Background (Right Half)
+	c1, err := s.CropBackground(BackgroundCrop{
+		SourceX:      960,
+		SourceY:      0,
+		SourceWidth:  960,
+		SourceHeight: 1080,
+	}, "Right Half")
+	if err != nil {
+		t.Fatalf("CropBackground failed: %v", err)
+	}
+	if c1.ActiveCropVersionID != "crop-1" {
+		t.Errorf("Expected active crop version 'crop-1', got %q", c1.ActiveCropVersionID)
+	}
+	if len(c1.CropVersions) != 2 {
+		t.Fatalf("Expected 2 crop versions, got %d", len(c1.CropVersions))
+	}
+	if c1.Crop == nil || !c1.Crop.Enabled || c1.Crop.SourceX != 960 {
+		t.Errorf("Expected active crop at sourceX=960, got %+v", c1.Crop)
+	}
+
+	// 4. Create second crop (Center Detail)
+	c2, err := s.CropBackground(BackgroundCrop{
+		SourceX:      500,
+		SourceY:      200,
+		SourceWidth:  600,
+		SourceHeight: 400,
+	}, "Center Detail")
+	if err != nil {
+		t.Fatalf("CropBackground 2 failed: %v", err)
+	}
+	if c2.ActiveCropVersionID != "crop-2" {
+		t.Errorf("Expected active crop version 'crop-2', got %q", c2.ActiveCropVersionID)
+	}
+	if len(c2.CropVersions) != 3 {
+		t.Fatalf("Expected 3 crop versions, got %d", len(c2.CropVersions))
+	}
+
+	// 5. Switch to Original
+	cOrig, err := s.SelectBackgroundCropVersion("original")
+	if err != nil {
+		t.Fatalf("SelectBackgroundCropVersion original failed: %v", err)
+	}
+	if cOrig.ActiveCropVersionID != "original" {
+		t.Errorf("Expected active version 'original', got %q", cOrig.ActiveCropVersionID)
+	}
+	if cOrig.Crop != nil {
+		t.Errorf("Expected nil Crop on original version, got %+v", cOrig.Crop)
+	}
+
+	// 6. Switch back to Crop 1
+	cBack1, err := s.SelectBackgroundCropVersion("crop-1")
+	if err != nil {
+		t.Fatalf("SelectBackgroundCropVersion crop-1 failed: %v", err)
+	}
+	if cBack1.ActiveCropVersionID != "crop-1" {
+		t.Errorf("Expected active version 'crop-1', got %q", cBack1.ActiveCropVersionID)
+	}
+	if cBack1.Crop == nil || cBack1.Crop.SourceX != 960 {
+		t.Errorf("Expected Crop restored for crop-1, got %+v", cBack1.Crop)
+	}
+
+	// 7. Rename Crop 2
+	cRenamed, err := s.RenameBackgroundCropVersion("crop-2", "New Center Name")
+	if err != nil {
+		t.Fatalf("RenameBackgroundCropVersion failed: %v", err)
+	}
+	if cRenamed.CropVersions[2].Name != "New Center Name" {
+		t.Errorf("Expected name 'New Center Name', got %q", cRenamed.CropVersions[2].Name)
+	}
+
+	// 8. Delete Crop 1
+	if _, err := s.DeleteBackgroundCropVersion("original"); err == nil {
+		t.Errorf("Expected error when attempting to delete 'original'")
+	}
+	cAfterDel, err := s.DeleteBackgroundCropVersion("crop-1")
+	if err != nil {
+		t.Fatalf("DeleteBackgroundCropVersion failed: %v", err)
+	}
+	if len(cAfterDel.CropVersions) != 2 {
+		t.Errorf("Expected 2 remaining crop versions after delete, got %d", len(cAfterDel.CropVersions))
+	}
+
+	// 9. Snapshot roundtrip
+	snap := s.GetSnapshot()
+	if snap.Background == nil || snap.Background.Filename != "photo.jpg" {
+		t.Fatalf("Expected background in snapshot: %+v", snap.Background)
+	}
+
+	s2 := NewScene()
+	s2.SetFromSnapshot(snap)
+	restoredBg := s2.GetBackground()
+	if restoredBg == nil || restoredBg.Filename != "photo.jpg" {
+		t.Fatalf("Expected restored background in s2: %+v", restoredBg)
+	}
+	if len(restoredBg.CropVersions) != 2 {
+		t.Errorf("Expected 2 crop versions in restored background, got %d", len(restoredBg.CropVersions))
+	}
+}

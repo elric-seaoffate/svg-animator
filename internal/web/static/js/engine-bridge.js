@@ -1510,6 +1510,193 @@
       return null;
     },
 
+    setBackground(bg) {
+      if (this.isReady()) {
+        const payload = { background: bg };
+        const res = this.dispatch('Background.Set', payload);
+        return res;
+      }
+      return null;
+    },
+
+    getBackground() {
+      if (this.isReady()) {
+        const res = this.dispatch('Background.Get', {});
+        return res;
+      }
+      return null;
+    },
+
+    cropBackground(crop, name = '') {
+      if (this.isReady()) {
+        const payload = {
+          name: name ? String(name) : '',
+          crop: Object.assign({ enabled: true }, crop)
+        };
+        const res = this.dispatch('Background.Crop', payload);
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+      }
+      // Pure JS fallback
+      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo) return null;
+      if (!photo.cropVersions || !photo.cropVersions.length) {
+        photo.cropVersions = [{
+          id: 'original',
+          name: 'Original',
+          sourceX: 0,
+          sourceY: 0,
+          sourceWidth: photo.naturalWidth || 1280,
+          sourceHeight: photo.naturalHeight || 720
+        }];
+      }
+      const cropCount = photo.cropVersions.filter(function(v) { return v.id && v.id.startsWith('crop-'); }).length;
+      const verId = 'crop-' + (cropCount + 1);
+      const verName = (name && name.trim()) ? name.trim() : ('Crop ' + (cropCount + 1));
+      const sx = Math.max(0, crop.sourceX !== undefined ? crop.sourceX : (crop.x || 0));
+      const sy = Math.max(0, crop.sourceY !== undefined ? crop.sourceY : (crop.y || 0));
+      const sw = Math.max(10, crop.sourceWidth !== undefined ? crop.sourceWidth : (crop.width || photo.naturalWidth || 1280));
+      const sh = Math.max(10, crop.sourceHeight !== undefined ? crop.sourceHeight : (crop.height || photo.naturalHeight || 720));
+      const newVer = { id: verId, name: verName, sourceX: sx, sourceY: sy, sourceWidth: sw, sourceHeight: sh };
+      photo.cropVersions.push(newVer);
+      photo.activeCropVersionId = verId;
+      photo.crop = { enabled: true, sourceX: sx, sourceY: sy, sourceWidth: sw, sourceHeight: sh };
+      if (window.triggerRender) window.triggerRender();
+      return { success: true, background: photo };
+    },
+
+    selectBackgroundCropVersion(versionId) {
+      const vId = String(versionId || 'original');
+      if (this.isReady()) {
+        const res = this.dispatch('Background.CropSelect', { versionId: vId });
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+      }
+      // Pure JS fallback
+      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo || !photo.cropVersions) return null;
+      const ver = photo.cropVersions.find(function(v) { return v.id === vId; });
+      if (!ver) return null;
+      photo.activeCropVersionId = vId;
+      if (vId === 'original') {
+        photo.crop = null;
+      } else {
+        photo.crop = { enabled: true, sourceX: ver.sourceX, sourceY: ver.sourceY, sourceWidth: ver.sourceWidth, sourceHeight: ver.sourceHeight };
+      }
+      if (window.triggerRender) window.triggerRender();
+      return { success: true, background: photo };
+    },
+
+    renameBackgroundCropVersion(versionId, name) {
+      const vId = String(versionId);
+      const cleanName = String(name || '').trim();
+      if (!cleanName) return null;
+      if (this.isReady()) {
+        const res = this.dispatch('Background.CropRename', { versionId: vId, name: cleanName });
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+      }
+      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo || !photo.cropVersions) return null;
+      const ver = photo.cropVersions.find(function(v) { return v.id === vId; });
+      if (ver) {
+        ver.name = cleanName;
+        return { success: true, background: photo };
+      }
+      return null;
+    },
+
+    deleteBackgroundCropVersion(versionId) {
+      const vId = String(versionId);
+      if (vId === 'original') return null;
+      if (this.isReady()) {
+        const res = this.dispatch('Background.CropDelete', { versionId: vId });
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+      }
+      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo || !photo.cropVersions) return null;
+      const idx = photo.cropVersions.findIndex(function(v) { return v.id === vId; });
+      if (idx < 0) return null;
+      photo.cropVersions.splice(idx, 1);
+      if (photo.activeCropVersionId === vId) {
+        const fallback = photo.cropVersions[photo.cropVersions.length - 1] || photo.cropVersions[0];
+        if (fallback) {
+          this.selectBackgroundCropVersion(fallback.id);
+        } else {
+          photo.activeCropVersionId = 'original';
+          photo.crop = null;
+        }
+      }
+      if (window.triggerRender) window.triggerRender();
+      return { success: true, background: photo };
+    },
+
+    resetBackgroundCrop() {
+      if (this.isReady()) {
+        const res = this.dispatch('Background.CropReset', {});
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+      }
+      return this.selectBackgroundCropVersion('original');
+    },
+
+    commitBackgroundCrop(options = {}) {
+      if (this.isReady()) {
+        const payload = {
+          newB64: options.newB64 || options.b64 || '',
+          discardVersions: !!options.discardVersions
+        };
+        const res = this.dispatch('Background.CropCommit', payload);
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+      }
+      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo) return null;
+      if (options.newB64) {
+        photo.b64 = options.newB64;
+      }
+      if (options.discardVersions) {
+        photo.cropVersions = [{
+          id: 'original',
+          name: 'Original',
+          sourceX: 0,
+          sourceY: 0,
+          sourceWidth: photo.naturalWidth || 1280,
+          sourceHeight: photo.naturalHeight || 720
+        }];
+        photo.activeCropVersionId = 'original';
+        photo.crop = null;
+      }
+      if (window.triggerRender) window.triggerRender();
+      return { success: true, background: photo };
+    },
+
+    _applyBackgroundUpdate(bg) {
+      if (!bg) return;
+      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (photo) {
+        photo.crop = bg.crop || null;
+        photo.cropVersions = Array.isArray(bg.cropVersions) ? bg.cropVersions : [];
+        photo.activeCropVersionId = bg.activeCropVersionId || 'original';
+        if (bg.naturalWidth) photo.naturalWidth = bg.naturalWidth;
+        if (bg.naturalHeight) photo.naturalHeight = bg.naturalHeight;
+      }
+      if (window.triggerRender) window.triggerRender();
+    },
+
     deleteImage(id) {
       if (this.isReady()) {
         const res = this.dispatch('Image.Delete', { id: String(id) });
