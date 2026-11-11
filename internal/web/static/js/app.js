@@ -220,6 +220,9 @@ window.WorkspaceController = {
           sec.classList.toggle('open', match);
         }
       });
+      if (toolId === 'acc-layers' && typeof window.renderLayersList === 'function') {
+        window.renderLayersList();
+      }
       this.syncRailForAccordion(toolId);
     } else if (isRight) {
       this.lastRightAccId = toolId;
@@ -3150,6 +3153,316 @@ window.CustomColorPicker = {
   }
 };
 
+// =========================================================================
+// Layer 1: Unified Layers Drawer UI & Toolbar State
+// =========================================================================
+function updateLayersToolbarState() {
+  const btnToFront = document.getElementById('btnLayerToFront');
+  const btnForward = document.getElementById('btnLayerForward');
+  const btnBackward = document.getElementById('btnLayerBackward');
+  const btnToBack = document.getElementById('btnLayerToBack');
+
+  if (!btnToFront || !btnForward || !btnBackward || !btnToBack) return;
+
+  if (!window.AppCoordinator) {
+    btnToFront.disabled = true;
+    btnForward.disabled = true;
+    btnBackward.disabled = true;
+    btnToBack.disabled = true;
+    return;
+  }
+
+  const sel = (typeof window.AppCoordinator.getActiveSelection === 'function')
+    ? window.AppCoordinator.getActiveSelection()
+    : window.AppCoordinator.activeSelection;
+
+  if (!sel) {
+    btnToFront.disabled = true;
+    btnForward.disabled = true;
+    btnBackward.disabled = true;
+    btnToBack.disabled = true;
+    return;
+  }
+
+  // Determine target layer keys
+  const targetKeys = new Set();
+  if (sel.type === 'group' && sel.id) {
+    const grp = (typeof window.AppCoordinator.getGroup === 'function') ? window.AppCoordinator.getGroup(sel.id) : null;
+    if (grp && Array.isArray(grp.members)) {
+      grp.members.forEach((m) => targetKeys.add(`${m.type}:${m.id}`));
+    } else if (Array.isArray(sel.items)) {
+      sel.items.forEach((m) => targetKeys.add(`${m.type}:${m.id}`));
+    }
+  } else if (Array.isArray(sel.items) && sel.items.length > 0) {
+    sel.items.forEach((it) => {
+      if (['node', 'flow', 'glow', 'ripple', 'image'].includes(it.type)) {
+        const grp = (typeof window.AppCoordinator.findGroupByMember === 'function') ? window.AppCoordinator.findGroupByMember(it.type, it.id) : null;
+        if (grp && Array.isArray(grp.members)) {
+          grp.members.forEach((m) => targetKeys.add(`${m.type}:${m.id}`));
+        } else {
+          targetKeys.add(`${it.type}:${it.id}`);
+        }
+      }
+    });
+  } else if (sel.type && sel.id != null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(sel.type)) {
+    const grp = (typeof window.AppCoordinator.findGroupByMember === 'function') ? window.AppCoordinator.findGroupByMember(sel.type, sel.id) : null;
+    if (grp && Array.isArray(grp.members)) {
+      grp.members.forEach((m) => targetKeys.add(`${m.type}:${m.id}`));
+    } else {
+      targetKeys.add(`${sel.type}:${sel.id}`);
+    }
+  }
+
+  if (targetKeys.size === 0) {
+    btnToFront.disabled = true;
+    btnForward.disabled = true;
+    btnBackward.disabled = true;
+    btnToBack.disabled = true;
+    return;
+  }
+
+  const layers = (window.LayerManager && typeof window.LayerManager.getLayers === 'function')
+    ? window.LayerManager.getLayers()
+    : [];
+
+  if (layers.length <= 1) {
+    btnToFront.disabled = true;
+    btnForward.disabled = true;
+    btnBackward.disabled = true;
+    btnToBack.disabled = true;
+    return;
+  }
+
+  // Check if all targets are at the top (end of layers array)
+  let allAtTop = true;
+  const targetCount = targetKeys.size;
+  const topStartIndex = layers.length - targetCount;
+  if (topStartIndex < 0) {
+    allAtTop = false;
+  } else {
+    for (let i = topStartIndex; i < layers.length; i++) {
+      const k = `${layers[i].type}:${layers[i].id}`;
+      if (!targetKeys.has(k)) {
+        allAtTop = false;
+        break;
+      }
+    }
+  }
+
+  // Check if all targets are at the bottom (start of layers array)
+  let allAtBottom = true;
+  if (targetCount > layers.length) {
+    allAtBottom = false;
+  } else {
+    for (let i = 0; i < targetCount; i++) {
+      const k = `${layers[i].type}:${layers[i].id}`;
+      if (!targetKeys.has(k)) {
+        allAtBottom = false;
+        break;
+      }
+    }
+  }
+
+  btnToFront.disabled = allAtTop;
+  btnForward.disabled = allAtTop;
+  btnBackward.disabled = allAtBottom;
+  btnToBack.disabled = allAtBottom;
+}
+
+function renderLayersList() {
+  const container = document.getElementById('layersListContainer');
+  if (!container) return;
+  if (!window.LayerManager || typeof window.LayerManager.getLayers !== 'function') return;
+
+  const layers = window.LayerManager.getLayers();
+  if (!layers || layers.length === 0) {
+    container.innerHTML = '<div style="padding: 12px; color: var(--text-dim, #8b949e); text-align: center; font-size: 0.8rem;">No layers in scene. Add shapes, flows, glows, ripples, or import an image.</div>';
+    updateLayersToolbarState();
+    return;
+  }
+
+  container.innerHTML = '';
+  // Display in reverse order: top-most visual layer (highest index in array) at top of UI list
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i];
+    const eff = window.LayerManager.getEffective(layer.type, layer.id);
+    const isSel = (window.AppCoordinator && typeof window.AppCoordinator.isObjectSelected === 'function')
+      ? window.AppCoordinator.isObjectSelected(layer.type, layer.id)
+      : false;
+    const isPrimary = (window.AppCoordinator && window.AppCoordinator.activeSelection &&
+      window.AppCoordinator.activeSelection.type === layer.type &&
+      String(window.AppCoordinator.activeSelection.id) === String(layer.id));
+
+    const row = document.createElement('div');
+    row.className = 'layer-item' +
+      (isSel ? ' active' : '') +
+      (isPrimary ? ' primary-selected' : '') +
+      (!eff.visible ? ' hidden' : '') +
+      (eff.locked ? ' locked' : '');
+
+    let icon = '📦';
+    let name = `${layer.type} #${layer.id}`;
+    if (layer.type === 'node') {
+      icon = '🔷';
+      const n = window.DiagramNodes ? window.DiagramNodes.getNode(layer.id) : null;
+      if (n) name = n.name || n.text || `Shape #${layer.id}`;
+    } else if (layer.type === 'flow') {
+      icon = '⚡';
+      const f = window.DataFlows ? window.DataFlows.getFlow(layer.id) : null;
+      if (f) name = f.name || f.label || `Flow #${layer.id}`;
+    } else if (layer.type === 'glow') {
+      icon = '✨';
+      const g = window.Glows ? window.Glows.getGlow(layer.id) : null;
+      if (g) name = g.name || `Glow #${layer.id}`;
+    } else if (layer.type === 'ripple') {
+      icon = '💧';
+      const r = window.Ripples ? window.Ripples.getRipple(layer.id) : null;
+      if (r) name = r.name || `Ripple #${layer.id}`;
+    } else if (layer.type === 'image') {
+      icon = '🖼️';
+      const img = window.ImageObjects ? window.ImageObjects.getImage(layer.id) : null;
+      if (img) name = img.name || img.filename || `Image #${layer.id}`;
+    }
+
+    const memberGrp = (window.AppCoordinator && typeof window.AppCoordinator.findGroupByMember === 'function')
+      ? window.AppCoordinator.findGroupByMember(layer.type, layer.id)
+      : null;
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'layer-item-info';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'layer-item-icon';
+    iconSpan.textContent = icon;
+    infoDiv.appendChild(iconSpan);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'layer-item-title';
+    titleSpan.textContent = name;
+    titleSpan.title = `${name} (${layer.type} #${layer.id})`;
+    infoDiv.appendChild(titleSpan);
+
+    if (memberGrp) {
+      const grpBadge = document.createElement('span');
+      grpBadge.className = 'layer-item-badge';
+      grpBadge.textContent = '👥 ' + (memberGrp.name || memberGrp.id);
+      grpBadge.title = `Member of group: ${memberGrp.name || memberGrp.id}`;
+      infoDiv.appendChild(grpBadge);
+    }
+
+    row.appendChild(infoDiv);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'layer-item-actions';
+
+    const btnVis = document.createElement('button');
+    btnVis.type = 'button';
+    btnVis.className = 'layer-action-btn' + (!eff.visible ? ' active' : '');
+    btnVis.textContent = eff.visible ? '👁️' : '🕶️';
+    btnVis.title = eff.visible ? 'Hide layer' : 'Show layer';
+    btnVis.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.LayerManager.setVisibility(layer.type, layer.id, !eff.visible);
+      if (window.AppCoordinator) {
+        window.AppCoordinator.requestRender();
+        window.AppCoordinator.recordHistoryDebounced();
+        window.AppCoordinator.updateActiveOverlays();
+        window.AppCoordinator.emit('layers:changed');
+      }
+    });
+    actionsDiv.appendChild(btnVis);
+
+    const btnLock = document.createElement('button');
+    btnLock.type = 'button';
+    btnLock.className = 'layer-action-btn' + (eff.locked ? ' active' : '');
+    btnLock.textContent = eff.locked ? '🔒' : '🔓';
+    btnLock.title = eff.locked ? 'Unlock layer' : 'Lock layer';
+    btnLock.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.LayerManager.setLocked(layer.type, layer.id, !eff.locked);
+      if (window.AppCoordinator) {
+        window.AppCoordinator.recordHistoryDebounced();
+        window.AppCoordinator.updateActiveOverlays();
+        window.AppCoordinator.emit('layers:changed');
+      }
+    });
+    actionsDiv.appendChild(btnLock);
+
+    row.appendChild(actionsDiv);
+
+    row.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        if (window.AppCoordinator) window.AppCoordinator.addToSelection(layer.type, layer.id);
+      } else if (e.ctrlKey || e.metaKey) {
+        if (window.AppCoordinator) window.AppCoordinator.toggleObjectSelection(layer.type, layer.id);
+      } else {
+        if (window.AppCoordinator) {
+          window.AppCoordinator.selectObject(layer.type, layer.id, { source: 'layers_list' });
+        }
+      }
+    });
+
+    row.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.FloatingPropertiesEditor) {
+        window.FloatingPropertiesEditor.openFor(layer.type, layer.id);
+      }
+    });
+
+    container.appendChild(row);
+  }
+  updateLayersToolbarState();
+}
+
+function initLayersToolbarEvents() {
+  const btnToFront = document.getElementById('btnLayerToFront');
+  const btnForward = document.getElementById('btnLayerForward');
+  const btnBackward = document.getElementById('btnLayerBackward');
+  const btnToBack = document.getElementById('btnLayerToBack');
+
+  if (btnToFront && !btnToFront._hasLayerEvent) {
+    btnToFront._hasLayerEvent = true;
+    btnToFront.addEventListener('click', () => {
+      if (window.AppCoordinator) window.AppCoordinator.bringSelectionToFront();
+    });
+  }
+
+  if (btnForward && !btnForward._hasLayerEvent) {
+    btnForward._hasLayerEvent = true;
+    btnForward.addEventListener('click', () => {
+      if (window.AppCoordinator) window.AppCoordinator.bringSelectionForward();
+    });
+  }
+
+  if (btnBackward && !btnBackward._hasLayerEvent) {
+    btnBackward._hasLayerEvent = true;
+    btnBackward.addEventListener('click', () => {
+      if (window.AppCoordinator) window.AppCoordinator.sendSelectionBackward();
+    });
+  }
+
+  if (btnToBack && !btnToBack._hasLayerEvent) {
+    btnToBack._hasLayerEvent = true;
+    btnToBack.addEventListener('click', () => {
+      if (window.AppCoordinator) window.AppCoordinator.sendSelectionToBack();
+    });
+  }
+}
+
+window.renderLayersList = renderLayersList;
+window.updateLayersToolbarState = updateLayersToolbarState;
+window.initLayersToolbarEvents = initLayersToolbarEvents;
+
+if (window.AppCoordinator) {
+  window.AppCoordinator.on('layers:changed', () => {
+    if (typeof window.renderLayersList === 'function') window.renderLayersList();
+  });
+  window.AppCoordinator.on('selection:changed', () => {
+    if (typeof window.renderLayersList === 'function') window.renderLayersList();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   let currentImage = null;
   window.currentRenderState = null;
@@ -4028,171 +4341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function renderLayersList() {
-    const container = document.getElementById('layersListContainer');
-    if (!container) return;
-    if (!window.LayerManager || typeof window.LayerManager.getLayers !== 'function') return;
-
-    const layers = window.LayerManager.getLayers();
-    if (!layers || layers.length === 0) {
-      container.innerHTML = '<div style="padding: 12px; color: var(--text-dim, #8b949e); text-align: center; font-size: 0.8rem;">No layers in scene. Add shapes, flows, glows, ripples, or import an image.</div>';
-      return;
-    }
-
-    container.innerHTML = '';
-    // Display in reverse order: top-most visual layer (highest index in array) at top of UI list
-    for (let i = layers.length - 1; i >= 0; i--) {
-      const layer = layers[i];
-      const eff = window.LayerManager.getEffective(layer.type, layer.id);
-      const isSel = (window.AppCoordinator && typeof window.AppCoordinator.isObjectSelected === 'function')
-        ? window.AppCoordinator.isObjectSelected(layer.type, layer.id)
-        : false;
-      const isPrimary = (window.AppCoordinator && window.AppCoordinator.activeSelection &&
-        window.AppCoordinator.activeSelection.type === layer.type &&
-        String(window.AppCoordinator.activeSelection.id) === String(layer.id));
-
-      const row = document.createElement('div');
-      row.className = 'layer-item' +
-        (isSel ? ' active' : '') +
-        (isPrimary ? ' primary-selected' : '') +
-        (!eff.visible ? ' hidden' : '') +
-        (eff.locked ? ' locked' : '');
-
-      let icon = '📦';
-      let name = `${layer.type} #${layer.id}`;
-      if (layer.type === 'node') {
-        icon = '🔷';
-        const n = window.DiagramNodes ? window.DiagramNodes.getNode(layer.id) : null;
-        if (n) name = n.name || n.text || `Shape #${layer.id}`;
-      } else if (layer.type === 'flow') {
-        icon = '⚡';
-        const f = window.DataFlows ? window.DataFlows.getFlow(layer.id) : null;
-        if (f) name = f.name || f.label || `Flow #${layer.id}`;
-      } else if (layer.type === 'glow') {
-        icon = '✨';
-        const g = window.Glows ? window.Glows.getGlow(layer.id) : null;
-        if (g) name = g.name || `Glow #${layer.id}`;
-      } else if (layer.type === 'ripple') {
-        icon = '💧';
-        const r = window.Ripples ? window.Ripples.getRipple(layer.id) : null;
-        if (r) name = r.name || `Ripple #${layer.id}`;
-      } else if (layer.type === 'image') {
-        icon = '🖼️';
-        const img = window.ImageObjects ? window.ImageObjects.getImage(layer.id) : null;
-        if (img) name = img.name || img.filename || `Image #${layer.id}`;
-      }
-
-      const memberGrp = (window.AppCoordinator && typeof window.AppCoordinator.findGroupByMember === 'function')
-        ? window.AppCoordinator.findGroupByMember(layer.type, layer.id)
-        : null;
-
-      const infoDiv = document.createElement('div');
-      infoDiv.className = 'layer-item-info';
-
-      const iconSpan = document.createElement('span');
-      iconSpan.className = 'layer-item-icon';
-      iconSpan.textContent = icon;
-      infoDiv.appendChild(iconSpan);
-
-      const titleSpan = document.createElement('span');
-      titleSpan.className = 'layer-item-title';
-      titleSpan.textContent = name;
-      titleSpan.title = `${name} (${layer.type} #${layer.id})`;
-      infoDiv.appendChild(titleSpan);
-
-      if (memberGrp) {
-        const grpBadge = document.createElement('span');
-        grpBadge.className = 'layer-item-badge';
-        grpBadge.textContent = '👥 ' + (memberGrp.name || memberGrp.id);
-        grpBadge.title = `Member of group: ${memberGrp.name || memberGrp.id}`;
-        infoDiv.appendChild(grpBadge);
-      }
-
-      row.appendChild(infoDiv);
-
-      const actionsDiv = document.createElement('div');
-      actionsDiv.className = 'layer-item-actions';
-
-      const btnVis = document.createElement('button');
-      btnVis.type = 'button';
-      btnVis.className = 'layer-action-btn' + (!eff.visible ? ' active' : '');
-      btnVis.textContent = eff.visible ? '👁️' : '🕶️';
-      btnVis.title = eff.visible ? 'Hide layer' : 'Show layer';
-      btnVis.addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.LayerManager.setVisibility(layer.type, layer.id, !eff.visible);
-        if (window.AppCoordinator) {
-          window.AppCoordinator.requestRender();
-          window.AppCoordinator.recordHistoryDebounced();
-          window.AppCoordinator.updateActiveOverlays();
-          window.AppCoordinator.emit('layers:changed');
-        }
-      });
-      actionsDiv.appendChild(btnVis);
-
-      const btnLock = document.createElement('button');
-      btnLock.type = 'button';
-      btnLock.className = 'layer-action-btn' + (eff.locked ? ' active' : '');
-      btnLock.textContent = eff.locked ? '🔒' : '🔓';
-      btnLock.title = eff.locked ? 'Unlock layer' : 'Lock layer';
-      btnLock.addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.LayerManager.setLocked(layer.type, layer.id, !eff.locked);
-        if (window.AppCoordinator) {
-          window.AppCoordinator.recordHistoryDebounced();
-          window.AppCoordinator.updateActiveOverlays();
-          window.AppCoordinator.emit('layers:changed');
-        }
-      });
-      actionsDiv.appendChild(btnLock);
-
-      row.appendChild(actionsDiv);
-
-      row.addEventListener('click', (e) => {
-        if (e.shiftKey) {
-          if (window.AppCoordinator) window.AppCoordinator.addToSelection(layer.type, layer.id);
-        } else if (e.ctrlKey || e.metaKey) {
-          if (window.AppCoordinator) window.AppCoordinator.toggleObjectSelection(layer.type, layer.id);
-        } else {
-          if (window.AppCoordinator) {
-            window.AppCoordinator.selectObject(layer.type, layer.id, { source: 'layers_list' });
-          }
-        }
-      });
-
-      row.addEventListener('dblclick', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (window.FloatingPropertiesEditor) {
-          window.FloatingPropertiesEditor.openFor(layer.type, layer.id);
-        }
-      });
-
-      container.appendChild(row);
-    }
-  }
-
-  window.renderLayersList = renderLayersList;
-  if (window.AppCoordinator) {
-    window.AppCoordinator.on('layers:changed', () => renderLayersList());
-    window.AppCoordinator.on('selection:changed', () => renderLayersList());
-  }
-
-  document.getElementById('btnLayerToFront')?.addEventListener('click', () => {
-    if (window.AppCoordinator) window.AppCoordinator.bringSelectionToFront();
-  });
-
-  document.getElementById('btnLayerForward')?.addEventListener('click', () => {
-    if (window.AppCoordinator) window.AppCoordinator.bringSelectionForward();
-  });
-
-  document.getElementById('btnLayerBackward')?.addEventListener('click', () => {
-    if (window.AppCoordinator) window.AppCoordinator.sendSelectionBackward();
-  });
-
-  document.getElementById('btnLayerToBack')?.addEventListener('click', () => {
-    if (window.AppCoordinator) window.AppCoordinator.sendSelectionToBack();
-  });
+  initLayersToolbarEvents();
 
   const btnImportImg = document.getElementById('btnImportImageObject');
   const inputImportImg = document.getElementById('inputImportImageObject');

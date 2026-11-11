@@ -999,13 +999,17 @@
         </div>
         <div class="accordion-body">
           <div class="control-group">
-            <div class="layers-toolbar" style="display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; align-items: center;">
-              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerToFront" title="Bring to Front (Ctrl+Shift+])" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">⤊ Top</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerForward" title="Bring Forward (Ctrl+])" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">↑ Up</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerBackward" title="Send Backward (Ctrl+[)" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">↓ Down</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btnLayerToBack" title="Send to Back (Ctrl+Shift+[)" style="padding: 0.25rem 0.45rem; font-size: 0.75rem;">⤋ Bottom</button>
-              <input type="file" id="inputImportImageObject" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display: none;" />
-              <button type="button" class="btn btn-primary btn-sm" id="btnImportImageObject" title="Import Independent Image Object" style="margin-left: auto; padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #238636; border-color: #2ea043; color: #fff;">+ Import Image</button>
+            <div class="layers-toolbar" role="toolbar" aria-label="Layer Ordering Controls">
+              <div class="layers-reorder-group" role="group" aria-label="Layer Stacking Order">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnLayerToFront" title="Bring to Front (Ctrl+Shift+])" aria-label="Bring to Front" disabled>⤊ Front</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnLayerForward" title="Bring Forward (Ctrl+])" aria-label="Bring Forward" disabled>↑ Forward</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnLayerBackward" title="Send Backward (Ctrl+[)" aria-label="Send Backward" disabled>↓ Backward</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnLayerToBack" title="Send to Back (Ctrl+Shift+[)" aria-label="Send to Back" disabled>⤋ Back</button>
+              </div>
+              <div class="layers-actions-group">
+                <input type="file" id="inputImportImageObject" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display: none;" />
+                <button type="button" class="btn btn-primary btn-sm" id="btnImportImageObject" title="Import Independent Image Object" aria-label="Import Independent Image Object">+ Import Image</button>
+              </div>
             </div>
             <div id="layersListContainer" class="layers-list-container" style="max-height: 480px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 2px; padding: 4px;">
               <!-- Rendered dynamically by window.App.renderLayersList() -->

@@ -6298,6 +6298,130 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 46 PASS: Undo/redo and SVA round-trip persistence of layer order verified.');
 
+  // ===========================================================================
+  // SCENARIO 47: Layers Drawer Toolbar Accessibility, Dynamic Button Enabling & Reordering
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 47: Layers Drawer toolbar accessibility, dynamic button enabling and reordering...');
+  window.ProjectManager.resetToNewProject();
+
+  // 1. Verify toolbar buttons in mock DOM / index.html structure
+  const btnToFront = document.getElementById('btnLayerToFront');
+  const btnForward = document.getElementById('btnLayerForward');
+  const btnBackward = document.getElementById('btnLayerBackward');
+  const btnToBack = document.getElementById('btnLayerToBack');
+  const btnImportImg = document.getElementById('btnImportImageObject');
+  const layersContainer = document.getElementById('layersListContainer');
+
+  assert.ok(btnToFront, 'Scenario 47: btnLayerToFront element exists');
+  assert.ok(btnForward, 'Scenario 47: btnLayerForward element exists');
+  assert.ok(btnBackward, 'Scenario 47: btnLayerBackward element exists');
+  assert.ok(btnToBack, 'Scenario 47: btnLayerToBack element exists');
+  assert.ok(btnImportImg, 'Scenario 47: btnImportImageObject element exists');
+  assert.ok(layersContainer, 'Scenario 47: layersListContainer element exists');
+
+  // Verify index.html static markup contains toolbar accessibility roles and labels
+  const rawHtml = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  assert.ok(rawHtml.includes('role="toolbar"'), 'Scenario 47: Layers toolbar has role="toolbar"');
+  assert.ok(rawHtml.includes('aria-label="Layer Ordering Controls"'), 'Scenario 47: Layers toolbar has accessible aria-label');
+  assert.ok(rawHtml.includes('id="btnLayerToFront"'), 'Scenario 47: btnLayerToFront present in index.html');
+  assert.ok(rawHtml.includes('id="btnLayerForward"'), 'Scenario 47: btnLayerForward present in index.html');
+  assert.ok(rawHtml.includes('id="btnLayerBackward"'), 'Scenario 47: btnLayerBackward present in index.html');
+  assert.ok(rawHtml.includes('id="btnLayerToBack"'), 'Scenario 47: btnLayerToBack present in index.html');
+
+  // Verify CSS contains sticky positioning and disabled styles
+  const rawCss = fs.readFileSync(path.join(__dirname, '..', 'internal', 'web', 'static', 'css', 'style.css'), 'utf8');
+  assert.ok(rawCss.includes('.layers-toolbar'), 'Scenario 47: .layers-toolbar style rule present');
+  assert.ok(rawCss.includes('position: sticky;'), 'Scenario 47: .layers-toolbar has sticky positioning');
+  assert.ok(rawCss.includes('top: 0;'), 'Scenario 47: .layers-toolbar pinned to top: 0');
+
+  // 2. With empty scene / no selection, all reorder buttons must be disabled
+  window.updateLayersToolbarState();
+  assert.strictEqual(btnToFront.disabled, true, 'Scenario 47: btnToFront disabled when empty/no selection');
+  assert.strictEqual(btnForward.disabled, true, 'Scenario 47: btnForward disabled when empty/no selection');
+  assert.strictEqual(btnBackward.disabled, true, 'Scenario 47: btnBackward disabled when empty/no selection');
+  assert.strictEqual(btnToBack.disabled, true, 'Scenario 47: btnToBack disabled when empty/no selection');
+
+  // 3. Create 3 distinct objects: Bottom (Node), Middle (Flow), Top (Image)
+  const s47Node = window.DiagramNodes.createNode({ text: 'Layer 1 Node', x: 10, y: 10 });
+  const s47Flow = window.DataFlows.createFlow({ name: 'Layer 2 Flow', nodes: [{ x: 5, y: 5 }, { x: 25, y: 25 }] });
+  const s47Img = window.ImageObjects.createImage({ name: 'Layer 3 Image', x: 50, y: 50, width: 100, height: 80 });
+
+  window.LayerManager.syncFromEngine();
+  const s47InitialLayers = window.LayerManager.getLayers();
+  assert.strictEqual(s47InitialLayers.length, 3, 'Scenario 47: 3 layers registered');
+
+  const bottomItem = s47InitialLayers[0];
+  const middleItem = s47InitialLayers[1];
+  const topItem = s47InitialLayers[2];
+
+  // 4. Select bottom object
+  window.AppCoordinator.selectObject(bottomItem.type, bottomItem.id, { source: 'layers_list' });
+  window.renderLayersList();
+
+  // Bottom boundary checks: cannot move backward/to-back, CAN move forward/to-front
+  assert.strictEqual(btnBackward.disabled, true, 'Scenario 47: Bottom object cannot move backward');
+  assert.strictEqual(btnToBack.disabled, true, 'Scenario 47: Bottom object cannot move to back');
+  assert.strictEqual(btnForward.disabled, false, 'Scenario 47: Bottom object can move forward');
+  assert.strictEqual(btnToFront.disabled, false, 'Scenario 47: Bottom object can move to front');
+
+  // Verify list container has rows and the bottom item's row has active class
+  assert.strictEqual(layersContainer.children.length, 3, 'Scenario 47: 3 rows rendered in layersListContainer');
+  const activeRows = layersContainer.children.filter((r) => r.classList && r.classList.contains('active'));
+  assert.strictEqual(activeRows.length, 1, 'Scenario 47: Exactly 1 active row highlighted');
+
+  // 5. Click Bring Forward (via AppCoordinator)
+  const forwardOk1 = window.AppCoordinator.bringSelectionForward();
+  assert.strictEqual(forwardOk1, true, 'Scenario 47: First bringSelectionForward succeeded');
+  window.renderLayersList();
+
+  // Now the object is in middle: all 4 buttons enabled!
+  assert.strictEqual(btnBackward.disabled, false, 'Scenario 47: Middle object can move backward');
+  assert.strictEqual(btnToBack.disabled, false, 'Scenario 47: Middle object can move to back');
+  assert.strictEqual(btnForward.disabled, false, 'Scenario 47: Middle object can move forward');
+  assert.strictEqual(btnToFront.disabled, false, 'Scenario 47: Middle object can move to front');
+
+  // Selection must be preserved!
+  const activeRowsAfterForward = layersContainer.children.filter((r) => r.classList && r.classList.contains('active'));
+  assert.strictEqual(activeRowsAfterForward.length, 1, 'Scenario 47: Selection highlight preserved after bringForward');
+
+  // 6. Click Bring Forward AGAIN consecutively without re-selecting row
+  const forwardOk2 = window.AppCoordinator.bringSelectionForward();
+  assert.strictEqual(forwardOk2, true, 'Scenario 47: Consecutive bringSelectionForward succeeded');
+  window.renderLayersList();
+
+  // Now object reached the top: top boundary checks
+  assert.strictEqual(btnForward.disabled, true, 'Scenario 47: Top object cannot move forward');
+  assert.strictEqual(btnToFront.disabled, true, 'Scenario 47: Top object cannot move to front');
+  assert.strictEqual(btnBackward.disabled, false, 'Scenario 47: Top object can move backward');
+  assert.strictEqual(btnToBack.disabled, false, 'Scenario 47: Top object can move to back');
+
+  // Selection STILL preserved!
+  const activeRowsAtTop = layersContainer.children.filter((r) => r.classList && r.classList.contains('active'));
+  assert.strictEqual(activeRowsAtTop.length, 1, 'Scenario 47: Selection highlight preserved when reaching top');
+
+  // 7. Click Send to Back
+  const backOk = window.AppCoordinator.sendSelectionToBack();
+  assert.strictEqual(backOk, true, 'Scenario 47: sendSelectionToBack succeeded');
+  window.renderLayersList();
+
+  // Now at bottom again:
+  assert.strictEqual(btnBackward.disabled, true, 'Scenario 47: Bottom object backward disabled after sendToBack');
+  assert.strictEqual(btnToBack.disabled, true, 'Scenario 47: Bottom object toBack disabled after sendToBack');
+  assert.strictEqual(btnForward.disabled, false, 'Scenario 47: Bottom object forward enabled after sendToBack');
+  assert.strictEqual(btnToFront.disabled, false, 'Scenario 47: Bottom object toFront enabled after sendToBack');
+
+  // 8. Deselect (clear selection)
+  window.AppCoordinator.clearSelection();
+  window.renderLayersList();
+  assert.strictEqual(btnToFront.disabled, true, 'Scenario 47: btnToFront disabled after clearSelection');
+  assert.strictEqual(btnForward.disabled, true, 'Scenario 47: btnForward disabled after clearSelection');
+  assert.strictEqual(btnBackward.disabled, true, 'Scenario 47: btnBackward disabled after clearSelection');
+  assert.strictEqual(btnToBack.disabled, true, 'Scenario 47: btnToBack disabled after clearSelection');
+  const activeRowsDeselected = layersContainer.children.filter((r) => r.classList && r.classList.contains('active'));
+  assert.strictEqual(activeRowsDeselected.length, 0, 'Scenario 47: No active rows when deselected');
+
+  console.log('[HARNESS] Scenario 47 PASS: Layers Drawer toolbar accessibility, dynamic button enabling and reordering verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 & 14 unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

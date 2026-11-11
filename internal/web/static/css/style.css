@@ -2334,6 +2334,59 @@ body.editing-flow #flightLine {
 /* ==========================================================================
    Stage 14: Unified Layer Management and Image Objects
    ========================================================================== */
+.layers-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-panel, #161b22);
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 6px 0;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.layers-reorder-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.layers-reorder-group .btn {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.layers-actions-group {
+  display: flex;
+  align-items: center;
+}
+
+#btnImportImageObject {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+  white-space: nowrap;
+}
+
+#btnImportImageObject:hover {
+  background: #2ea043;
+}
+
+.layers-toolbar button:disabled,
+.layers-toolbar .btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .layers-list-container {
   scrollbar-width: thin;
   scrollbar-color: #30363d transparent;
