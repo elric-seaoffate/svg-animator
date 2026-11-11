@@ -34,6 +34,15 @@ window.DiagramNodes = {
       .replace(/'/g, '&apos;');
   },
 
+  sanitizeColor(col, fallback = '#58a6ff') {
+    if (typeof col !== 'string') return fallback;
+    col = col.trim();
+    if (/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(col)) return col;
+    if (/^rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*[\d.]+%?)?\s*\)$/.test(col)) return col;
+    if (/^hsla?\(\s*[\d.]+(?:deg|rad|turn)?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*[\d.]+%?)?\s*\)$/.test(col)) return col;
+    return fallback;
+  },
+
   getNodeEffectiveProps(n) {
     return {
       width: n.width || 170,
@@ -1093,18 +1102,53 @@ window.DiagramNodes = {
       const isPrimary = (this.activeId !== null && String(this.activeId) === String(node.id));
       const div = document.createElement('div');
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
-      div.style.borderLeftColor = eff.strokeColor || '#58a6ff';
+      const safeColor = this.sanitizeColor(eff.strokeColor, '#58a6ff');
+      div.style.borderLeftColor = safeColor;
       const icon = shapeIcons[node.shape] || '▢';
       const labelText = node.name || (node.text || ('Node ' + node.id)).split('|')[0];
       const safeLabel = this.escapeXML(labelText);
       div.title = safeLabel + ' (' + node.shape + ', ' + eff.width + 'x' + eff.height + 'px)';
 
-      div.innerHTML =
-        '<span class="instance-icon" style="color:' + (eff.strokeColor || '#58a6ff') + ';" title="' + this.escapeXML(node.shape) + '">' + icon + '</span>' +
-        '<span class="instance-label" title="' + safeLabel + '">' + safeLabel + '</span>' +
-        '<span class="compact-meta">' + eff.width + '&times;' + eff.height + '</span>' +
-        '<button type="button" class="btn-row-action btn-row-preset" title="Snap this shape to active Preset settings" onclick="window.DiagramNodes.selectNode(\'' + node.id + '\'); window.DiagramNodes.applyPresetToActive(); event.stopPropagation();">⚡</button>' +
-        '<button type="button" class="btn-row-action btn-row-delete" title="Delete shape" onclick="window.DiagramNodes.removeNode(\'' + node.id + '\'); event.stopPropagation();">&times;</button>';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'instance-icon';
+      iconSpan.style.color = safeColor;
+      iconSpan.title = node.shape || '';
+      iconSpan.textContent = icon;
+      div.appendChild(iconSpan);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'instance-label';
+      labelSpan.title = safeLabel;
+      labelSpan.textContent = labelText;
+      div.appendChild(labelSpan);
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'compact-meta';
+      metaSpan.innerHTML = eff.width + '&times;' + eff.height;
+      div.appendChild(metaSpan);
+
+      const presetBtn = document.createElement('button');
+      presetBtn.type = 'button';
+      presetBtn.className = 'btn-row-action btn-row-preset';
+      presetBtn.title = 'Snap this shape to active Preset settings';
+      presetBtn.textContent = '⚡';
+      presetBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.DiagramNodes.selectNode(node.id);
+        window.DiagramNodes.applyPresetToActive();
+      });
+      div.appendChild(presetBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn-row-action btn-row-delete';
+      delBtn.title = 'Delete shape';
+      delBtn.innerHTML = '&times;';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.DiagramNodes.removeNode(node.id);
+      });
+      div.appendChild(delBtn);
 
       div.onclick = (e) => {
         if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {

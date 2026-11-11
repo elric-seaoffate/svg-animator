@@ -38,6 +38,15 @@ window.DataFlows = {
       .replace(/'/g, '&apos;');
   },
 
+  sanitizeColor(col, fallback = '#00ffcc') {
+    if (typeof col !== 'string') return fallback;
+    col = col.trim();
+    if (/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(col)) return col;
+    if (/^rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*[\d.]+%?)?\s*\)$/.test(col)) return col;
+    if (/^hsla?\(\s*[\d.]+(?:deg|rad|turn)?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*[\d.]+%?)?\s*\)$/.test(col)) return col;
+    return fallback;
+  },
+
   getFlow(id) {
     if (id === null || id === undefined) return null;
     return this.list.find((f) => String(f.id) === String(id)) || null;
@@ -908,24 +917,31 @@ window.DataFlows = {
         el.className = 'reticle' + (isActive ? ' active-reticle' : '');
         el.style.left = node.x + '%';
         el.style.top = node.y + '%';
-        el.style.background = isActive ? (f.color + '4D') : 'rgba(0,0,0,0.65)';
-        el.style.borderColor = f.color;
+        const safeColor = this.sanitizeColor(f.color, '#00ffcc');
+        el.style.background = isActive ? (safeColor + '4D') : 'rgba(0,0,0,0.65)';
+        el.style.borderColor = safeColor;
         el.style.zIndex = isActive ? '12' : '11';
       });
     } else {
-      let html = '';
+      const safeColor = this.sanitizeColor(f.color, '#00ffcc');
+      container.innerHTML = '';
       f.nodes.forEach((node, idx) => {
         const isActive = idx === this.activeNodeIdx;
-        html +=
-          '<div class="reticle' + (isActive ? ' active-reticle' : '') + '" ' +
-          'data-flow-node-idx="' + idx + '" ' +
-          'style="left:' + node.x + '%; top:' + node.y + '%; pointer-events: auto; ' +
-          'background:' + (isActive ? (f.color + '4D') : 'rgba(0,0,0,0.65)') + '; ' +
-          'border-color:' + f.color + '; z-index:' + (isActive ? 12 : 11) + '; cursor: grab;">' +
-          'N' + idx +
-          '</div>';
+        const ret = document.createElement('div');
+        ret.className = 'reticle' + (isActive ? ' active-reticle' : '');
+        ret.setAttribute('data-flow-node-idx', String(idx));
+        const nx = typeof node.x === 'number' ? node.x : 0;
+        const ny = typeof node.y === 'number' ? node.y : 0;
+        ret.style.left = nx + '%';
+        ret.style.top = ny + '%';
+        ret.style.pointerEvents = 'auto';
+        ret.style.background = isActive ? (safeColor + '4D') : 'rgba(0,0,0,0.65)';
+        ret.style.borderColor = safeColor;
+        ret.style.zIndex = isActive ? '12' : '11';
+        ret.style.cursor = 'grab';
+        ret.textContent = 'N' + idx;
+        container.appendChild(ret);
       });
-      container.innerHTML = html;
     }
   },
 
@@ -959,17 +975,41 @@ window.DataFlows = {
       const isPrimary = (this.activeId === f.id);
       const div = document.createElement('div');
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
-      div.style.borderLeftColor = f.color || '#00ffcc';
+      const safeColor = this.sanitizeColor(f.color, '#00ffcc');
+      div.style.borderLeftColor = safeColor;
       const labelText = f.name || (f.label ? f.label : ('Flow ' + f.id));
       const safeLabel = this.escapeXML(labelText);
       const nodeCount = Array.isArray(f.nodes) ? f.nodes.length : 2;
       div.title = safeLabel + ' (' + nodeCount + ' waypoints)';
 
-      div.innerHTML =
-        '<span class="instance-icon" style="color:' + (f.color || '#00ffcc') + ';" title="Connector">🔀</span>' +
-        '<span class="instance-label" title="' + safeLabel + '">' + safeLabel + '</span>' +
-        '<span class="compact-meta">' + nodeCount + ' pts</span>' +
-        '<button type="button" class="btn-row-action btn-row-delete" title="Delete connector" onclick="window.DataFlows.removeFlow(' + f.id + '); event.stopPropagation();">&times;</button>';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'instance-icon';
+      iconSpan.style.color = safeColor;
+      iconSpan.title = 'Connector';
+      iconSpan.textContent = '🔀';
+      div.appendChild(iconSpan);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'instance-label';
+      labelSpan.title = safeLabel;
+      labelSpan.textContent = labelText;
+      div.appendChild(labelSpan);
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'compact-meta';
+      metaSpan.textContent = nodeCount + ' pts';
+      div.appendChild(metaSpan);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn-row-action btn-row-delete';
+      delBtn.title = 'Delete connector';
+      delBtn.innerHTML = '&times;';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.DataFlows.removeFlow(f.id);
+      });
+      div.appendChild(delBtn);
 
       div.onclick = (e) => {
         if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {

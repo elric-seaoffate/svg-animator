@@ -31,6 +31,15 @@ window.Glows = {
       .replace(/"/g, '&quot;');
   },
 
+  sanitizeColor(col, fallback = '#ff0044') {
+    if (typeof col !== 'string') return fallback;
+    col = col.trim();
+    if (/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(col)) return col;
+    if (/^rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*[\d.]+%?)?\s*\)$/.test(col)) return col;
+    if (/^hsla?\(\s*[\d.]+(?:deg|rad|turn)?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*[\d.]+%?)?\s*\)$/.test(col)) return col;
+    return fallback;
+  },
+
   getGlow(id) {
     if (id === null || id === undefined) return null;
     return this.list.find((g) => String(g.id) === String(id)) || null;
@@ -706,17 +715,41 @@ window.Glows = {
       const isPrimary = (this.activeId === glow.id);
       const div = document.createElement('div');
       div.className = 'flow-list-item compact-instance-row' + (isSel ? ' selected' : '') + (isPrimary ? ' primary-selected' : '');
-      div.style.borderLeftColor = glow.color || '#ff0044';
+      const safeColor = this.sanitizeColor(glow.color, '#ff0044');
+      div.style.borderLeftColor = safeColor;
       const icon = glowIcons[glow.shape] || '✨';
       const labelText = glow.name || ('Glow ' + glow.id);
       const safeLabel = this.escapeXML(labelText);
       div.title = safeLabel + ' (' + glow.shape + ')';
 
-      div.innerHTML =
-        '<span class="instance-icon" style="color:' + (glow.color || '#ff0044') + ';" title="' + (glow.shape || 'circle') + '">' + icon + '</span>' +
-        '<span class="instance-label">' + safeLabel + '</span>' +
-        '<span class="compact-meta">' + glow.shape + '</span>' +
-        '<button type="button" class="btn-row-action btn-row-delete" title="Delete glow" onclick="window.Glows.removeGlow(' + glow.id + '); event.stopPropagation();">&times;</button>';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'instance-icon';
+      iconSpan.style.color = safeColor;
+      iconSpan.title = glow.shape || 'circle';
+      iconSpan.textContent = icon;
+      div.appendChild(iconSpan);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'instance-label';
+      labelSpan.title = safeLabel;
+      labelSpan.textContent = labelText;
+      div.appendChild(labelSpan);
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'compact-meta';
+      metaSpan.textContent = glow.shape || '';
+      div.appendChild(metaSpan);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn-row-action btn-row-delete';
+      delBtn.title = 'Delete glow';
+      delBtn.innerHTML = '&times;';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.Glows.removeGlow(glow.id);
+      });
+      div.appendChild(delBtn);
 
       div.onclick = (e) => {
         if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {

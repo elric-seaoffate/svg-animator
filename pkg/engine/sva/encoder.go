@@ -295,7 +295,7 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 				return nil, fmt.Errorf("sva: custom glow graphic %s decoded to 0 bytes", g.ID)
 			}
 			ext := extensionForMIME(cleanMime)
-			assetPath := fmt.Sprintf("%sglow_%s_custom%s", AssetsDirPrefix, g.ID, ext)
+			assetPath := fmt.Sprintf("%sglow_%s_custom%s", AssetsDirPrefix, sanitizeFilename(string(g.ID)), ext)
 			assets[assetPath] = data
 			g.CustomMime = cleanMime
 			// In SVA scene.json, customB64 is cleared and referenced via assetPath
@@ -319,7 +319,7 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 				return nil, fmt.Errorf("sva: custom flow graphic %s decoded to 0 bytes", f.ID)
 			}
 			ext := extensionForMIME(cleanMime)
-			assetPath := fmt.Sprintf("%sflow_%s_custom%s", AssetsDirPrefix, f.ID, ext)
+			assetPath := fmt.Sprintf("%sflow_%s_custom%s", AssetsDirPrefix, sanitizeFilename(string(f.ID)), ext)
 			assets[assetPath] = data
 			f.CustomMime = cleanMime
 			f.CustomB64 = ""
@@ -341,7 +341,7 @@ func BuildProjectFromStudioState(projectName string, projectDesc string, schemaJ
 			data, cleanMime, err := decodeBase64DataURI(rawB64, img.Mime)
 			if err == nil && len(data) > 0 {
 				ext := extensionForMIME(cleanMime)
-				assetPath := fmt.Sprintf("%simage_%s%s", AssetsDirPrefix, img.ID, ext)
+				assetPath := fmt.Sprintf("%simage_%s%s", AssetsDirPrefix, sanitizeFilename(string(img.ID)), ext)
 				assets[assetPath] = data
 				img.Mime = cleanMime
 				img.AssetRef = assetPath

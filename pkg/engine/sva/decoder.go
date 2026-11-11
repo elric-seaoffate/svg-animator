@@ -137,6 +137,8 @@ func Decode(data []byte) (*Project, error) {
 		return nil, ErrMissingScene
 	}
 
+	var totalDecompressedBytes int64
+
 	// 1. Read and parse scene.json
 	sc, err := sceneFile.Open()
 	if err != nil {
@@ -151,6 +153,10 @@ func Decode(data []byte) (*Project, error) {
 	if int64(len(sceneBytes)) > MaxSceneJSONBytes {
 		return nil, ErrEntryTooLarge
 	}
+	totalDecompressedBytes += int64(len(sceneBytes))
+	if totalDecompressedBytes > MaxTotalUncompressedBytes {
+		return nil, ErrArchiveTooLarge
+	}
 
 	var sceneData SceneData
 	if err := json.Unmarshal(sceneBytes, &sceneData); err != nil {
@@ -164,7 +170,16 @@ func Decode(data []byte) (*Project, error) {
 		if err != nil {
 			return nil, fmt.Errorf("sva: opening asset %s: %w", p, err)
 		}
-		assetBytes, err := io.ReadAll(io.LimitReader(ac, MaxSingleEntryBytes+1))
+		remainingBudget := MaxTotalUncompressedBytes - totalDecompressedBytes
+		if remainingBudget <= 0 {
+			ac.Close()
+			return nil, ErrArchiveTooLarge
+		}
+		readLimit := MaxSingleEntryBytes + 1
+		if remainingBudget+1 < readLimit {
+			readLimit = remainingBudget + 1
+		}
+		assetBytes, err := io.ReadAll(io.LimitReader(ac, readLimit))
 		ac.Close()
 		if err != nil {
 			return nil, fmt.Errorf("sva: reading asset %s: %w", p, err)
@@ -172,12 +187,25 @@ func Decode(data []byte) (*Project, error) {
 		if int64(len(assetBytes)) > MaxSingleEntryBytes {
 			return nil, ErrEntryTooLarge
 		}
+		totalDecompressedBytes += int64(len(assetBytes))
+		if totalDecompressedBytes > MaxTotalUncompressedBytes {
+			return nil, ErrArchiveTooLarge
+		}
+		if f.CompressedSize64 > 0 && len(assetBytes) > 1024*1024 {
+			ratio := float64(len(assetBytes)) / float64(f.CompressedSize64)
+			if ratio > MaxCompressionRatio {
+				return nil, ErrZipBombAttempt
+			}
+		}
 		assets[p] = assetBytes
 	}
 
 	// 3. Verify manifest assets exist in package
+	manifestAssetPaths := make(map[string]bool)
 	for _, entry := range manifest.Assets {
 		cleanEntryPath := path.Clean(entry.Path)
+		manifestAssetPaths[cleanEntryPath] = true
+		manifestAssetPaths[AssetsDirPrefix+cleanEntryPath] = true
 		assetBytes, ok := assets[cleanEntryPath]
 		if !ok {
 			// Check if path was stored without assets/ prefix
@@ -186,12 +214,19 @@ func Decode(data []byte) (*Project, error) {
 		if !ok {
 			return nil, fmt.Errorf("sva: manifest declares asset %s, but file is missing from archive", entry.Path)
 		}
-		if entry.SHA256 != "" {
-			h := sha256.Sum256(assetBytes)
-			hashStr := hex.EncodeToString(h[:])
-			if !strings.EqualFold(hashStr, entry.SHA256) {
-				return nil, fmt.Errorf("%w for asset %s", ErrAssetChecksumMismatch, entry.Path)
-			}
+		if strings.TrimSpace(entry.SHA256) == "" {
+			return nil, fmt.Errorf("sva: manifest declares asset %s without required SHA-256 checksum", entry.Path)
+		}
+		h := sha256.Sum256(assetBytes)
+		hashStr := hex.EncodeToString(h[:])
+		if !strings.EqualFold(hashStr, entry.SHA256) {
+			return nil, fmt.Errorf("%w for asset %s", ErrAssetChecksumMismatch, entry.Path)
+		}
+	}
+
+	for p := range assets {
+		if !manifestAssetPaths[p] && !manifestAssetPaths[strings.TrimPrefix(p, AssetsDirPrefix)] {
+			return nil, fmt.Errorf("sva: archive contains undeclared asset %s", p)
 		}
 	}
 

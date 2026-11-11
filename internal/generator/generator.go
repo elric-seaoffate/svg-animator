@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"html"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -50,6 +51,11 @@ func decodeWebPConfig(data []byte) (int, int, error) {
 
 // BuildStandaloneSVG builds the self-contained SVG text with embedded editing instructions.
 func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Options) string {
+	cleanMime := strings.ToLower(strings.TrimSpace(mimeType))
+	if cleanMime != "image/jpeg" && cleanMime != "image/png" && cleanMime != "image/webp" {
+		cleanMime = "image/jpeg"
+	}
+
 	params := effects.Params{
 		Width:              width,
 		Height:             height,
@@ -160,11 +166,12 @@ func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Option
     </g>
   </g>
   %s
-</svg>`, width, height, commentGuide, defsCombined, markup.Keyframes, animRule, finalFilterAttr, width, height, mimeType, b64Data, mimeType, b64Data, overlaysCombined)
+</svg>`, width, height, commentGuide, defsCombined, markup.Keyframes, animRule, finalFilterAttr, width, height, cleanMime, b64Data, cleanMime, b64Data, overlaysCombined)
 }
 
 // BuildStandaloneHTML wraps the animated SVG in a responsive HTML container.
 func BuildStandaloneHTML(title string, width, height int, svgMarkup string) string {
+	safeTitle := html.EscapeString(title)
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,7 +188,7 @@ func BuildStandaloneHTML(title string, width, height int, svgMarkup string) stri
 <body>
   <div class="viewport">%s</div>
 </body>
-</html>`, title, width, width, height, svgMarkup)
+</html>`, safeTitle, width, width, height, svgMarkup)
 }
 
 // Run executes the generation workflow for headless CLI usage.
@@ -227,6 +234,11 @@ func Run(opts Options) error {
 	baseName := opts.BaseName
 	if baseName == "" {
 		baseName = strings.TrimSuffix(filepath.Base(cleanInput), filepath.Ext(cleanInput))
+	} else {
+		baseName = filepath.Base(filepath.Clean(baseName))
+		if baseName == "." || baseName == "/" {
+			baseName = "export"
+		}
 	}
 
 	outDir := filepath.Clean(opts.OutputDir)

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 )
 
@@ -42,7 +44,7 @@ func parseHMS(hStr, mStr, sStr string) float64 {
 func ProbeAudioFile(ctx context.Context, audioPath string) (AudioInspectResult, error) {
 	var res AudioInspectResult
 
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-i", audioPath, "-f", "null", "-")
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-protocol_whitelist", "file", "-i", audioPath, "-f", "null", "-")
 	outBytes, _ := cmd.CombinedOutput()
 	out := string(outBytes)
 
@@ -79,7 +81,7 @@ func ProbeAudioFile(ctx context.Context, audioPath string) (AudioInspectResult, 
 // FixAudioContainer rewrites the audio container with clean Xing/VBR seek headers so Windows and Linux report identical lengths.
 func FixAudioContainer(ctx context.Context, inPath, outPath string) error {
 	ext := strings.ToLower(filepath.Ext(outPath))
-	args := []string{"-y", "-i", inPath, "-vn"}
+	args := []string{"-y", "-protocol_whitelist", "file", "-i", inPath, "-vn"}
 	if ext == ".mp3" {
 		args = append(args, "-c:a", "libmp3lame", "-q:a", "2", "-write_xing", "1")
 	} else {
@@ -96,7 +98,7 @@ func FixAudioContainer(ctx context.Context, inPath, outPath string) error {
 
 // normalizeAudioToWAV pre-decodes any uploaded audio into a clean 48kHz stereo PCM WAV so corrupt VBR headers never affect muxing.
 func normalizeAudioToWAV(ctx context.Context, rawAudioPath, cleanWavPath string) error {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", rawAudioPath, "-vn", "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "2", cleanWavPath)
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-protocol_whitelist", "file", "-i", rawAudioPath, "-vn", "-acodec", "pcm_s16le", "-ar", "48000", "-ac", "2", cleanWavPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("audio normalization failed: %v\nOutput: %s", err, string(out))
 	}
@@ -151,6 +153,7 @@ func buildWebPPipeArgs(outPath string, fps int, loopMode string) []string {
 		"-f", "image2pipe",
 		"-c:v", "png",
 		"-framerate", fmt.Sprintf("%d", fps),
+		"-protocol_whitelist", "pipe",
 		"-i", "-",
 		"-vcodec", "libwebp",
 		"-lossless", "0",
@@ -171,6 +174,7 @@ func buildAPNGPipeArgs(outPath string, fps int, loopMode string) []string {
 		"-f", "image2pipe",
 		"-c:v", "png",
 		"-framerate", fmt.Sprintf("%d", fps),
+		"-protocol_whitelist", "pipe",
 		"-i", "-",
 		"-f", "apng",
 	}
@@ -188,14 +192,15 @@ func buildMP4PipeArgs(outPath string, fps int, durationSecs float64, effectiveAu
 		"-f", "image2pipe",
 		"-c:v", "png",
 		"-framerate", fmt.Sprintf("%d", fps),
+		"-protocol_whitelist", "pipe",
 		"-i", "-",
 	}
 
 	if effectiveAudioPath != "" {
 		if audioFit == "" || audioFit == "loop" {
-			args = append(args, "-stream_loop", "-1", "-i", effectiveAudioPath)
+			args = append(args, "-stream_loop", "-1", "-protocol_whitelist", "file", "-i", effectiveAudioPath)
 		} else {
-			args = append(args, "-i", effectiveAudioPath)
+			args = append(args, "-protocol_whitelist", "file", "-i", effectiveAudioPath)
 		}
 		args = append(args, "-map", "0:v:0", "-map", "1:a:0")
 	}
@@ -377,7 +382,6 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
-		chromedp.Flag("allow-file-access-from-files", true),
 		chromedp.Flag("window-size", fmt.Sprintf("%d,%d", width, height)),
 	)
 
@@ -395,6 +399,28 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 		return fmt.Errorf("failed to get absolute html path: %w", err)
 	}
 	fileURL := "file://" + filepath.ToSlash(absPath)
+
+	// Intercept and strictly block external network requests and unauthorized file reads
+	events := chromedp.Events(ctx, fetch.RequestPaused)
+	go func() {
+		for ev, err := range events {
+			if err != nil {
+				return
+			}
+			reqURL := ev.Request.URL
+			// Allow main document navigation to fileURL and inline data URIs; block all SSRF / external URLs
+			if reqURL == fileURL || strings.HasPrefix(reqURL, "data:") {
+				_, _ = chromedp.Call(ctx, fetch.ContinueRequest, fetch.ContinueRequestParams{
+					RequestID: ev.RequestID,
+				})
+			} else {
+				_, _ = chromedp.Call(ctx, fetch.FailRequest, fetch.FailRequestParams{
+					RequestID:   ev.RequestID,
+					ErrorReason: network.ErrorReasonBlockedByClient,
+				})
+			}
+		}
+	}()
 
 	scrubberJS := `
 		function solveCubicBezier(x1, y1, x2, y2, x) {
@@ -563,6 +589,10 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 
 	fmt.Println(">> Target URL:", fileURL)
 	fmt.Println(">> Initializing zero-disk streaming vector rasterizer...")
+
+	if _, err := chromedp.Call(ctx, fetch.Enable, fetch.EnableParams{}); err != nil {
+		return fmt.Errorf("failed to enable fetch security filter: %w", err)
+	}
 
 	if _, err := chromedp.Run(ctx, chromedp.Navigate(fileURL)); err != nil {
 		return fmt.Errorf("failed to navigate: %w", err)

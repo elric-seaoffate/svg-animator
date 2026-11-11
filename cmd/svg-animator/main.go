@@ -34,7 +34,7 @@ type AppConfig struct {
 
 func defaultAppConfig() AppConfig {
 	return AppConfig{
-		Host:    "0.0.0.0",
+		Host:    "127.0.0.1",
 		Port:    8088,
 		DataDir: ".",
 	}
@@ -69,7 +69,7 @@ func loadOrCreateConfig(configPath string, explicitConfigFlag bool) (AppConfig, 
 	}
 
 	if strings.TrimSpace(cfg.Host) == "" {
-		cfg.Host = "0.0.0.0"
+		cfg.Host = "127.0.0.1"
 	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		cfg.Port = 8088

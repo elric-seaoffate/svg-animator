@@ -581,11 +581,34 @@ window.Ripples = {
       const safeLabel = this.escapeXML(labelText);
       div.title = safeLabel + ' (' + (rp.rings || 3) + ' rings)';
 
-      div.innerHTML =
-        '<span class="instance-icon" style="color:#58a6ff;" title="Ripple">💧</span>' +
-        '<span class="instance-label">' + safeLabel + '</span>' +
-        '<span class="compact-meta">' + (rp.rings || 3) + ' rings</span>' +
-        '<button type="button" class="btn-row-action btn-row-delete" title="Delete ripple" onclick="window.Ripples.removeRipple(' + rp.id + '); event.stopPropagation();">&times;</button>';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'instance-icon';
+      iconSpan.style.color = '#58a6ff';
+      iconSpan.title = 'Ripple';
+      iconSpan.textContent = '💧';
+      div.appendChild(iconSpan);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'instance-label';
+      labelSpan.title = safeLabel;
+      labelSpan.textContent = labelText;
+      div.appendChild(labelSpan);
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'compact-meta';
+      metaSpan.textContent = (rp.rings || 3) + ' rings';
+      div.appendChild(metaSpan);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn-row-action btn-row-delete';
+      delBtn.title = 'Delete ripple';
+      delBtn.innerHTML = '&times;';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.Ripples.removeRipple(rp.id);
+      });
+      div.appendChild(delBtn);
 
       div.onclick = (e) => {
         if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {

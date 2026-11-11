@@ -306,7 +306,11 @@ window.ProjectManager = {
   },
 
   async postDeleteProject(id) {
-    const res = await fetch('/api/export/projects/delete?id=' + encodeURIComponent(id), { method: 'POST' });
+    const res = await fetch('/api/export/projects/delete?id=' + encodeURIComponent(id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(id) })
+    });
     if (!res.ok) {
       const text = await res.text();
       throw new Error('HTTP ' + res.status + ': ' + text.trim());
@@ -443,22 +447,81 @@ window.ProjectManager = {
       row.style.borderLeftColor = isCurrent ? '#2ea043' : '#58a6ff';
       row.style.padding = '0.65rem 0.8rem';
 
-      row.innerHTML =
-        '<div style="display:flex; flex-direction:column; gap:0.2rem; flex:1;">' +
-          '<div style="display:flex; align-items:center; gap:0.5rem;">' +
-            '<strong style="color:#e6edf3; font-size:0.88rem;">#' + p.id + ' &bull; ' + this.escapeHTML(p.name) + '</strong>' +
-            '<span class="active-dim-pill">' + p.canvasWidth + '&times;' + p.canvasHeight + '</span>' +
-            (isCurrent ? '<span style="font-size:0.68rem; background:rgba(46,160,67,0.2); color:#3fb950; border:1px solid rgba(46,160,67,0.5); padding:0.05rem 0.4rem; border-radius:4px;">ACTIVE</span>' : '') +
-          '</div>' +
-          (p.description ? '<div style="font-size:0.76rem; color:#8b949e;">' + this.escapeHTML(p.description) + '</div>' : '') +
-          '<div style="font-size:0.7rem; color:#6e7681; font-family:monospace;">Updated: ' + this.escapeHTML(p.updatedAt) + '</div>' +
-        '</div>' +
-        '<div style="display:flex; gap:0.4rem; align-items:center;">' +
-          '<button type="button" class="btn-primary" style="padding:0.35rem 0.75rem; font-size:0.76rem;" onclick="window.ProjectManager.loadProject(' + p.id + '); event.stopPropagation();">📂 Load</button>' +
-          '<button type="button" class="btn-secondary" style="padding:0.35rem 0.6rem; font-size:0.76rem;" title="Export this project as .sva" onclick="window.ProjectManager.exportSVAById(' + p.id + '); event.stopPropagation();">📦</button>' +
-          '<button type="button" class="btn-danger" style="padding:0.35rem 0.6rem; font-size:0.76rem;" onclick="window.ProjectManager.deleteProject(' + p.id + '); event.stopPropagation();">🗑️</button>' +
-        '</div>';
+      const infoCol = document.createElement('div');
+      infoCol.style.cssText = 'display:flex; flex-direction:column; gap:0.2rem; flex:1;';
 
+      const headerRow = document.createElement('div');
+      headerRow.style.cssText = 'display:flex; align-items:center; gap:0.5rem;';
+
+      const strongName = document.createElement('strong');
+      strongName.style.cssText = 'color:#e6edf3; font-size:0.88rem;';
+      strongName.textContent = '#' + p.id + ' • ' + (p.name || 'Untitled Project');
+      headerRow.appendChild(strongName);
+
+      const dimPill = document.createElement('span');
+      dimPill.className = 'active-dim-pill';
+      dimPill.textContent = (p.canvasWidth || 1280) + '×' + (p.canvasHeight || 720);
+      headerRow.appendChild(dimPill);
+
+      if (isCurrent) {
+        const activeBadge = document.createElement('span');
+        activeBadge.style.cssText = 'font-size:0.68rem; background:rgba(46,160,67,0.2); color:#3fb950; border:1px solid rgba(46,160,67,0.5); padding:0.05rem 0.4rem; border-radius:4px;';
+        activeBadge.textContent = 'ACTIVE';
+        headerRow.appendChild(activeBadge);
+      }
+      infoCol.appendChild(headerRow);
+
+      if (p.description) {
+        const descDiv = document.createElement('div');
+        descDiv.style.cssText = 'font-size:0.76rem; color:#8b949e;';
+        descDiv.textContent = p.description;
+        infoCol.appendChild(descDiv);
+      }
+
+      const updatedDiv = document.createElement('div');
+      updatedDiv.style.cssText = 'font-size:0.7rem; color:#6e7681; font-family:monospace;';
+      updatedDiv.textContent = 'Updated: ' + (p.updatedAt || '');
+      infoCol.appendChild(updatedDiv);
+      row.appendChild(infoCol);
+
+      const actionsCol = document.createElement('div');
+      actionsCol.style.cssText = 'display:flex; gap:0.4rem; align-items:center;';
+
+      const loadBtn = document.createElement('button');
+      loadBtn.type = 'button';
+      loadBtn.className = 'btn-primary';
+      loadBtn.style.cssText = 'padding:0.35rem 0.75rem; font-size:0.76rem;';
+      loadBtn.textContent = '📂 Load';
+      loadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.loadProject(p.id);
+      });
+      actionsCol.appendChild(loadBtn);
+
+      const exportBtn = document.createElement('button');
+      exportBtn.type = 'button';
+      exportBtn.className = 'btn-secondary';
+      exportBtn.style.cssText = 'padding:0.35rem 0.6rem; font-size:0.76rem;';
+      exportBtn.title = 'Export this project as .sva';
+      exportBtn.textContent = '📦';
+      exportBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.exportSVAById(p.id);
+      });
+      actionsCol.appendChild(exportBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'btn-danger';
+      delBtn.style.cssText = 'padding:0.35rem 0.6rem; font-size:0.76rem;';
+      delBtn.textContent = '🗑️';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.deleteProject(p.id);
+      });
+      actionsCol.appendChild(delBtn);
+
+      row.appendChild(actionsCol);
       row.onclick = () => this.loadProject(p.id);
       container.appendChild(row);
     });
@@ -686,6 +749,31 @@ window.ProjectManager = {
             }
           } catch (e) {
             console.warn('Failed to resolve photo URL to base64 for SVA export:', e);
+          }
+        }
+      }
+
+      // Resolve any blob: or remote image object URLs before bundling
+      if (stateObj && Array.isArray(stateObj.images)) {
+        for (const img of stateObj.images) {
+          const imgUrl = img.src || img.data || img.url;
+          if (!img.b64 && imgUrl && (imgUrl.startsWith('blob:') || imgUrl.startsWith('http:') || imgUrl.startsWith('https:'))) {
+            try {
+              const resp = await fetch(imgUrl);
+              const blob = await resp.blob();
+              const reader = new FileReader();
+              const dataUrl = await new Promise((resolve, reject) => {
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              if (dataUrl && typeof dataUrl === 'string' && dataUrl.includes(',')) {
+                img.data = dataUrl;
+                img.src = dataUrl;
+              }
+            } catch (e) {
+              console.warn('Failed to resolve image URL to data URL for SVA export:', e);
+            }
           }
         }
       }

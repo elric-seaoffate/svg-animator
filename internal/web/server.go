@@ -2,9 +2,11 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"embed"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,9 +14,11 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -63,8 +67,87 @@ type renderedBundle struct {
 var (
 	activeJobs      sync.Map // map[string]*renderJobStatus
 	activeBundles   sync.Map // map[string]*renderedBundle
-	renderWorkspace string   = "./render_workspace"
+	bundleCount     int64
+	bundleMu        sync.Mutex
+	renderWorkspace string        = "./render_workspace"
+	renderSemaphore chan struct{} = make(chan struct{}, 2) // Max 2 concurrent headless render jobs
+
+	reDangerousTags    = regexp.MustCompile(`(?is)<(script|iframe|object|embed|foreignobject)\b.*?(?:/>|</(script|iframe|object|embed|foreignobject)>)`)
+	reDangerousTagSelf = regexp.MustCompile(`(?is)<(script|iframe|object|embed|foreignobject)\b[^>]*>`)
+	reEventHandlers    = regexp.MustCompile(`(?i)\s+on[a-zA-Z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)`)
+	reJavaScriptScheme = regexp.MustCompile(`(?i)(?:href|xlink:href)\s*=\s*(?:"\s*javascript:[^"]*"|'\s*javascript:[^']*')`)
+
+	allowedAudioExts = map[string]bool{
+		".mp3":  true,
+		".wav":  true,
+		".ogg":  true,
+		".m4a":  true,
+		".aac":  true,
+		".flac": true,
+	}
 )
+
+func sanitizeSVGMarkup(svg string) string {
+	if svg == "" {
+		return ""
+	}
+	clean := reDangerousTags.ReplaceAllString(svg, "")
+	clean = reDangerousTagSelf.ReplaceAllString(clean, "")
+	clean = reEventHandlers.ReplaceAllString(clean, "")
+	clean = reJavaScriptScheme.ReplaceAllString(clean, `href=""`)
+	return clean
+}
+
+func generateSecureID(prefix string) string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%s-%s", prefix, hex.EncodeToString(b))
+}
+
+func checkSameOrigin(r *http.Request) bool {
+	if sfs := r.Header.Get("Sec-Fetch-Site"); sfs == "cross-site" {
+		return false
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		if !strings.EqualFold(u.Host, r.Host) {
+			return false
+		}
+		return true
+	}
+
+	referer := r.Header.Get("Referer")
+	if referer != "" {
+		u, err := url.Parse(referer)
+		if err != nil {
+			return false
+		}
+		if !strings.EqualFold(u.Host, r.Host) {
+			return false
+		}
+		return true
+	}
+
+	return true
+}
+
+func validateAudioExtension(name string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == "" {
+		return ".mp3", nil
+	}
+	if !allowedAudioExts[ext] {
+		return "", fmt.Errorf("unsupported audio file extension %q (allowed: mp3, wav, ogg, m4a, aac, flac)", ext)
+	}
+	return ext, nil
+}
 
 type audioInspectRequest struct {
 	AudioB64  string `json:"audioB64"`
@@ -210,8 +293,10 @@ func StartServerWithConfig(cfg ServerConfig) error {
 	fmt.Println("========================================================")
 
 	srv := &http.Server{
-		Addr:    cfg.BindAddr,
-		Handler: mux,
+		Addr:              cfg.BindAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Listen for SIGINT / SIGTERM for clean systemd service shutdown
@@ -235,6 +320,7 @@ func StartServerWithConfig(cfg ServerConfig) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
+		_ = db.CloseDB()
 		cleanupStaleWorkspaces(renderWorkspace)
 		fmt.Println(">> Server stopped cleanly.")
 		return nil
@@ -283,10 +369,20 @@ func handleAudioInspect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !checkSameOrigin(r) {
+		http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
+		return
+	}
 
 	var req audioInspectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeDecodeError(w, err)
+		return
+	}
+
+	ext, extErr := validateAudioExtension(req.AudioName)
+	if extErr != nil {
+		http.Error(w, extErr.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -305,10 +401,6 @@ func handleAudioInspect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	ext := strings.ToLower(filepath.Ext(req.AudioName))
-	if ext == "" {
-		ext = ".mp3"
-	}
 	inPath := filepath.Join(tmpDir, "input"+ext)
 	if err := os.WriteFile(inPath, rawAudio, 0644); err != nil {
 		http.Error(w, "Failed to write temp audio", http.StatusInternalServerError)
@@ -403,6 +495,10 @@ func handleProjectSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !checkSameOrigin(r) {
+		http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
+		return
+	}
 
 	var req db.ProjectRecord
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -434,10 +530,26 @@ func handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !checkSameOrigin(r) {
+		http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
+		return
+	}
 
 	idStr := r.URL.Query().Get("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
+	var id int64
+	if idStr != "" {
+		if parsed, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			id = parsed
+		}
+	} else if r.Body != nil {
+		var req struct {
+			ID int64 `json:"id"`
+		}
+		if decErr := json.NewDecoder(r.Body).Decode(&req); decErr == nil {
+			id = req.ID
+		}
+	}
+	if id <= 0 {
 		http.Error(w, "Invalid project id", http.StatusBadRequest)
 		return
 	}
@@ -474,8 +586,13 @@ func handleExportSVA(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		projectName = proj.Name
+		projectDesc = proj.Description
 		schemaBytes = []byte(proj.SchemaJSON)
 	} else {
+		if !checkSameOrigin(r) {
+			http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, 100*1024*1024)
 		var req struct {
 			Name        string          `json:"name"`
@@ -527,6 +644,10 @@ func handleExportSVA(w http.ResponseWriter, r *http.Request) {
 func handleImportSVA(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !checkSameOrigin(r) {
+		http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
 		return
 	}
 
@@ -632,8 +753,20 @@ func handleExportCancel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !checkSameOrigin(r) {
+		http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
+		return
+	}
 
 	jobID := r.URL.Query().Get("jobId")
+	if jobID == "" && r.Body != nil {
+		var req struct {
+			JobID string `json:"jobId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			jobID = req.JobID
+		}
+	}
 	if jobID != "" {
 		if val, ok := activeJobs.Load(jobID); ok {
 			job := val.(*renderJobStatus)
@@ -698,11 +831,71 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !checkSameOrigin(r) {
+		http.Error(w, "Cross-origin request blocked", http.StatusForbidden)
+		return
+	}
+
+	// Concurrency limiter: maximum 2 simultaneous headless render jobs
+	select {
+	case renderSemaphore <- struct{}{}:
+		defer func() { <-renderSemaphore }()
+	default:
+		http.Error(w, "Server is currently at maximum export capacity. Please try again shortly.", http.StatusTooManyRequests)
+		return
+	}
 
 	var req renderStatePayload
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeDecodeError(w, err)
 		return
+	}
+
+	st := req.State
+	exportWidth := req.Width
+	exportHeight := req.Height
+	if exportWidth <= 0 {
+		exportWidth = st.Image.Width
+	}
+	if exportHeight <= 0 {
+		exportHeight = st.Image.Height
+	}
+	if exportWidth < 16 || exportWidth > 4096 {
+		http.Error(w, "Export width must be between 16 and 4096 pixels", http.StatusBadRequest)
+		return
+	}
+	if exportHeight < 16 || exportHeight > 4096 {
+		http.Error(w, "Export height must be between 16 and 4096 pixels", http.StatusBadRequest)
+		return
+	}
+
+	if req.FPS <= 0 {
+		req.FPS = 24
+	} else if req.FPS > 60 {
+		http.Error(w, "Export FPS cannot exceed 60", http.StatusBadRequest)
+		return
+	}
+
+	if req.Duration <= 0 {
+		req.Duration = 7.0
+	} else if req.Duration > 300.0 {
+		http.Error(w, "Export duration cannot exceed 300 seconds", http.StatusBadRequest)
+		return
+	}
+
+	captureDuration := req.Duration
+	if st.Loop == "pingpong" {
+		captureDuration = req.Duration * 2.0
+	}
+	totalFrames := int(captureDuration * float64(req.FPS))
+	if totalFrames > 18000 {
+		http.Error(w, "Total export frame count exceeds 18000 frames limit", http.StatusBadRequest)
+		return
+	}
+
+	// Sanitize SVG markup to block stored/injected scripts, foreignObjects, iframes and inline event handlers
+	if req.SVGMarkup != "" {
+		req.SVGMarkup = sanitizeSVGMarkup(req.SVGMarkup)
 	}
 
 	renderCtx, cancelRender := context.WithCancel(r.Context())
@@ -712,10 +905,21 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		Phase:      "Starting render pipeline...",
 		cancelFunc: cancelRender,
 	}
-	if req.JobID != "" {
-		activeJobs.Store(req.JobID, job)
-		defer activeJobs.Delete(req.JobID)
+	if req.JobID == "" {
+		req.JobID = generateSecureID("job")
 	}
+	if oldVal, loaded := activeJobs.Load(req.JobID); loaded {
+		if oldJob, ok := oldVal.(*renderJobStatus); ok {
+			oldJob.mu.Lock()
+			oldJob.Canceled = true
+			if oldJob.cancelFunc != nil {
+				oldJob.cancelFunc()
+			}
+			oldJob.mu.Unlock()
+		}
+	}
+	activeJobs.Store(req.JobID, job)
+	defer activeJobs.Delete(req.JobID)
 
 	onProgress := func(current, total int, phase string) {
 		job.mu.Lock()
@@ -749,12 +953,13 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 
 	audioPath := ""
 	if req.AudioB64 != "" {
+		ext, extErr := validateAudioExtension(req.AudioName)
+		if extErr != nil {
+			http.Error(w, extErr.Error(), http.StatusBadRequest)
+			return
+		}
 		rawAudio, err := base64.StdEncoding.DecodeString(req.AudioB64)
 		if err == nil && len(rawAudio) > 0 {
-			ext := strings.ToLower(filepath.Ext(req.AudioName))
-			if ext == "" {
-				ext = ".mp3"
-			}
 			audioPath = filepath.Join(tmpDir, "audio_input"+ext)
 			if err := os.WriteFile(audioPath, rawAudio, 0644); err != nil {
 				audioPath = ""
@@ -765,16 +970,6 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 	audioFit := req.AudioFit
 	if audioFit == "" {
 		audioFit = "loop"
-	}
-
-	st := req.State
-	exportWidth := req.Width
-	exportHeight := req.Height
-	if exportWidth <= 0 {
-		exportWidth = st.Image.Width
-	}
-	if exportHeight <= 0 {
-		exportHeight = st.Image.Height
 	}
 
 	svgText := req.SVGMarkup
@@ -854,7 +1049,11 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		}
 
 		keepTmpDir = true
-		bundleID := fmt.Sprintf("bundle-%d", time.Now().UnixNano())
+		bundleID := generateSecureID("bundle")
+		bundleMu.Lock()
+		bundleCount++
+		bundleMu.Unlock()
+
 		activeBundles.Store(bundleID, &renderedBundle{
 			dirPath:  tmpDir,
 			webpPath: webpPath,
@@ -864,6 +1063,9 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 
 		time.AfterFunc(3*time.Minute, func() {
 			activeBundles.Delete(bundleID)
+			bundleMu.Lock()
+			bundleCount--
+			bundleMu.Unlock()
 			os.RemoveAll(tmpDir)
 		})
 

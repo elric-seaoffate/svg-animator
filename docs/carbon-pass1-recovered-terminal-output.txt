@@ -1,0 +1,1024 @@
+   │                │ ioState,       │               │ ad/SVA  │ from JS modules │    │    │ ll │    │    │   │ JS stateObj
+     │                │ applyStudioSta │               │ buttons │                 │    │    │ ba │    │    │   │ rather than Go
+     │                │ te, exportSVA, │               │         │                 │    │    │ ck │    │    │   │ activeScene.
+     │                │ importSVA)     │               │         │                 │    │    │    │    │    │   │ Serialize
+     │                │                │               │         │                 │    │    │    │    │    │   │ directly from
+     │                │                │               │         │                 │    │    │    │    │    │   │ Go once state
+     │                │                │               │         │                 │    │    │    │    │    │   │ is unified.
+   1 │ app.js:2528-27 │ window.Timelin │ pkg/engine/ti │ Playbac │ RAF scheduling  │ Ye │ Ti │ Ye │ Ov │ Ye │ A │ applyFrameToDOM
+   8 │ 94 &           │ ePlayer &      │ meline/evalua │ k       │ (A);            │ s  │ me │ s  │ er │ s  │ / │ ignores
+     │ engine-bridge. │ _evaluateScene │ tor.go        │ control │ _evaluateSceneA │    │ li │    │ ri │    │ B │ Flows/Glows/Rip
+     │ js:2720-2805   │ AtTimeJS       │               │ s,      │ tTimeJS is      │    │ ne │    │ de │    │   │ ples/Nodes (P1-
+     │                │                │               │ render( │ offline         │    │ Pl │    │ s  │    │   │ 020); JS
+     │                │                │               │ )       │ fallback (B)    │    │ ay │    │ CS │    │   │ fallback camera
+     │                │                │               │         │ with wrong      │    │ er │    │ S  │    │   │ formula lacks
+     │                │                │               │         │ camera math     │    │ :  │    │ ca │    │   │ zoom scaling.
+     │                │                │               │         │                 │    │ Ye │    │ me │    │   │
+     │                │                │               │         │                 │    │ s; │    │ ra │    │   │
+     │                │                │               │         │                 │    │ _e │    │ /b │    │   │
+     │                │                │               │         │                 │    │ va │    │ lu │    │   │
+     │                │                │               │         │                 │    │ lu │    │ r  │    │   │
+     │                │                │               │         │                 │    │ at │    │    │    │   │
+     │                │                │               │         │                 │    │ eS │    │    │    │   │
+     │                │                │               │         │                 │    │ ce │    │    │    │   │
+     │                │                │               │         │                 │    │ ne │    │    │    │   │
+     │                │                │               │         │                 │    │ At │    │    │    │   │
+     │                │                │               │         │                 │    │ Ti │    │    │    │   │
+     │                │                │               │         │                 │    │ me │    │    │    │   │
+     │                │                │               │         │                 │    │ JS │    │    │    │   │
+     │                │                │               │         │                 │    │ :  │    │    │    │   │
+     │                │                │               │         │                 │    │ Of │    │    │    │   │
+     │                │                │               │         │                 │    │ fl │    │    │    │   │
+     │                │                │               │         │                 │    │ in │    │    │    │   │
+     │                │                │               │         │                 │    │ e  │    │    │    │   │
+   1 │ app.js:4117-44 │ renderBackgrou │ scene/{scene, │ Bake,   │ Raster          │ Ye │ Ye │ Ye │ Ye │ Ye │ A │ Offscreen
+   9 │ 63, 5511-6408  │ ndToOffscreenC │ image}.go     │ Snip,   │ compositing in  │ s  │ s  │ s  │ s  │ s  │ / │ <canvas> pixel
+     │                │ anvas,         │               │ Clip,   │ <canvas> +      │    │    │    │    │    │ F │ extraction is a
+     │                │ executeBakeIma │               │ Crop UI │ direct          │    │    │    │    │    │   │ legitimate
+     │                │ ge,            │               │         │ mutations to    │    │    │    │    │    │   │ browser adapter
+     │                │ executeBackgro │               │         │ loadedPhoto /   │    │    │    │    │    │   │ role (A), but
+     │                │ undExtraction, │               │         │ ImageObjects    │    │    │    │    │    │   │ applyClipToOrig
+     │                │ ImageToolsCont │               │         │                 │    │    │    │    │    │   │ inal (L6102) &
+     │                │ roller         │               │         │                 │    │    │    │    │    │   │ resetAppliedCli
+     │                │                │               │         │                 │    │    │    │    │    │   │ p (L6118)
+     │                │                │               │         │                 │    │    │    │    │    │   │ bypass
+     │                │                │               │         │                 │    │    │    │    │    │   │ EngineBridge
+     │                │                │               │         │                 │    │    │    │    │    │   │ and
+     │                │                │               │         │                 │    │    │    │    │    │   │ renderBackgroun
+     │                │                │               │         │                 │    │    │    │    │    │   │ dToOffscreenCan
+     │                │                │               │         │                 │    │    │    │    │    │   │ vas ignores
+     │                │                │               │         │                 │    │    │    │    │    │   │ loadedPhoto.cro
+     │                │                │               │         │                 │    │    │    │    │    │   │ p (P1-012).
+   2 │ still-export-m │ StillExportStu │ pkg/engine/ti │ Still   │ Re-evaluates    │ Ye │ Ye │ Ye │ No │ Ye │ F │ Never calls
+   0 │ odal.js:49-288 │ dio.bakeStatic │ meline/evalua │ Export  │ SMIL <animate>, │ s  │ s  │ s  │ (e │ s  │   │ EngineBridge.ev
+     │                │ SVGAtTime,     │ tor.go +      │ modal   │ <animateMotion> │    │ (1 │    │ xp │    │   │ aluateSceneAtTi
+     │                │ evaluateSMILAn │ rasterizer.go │         │ ,               │    │ 00 │    │ or │    │   │ me; drops 3D
+     │                │ imate          │               │         │ <animateTransfo │    │ %  │    │ t  │    │   │ camera tilt,
+     │                │                │               │         │ rm> in JS DOM   │    │ JS │    │ co │    │   │ fill="remove",
+     │                │                │               │         │ sandbox         │    │ )  │    │ py │    │   │ and scale
+     │                │                │               │         │                 │    │    │    │ )  │    │   │ transforms (P1-
+     │                │                │               │         │                 │    │    │    │    │    │   │ 019).
+   2 │ engine-bridge. │ EngineBridge.r │ Flow.Recalcul │ Zero    │ Unused bridge   │ No │ No │ No │ No │ Ye │ E │ 100% dead code
+   1 │ js:495-503,    │ ecalculateFlow │ ateConnection │ callers │ wrapper &       │    │    │    │    │ s  │   │ (P1-021). Safe
+     │ templates.go:1 │ Connections,   │ s,            │         │ obsolete Phase- │    │    │    │    │    │   │ candidates for
+     │ -136,          │ SVGTemplate/HT │ Effects.build │         │ 0 Go            │    │    │    │    │    │   │ retirement
+     │ internal/effec │ MLTemplate, 12 │ ,             │         │ templates/gener │    │    │    │    │    │   │ after wiring
+     │ ts/{chromatic, │ legacy Go      │ BuildMasterMa │         │ ators           │    │    │    │    │    │   │ recalculateFlow
+     │ exposure,focus │ effect         │ rkup          │         │                 │    │    │    │    │    │   │ Connections.
+     │ ,glitch,grain, │ generators     │               │         │                 │    │    │    │    │    │   │
+     │ handheld,kenbu │                │               │         │                 │    │    │    │    │    │   │
+     │ rns,liquid,mot │                │               │         │                 │    │    │    │    │    │   │
+     │ ionblur,retro, │                │               │         │                 │    │    │    │    │    │   │
+     │ tilt3d,tiltshi │                │               │         │                 │    │    │    │    │    │   │
+     │ ft}.go         │                │               │         │                 │    │    │    │    │    │   │
+  ──────
+  ## F. Detailed Findings (P1-001 – P1-025)
+
+  ### P1-001 — [CRITICAL] [Architecture / State Corruption] EngineBridge.syncScene() Wipes Go s.background = nil on Every Render
+  and Strips Stage 8–15 Image/Layer Fields
+
+  • Files & Lines: app.js:7346-7348, internal/web/static/js/engine-bridge.js:1173-1242, 1530-1685, 2038-2383,
+  pkg/engine/scene/scene.go:696-709, 805-839, 990-992
+  • Functions: render, EngineBridge.syncScene, buildCurrentSceneSnapshot, normalizeSceneSnapshot, syncFromEngineSnapshot, Scene.
+  SetFromSnapshot, Scene.CropBackground
+  • Reproducible Call Path:
+      1. Upload background photo (setLoadedPhoto → EngineBridge.setBackground sets s.background in Go) → render() runs at app.
+      js:7347 → EngineBridge.syncScene() → Scene.SetState → SetFromSnapshot sets s.background = nil (scene.go:708).
+      2. Crop background (applyCrop → EngineBridge.cropBackground) → WASM Background.Crop returns {success: false, error: "no
+      background image loaded in scene"} → JS fallback mutates SceneState.loadedPhoto.
+      3. Import an Image Object, crop or clip it (ImageObjects.cropImage / clipImage), then render() runs syncScene(), stripping
+      crop, cropVersions, activeCropVersionId, clip, and data from Go's s.images (engine-bridge.js:2214-2232).
+      4. Duplicate (Ctrl+D) or drag a group (Group.Move) → syncFromEngineSnapshot(res.snapshot) (engine-bridge.js:1203-1226)
+      overwrites window.ImageObjects.list with Go's stripped images — permanently erasing the foreground image's crop, clip, and
+      data URI!
+  • Expected vs Actual: Go activeScene should retain full fidelity for background, images, nodes, flows, glows, ripples, and
+  layers; instead, every render clobbers Go with a lossy subset (visible, locked, opacity, metadata, customB64/Mime/W/H, crop,
+  clip, background all dropped; Number(x) || default coerces valid 0 camera/optical/frame numbers to non-zero defaults; revision:
+  Date.now() overwrites Go's monotonic revision).
+  • Root Cause: render() unconditionally pushes JS state into Go via normalizeSceneSnapshot, which was never updated completely
+  for Stages 8–15.
+  • Impact: Go Background.* commands are 100% non-functional after the first render; foreground image crops/clips are silently
+  destroyed whenever syncFromEngineSnapshot runs.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Include full background, images (with data, crop, cropVersions, activeCropVersionId, clip, visible,
+  locked, metadata), object visible/locked/opacity/metadata, flow custom*, layer visible/locked, and ?? instead of || for numeric
+  0 values in buildCurrentSceneSnapshot/normalizeSceneSnapshot, and remove syncScene() from the read-only render() path once
+  mutations flow cleanly through EngineBridge.
+  • Suggested Regression Test: Execute real render() after setLoadedPhoto + Image.Crop, assert EngineBridge.getBackground() is
+  non-nil, run Group.Move / Scene.Duplicate, and assert ImageObjects.getImage(id).crop and Background.Crop succeed in WASM without
+  fallback.
+  ──────
+  ### P1-002 — [CRITICAL] [Go/WASM Authority] JavaScript Shadow State Owns Live Rendering, SQLite Persistence, .sva Export Input,
+  and Undo/Redo
+
+  • Files & Lines: scene-state.js:262-475, internal/web/static/js/projects.js:35-145, 655-760, history.js:122-226,
+  pkg/engine/protocol/commands.go:967-969, 2118-2124
+  • Functions: SceneState.buildRenderState, SceneState.buildFullSVG, ProjectManager.serializeStudioState, ProjectManager.exportSVA,
+  HistoryManager.captureSnapshot
+  • Reproducible Call Path: Any studio edit → render() / Save Project / Export .sva / recordImmediate().
+  • Expected vs Actual: Per AGENTS.md §4 ("Go is the authoritative application engine. JavaScript is a browser adapter and SVG
+  presenter"), Go Scene should be the single source of truth; in reality, Scene.GetState (EngineBridge.getSceneState) has 0
+  production callers, and Project.EncodeSVA's activeScene.GetSnapshot() branch (commands.go:2120-2124) is unreachable from the UI
+  because projects.js:704 always supplies JS stateObj.
+  • Root Cause: Incremental migration added WASM calls alongside legacy JS .list arrays without switching downstream consumers
+  (SceneState, ProjectManager, HistoryManager) to read Go state.
+  • Impact: Any discrepancy between Go and JS silently resolves in favor of JS, violating Rule B ("One source of truth") across
+  the entire studio.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: After fixing P1-001 and P1-007, switch SceneState.buildRenderState and ProjectManager.
+  serializeStudioState to read authoritative object/layer/group/image/background state from EngineBridge.getSceneState(),
+  retaining JS arrays only as read-only presentation caches updated from Go responses.
+  • Suggested Regression Test: Mutate a node/image directly via protocol.Dispatch in WASM and verify buildFullSVG() and
+  serializeStudioState() reflect the Go mutation without manual JS .list patching.
+  ──────
+  ### P1-003 — [CRITICAL] [Functional Bug — Stage 15] Importing an Independent Image Object Creates a Corrupt "[object Object]"
+  Layer and Fails Selection
+
+  • Files & Lines: app.js:7494-7535, internal/web/static/js/engine-bridge.js:1324-1342, 3282, 3896-3901
+  • Functions: inputImportImg change handler (app.js), EngineBridge.createImage, ImageObjects.createImage, LayerManager.addEntry,
+  AppCoordinator.selectObject
+  • Reproducible Call Path: Click #btnImportImageObject (or #btnCropImportImage / #btnToolsImportImage at app.js:4804-4813) →
+  choose PNG/JPEG → tempImg.onload (app.js:7480) → createdId = window.EngineBridge.createImage({...}) (7496) → window.
+  LayerManager.addEntry('image', createdId) (7527) → window.AppCoordinator.selectObject('image', createdId, ...) (7530).
+  • Expected vs Actual: Should extract created.id (e.g. "image-1"), select the imported image, and avoid duplicate layer entries.
+  Instead, EngineBridge.createImage returns { success: true, image: {...} } (and ImageObjects.createImage returns { id: "image-1",
+  ... }). String(createdId) evaluates to "[object Object]", appending { type: "image", id: "[object Object]" } to LayerManager.
+  list (on top of "image-1" already added inside createImage at engine-bridge.js:1334), and selectObject('image', createdId) fails
+  to match "image-1".
+  • Root Cause: Return-type mismatch between EngineBridge.createImage ({ success, image }) and app.js:7496 (which assumed a bare
+  ID, unlike app.js:4414-4415 and 5995-5996).
+  • Impact: Every file-imported Image Object pollutes LayerManager.list and saved project layers with a phantom image #[object
+  Object] row and fails initial selection/inspector population.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: At app.js:7494-7525, unwrap const res = ...; const created = (res && res.image) ? res.image : res;
+  const createdId = created ? created.id : null; (matching app.js:5994-6004).
+  • Suggested Regression Test: Trigger #inputImportImageObject change in a browser/DOM harness with DOMContentLoaded active;
+  assert LayerManager.getLayers() contains [{ type: 'image', id: 'image-1' }] (no [object Object]) and AppCoordinator.
+  getActiveSelection().id === 'image-1'.
+  ──────
+  ### P1-004 — [CRITICAL] [Security] Arbitrary Local File Read (file:// LFI) and SSRF via Headless Chromium in POST /api/export
+
+  • Files & Lines: server.go:694-837, generator.go:167-185, internal/rasterizer/rasterizer.go:375-398, 567, 602
+  • Functions: handleExport, generator.BuildStandaloneHTML, streamFramesToWriter
+  • Reproducible Call Path: Unauthenticated POST http://<host>:8088/api/export with JSON {"format":"webp","duration":1,"fps":1,
+  "width":800,"height":600,"svgMarkup":"<svg>...</svg><script>...</script>"} (or <iframe>/<foreignObject>) → handleExport writes
+  unsanitized req.SVGMarkup to render_workspace/svg-api-export-*/index.html (server.go:831-836) → streamFramesToWriter launches
+  Chromium with --no-sandbox and --allow-file-access-from-files (rasterizer.go:378-380), navigates to file://<absPath>/index.html
+  (397, 567), captures screenshots (602), and returns the rendered image/video to the HTTP caller.
+  • Expected vs Actual: Headless rasterization must never grant untrusted markup file:// origin access to the host filesystem or
+  internal loopback/LAN services. Currently, scripts/elements inside req.SVGMarkup execute in file:// origin with --allow-file-
+  access-from-files, allowing fetch('file:///etc/passwd'), reading studio_library.db or local credentials, rendering stolen text
+  into the returned PNG/WebP/MP4 frame, or issuing SSRF requests to 127.0.0.1 services.
+  • Root Cause: Writing raw client-supplied HTML/SVG to disk and opening it via file:// with --allow-file-access-from-files.
+  • Impact: Full host-user file read and internal network SSRF; remotely exploitable on LAN or via cross-origin CSRF when bound to
+  0.0.0.0:8088 (P1-018).
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Remove --allow-file-access-from-files; do not load user markup from file:// (render via
+  data:text/html;base64,... or a locked-down chromedp network interceptor blocking all file://, http://, https://, ws:// requests
+  except inline data: URIs); sanitize/reject <script>, <iframe>, <object>, <embed>, and event-handler attributes in req.SVGMarkup.
+  • Suggested Regression Test: Go test on rasterizer / handleExport verifying <script> and file:///etc/hostname <iframe>/<image>
+  payloads are rejected or blocked from reading local files and making loopback HTTP requests.
+  ──────
+  ### P1-005 — [CRITICAL] [Security] Stored DOM XSS and SVG/CSS Injection via Unescaped Project / .sva Fields
+
+  • Files & Lines: nodes.js:1106-1107, flows.js:460, 972, glows.js:327, 713-719, ripples.js:588, effects.js:38-65, 532-600,
+  engine-bridge.js:3769-3777, app.js:7419
+  • Functions: DiagramNodes.renderList, DataFlows.renderList/renderFlowsLayer, Glows.renderList/renderGlowElement, Ripples.
+  renderList, Effects.buildPhotoElement/build, ImageObjects.renderImageElement
+  • Reproducible Call Path: Import a crafted .sva or load a saved project whose nodes[0].id, glows[0].shape, images[0].src, or
+  controls.canvasBgColorPicker contains ');alert(1);// or "><img src=x onerror=...>:
+      1. ProjectManager.applyStudioState loads the JSON without sanitizing IDs/colors/URIs (projects.js:147-285).
+      2. renderList() sets listEl.innerHTML with onclick="window.AppCoordinator.selectObject('node', '${node.id}')" (nodes.
+      js:1106), and buildFullSVG() sets svgContainer.innerHTML (app.js:7344) with unescaped href="${href}", data:${glow.
+      customMime};base64,${glow.customB64}, and <style>${cameraCSS}</style>.
+  • Expected vs Actual: All untrusted strings from .sva / JSON projects must be escaped or bound via DOM APIs
+  (createElement/addEventListener/textContent) and strict allowlists (/^#[0-9a-fA-F]{3,8}$/ for colors, data:image/(png|jpeg|webp|
+  gif|svg\+xml);base64,... for raster data URIs). Currently, arbitrary JavaScript executes inside the studio browser (and inside
+  standalone .html/.svg exports, or escalates to P1-004 LFI during /api/export).
+  • Root Cause: String-template innerHTML construction across sidebar lists and SVG builders without attribute/CSS escaping.
+  • Impact: Opening an untrusted .sva package compromises the studio origin and exported standalone HTML/SVG files.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Replace inline onclick="..." string HTML in nodes.js, flows.js, glows.js, and ripples.js with
+  document.createElement + addEventListener (matching renderLayersList in app.js:3397), XML-escape all attribute interpolations in
+  SVG builders, and validate MIME/color/numeric tokens.
+  • Suggested Regression Test: Import a .sva with malicious id, name, color, and customMime strings; assert zero unexpected
+  attributes/elements or script execution in DOM and exported SVG/HTML.
+  ──────
+  ### P1-006 — [CRITICAL] [Test Harness Blindness] regression-harness.js Stubs document.addEventListener as a No-Op, Never
+  Executing app.js DOMContentLoaded (L6523–7576)
+
+  • Files & Lines: scripts/regression-harness.js:57-76, 606-625, 699-788, 2206-2221, app.js:6523-7576
+  • Functions: Mock document.addEventListener (L768), document.getElementById (L699-L725), harnessSvgRenderer (L774-L788)
+  • Reproducible Call Path: Every run of node scripts/regression-harness.js loads app.js (L794); app.js:6523 registers document.
+  addEventListener('DOMContentLoaded', () => { ... }) on the no-op stub addEventListener() {} (L768), so lines 6524–7575 never
+  execute. Instead, L774-788 registers a synthetic renderer that omits EngineBridge.syncScene().
+  • Expected vs Actual: Regression tests should exercise actual production initialization, render pipeline, DOM ID existence, and
+  WASM synchronization. Instead:
+      1. render() + EngineBridge.syncScene() (P1-001) never ran in any of the 65 scenarios.
+      2. #btnImportImageObject (P1-003) never ran.
+      3. document.getElementById auto-creates fake elements for nonexistent IDs (L722-725), hiding missing #fctx-btnCropImage /
+      #fctx-btnClipImage (app.js:2205-2225 vs index.html:2044-2048).
+      4. <canvas>.getContext('2d').drawImage is a no-op returning a hardcoded 2×2 PNG (L608-625), hiding offscreen crop/snip/bake
+      pixel bugs (P1-011, P1-012).
+      5. getBoundingClientRect() hardcodes 1280×720 (scale=1.0, L606), hiding zoom/fit scale bugs (P1-010).
+  • Root Cause: Hand-rolled VM mock diverges fundamentally from browser lifecycle and DOM semantics.
+  • Impact: 65/65 green tests gave false confidence across multiple Stage 15 browser regressions.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Store and fire DOMContentLoaded listeners in regression-harness.js (after initializing WASM up
+  front), return null from getElementById for IDs absent from index.html, and add at least one real headless Chromium (chromedp)
+  end-to-end smoke test covering import, crop, clip, snip, bake, undo, and .sva roundtrip.
+  • Suggested Regression Test: Meta-assertion in regression-harness.js verifying window.triggerAppRender (app.js:7359) is
+  registered by DOMContentLoaded rather than harnessSvgRenderer, and document.getElementById('nonexistent_id') === null.
+  ──────
+  ### P1-007 — [HIGH] [Go Protocol Correctness] Partial-Patch Zero-Value Clobbering in Flow.Update, Glow.Update, Ripple.Update,
+  Image.Update and Unclearable Zeroes in Node.Update
+
+  • Files & Lines: pkg/engine/protocol/commands.go:1060-1138, 1270-1355, 1495-1576, 1650-1706, image.go:211-295
+  • Functions: Dispatch (Node.Update, Flow.Update, Glow.Update, Ripple.Update), Scene.UpdateImage
+  • Reproducible Call Path: Dispatch Glow.Update with {"id":"1","patch":{"x":40,"y":60}} (e.g. dragging a Glow on stage via Glows.
+  moveGlow → EngineBridge.updateGlow).
+  • Expected vs Actual: Only X and Y should change. Instead, Go unmarshals patch into value struct scene.Glow where omitted fields
+  default to 0 / false:
+      • Flow.Update (L1312-1325): Delay >= 0, EndDelay >= 0, Glow >= 0 (0 >= 0 is always true!) and unconditional HideOnDelay =
+      req.Patch.HideOnDelay, ShowLine = req.Patch.ShowLine clobber all 5 fields to 0/false; cannot set Curvature = 0 (L1329).
+      • Glow.Update (L1523-1558): Clobbers Blur=0, Delay=0, EndDelay=0, Opacity=0, HideOnDelay=false; patching only X clobbers Y=0
+      (L1555). Also IsRadar sticks true forever (L1508-1510).
+      • Ripple.Update (L1666-1700): Clobbers Opacity=0, InnerR=0, Refraction=0, Delay=0, EndDelay=0; patching only X clobbers Y=0.
+      • Image.Update (image.go:239-288): Clobbers MaintainAspectRatio=false and Locked=false on every move/resize; patching only X
+      clobbers Y=0.
+      • Node.Update (L1070-1133): Cannot set X=0, Y=0, FillOpacity=0, StrokeWidth=0, or clear Name/Text/Subtext to ""; ignores
+      Opacity, Visible, Locked, Metadata.
+  • Root Cause: Using non-pointer domain structs (scene.Flow, scene.Glow, etc.) as partial patch DTOs instead of pointer-field
+  patch structs or map[string]json.RawMessage.
+  • Impact: Go's authoritative object state is corrupted on every partial property or drag update (currently hidden only because
+  JS ignores Go's response and overwrites Go on syncScene()).
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Replace value-struct Patch fields in *UpdateRequest with pointer-field patch structs (e.g.,
+  NodePatch, FlowPatch, GlowPatch, RipplePatch, ImagePatch where nil means "unchanged" and non-nil applies any valid value
+  including 0, false, and "") and invoke ValidateFlow/ValidateGlow/ValidateRipple.
+  • Suggested Regression Test: Unit test in commands_test.go creating a Flow/Glow/Ripple/Image with non-zero Delay, Opacity, Blur,
+  ShowLine=true, MaintainAspectRatio=true, sending a partial { "x": 25 } patch, and asserting all unpatched fields remain intact
+  and Node.Update can clear Subtext: "" and set X: 0.
+  ──────
+  ### P1-008 — [HIGH] [Go Protocol] Scene.SetState Dual-Schema Heuristic Wipes Scene When Nodes==0 && Flows==0 && Revision==0
+
+  • Files & Lines: commands.go:946-965
+  • Functions: Dispatch (case "Scene.SetState")
+  • Reproducible Call Path: Send Scene.SetState with {"snapshot": {"background": {...}, "images": [...], "glows": [...]}} where
+  nodes is empty, flows is empty, and revision is 0.
+  • Expected vs Actual: Should apply req.Snapshot. Instead, line 948 (len(req.Snapshot.Flows) > 0 || req.Snapshot.Revision > 0 ||
+  len(req.Snapshot.Nodes) > 0) evaluates to false, falling through to json.Unmarshal(payloadJSON, &directSnap) (L957), which finds
+  no top-level snapshot keys, wipes activeScene to an empty scene.Snapshot{}, and returns Status: "ok".
+  • Root Cause: Checking content heuristics (Flows/Nodes/Revision) instead of checking whether top-level JSON key "snapshot" is
+  present (struct { Snapshot *scene.Snapshot }).
+  • Impact: Any caller wrapping a background/image/glow/ripple-only snapshot in SetSceneStateRequest without setting revision > 0
+  silently erases the entire Go scene.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Change SetSceneStateRequest.Snapshot to *scene.Snapshot (or inspect rawMap["snapshot"] != nil) and
+  reject {} empty payloads unless explicitly clearing.
+  • Suggested Regression Test: Go test dispatching Scene.SetState with {"snapshot":{"glows":[{"id":"1","x":50,"y":50}]}}
+  (revision: 0) and asserting len(activeScene.GetAllGlows()) == 1.
+  ──────
+  ### P1-009 — [HIGH] [Go/WASM Authority] Silent Split-Brain Fallbacks on Go Command Failure Across EngineBridge & Object Modules
+
+  • Files & Lines: internal/web/static/js/engine-bridge.js:924-1105, 1138-1171, 1324-1735, nodes.js:87-229, flows.js:86-259,
+  main.go:38-54
+  • Functions: EngineBridge.createGroup/ungroup/deleteGroup/moveGroup/createImage/cropImage/cropBackground/etc., DiagramNodes.
+  createNode, dispatchBridge
+  • Reproducible Call Path: When EngineBridge.isReady() === true and Go rejects an invalid operation (e.g. Group.Create with
+  invalid members, Background.Crop with s.background == nil, or Image.Create with duplicate ID), Go returns { success: false,
+  error: "..." }. Because if (res && res.success) return res; fails, execution falls straight through into the offline JS fallback,
+  mutating ObjectGroups/ImageObjects/loadedPhoto in JS and then forcing the rejected state into Go on the next syncScene()!
+  Additionally, cmd/wasm/main.go:50-54 wraps operational {success: false} payloads inside outer {success: true, data: {success:
+  false}} for some commands while returning outer {success: false} for others.
+  • Expected vs Actual: Offline JS fallbacks must execute only when !EngineBridge.isReady() (status !== 'ready'), never when Go is
+  active and intentionally rejects a command (compare bringToFront at engine-bridge.js:1837-1844, which properly returns the error
+  when isReady()).
+  • Root Cause: Conflating "WASM unavailable" with "WASM rejected command" in if (this.isReady()) { const res = ...; if (res &&
+  res.success) return res; }.
+  • Impact: Go validation rules cannot protect scene invariants; split-brain state occurs silently whenever a Go command fails.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: In every EngineBridge method, when this.isReady() is true, return the Go error response directly
+  without executing the offline JS fallback; standardize the WASM error envelope across all 75 commands.
+  • Suggested Regression Test: With WASM active, dispatch an invalid createGroup (1 member) or createImage (duplicate ID) and
+  assert neither Go nor JS state mutates.
+  ──────
+  ### P1-010 — [HIGH] [Functional Bug — Stage 15] Clip-Mode Handle/Box Dragging Divides Pointer Deltas by zoomScale Instead of
+  getEffectiveScale()
+
+  • Files & Lines: internal/web/static/js/stage.js:746-748, 790-793
+  • Functions: Stage window.pointermove handler (isClippingImage branch)
+  • Reproducible Call Path: Import or snip an Image Object on a canvas whose viewport 'fit' scale is != 1.0 (e.g. a 1920×1080 or
+  2400×1600 photo fitted into a 900px stage where fitScale ≈ 0.45, while zoomMode === 'fit' keeps this.zoomScale === 1.0). Click
+  Start Clipping Image and drag any clip corner/edge handle.
+  • Expected vs Actual: Handle movement should track the cursor 1:1 in canvas pixels (as isCroppingImage does at stage.js:747 via
+  const scale = this.getEffectiveScale()). Instead, stage.js:791-792 computes const dx = (e.clientX - this.clipDragStart.x) /
+  (this.zoomScale || 1), moving handles at less than half (or more than double) cursor speed whenever fitScale != 1.0.
+  • Root Cause: Copy-paste omission of this.getEffectiveScale() in isClippingImage.
+  • Impact: Interactive image clipping is inaccurate/unusable on any non-1:1 fitted stage.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Replace this.zoomScale || 1 at stage.js:791-792 with this.getEffectiveScale().
+  • Suggested Regression Test: Set mock previewBox.getBoundingClientRect() to { width: 640, height: 360 } on a 1280×720 canvas
+  (effectiveScale = 0.5), drag a clip handle by +50px client delta, and assert clipBox.w changes by +100 canvas px.
+  ──────
+  ### P1-011 — [HIGH] [Functional Bug — Stage 15] commitCurrentCrop Hijacks Image Commits to Background, Never Crops Background
+  Pixels, and Corrupts Preserved Crop Versions
+
+  • Files & Lines: app.js:5511-5609, engine-bridge.js:1654-1698, scene.go:1207-1248, image.go:680-751
+  • Functions: ImageToolsController.openCommitCropModal, commitCurrentCrop, EngineBridge.commitBackgroundCrop,
+  _applyBackgroundUpdate, Scene.CommitBackgroundCrop, Scene.CommitImageCrop
+  • Reproducible Call Path:
+      1. Upload a background photo, crop it (Crop 1), click Commit Crop... → choose Discard Previous Versions (discardVersions =
+      true).
+      2. commitCurrentCrop(true) (app.js:5540-5556) calls EngineBridge.commitBackgroundCrop({ discardVersions: true }) without
+      extracting cropped pixels (newB64 is omitted).
+      3. Both Go (scene.go:1221-1242) and JS fallback (engine-bridge.js:1667-1680) delete crop while leaving b64 untouched —
+      visually reverting the background back to the uncropped original photo (with squashed/wrong naturalWidth/Height)!
+      4. Choose Preserve Crop Versions (discardVersions = false): JS fallback does nothing; Go (scene.go:1215-1245, if newB64 were
+      passed) overwrites B64 without clearing s.background.Crop, double-cropping the already-cropped image, and
+      _applyBackgroundUpdate (engine-bridge.js:1687-1698) never copies bg.b64 back to SceneState.loadedPhoto!
+      5. Furthermore, whenever a background photo exists, if (photo) (app.js:5513, 5541) returns early, making Image Object crop
+      commit (5558-5608) completely unreachable; and CommitImageCrop (image.go:737-745) with discardVersions=false leaves
+      CropVersions[1..N] referencing old uncropped pixel coordinates.
+  • Expected vs Actual: Committing a background crop with discardVersions=true must rasterize the active crop region to a new
+  b64/dataUrl, update naturalWidth/Height, and reset crop to full bounds of the new raster; discardVersions=false cannot replace
+  the shared base raster without rebasing or retaining the uncropped source for historical versions.
+  • Root Cause: Missing offscreen <canvas> pixel extraction for background commits, missing Crop = nil in Go CommitBackgroundCrop
+  (!discardVersions), and unconditional background priority in commitCurrentCrop.
+  • Impact: "Commit Crop" on a background either reverts the user's crop (discardVersions=true) or does nothing
+  (discardVersions=false).
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Extract cropped background pixels via offscreen <canvas> before calling commitBackgroundCrop({
+  newB64, discardVersions }), copy bg.b64/dataUrl in _applyBackgroundUpdate, clear s.background.Crop in Go CommitBackgroundCrop,
+  and rebase or disallow destructive base replacement when discardVersions=false.
+  • Suggested Regression Test: Crop a 200×100 test image to 100×50, run commitCurrentCrop(true), and assert loadedPhoto.
+  naturalWidth === 100, loadedPhoto.crop is nil/disabled, and the rendered <image> displays the 100×50 cropped raster.
+  ──────
+  ### P1-012 — [HIGH] [Functional Bug — Stage 15] renderBackgroundToOffscreenCanvas Ignores Active Background Crop
+  (loadedPhoto.crop) and executeBakeImage Ignores img.clip & Wipes Background Crop Versions
+
+  • Files & Lines: internal/web/static/js/app.js:4117-4187, 4247-4342, 6386-6408
+  • Functions: renderBackgroundToOffscreenCanvas, executeBakeImage, _extractBackgroundSnipDataUrl, executeBackgroundExtraction
+  • Reproducible Call Path:
+      1. Upload a photo and apply a background crop (loadedPhoto.crop = { enabled: true, sourceX, sourceY, sourceWidth,
+      sourceHeight }).
+      2. Use Snip Background Region (confirmBgSnip) OR Bake Image into Background (executeBakeImage).
+      3. renderBackgroundToOffscreenCanvas (app.js:4146-4179) draws img from (0, 0, natW, natH) without checking loadedPhoto.crop!
+  • Expected vs Actual: Both Background Snip and Image Bake should sample/composite against the currently visible cropped
+  background (and executeBakeImage should apply img.clip when baking a clipped Image Object, and update LayerManager.setVisibility
+  when mode === 'keep' at L4312). Instead, snipping extracts pixels from the wrong uncropped region, and baking reverts the
+  background to the uncropped photo while wiping cropVersions.
+  • Root Cause: renderBackgroundToOffscreenCanvas predates Stage 15 background cropping and was never updated to read loadedPhoto.
+  crop.
+  • Impact: Background Snip and Image Bake produce visually wrong images whenever the canvas background has been cropped.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: In renderBackgroundToOffscreenCanvas, when loadedPhoto.crop && loadedPhoto.crop.enabled, use
+  sx=crop.sourceX, sy=crop.sourceY, sw=crop.sourceWidth, sh=crop.sourceHeight as the source sub-rectangle in ctx.drawImage(img, sx,
+  sy, sw, sh, ox, oy, rw, rh); apply ctx.rect/ctx.clip() for img.clip in executeBakeImage; sync LayerManager.setVisibility('image',
+  img.id, false) on keep.
+  • Suggested Regression Test: Crop background to quadrant (500, 500, 500, 500), snip (0, 0, 100, 100), and verify the snipped
+  canvas samples source (500, 500, 100, 100) rather than (0, 0, 100, 100).
+  ──────
+  ### P1-013 — [HIGH] [Undo/Redo & History] Dual-Stack Undo/Redo Desynchronization, Go History.Undo Live-State Loss, Shallow-Copy
+  Mutation, and Lost image Selection
+
+  • Files & Lines: history.js:245-474, history.go:39-108, pkg/engine/scene/scene.go:665-689, 852-903, selection.go:85-120,
+  coordinator.js:1085-1106
+  • Functions: HistoryManager.recordImmediate/undo/redo, scene.HistoryManager.Record/Undo, Scene.UndoHistory/GetSnapshot, Scene.
+  SetSelection, AppCoordinator.coordinatePostRestore
+  • Reproducible Call Path:
+      1. Startup setTimeout(() => this.recordImmediate(), 80) (history.js:473) often fires before async EngineBridge.
+      init('wasm/engine.wasm') finishes (app.js:7450), leaving Go's undoStack 1 entry behind JS.
+      2. Changing any DOM-only control pushes to JS undoStack, whereas Go History.Record deduplicates identical Go Snapshots
+      (Recorded: false, history.go:57-59), skewing stack depths further.
+      3. On Ctrl+Z (history.js:398-417), JS restores JS state, calls syncScene(), calls EngineBridge.undoHistory() (which restores
+      a different skewed snapshot in Go and returns its stale selection!), and then coordinatePostRestore calls render() →
+      syncScene().
+      4. Inside Go: HistoryManager.Undo(currentSnap, currentSel) (history.go:78) ignores currentSnap and currentSel, dropping
+      unrecorded live edits; GetSnapshot (scene.go:852-903) shallow-copies Flow.Nodes, Group.Members, Image.CropVersions, and
+      Metadata slices so later waypoint/group/crop edits retroactively mutate history entries; and both Scene.SetSelection
+      (selection.go:89-119) and AppCoordinator.coordinatePostRestore (coordinator.js:1088-1106) omit image selection (and Go
+      collapses multi-selection on Undo/Redo at scene.go:675).
+  • Expected vs Actual: Undo/Redo must deterministically restore scene state and selection (including image and multi-selection)
+  from a single authoritative deep-copied stack.
+  • Root Cause: Maintaining two independent history stacks with different schemas, deduplication rules, and initialization timing.
+  • Impact: Mismatched selection restoration after Undo/Redo, lost image selection on every Undo, corrupted Go history slices, and
+  heavy RAM duplication (50× base64 strings in JS undoStack).
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Deep-copy all slices/pointers/maps in Scene.GetSnapshot, support SelectionImage and multi-selection
+  restoration in Scene.UndoHistory/RedoHistory and coordinatePostRestore, and use a single authoritative history owner.
+  • Suggested Regression Test: Create Node, drag Flow waypoint, import & select Image, change a canvas control, press Ctrl+Z 3
+  times and Ctrl+Y 3 times; assert exact waypoint coordinates and image selection restoration at each step.
+  ──────
+  ### P1-014 — [HIGH] [Geometry & Stage Interaction] Attached Flows Desynchronize on Group Drag, Multi-Node Nudge, Align &
+  Distribute, and Glows/Ripples Teleport to 2× Coordinates During Group Drag Preview
+
+  • Files & Lines: stage.js:904-965, coordinator.js:743-845, group.go:371-399
+  • Functions: Stage group-drag pointermove/pointerup (stage.js), AppCoordinator.
+  moveSelectedNodes/alignSelectedNodes/distributeSelectedNodes, Scene.MoveGroup
+  • Reproducible Call Path:
+      1. Create two Nodes connected by an attached Flow, plus a Glow at (50%, 50%); group them (Ctrl+G) or multi-select the two
+      Nodes.
+      2. Live Group Drag (stage.js:921-939): <g data-glow-id> and <g data-ripple-id> render children at absolute (px, py) without
+      a base translate; stage.js:925, 937 sets el.setAttribute('transform', 'translate(cx, cy)') (where cx is the new absolute
+      position, not dxPx!), jumping Glows and Ripples to ~2× their coordinates during drag until pointerup re-renders!
+      3. Multi-Selection Drag (stage.js:956-965): Line 957 checks if (!f.fromNodeId || !f.toNodeId) — leaving flows attached at
+      both ends completely frozen while moving all waypoints (including external attached endpoints!) of singly-attached flows.
+      4. Arrow Nudge / Align / Distribute (coordinator.js:743-845): Go updates attached flows inside activeScene, but returns only
+      res.nodes (commands.go:1217-1257)! JS updates DiagramNodes.list without updating DataFlows.list, then requestRender()
+      renders stale flow endpoints and syncScene() overwrites Go's recalculated flows with stale JS flows!
+  • Expected vs Actual: Attached flow endpoints must stay anchored to moved/aligned/distributed nodes, and live drag transforms on
+  Glows/Ripples must use (dxPx, dyPx) delta translation.
+  • Root Cause: Partial response payloads (NodesTransformResponse omits updated Flows), dead EngineBridge.
+  recalculateFlowConnections, and absolute vs delta SVG transform mismatch on Glow/Ripple <g> elements.
+  • Impact: Broken connector topology after any multi-node move, nudge, align, or distribute, plus jarring visual teleportation of
+  grouped Glows/Ripples while dragging.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Use translate(${dxPx}, ${dyPx}) for Glow/Ripple drag previews (stage.js:925, 937), include updated
+  Flows in NodesTransformResponse (or call recalculateNodeConnections for moved node IDs), and fix partial-attachment waypoint
+  translation in MoveGroup (group.go:371-399).
+  • Suggested Regression Test: Connect Node A → Node B with Flow 1, select both nodes, run alignSelectedNodes('top') and
+  moveSelectedNodes(5, 5), and assert Flow 1's rendered SVG path endpoints match Node A and Node B's new anchors.
+  ──────
+  ### P1-015 — [HIGH] [Go Engine Invariants] DeleteGroup Orphans Images, Snapshot.Groups omitempty Fails to Clear Groups on
+  Restore, PastePayload Aliases Slices, and CropBackground Collides crop-N IDs
+
+  • Files & Lines: pkg/engine/scene/group.go:101-125, 278-303, pkg/engine/scene/scene.go:712-716, 782-803, 1039-1046, model.go:429,
+  pkg/engine/scene/clipboard.go:274-350, 398-402
+  • Functions: Scene.DeleteGroup, Scene.CreateGroup, Scene.SetFromSnapshot, Scene.CropBackground, Scene.PastePayload
+  • Reproducible Call Paths & Root Causes:
+      1. DeleteGroup(id, true) (group.go:278-291): switch m.Type handles Node, Flow, Glow, Ripple and omits SelectionImage,
+      leaving grouped Image Objects orphaned in s.images/s.layers. Also DeleteGroup/Ungroup never prune SelectionGroup from s.
+      selection (group.go:293-303).
+      2. SetFromSnapshot Groups & Frame (scene.go:712-716, 782-803): Snapshot.Groups has json:"groups,omitempty" (model.go:429),
+      so a JSON-marshaled snapshot with 0 groups unmarshals as snap.Groups == nil. Because if snap.Groups != nil (scene.go:782)
+      has no else branch, restoring a 0-group JSON snapshot fails to delete existing groups! Likewise, if snap.Frame.Style != "" ||
+      snap.Frame.Enabled (712) fails to clear a previously enabled frame when restoring {Enabled: false, Style: ""}.
+      3. CropBackground Duplicate Version IDs (scene.go:1039-1046 & engine-bridge.js:1555, 3393): Uses cropCount + 1 instead of a
+      collision loop; creating crop-1, crop-2, deleting crop-1, and creating another crop generates a duplicate "crop-2" ID!
+      4. PastePayload (clipboard.go:285-290, 398-402): Shallow-copies img.Clip, img.CropVersions, and Metadata across duplicated
+      objects, fails to offset OrigX/OrigY on cropped images, and calls coalesceGroupMembersInLayersLocked (398) before
+      ensureLayersInitializedLocked (402).
+      5. CreateGroup (group.go:107): objectExistsLocked returns true for SelectionGroup, allowing nested groups that break
+      MoveGroup/ComputeGroupBounds.
+  • Expected vs Actual: Group deletion, snapshot restoration, crop version IDs, and paste/duplicate must maintain strict
+  referential and deep-copy invariants.
+  • Impact: Orphaned images after group delete, undeletable groups/frames on snapshot restore, colliding crop version pills, and
+  aliased slice mutations across duplicated images.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Add case SelectionImage: s.deleteImageLocked(m.ID) and pruneSelectionLocked(SelectionGroup,
+  groupID) in group.go; add else reset branches for snap.Groups and snap.Frame in SetFromSnapshot; loop for unique crop-N IDs in
+  CropBackground; deep-copy Clip/CropVersions/Metadata and reorder ensureLayersInitializedLocked before
+  coalesceGroupMembersInLayersLocked in PastePayload.
+  • Suggested Regression Test: Go unit tests in group_test.go, scene_test.go, and clipboard_test.go covering each of the 5 cases
+  above.
+  ──────
+  ### P1-016 — [HIGH] [Persistence & Security — .sva] .sva Zip-Bomb Header-Spoofing DoS, Dropped Image Blob URLs, Missing
+  Background in ToSnapshot()/EncodeSVA, and Broken extractSceneConfigsFromControls
+
+  • Files & Lines: pkg/engine/sva/decoder.go:50-64, 160-196, 370-390, pkg/engine/sva/encoder.go:211, 337-353, 533-608,
+  model.go:88-118, projects.js:671-691
+  • Functions: sva.Validate, sva.Decode, sva.BuildProjectFromStudioState, extractSceneConfigsFromControls, SceneData.ToSnapshot,
+  ProjectManager.exportSVA
+  • Reproducible Call Paths & Root Causes:
+      1. Zip-Bomb Header-Spoofing (decoder.go:50-64, 160-176): Validate checks MaxTotalUncompressedBytes (256 MiB) and
+      MaxCompressionRatio (100:1) only against spoofable ZIP header f.UncompressedSize64, while Decode reads up to
+      MaxSingleEntryBytes (100 MiB) per entry across up to MaxEntryCount (1000) entries without tracking cumulative actual bytes
+      read — allowing up to ~100 GiB RAM allocation (OOM DoS) on /api/projects/import-sva or WASM DecodeSVA.
+      2. Dead Image blob:/http: URLs (projects.js:671-691, encoder.go:341-342): exportSVA resolves blob:/http: URLs for
+      loadedPhoto, but not for stateObj.images; encoder.go:341 then silently ignores decodeBase64DataURI failure on raw.Images,
+      writing dead blob: URLs into scene.json with zero bundled asset!
+      3. Background Lost in ToSnapshot() & Go-State EncodeSVA (model.go:88-118, encoder.go:211, commands.go:2120-2124): SceneData.
+      ToSnapshot() omits Background/Photo (so Project.DecodeSVA leaves activeScene.background = nil), ExtractStudioState (decoder.
+      go:370-390) omits top-level "background", and BuildProjectFromStudioState (encoder.go:211) ignores raw.Background if raw.
+      LoadedPhoto is absent.
+      4. Broken extractSceneConfigsFromControls (encoder.go:537-605): getFloat fails on string numbers ("1280"), and lines 567-600
+      query 7 wrong control IDs (exportDurationInput, exportLoopSelect, chkCanvasBgTransparent, startZoomSlider, endZoomSlider,
+      swaySlider, breatheSlider), writing fallback defaults (1600×900, 5s) into scene.json's structured canvas/camera fields.
+  • Expected vs Actual: .sva must enforce cumulative stream byte budgets, bundle all image assets reliably, preserve Background
+  across ToSnapshot()/EncodeSVA, and write accurate structured canvas/camera/optical/frame configs.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Track cumulative actual decompressed bytes across all entries in Decode (capping at
+  MaxTotalUncompressedBytes and checking actual compression ratio); resolve stateObj.images URLs in exportSVA and error on
+  undecodable image URIs in encoder.go; populate Background in ToSnapshot() and BuildProjectFromStudioState; fix getFloat string
+  parsing and the 7 control IDs in extractSceneConfigsFromControls.
+  • Suggested Regression Test: Go sva_test.go test with spoofed UncompressedSize64=1 inflating >256 MiB (assert
+  ErrArchiveTooLarge), plus Project.EncodeSVA with empty req.State preserving activeScene background and canvas dimensions.
+  ──────
+  ### P1-017 — [HIGH] [Access Control / Object Invariants] Locked and Visible State Bypassed Across Go Engine, Inspectors,
+  Shortcuts, Hit-Testing, and Unlayered Fallbacks
+
+  • Files & Lines: commands.go:1060-1717, internal/web/static/js/app.js:1490-2255, 3881-4064, 6671-6704, 6926-6952,
+  stage.js:144-214, 362-424, 1468-1484, 1895-1922, scene-state.js:426-460
+  • Functions: Go Update*/Remove*/Move*/Align*, FloatingPropertiesEditor._bindControls, Stage.startCropMode/startClipMode, Ctrl+A
+  & Arrow key handlers, SceneState.buildFullSVG
+  • Reproducible Call Path: Lock a Node or Image in the Layers panel (🔒), click its row in the Layers list (which intentionally
+  passes { source: 'layers_list' } bypassing coordinator.js:133 so it can be unlocked), then press Arrow keys to move it, edit or
+  delete it in the sidebar / FloatingPropertiesEditor, or press Ctrl+A (selects all locked & hidden nodes!) + Arrow nudge, or drag
+  a grouped member (stage.js:368 skips lock check on group selection).
+  • Expected vs Actual: Locked objects must be non-movable, non-editable, non-croppable/clippable, and non-deletable until
+  unlocked; hidden objects must be excluded from hit-testing (Find*At), Ctrl+A, and unlayered fallback rendering (scene-state.
+  js:426-460).
+  • Root Cause: Lock enforcement was only added to single-object canvas click (coordinator.js:133) and deleteSelectedObjects
+  (coordinator.js:947), never in Go mutations or inspector/keyboard/crop/group paths.
+  • Impact: Locking an object provides only superficial canvas-click protection and is bypassed by nearly every other interaction
+  path.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Enforce getEffectiveLockedLocked on mutating/deleting/transforming operations in Go
+  (pkg/engine/scene) and getEffectiveVisibilityLocked in Find*At (iterating s.layers top-to-bottom); guard inspector inputs, Ctrl+
+  A, Arrow nudge, group drag, and startCropMode/startClipMode with LayerManager.getEffective.
+  • Suggested Regression Test: Lock node-1 and hide node-2; verify Ctrl+A selects neither, Arrow keys and inspector edits do not
+  mutate node-1, and FindNodeAt skips node-2.
+  ──────
+  ### P1-018 — [HIGH] [Security & Robustness] Default 0.0.0.0:8088 Network Exposure Without CSRF/Origin Protection, Render Bounds,
+  Concurrency Limits, or Audio Extension Allowlist
+
+  • Files & Lines: cmd/svg-animator/main.go:35-41, 138-140, config.json:1-5, internal/web/server.go:212-215, 308, 593-692, 694-780,
+  rasterizer.go:332-390
+  • Functions: defaultAppConfig, StartServerWithConfig, handleExport, handleAudioInspect, normalizeParams
+  • Reproducible Call Paths:
+      1. LAN + Cross-Origin CSRF Exposure: Server binds 0.0.0.0:8088 by default with zero authentication, zero Origin/Sec-Fetch-
+      Site checks, and zero HTTP ReadHeaderTimeout (server.go:212-215). Any website visited by a local user can POST text/plain
+      JSON to http://127.0.0.1:8088/api/projects/delete?id=1, /api/projects/save, or /api/export!
+      2. Unbounded Render DoS: normalizeParams (rasterizer.go:332-363) enforces no upper bounds on Duration, FPS, Width, or Height,
+      and handleExport has no worker semaphore — parallel requests or {"duration":36000,"fps":1000,"width":16384,"height":16384}
+      spawn unbounded Chromium + FFmpeg processes with a 30-minute timeout (L390).
+      3. Unrestricted Audio Extension (server.go:308, 754): Passes filepath.Ext(req.AudioName) (e.g. .m3u8 HLS playlist) directly
+      to ffmpeg -i.
+  • Expected vs Actual: Local single-user studio should default to 127.0.0.1:8088, validate same-origin Origin/Sec-Fetch-Site on
+  mutating/export POSTs, cap dimensions (<= 4096), FPS (<= 60), duration (<= 300s), total frames, and concurrent render jobs (1–2),
+  set ReadHeaderTimeout, and allowlist audio extensions (.mp3, .wav, .ogg, .m4a, .aac, .flac) with -protocol_whitelist file.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Default Host to "127.0.0.1" (requiring explicit -host 0.0.0.0 for LAN), add same-origin middleware
+  on /api/* POST routes, enforce parameter caps + render semaphore in server.go/rasterizer.go, allowlist audio extensions, and set
+  ReadHeaderTimeout: 10 * time.Second.
+  • Suggested Regression Test: server_test.go tests asserting 403 on cross-origin Origin: https://evil.example POSTs, 400 on
+  oversized width/fps/duration or .m3u8 audio, and bounded concurrency.
+  ──────
+  ### P1-019 — [MEDIUM] [Export Parity] AnimatedExportStudio Stretches Non-16:9 Scenes & Forces Black Background on Transparent
+  Exports; StillExportStudio Drops 3D Tilt, fill="remove", and scale Transforms
+
+  • Files & Lines: rasterizer.go:537-562, export-modal.js:244-275, internal/web/static/js/still-export-modal.js:49-288, 389-435
+  • Functions: cssOverrideJS (rasterizer.go), StillExportStudio.bakeStaticSVGAtTime/evaluateSMILAnimate/rasterizeSVGToDataURL
+  • Reproducible Call Paths:
+      1. Crop a photo to 800×800 (1:1) or enable Transparent Background, then export Animated WebP/MP4 with default 1080p
+      (1920×1080): cssOverrideJS (rasterizer.go:542, 554) sets document.body.style.backgroundColor = '#000000' (destroying alpha
+      transparency in WebP/APNG!) and svg.setAttribute('preserveAspectRatio', 'none') (anamorphically stretching 1:1 into 16:9!).
+      2. Open Still Export at t = 3.5s on a scene with perspective-tilt, pulse Nodes (animateTransform type="scale"), or completed
+      repeatCount="1" Flows: bakeStaticSVGAtTime ignores .camera-stage-3d, wraps animateMotion via localSec % dur, treats
+      fill="remove" as fill="freeze", and ignores non-translate animateTransform. Also neither export modal has an Include Images
+      layer toggle.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Use preserveAspectRatio="xMidYMid meet" (or default export dimensions to canvas aspect ratio) and
+  backgroundColor = 'transparent' for WebP/APNG when bgTransparent is enabled in rasterizer.go; handle .camera-stage-3d,
+  repeatCount, fill, scale, and await img.decode() in StillExportStudio.
+  • Suggested Regression Test: Export a transparent 800×800 scene to WebP/PNG and verify output pixel aspect ratio and corner
+  alpha == 0.
+  ──────
+  ### P1-020 — [MEDIUM] [Timeline & Animation] Split Animation Runtime: TimelinePlayer Only Drives Camera & Blur While
+  Flows/Glows/Ripples/Nodes Run Autonomous SMIL, and pingpong currentTime Grows Unbounded
+
+  • Files & Lines: app.js:2528-2734, optics.go:76-82, camera.go:139-148, effects.js:647-739
+  • Functions: TimelinePlayer._loop/applyFrameToDOM, EvaluateOpticalAtTime, EvaluateCameraAtTime, Effects.build
+  • Root Cause & Impact:
+      1. Clicking Pause/Stop/Scrub in TimelinePlayer (app.js:2696-2734) pauses/seeks only .camera-rig and optical <feGaussianBlur>
+      — Flows, Glows, Ripples, and Node animations keep running via browser SMIL (svg.pauseAnimations() / svg.setCurrentTime() is
+      never called, and Go's frame.flows/glows/ripples/nodes are ignored!).
+      2. In pingpong mode (app.js:2658-2660), _loop has an empty else if, so this.currentTime increments past this.duration
+      forever.
+      3. Optical filters in Effects.build (effects.js:733-738) wrap only baseSurfaceMarkup (background), never foreground objects;
+      Go optics.go:76-82 lacks tilt-shift mask/orientation; Go camera.go:142 loops handheld-drift even when Loop == "once".
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Call svg.pauseAnimations() + svg.setCurrentTime(timeSec) (or apply frame.flows/glows/ripples/nodes)
+  inside TimelinePlayer pause/seek/loop, bound pingpong cycle time to 2 * this.duration, and align Go optics.go/camera.go with
+  Effects.build.
+  • Suggested Regression Test: Seek TimelinePlayer.seek(2.5) while paused and assert <svg>.getCurrentTime() === 2.5 and pingpong
+  currentTime <= 2 * duration.
+  ──────
+  ### P1-021 — [MEDIUM] [Architecture / Dead Code] Triple Duplication of Camera/Optical/Frame Pipelines and 13 Dead Go Legacy
+  Files
+
+  • Files & Lines: templates.go:1-136, effect.go:71-84, internal/effects/{chromatic,exposure,focus,glitch,grain,handheld,kenburns,
+  liquid,motionblur,retro,tilt3d,tiltshift}.go, pkg/engine/scene/{camera,optics,frame}.go, effects.js
+  • Root Cause & Impact: templates.go and 12 internal/effects/*.go effect registrations have zero callers (generator.go calls
+  BuildMasterMarkup/BuildFrameMarkup directly), while camera/optical/frame logic is maintained in three diverging places
+  (internal/effects, pkg/engine/scene, effects.js), violating AGENTS.md Rule B.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Retire unreferenced internal/generator/templates.go and unused internal/effects registry files, and
+  converge CLI and WASM onto pkg/engine/scene.
+  • Suggested Regression Test: go build ./... && go test ./... confirming CLI -in presets still produce identical output after
+  dead-file retirement.
+  ──────
+  ### P1-022 — [MEDIUM] [Verification & Build Tooling] Major Blind Spots in verify-architecture.sh, verify-regression.sh, verify-
+  runtime.sh, and Stale WASM in build_and_run.sh
+
+  • Files & Lines: verify-architecture.sh:240-682, scripts/verify-regression.sh:65, 103-136, verify-runtime.sh:222-352,
+  build_and_run.sh:25
+  • Root Cause & Impact:
+      • verify-architecture.sh completely skips engine-bridge.js (1–4170), emits WARNING (exit 0) instead of FAIL on ARCH-
+      02/04/05/06/07, and hardcodes (PASS) in its summary footer (L664-682).
+      • verify-regression.sh:65 runs go test ./internal/db ./internal/web, omitting ./pkg/engine/..., and REG-04/REG-05 are
+      unimplemented stubs.
+      • verify-runtime.sh skips engine.wasm/engine-bridge.js in RUN-04 and omits Steps 7–9 + SVA endpoints in RUN-05.
+      • build_and_run.sh builds the Go server binary without running scripts/build-wasm.sh, risking stale embedded engine.wasm
+      after pkg/engine/ edits!
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Run scripts/build-wasm.sh inside build_and_run.sh before go build; add ./pkg/engine/... to verify-
+  regression.sh; include engine-bridge.js and SVA/wasm checks in verify-architecture.sh and verify-runtime.sh.
+  • Suggested Regression Test: Introduce a synthetic DOM access in a Layer 3 section of engine-bridge.js in a test fixture and
+  assert verify-architecture.sh exits non-zero.
+  ──────
+  ### P1-023 — [MEDIUM] [Stage 16 Readiness] Global Unscoped SVG <defs> IDs, Global CSS @keyframes, Mixed Object IDs, and Zero
+  Widget Lifecycle Teardown
+
+  • Files & Lines: effects.js:532-755, nodes.js:272, flows.js:390-440, glows.js:249-252, ripples.js:228-252, engine-bridge.js:3776
+  • Root Cause & Impact: Every SVG emits hardcoded global IDs (#viewportClip, #opt-focus, #ts-mask, #nodeDropShadow, #flowPath-1,
+  #glowGrad-1, #rippleMask-1, #clip-image-1) and global CSS selectors (.camera-rig, @keyframes camKenBurns). Embedding two SVG
+  widgets inline on one web page causes immediate url(#...) filter/clipPath/path cross-wiring and @keyframes overrides.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Parameterize SVG generation with an optional instancePrefix (default "" in studio, "sva-<id>-" in
+  widget exports) scoping all <defs> IDs, url(#...) references, and @keyframes/container classes.
+  • Suggested Regression Test: Render two distinct scenes with instancePrefix: "w1-" and "w2-" into one HTML document and assert
+  zero duplicate [id] attributes across the document.
+  ──────
+  ### P1-024 — [LOW] [Persistence / REST API] SQLite Unused assets Table, Unvalidated schema_json, Blank CreatedAt on Update,
+  Unclosed DB Handle, and Dropped Description on GET /api/projects/export-sva
+
+  • Files & Lines: internal/db/sqlite.go:33-82, 155-175, internal/web/server.go:417-420, 464-478
+  • Root Cause & Impact: assets table (sqlite.go:64-73) has zero callers; SaveProject updates omit CreatedAt in the returned
+  ProjectSummary (sqlite.go:166-174) and accept malformed non-JSON schema_json; sqlite.go lacks Close() on server shutdown; GET
+  /api/projects/export-sva?id=... (server.go:476-477) forgets projectDesc = proj.Description and returns 500 instead of 404 on
+  sql.ErrNoRows; AGENTS.md/AI_GUIDE.md reference nonexistent /api/render instead of /api/export.
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Validate json.Valid([]byte(req.SchemaJSON)) in handleProjectSave, preserve CreatedAt on update, add
+  db.Close() on shutdown, copy proj.Description + map sql.ErrNoRows → 404 in handleExportSVA, and update /api/render docs.
+  • Suggested Regression Test: Save a project with description: "Test", call GET /api/projects/export-sva?id=1, decode manifest.
+  json, and assert manifest.description == "Test".
+  ──────
+  ### P1-025 — [LOW] [UI Event & Shortcut Polish] Duplicate #settingsPanel Listeners, CustomColorPicker Cancel Recording / Apply
+  Double-Recording, Ctrl+Z Hijacking <textarea>/Number Inputs, and Escape Double-Action
+
+  • Files & Lines: internal/web/static/js/app.js:591-620, 2205-2225, 2377-2382, 3225-3247, 4663, 7206-7253, history.js:457-470
+  • Root Cause & Impact:
+      1. camMotionSel, effSel, chkFrame, chkFrameLight bind render(); recordImmediate(); twice (app.js:7208-7244 AND 7247-7253).
+      2. CustomColorPicker.cancel() (3244) dispatches change (recording an undo entry on Cancel!), and apply() (3230, 3236)
+      records twice.
+      3. history.js:459-462 only skips Ctrl+Z when type === 'text', hijacking <textarea> and <input type="number"> native undo.
+      4. Pressing Escape with FloatingPropertiesEditor open inside Group Edit Mode closes the editor, clears selection, AND exits
+      Group Edit Mode simultaneously (app.js:595, 2379).
+      5. #fctx-btnCropImage/#fctx-btnClipImage (app.js:2205-2225) are absent from index.html, and #btnToolShowInLayers queries
+      nonexistent [data-layer-id] (app.js:4663).
+  • Confidence: Confirmed.
+  • Smallest Safe Remediation: Deduplicate #settingsPanel listeners, suppress history recording inside CustomColorPicker.cancel(),
+  skip all editable <input>/<textarea>/isContentEditable in history.js keydown, stop propagation after closing
+  FloatingPropertiesEditor on Escape, and add data-layer-id in renderLayersList.
+  • Suggested Regression Test: Focus a <textarea> or <input type="number">, dispatch Ctrl+Z, and assert HistoryManager.undo() is
+  not called; open and cancel CustomColorPicker and assert undoStack.length is unchanged.
+  ──────
+  ## G. Unverified Concerns (Hypotheses Strictly Separated from Confirmed Defects)
+
+  1. H-001 — Still Export Blank-Image Decode Race on Large Embedded Data-URI Rasters (still-export-modal.js:389-435):
+      • Concern: rasterizeSVGToDataURL creates a Blob URL for an <svg> containing multi-MB data:image/... nested <image> tags and
+      calls ctx.drawImage(img, ...) synchronously on the outer SVG's img.onload without img.decode() or inner image preload. In
+      Chromium/Firefox, inner base64 <image> tags inside a Blob SVG can occasionally paint blank on the first frame for large
+      (>4K) photos.
+      • Verification Needed: Manual or headless Chromium test exporting a 4K cropped photo via StillExportStudio to PNG and
+      asserting non-empty pixel variance.
+  2. H-002 — Multi-FFmpeg io.MultiWriter Pipe Backpressure Deadlock Under Encoder Failure (internal/rasterizer/rasterizer.go:305-
+  320):
+      • Concern: In format: "all" mode, io.MultiWriter writes PNG frames synchronously to 3 FFmpeg stdin pipes (webp, apng, mp4).
+      If one FFmpeg process stalls without closing stdin while another blocks on buffer capacity, streamFramesToWriter may block
+      until the 30-minute context timeout.
+      • Verification Needed: Fault-injection test stalling one child reader during multi-pipe export.
+  3. H-003 — Concurrency Race in Scene.GetSnapshot Writing s.layers Under RLock (pkg/engine/scene/scene.go:848-885, layer.go:63):
+      • Concern: GetSnapshot acquires s.mu.RLock() and calls s.ensureLayersInitializedLocked(), which unconditionally assigns s.
+      layers = validEntries. In single-threaded js/wasm goroutine dispatch this rarely interleaves, but in multi-goroutine native
+      Go callers (go test -race) concurrent GetSnapshot() calls race on s.layers.
+      • Verification Needed: Run go test -race ./pkg/engine/scene/... in a non-read-only verification pass with concurrent
+      GetSnapshot() goroutines.
+  4. H-004 — Browser Memory Exhaustion After Repeated High-Resolution Crop Commits / Bakes (history.js:9, 122-226):
+      • Concern: HistoryManager.undoStack stores up to 50 deep JSON string copies of loadedPhoto.b64 and ImageObjects.list[].src.
+      With a 15 MB PNG background plus 3 extracted images, 50 slider/property snapshots could retain >1 GB of UTF-16 JS heap
+      strings.
+      • Verification Needed: Browser heap snapshot profiling across 50 edits with a 4K PNG background.
+
+  ──────
+  ## H. Protocol and Snapshot Risk Assessment
+
+   #  │ Audit Question                                              │ Verified Assessment & Exact Code Reference
+  ────┼─────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────
+   1  │ Does EngineBridge.syncScene() overwrite Go state from JS?   │ Yes — on every render(), Undo/Redo, New Project, and
+      │                                                             │ Project Load (app.js:7347, history.js:388,
+      │                                                             │ projects.js:269, 651).
+   2  │ What fields does buildCurrentSceneSnapshot() omit or        │ Omits background/loadedPhoto, presets, autoApplyPreset,
+      │ simplify?                                                   │ controls, scene metadata, and
+      │                                                             │ nodesCounter/flowsCounter/glowsCounter/ripplesCounter
+      │                                                             │ (engine-bridge.js:2294-2359).
+   3  │ What fields does normalizeSceneSnapshot() strip or default? │ Strips images[].{crop, cropVersions, activeCropVersionId,
+      │                                                             │ clip, data, metadata}, flows[].{customB64, customMime,
+      │                                                             │ customW, customH, visible, locked, metadata},
+      │                                                             │ nodes[].{visible, locked, opacity, metadata},
+      │                                                             │ glows/ripples[].{visible, locked, metadata},
+      │                                                             │ layers[].{visible, locked}; coerces 0 to non-zero defaults
+      │                                                             │ via ||; stamps revision: Date.now()
+      │                                                             │ (engine-bridge.js:2038-2292).
+   4  │ What happens in Scene.SetState / SetFromSnapshot when       │ Missing background wipes s.background = nil (scene.go:708);
+      │ fields are missing/nil?                                     │ missing nodes/flows/glows/ripples/images wipes their maps;
+      │                                                             │ missing groups (nil) preserves old groups (scene.go:782
+      │                                                             │ bug!); disabled frame ({Enabled:false, Style:""}) preserves
+      │                                                             │ old frame (scene.go:712 bug!); SetSceneStateRequest with 0
+      │                                                             │ nodes, 0 flows, revision == 0 wipes the entire scene
+      │                                                             │ (commands.go:948, P1-008).
+   5  │ Can syncScene() erase background crop, crop versions, image │ Yes: erases s.background (including its crop &
+      │ crop/clip, groups, layers, or lock/visibility?              │ cropVersions), erases images crop/cropVersions/clip/data,
+      │                                                             │ and erases visible/locked across all objects and layers
+      │                                                             │ (P1-001).
+   6  │ Can syncFromEngineSnapshot() overwrite richer JS state with │ Yes: called by moveGroup (1056), pasteClipboard (1154), and
+      │ stripped Go state?                                          │ duplicateSelection (1170), it replaces ImageObjects.list
+      │                                                             │ with Go's crop/clip/data-stripped images (1203-1226).
+   7  │ How do partial updates (*.Update) behave with Go zero       │ Value-struct patches clobber omitted 0/false fields in
+      │ values?                                                     │ Flow.Update, Glow.Update, Ripple.Update, and Image.Update,
+      │                                                             │ while Node.Update refuses legitimate 0 (X=0, Y=0,
+      │                                                             │ FillOpacity=0, StrokeWidth=0) and "" (Text="", Subtext="")
+      │                                                             │ (P1-007).
+   8  │ Are Go validators (ValidateFlow, ValidateGlow,              │ No — all three are dead code in production (flow.go:12,
+      │ ValidateRipple) enforced on protocol commands?              │ glow.go:22, ripple.go:22 have zero non-test callers).
+   9  │ Do read-only evaluation commands mutate activeScene?        │ Yes: Timeline.EvaluateSceneAtTime (commands.go:994-996) and
+      │                                                             │ Timeline.EvaluateBatch (1005-1007) permanently overwrite
+      │                                                             │ activeScene if req.Snapshot != nil!
+   10 │ Is revision monotonic and checked for optimistic            │ No: SetFromSnapshot (scene.go:840-844) overwrites
+      │ concurrency?                                                │ s.revision with arbitrary snap.Revision (allowing rollback
+      │                                                             │ after Date.now() vs small int), multi-flow updates double-
+      │                                                             │ increment revision, and zero commands check
+      │                                                             │ expectedRevision.
+   11 │ Is the WASM error envelope consistent across commands?      │ No: Node/Flow/Glow/Ripple/Camera/Optics/Frame.Update return
+      │                                                             │ err != nil (outer success: false), while
+      │                                                             │ Group/Image/Layer/Background/Selection/History/SVA return
+      │                                                             │ err == nil with inner {success: false}
+      │                                                             │ (cmd/wasm/main.go:38-54).
+   12 │ Does the bridge violate Rule E (per-object WASM calls per   │ Live playback (TimelinePlayer) uses batched
+      │ frame)?                                                     │ Timeline.EvaluateSceneAtTime (compliant), while interactive
+      │                                                             │ drag (Stage pointermove) dispatches 1–2 WASM calls
+      │                                                             │ (ComputeSnappedPosition + Node.Update) per pointer frame
+      │                                                             │ (acceptable at 60Hz).
+   13 │ Do Go mutations automatically record undo history?          │ No: only Project.DecodeSVA (commands.go:2161) touches
+      │                                                             │ activeScene.History(); all other commands rely on manual
+      │                                                             │ History.Record calls from JS.
+   14 │ Are ID counters preserved across snapshots?                 │ GroupsCounter and ImagesCounter are in Snapshot, but
+      │                                                             │ nodesCounter, flowsCounter, glowsCounter, and
+      │                                                             │ ripplesCounter are NOT in Snapshot (model.go:417-434) and
+      │                                                             │ only ratchet upwards in Go (scene.go:721), never resetting
+      │                                                             │ on New Project!
+   15 │ Is activeScene multi-instance safe?                         │ No: var activeScene = scene.NewScene() (commands.go:20) is
+      │                                                             │ a package-level global singleton.
+  ──────
+  ## I. Persistence and .sva Risk Assessment
+
+  1. SQLite (studio_library.db, sqlite.go):
+      • Parameterized SQL prevents SQL injection, and SetMaxOpenConns(1) + sync.RWMutex + WAL serializes single-process access
+      cleanly.
+      • Risks: schema_json is stored unvalidated (P1-024), embeds all base64 assets inline while the assets table sits 100% unused,
+      loses CreatedAt in the SaveProject update response (sqlite.go:166-174), and lacks a Close() hook for clean WAL checkpointing
+      on server exit.
+  2. Native .sva Package (pkg/engine/sva/, projects.js:655-834, server.go:454-591):
+      • Working Well (Verified): Foreground nodes, flows, glows, ripples, groups, layers, images (when base64 data URIs are
+      already inline), and loadedPhoto (including Stage 15 crop, cropVersions, activeCropVersionId via s.Photo) roundtrip through
+      BuildProjectFromStudioState → Encode → Decode → ExtractStudioState.
+      • High-Priority Risks (P1-016, P1-024):
+          1. Memory DoS (Zip-Bomb): Header-only UncompressedSize64 validation in Validate + per-entry 100 MiB LimitReader without
+          a cumulative byte counter in Decode.
+          2. Asset Integrity Gaps: Decode (decoder.go:189-195) skips SHA-256 verification if entry.SHA256 == "" or if an assets/*
+          file is omitted from manifest.Assets, and never validates existence of glows/flows Metadata["assetPath"] entries.
+          3. Asset Path Collisions & Unsanitized IDs (encoder.go:245, 299, 323, 345): Background photo named image_image-1.png
+          collides with Image image-1 in assets/; img.ID/g.ID/f.ID are not passed through sanitizeFilename; PhotoInfo.AssetID
+          ("asset-photo-bg") never matches Manifest.Assets[i].ID (path.Base(cleanPath)).
+          4. Unresolved images Blob URLs (projects.js:671-691 + encoder.go:341): Silently leaves dead blob: URLs in scene.json.
+          5. Broken Structured scene.json Configs & ToSnapshot(): extractSceneConfigsFromControls writes wrong defaults (1600×900,
+          5s) because getFloat rejects strings and 7 control IDs are mistyped; SceneData.ToSnapshot() drops Background/Photo; GET
+          /api/projects/export-sva drops proj.Description.
+
+
+  ──────
+  ## J. Rendering and Export Parity
+
+   Dimension          │ Live Studio (app.… │ Standalone .svg /… │ Still Export (Still… │ Animated Export (… │ Headless CLI (cmd/…
+  ────────────────────┼────────────────────┼────────────────────┼──────────────────────┼────────────────────┼─────────────────────
+   Scene Source       │ JS                 │ JS                 │ JS buildFullSVG +    │ JS buildFullSVG    │ Go
+                      │ SceneState.buildFu │ SceneState.buildFu │ bakeStaticSVGAtTime  │ sent as svgMarkup  │ generator.BuildStan
+                      │ llSVG              │ llSVG              │                      │                    │ daloneSVG (photo
+                      │                    │                    │                      │                    │ only — 0 diagram
+                      │                    │                    │                      │                    │ objects!)
+   Cropped Background │ Nested <svg        │ Identical          │ Identical (potential │ Identical          │ Unsupported
+                      │ viewBox="sx sy sw  │                    │ Blob sub-image       │                    │
+                      │ sh">               │                    │ decode race H-001)   │                    │
+   Cropped & Clipped  │ Nested <svg> +     │ Identical          │ Identical (no        │ Identical (no      │ Unsupported
+   Images             │ <clipPath>         │                    │ includeImages        │ includeImages      │
+                      │                    │                    │ toggle)              │ toggle)            │
+   Canvas Aspect      │ Preserved          │ Preserved          │ Locked to scene      │ DISTORTED          │ Matches input image
+   Ratio              │ (xMidYMid meet)    │                    │ aspect ratio         │ (preserveAspectRat │
+                      │                    │                    │                      │ io="none" when     │
+                      │                    │                    │                      │ preset != scene    │
+                      │                    │                    │                      │ ratio, P1-019)     │
+   Transparent        │ Preserved          │ Preserved          │ Preserved (PNG/WebP) │ BROKEN             │ Broken in
+   Background         │                    │                    │                      │ (body.backgroundCo │ rasterizer
+                      │                    │                    │                      │ lor='#000000' in   │
+                      │                    │                    │                      │ rasterizer.go:542, │
+                      │                    │                    │                      │ P1-019)            │
+   Animation Timing   │ Split:             │ Pure CSS           │ Partial JS DOM       │ Chromium           │ Chromium scrubberJS
+   Synchronization    │ TimelinePlayer     │ @keyframes         │ baking: misses       │ getAnimations() +  │
+                      │ controls Camera +  │ (camDur/camLoop) + │ .camera-stage-3d,    │ svg.setCurrentTime │
+                      │ Blur only;         │ independent per-   │ scale transforms,    │ () (doubles total  │
+                      │ Flows/Glows/Ripple │ object SMIL (dur + │ fill="remove", and   │ duration on        │
+                      │ s/Nodes loop       │ endDelay)          │ repeatCount="1" (P1- │ pingpong at        │
+                      │ independently via  │                    │ 019)                 │ rasterizer.go:353) │
+                      │ SMIL (P1-020)      │                    │                      │                    │
+  ──────
+  ## K. Security and Robustness
+
+  ### 1. Local Single-User Assumptions vs Network-Exposed Reality
+
+  • Although SVG Animator Studio is designed as a self-hosted studio, it binds 0.0.0.0:8088 by default (main.go:37,
+  config.json:2)—meaning it is network-exposed to the LAN/container network out of the box AND reachable from any malicious web
+  page in the user's browser via cross-origin CSRF / DNS rebinding (P1-018).
+
+  ### 2. Confirmed Reachable Vulnerabilities (Ordered by Severity)
+
+  1. Arbitrary Local File Read (file:// LFI) & SSRF (P1-004, CRITICAL): POST /api/export → file://<tmpDir>/index.html with
+  unsanitized svgMarkup + --no-sandbox + --allow-file-access-from-files.
+  2. Stored DOM/SVG/CSS XSS (P1-005, CRITICAL): Unescaped IDs, colors, and data URIs in .sva / SQLite schema_json execute
+  arbitrary JS in the studio (which can then invoke /api/export or exfiltrate all SQLite projects) and in exported .html/.svg
+  files.
+  3. .sva Zip-Bomb Memory Exhaustion (P1-016, HIGH): Spoofed UncompressedSize64 headers bypass sva.Validate and allocate up to
+  1000 × 100 MiB in sva.Decode.
+  4. Cross-Origin CSRF + Unbounded Chromium/FFmpeg Process Spawning + .m3u8 FFmpeg Input (P1-018, HIGH): Unauthenticated endpoints
+  with no Origin check, no dimension/FPS/duration ceiling, no concurrency semaphore, no ReadHeaderTimeout, and no audio extension
+  allowlist.
+  5. XML/HTML Template Injection in CLI/Generator (internal/generator/generator.go:131-185, MEDIUM): Unescaped fmt.Sprintf
+  interpolation of title, mimeType, FrameMouldingData, and effect strings.
+  ──────
+  ## L. Test Coverage Gaps
+
+  1. scripts/regression-harness.js (8,098 lines — 65 Scenarios):
+      • Critical Blind Spot (P1-006): document.addEventListener is a no-op (L768), skipping app.js:6523-7576 (render() +
+      syncScene(), #btnImportImageObject, keyboard shortcuts, duplicate listeners). WASM is not even loaded until Scenario 15
+      (L2212). getElementById auto-creates missing elements (L722), <canvas> is a stub (L608), and getBoundingClientRect is fixed
+      at scale = 1.0 (L606).
+  2. Go Unit Tests (pkg/engine/..., internal/db, internal/web):
+      • Strong math/unit coverage for happy paths, but missed:
+          • Partial-patch zero-value clobbering (P1-007 — in fact, commands_test.go:699-705 triggered the Ripple.Update clobber
+          without asserting preserved fields!).
+          • Scene.SetState 0-node/0-flow/0-revision wipe (P1-008).
+          • DeleteGroup(..., true) with SelectionImage members (P1-015).
+          • JSON roundtrip of Snapshot with 0 Groups (omitempty bug, P1-015).
+          • CropBackground ID collision after deleting an intermediate version (P1-015).
+          • History.Undo dropping unrecorded live state & shallow-slice mutation (P1-013).
+          • sva.Decode spoofed UncompressedSize64 zip-bomb & EncodeSVA without req.State (P1-016).
+          • Locked / Visible enforcement on mutations and hit-testing (P1-017).
+
+  3. Verification Shell Suite (scripts/verify-*.sh, P1-022):
+      • verify-architecture.sh ignores engine-bridge.js (4,170 lines) and downgrades ARCH-02/04/05/06/07 violations to WARNING
+      (exit 0); verify-regression.sh omits ./pkg/engine/... and stubs out Chromium/FFmpeg checks (REG-04, REG-05); verify-runtime.
+      sh omits .wasm, engine-bridge.js, and SVA endpoints.
+
+  ──────
+  ## M. Stage 16 Readiness Assessment
+
+  Stage 16 plans external effect-control runtime bindings (telemetry/API-driven node states, flow rates, glow pulses, ripple
+  triggers, camera/optics control) and portable standalone web widgets without bundling the Go/WASM editor runtime.
+
+  ### Blocking Architectural Gaps Before Stage 16
+
+  1. Unscoped Global SVG <defs> & CSS Selectors (P1-023 — Hard Blocker for Multi-Widget Pages): Two widgets mounted inline on one
+  dashboard will collide on #viewportClip, #opt-focus, #ts-mask, #nodeDropShadow, #flowPath-1, #glowGrad-1, #rippleMask-1, .
+  camera-rig, and @keyframes camKenBurns.
+  2. Non-Uniform Addressing & Flat Editor-DOM Control Schema: Nodes/Flows/Glows/Ripples use bare integer IDs (1, 2), Images/Groups
+  use prefixed strings (image-1, group-1), and Camera/Optics/Frame have no object IDs at all (stored as 96 HTML input IDs like
+  startXZoomSlider). Exported <g> elements carry data-node-id etc., but do not export data-sva-name or a structured widget binding
+  manifest mapping user-assigned names (Node.Name, Flow.Name) to targetable properties.
+  3. Split SMIL vs Runtime Animation Control (P1-020): Standalone SVGs rely on static SMIL attributes (dur, repeatCount, values)
+  with zero JS controller hooks, whereas TimelinePlayer requires EngineBridge and still ignores Flows/Glows/Ripples/Nodes.
+  4. Split State Authority (P1-001, P1-002, P1-007): Defining external binding schemas in Stage 16 while JS and Go hold diverging
+  schemas (syncScene stripping metadata!) would cause metadata-stored telemetry bindings on Nodes/Flows/Glows/Ripples/Images to be
+  wiped on every render()!
+
+  ### Concrete Stage 16 Preparation Blueprint
+
+  1. Repair P1-001 / P1-007 first so Metadata on all scene objects survives syncScene and *.Update intact.
+  2. Add deterministic instancePrefix scoping to all SVG <defs> IDs, url(#...) references, and CSS classes/@keyframes.
+  3. Emit semantic data-sva-type, data-sva-id, and data-sva-name attributes plus an optional <script type="application/json"
+  class="sva-bindings"> descriptor block inside widget exports.
+  4. Build a small, zero-WASM, instance-scoped SVAWidget.mount(el, opts) runtime (destroy()-clean) that patches scoped
+  SVG/CSS/SMIL attributes directly.
+  ──────
+  ## N. Prioritized Remediation Candidates (Stop-Before-Coding Plan)
+
+   Priority │ Candidate & Linked Findings                      │     Scope     │ Why Now / Dependency Order
+  ──────────┼──────────────────────────────────────────────────┼───────────────┼──────────────────────────────────────────────────
+      1     │ Harden /api/export Sandbox, Bind 127.0.0.1, Add  │    Medium     │ Eliminates active LFI/SSRF, stored DOM/SVG XSS,
+            │ Same-Origin/Render Caps & Escape XSS Sinks (P1-  │               │ CSRF, and memory/process DoS immediately without
+            │ 004, P1-005, P1-016 zip-bomb, P1-018)            │               │ altering studio UX.
+      2     │ Fix Go Protocol Partial-Patch Zero-Clobbers,     │    Medium     │ Prerequisite for trusting Go activeScene
+            │ Scene.SetState Envelope, &                       │               │ responses; prevents Go from clobbering
+            │ Group/Snapshot/Clipboard Bugs (P1-007, P1-008,   │               │ Delay/Opacity/ShowLine/Groups/Images.
+            │ P1-015)                                          │               │
+      3     │ Repair syncScene() / normalizeSceneSnapshot()    │    Medium     │ Restores Go s.background (Background.Crop* works
+            │ Lossiness & Stop Wiping s.background (P1-001,    │               │ in WASM!), preserves images crops/clips/metadata
+            │ P1-009)                                          │               │ and layers flags, and removes silent error-
+            │                                                  │               │ fallthrough split-brain.
+      4     │ Repair Stage 15 Functional Regressions           │ Small–Medium  │ Fixes broken [object Object] layer on image
+            │ (#btnImportImageObject, Clip Scale,              │               │ import, scaled clip-handle dragging, destructive
+            │ commitCurrentCrop, Cropped Snip/Bake) (P1-003,   │               │ Commit Crop, and cropped-background Snip/Bake.
+            │ P1-010, P1-011, P1-012)                          │               │
+      5     │ Repair Regression Harness DOMContentLoaded       │    Medium     │ Ensures app.js:6523-7576, ./pkg/engine/...,
+            │ Execution & Verification Scripts (P1-006, P1-    │               │ engine-bridge.js, and build-wasm.sh are actually
+            │ 022)                                             │               │ verified on every build.
+      6     │ Fix Attached Flow Updates on Group/Multi         │    Medium     │ Restores connector integrity on
+            │ Transforms, Lock/Visibility Enforcement & .sva   │               │ group/align/distribute, enforces Locked/Visible
+            │ Edge Cases (P1-014, P1-016, P1-017, P1-024, P1-  │               │ in Go + UI, and fixes .sva image-blob & control-
+            │ 025)                                             │               │ ID extraction.
+      7     │ Consolidate Authoritative State, Undo/Redo,      │ Architectural │ Completes true Go state/history authority,
+            │ Export Parity & Instance-Scoped SVG IDs for      │               │ unifies timeline/export parity, retires dead
+            │ Stage 16 (P1-002, P1-013, P1-019, P1-020, P1-    │               │ legacy generators, and scopes SVG <defs> IDs for
+            │ 021, P1-023)                                     │               │ Stage 16 widgets.
+  ──────
+  ## O. Questions for Pass 2 Verification
+
+  An independent Pass 2 reviewer should specifically challenge, verify, or stress-test the following 15 claims and architectural
+  questions:
+
+  1. Confirm P1-001 Live Browser Trace: In the running preview (http://127.0.0.1:8089/), after uploading a background photo and
+  letting render() run once, does window.EngineBridge.dispatch('Background.Get', {}) return background: null in WASM, proving 100%
+  of subsequent background crops execute in the JS fallback?
+  2. Confirm P1-001 Reverse-Sync Crop Destruction: If a user imports an Image Object (via Snip/Preview so P1-003 is avoided),
+  crops or clips it, and presses Ctrl+D (duplicateSelection → syncFromEngineSnapshot), does the original image's crop/clip
+  disappear immediately?
+  3. Confirm P1-003 File Import Bug: When importing a PNG via #btnImportImageObject, verify in DevTools whether LayerManager.
+  getLayers() contains { type: "image", id: "[object Object]" } alongside "image-1".
+  4. Verify P1-011 Background Commit Crop: Test both buttons in #commitCropModal ("Preserve Crop Versions" vs "Discard Previous
+  Versions") on a cropped background photo — confirm whether one is a no-op and the other reverts the visual crop to the full
+  uncropped image.
+  5. Verify P1-012 Snip & Bake on Cropped Background: On a background photo cropped to a small sub-region, verify whether Snip
+  Background extracts pixels from the uncropped full photo instead of the visible cropped region.
+  6. Verify P1-006 Harness Blindness Impact: Check if enabling DOMContentLoaded execution inside scripts/regression-harness.js
+  immediately exposes P1-001, P1-003, or listener conflicts in existing scenarios.
+  7. Challenge Authority Strategy (P1-002 vs P1-013): Should HistoryManager in Stage 16 store lightweight structural snapshots in
+  Go WASM with content-addressed asset handles in JS (avoiding 50× base64 copies across the WASM boundary — H-004), rather than
+  copying full base64 rasters into Go undoStack on every edit?
+  8. Verify Image Object Crop UI Intent: app.js:5348-5509 still contains unreachable Image Object crop-version UI helpers
+  (_renderCropVersionsList(img), selectCropVersion, etc.) and app.js:2205-2225 binds missing #fctx-btnCropImage/#fctx-btnClipImage.
+  Confirm whether foreground Image Object cropping is permanently retired by product design (keep Clip-only for foreground images,
+  Crop-only for background) so dead Image-crop code can be cleanly retired rather than resurrected.
+  9. Verify Ctrl+C / Ctrl+V vs EngineBridge.copySelection / pasteClipboard: Confirm why coordinator.js:647-715 still runs a local
+  JS copy/paste implementation that drops ImageObjects and ObjectGroups when EngineBridge.copySelection/pasteClipboard (engine-
+  bridge.js:1107-1160) already exist.
+  10. Verify P1-004 Exploitation Boundary: Confirm whether Chromium's version on the target Linux host permits fetch('file:///...
+  ') or <iframe> local file rendering under --allow-file-access-from-files inside streamFramesToWriter, and verify that switching
+  rasterizer.go from file:// to data:text/html;base64,... (or chromedp fetch.Enable request blocking) preserves 100% of legitimate
+  embedded base64 fonts/images/animations.
+  11. Verify H-001 Still Export Decode Timing: Test StillExportStudio PNG/JPEG export on a large (>10 MB) photo scene in a cold
+  browser tab to confirm or refute the nested Blob-SVG <image> decode race.
+  12. Verify P1-019 Transparent Animated WebP/APNG Export: Check whether document.body.style.backgroundColor = '#000000' in
+  rasterizer.go:542 forces opaque black backgrounds even when canvasBgTransparent is checked, and whether Chromium
+  CaptureScreenshot requires emulation.SetDefaultBackgroundColorOverride ({0,0,0,0}) for true alpha capture.
+  13. Verify Optical Filter Scope Intent (P1-020): Should Focus Pull, Tilt-Shift, and Motion Blur (effects.js:647-739) filter only
+  the background photo (keeping foreground topology crisp), or the entire .camera-rig (including Nodes/Flows/Images)?
+  14. Verify H-003 Go Race Detector: In a permitted test environment, does go test -race ./pkg/engine/... ./internal/... report a
+  data race on s.layers inside GetSnapshot() or any race in server.go activeJobs/activeBundles?
+  15. Stage 16 Control Granularity: Confirm which exact object/effect properties Stage 16 external bindings must drive at 10–60 Hz
+  (e.g., Flow speed/color/visible, Node fillColor/strokeColor/text/subtext, Glow color/opacity, Ripple one-shot trigger, Camera
+  x/y/zoom) so the zero-WASM widget runtime surface stays minimal and deterministic.
+  ──────
+  ## Final Summary Metrics
+
+   Metric                                                    │ Verified Value
+  ───────────────────────────────────────────────────────────┼────────────────────────────────────────────────────────────────────
+   Actual Git HEAD                                           │ 7a1968eff9dadb4878c83f6aeebaaa6cf4cc1165 (main)
+   Git Worktree Status                                       │ Clean of any tracked modifications (git diff empty; pre-existing
+                                                             │ untracked items untouched: ?? .github/, ?? release/, ??
+                                                             │ scripts/verification-review.txt, ?? svg-animator; zero files
+                                                             │ created or modified by this audit)
+   Files / Modules Inspected                                 │ 108 first-party files (100% of Go cmd/, pkg/engine/, internal/,
+                                                             │ frontend index.html/CSS/16 JS modules, scripts/, build scripts,
+                                                             │ and architecture docs — ~64,699 lines)
+   Confirmed Findings by Severity                            │ 25 Total: 6 CRITICAL, 12 HIGH, 5 MEDIUM, 2 LOW, 0 INFORMATIONAL
+   Unverified Hypotheses Count                               │ 4 (H-001 through H-004, isolated in Section G)
+   Confirmed Active Shadow-Engine Violations (Class F / C)   │ 11 active subsystems (syncScene/normalizeSceneSnapshot,
+                                                             │ SceneState.buildFullSVG, ImageObjects, EngineBridge.*Background*
+                                                             │ fallbacks, ObjectGroups error-fallbacks, LayerManager flag sync,
+                                                             │ DataFlows.recalculateNodeConnections, AppCoordinator Ctrl+C/V &
+                                                             │ selection, Stage group-flow drag, HistoryManager,
+                                                             │ StillExportStudio.bakeStaticSVGAtTime)
+   Areas Requiring Additional Runtime Verification in Pass 2 │ 1) Live Chromium verification of H-001 (Blob SVG decode timing)
+                                                             │ and transparent CaptureScreenshot alpha behavior; 2) go test -race
+                                                             │ verification of H-003 (GetSnapshot RLock write); 3) Browser heap
+                                                             │ profiling of 50-deep base64 undo history (H-004); 4) Product
+                                                             │ confirmation on retiring dead foreground Image-crop code vs
+                                                             │ background-only Crop (Question 8) and optical filter foreground
+                                                             │ scope (Question 13).
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ● [13:53:35] ./bin/svg-animator-linux -serve :8089 running
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                         Gemini 4 Carbon · medium · 1 task(s) · /tasks

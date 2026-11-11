@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -144,6 +145,10 @@ func SaveProject(p ProjectRecord) (*ProjectSummary, error) {
 		return nil, fmt.Errorf("database not initialized")
 	}
 
+	if !json.Valid([]byte(p.SchemaJSON)) {
+		return nil, fmt.Errorf("invalid json in schema_json payload")
+	}
+
 	nowStr := time.Now().Format("2006-01-02 15:04:05")
 	if p.CanvasWidth <= 0 {
 		p.CanvasWidth = 1280
@@ -153,6 +158,12 @@ func SaveProject(p ProjectRecord) (*ProjectSummary, error) {
 	}
 
 	if p.ID > 0 {
+		var existingCreatedAt string
+		_ = conn.QueryRow(`SELECT created_at FROM projects WHERE id = ?`, p.ID).Scan(&existingCreatedAt)
+		if existingCreatedAt == "" {
+			existingCreatedAt = nowStr
+		}
+
 		res, err := conn.Exec(`
 			UPDATE projects
 			SET name = ?, description = ?, canvas_width = ?, canvas_height = ?, schema_json = ?, updated_at = ?
@@ -169,6 +180,7 @@ func SaveProject(p ProjectRecord) (*ProjectSummary, error) {
 				Description:  p.Description,
 				CanvasWidth:  p.CanvasWidth,
 				CanvasHeight: p.CanvasHeight,
+				CreatedAt:    existingCreatedAt,
 				UpdatedAt:    nowStr,
 			}, nil
 		}
@@ -196,6 +208,19 @@ func SaveProject(p ProjectRecord) (*ProjectSummary, error) {
 		CreatedAt:    nowStr,
 		UpdatedAt:    nowStr,
 	}, nil
+}
+
+// CloseDB cleanly terminates the SQLite database connection.
+func CloseDB() error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if conn != nil {
+		err := conn.Close()
+		conn = nil
+		return err
+	}
+	return nil
 }
 
 // DeleteProject removes a project by ID.
