@@ -237,129 +237,163 @@ window.Glows = {
     };
   },
 
-  injectIntoSVG(svgString, width, height) {
-    if (this.list.length === 0) return svgString;
+  getGlowDefs(customGlows = null) {
+    const list = customGlows || this.list || [];
     let defs = '';
-    let elements = '';
-
-    const sineSpline = '0.42 0 0.58 1';
-    const radarSpline = '0.16 0.84 0.32 1';
-    const holdSpline = '0 0 1 1';
-
-    this.list.forEach((glow) => {
-      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
-        const effL = window.LayerManager.getEffective('glow', glow.id);
-        if (effL && !effL.visible) return;
-      }
-      const px = (glow.x / 100) * width;
-      const py = (glow.y / 100) * height;
-      const op = glow.opacity !== undefined ? glow.opacity : 1.0;
+    list.forEach((glow) => {
       const softness = glow.blur !== undefined ? glow.blur : 50;
       const shape = glow.shape || 'circle';
-      const scale = glow.scale !== undefined ? glow.scale : 1.0;
-      const endDelay = glow.endDelay || 0;
-      const totalDur = glow.dur + endDelay;
-
-      let fillAttr = 'fill="' + glow.color + '"';
-      let filterAttr = '';
-
       if (shape === 'circle') {
         const coreSize = Math.max(0, 100 - softness);
         const gradId = 'glowGrad-' + glow.id;
         defs += '<radialGradient id="' + gradId + '"><stop offset="' + coreSize + '%" stop-color="' + glow.color + '" stop-opacity="1" /><stop offset="100%" stop-color="' + glow.color + '" stop-opacity="0" /></radialGradient>';
-        fillAttr = 'fill="url(#' + gradId + ')"';
       } else if (shape !== 'radar' && softness > 0) {
         const blurId = 'glowBlur-' + glow.id;
         defs += '<filter id="' + blurId + '" filterUnits="userSpaceOnUse" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="' + (softness / 4) + '" /></filter>';
-        filterAttr = 'filter="url(#' + blurId + ')"';
       }
+    });
+    return defs;
+  },
 
-      let animTag = '';
-      const holdVal = glow.hideOnDelay !== false ? '0' : op;
+  renderGlowElement(glow, width = 1280, height = 720) {
+    if (!glow) return '';
+    if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+      const effL = window.LayerManager.getEffective('glow', glow.id);
+      if (effL && !effL.visible) return '';
+    }
+    const sineSpline = '0.42 0 0.58 1';
+    const radarSpline = '0.16 0.84 0.32 1';
+    const holdSpline = '0 0 1 1';
 
-      if (endDelay > 0) {
-        const r = (glow.dur / totalDur).toFixed(4);
-        const rHalf = (glow.dur / totalDur / 2).toFixed(4);
-        const rSafe = Math.min((glow.dur / totalDur) + 0.0001, 0.9999).toFixed(4);
-        if (glow.playback === 'pingpong') {
-          animTag = '<animate attributeName="opacity" values="0; ' + op + '; 0; 0" keyTimes="0; ' + rHalf + '; ' + r + '; 1" calcMode="spline" keySplines="' + sineSpline + '; ' + sineSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
-        } else if (glow.playback === 'linear') {
-          animTag = '<animate attributeName="opacity" values="0; ' + op + '; ' + holdVal + '; ' + holdVal + '" keyTimes="0; ' + r + '; ' + rSafe + '; 1" calcMode="spline" keySplines="' + sineSpline + '; ' + holdSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
-        } else if (glow.playback === 'once') {
-          animTag = '<animate attributeName="opacity" values="0; ' + op + '" keyTimes="0; 1" calcMode="spline" keySplines="' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="1" fill="freeze" />';
-        } else if (glow.playback === 'static') {
-          animTag = '<set attributeName="opacity" to="' + op + '" begin="' + glow.delay + 's" fill="freeze" />';
-        }
-      } else {
-        if (glow.playback === 'pingpong') {
-          animTag = '<animate attributeName="opacity" values="0; ' + op + '; 0" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="' + sineSpline + '; ' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
-        } else if (glow.playback === 'linear') {
-          animTag = '<animate attributeName="opacity" values="0; ' + op + '" keyTimes="0; 1" calcMode="spline" keySplines="' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
-        } else if (glow.playback === 'once') {
-          animTag = '<animate attributeName="opacity" values="0; ' + op + '" keyTimes="0; 1" calcMode="spline" keySplines="' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="1" fill="freeze" />';
-        } else if (glow.playback === 'static') {
-          animTag = '<set attributeName="opacity" to="' + op + '" begin="' + glow.delay + 's" fill="freeze" />';
-        }
+    const px = (glow.x / 100) * width;
+    const py = (glow.y / 100) * height;
+    const op = glow.opacity !== undefined ? glow.opacity : 1.0;
+    const softness = glow.blur !== undefined ? glow.blur : 50;
+    const shape = glow.shape || 'circle';
+    const scale = glow.scale !== undefined ? glow.scale : 1.0;
+    const endDelay = glow.endDelay || 0;
+    const totalDur = glow.dur + endDelay;
+
+    let fillAttr = 'fill="' + glow.color + '"';
+    let filterAttr = '';
+
+    if (shape === 'circle') {
+      const gradId = 'glowGrad-' + glow.id;
+      fillAttr = 'fill="url(#' + gradId + ')"';
+    } else if (shape !== 'radar' && softness > 0) {
+      const blurId = 'glowBlur-' + glow.id;
+      filterAttr = 'filter="url(#' + blurId + ')"';
+    }
+
+    let animTag = '';
+    const holdVal = glow.hideOnDelay !== false ? '0' : op;
+
+    if (endDelay > 0) {
+      const r = (glow.dur / totalDur).toFixed(4);
+      const rHalf = (glow.dur / totalDur / 2).toFixed(4);
+      const rSafe = Math.min((glow.dur / totalDur) + 0.0001, 0.9999).toFixed(4);
+      if (glow.playback === 'pingpong') {
+        animTag = '<animate attributeName="opacity" values="0; ' + op + '; 0; 0" keyTimes="0; ' + rHalf + '; ' + r + '; 1" calcMode="spline" keySplines="' + sineSpline + '; ' + sineSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
+      } else if (glow.playback === 'linear') {
+        animTag = '<animate attributeName="opacity" values="0; ' + op + '; ' + holdVal + '; ' + holdVal + '" keyTimes="0; ' + r + '; ' + rSafe + '; 1" calcMode="spline" keySplines="' + sineSpline + '; ' + holdSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
+      } else if (glow.playback === 'once') {
+        animTag = '<animate attributeName="opacity" values="0; ' + op + '" keyTimes="0; 1" calcMode="spline" keySplines="' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="1" fill="freeze" />';
+      } else if (glow.playback === 'static') {
+        animTag = '<set attributeName="opacity" to="' + op + '" begin="' + glow.delay + 's" fill="freeze" />';
       }
-
-      let visibilityControl = '';
-      let setAnim = '';
-      if (glow.delay > 0) {
-        visibilityControl = 'visibility="hidden"';
-        setAnim = '<set attributeName="visibility" to="visible" begin="' + glow.delay + 's" fill="freeze" />';
+    } else {
+      if (glow.playback === 'pingpong') {
+        animTag = '<animate attributeName="opacity" values="0; ' + op + '; 0" keyTimes="0; 0.5; 1" calcMode="spline" keySplines="' + sineSpline + '; ' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
+      } else if (glow.playback === 'linear') {
+        animTag = '<animate attributeName="opacity" values="0; ' + op + '" keyTimes="0; 1" calcMode="spline" keySplines="' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="indefinite" />';
+      } else if (glow.playback === 'once') {
+        animTag = '<animate attributeName="opacity" values="0; ' + op + '" keyTimes="0; 1" calcMode="spline" keySplines="' + sineSpline + '" dur="' + glow.dur + 's" begin="' + glow.delay + 's" repeatCount="1" fill="freeze" />';
+      } else if (glow.playback === 'static') {
+        animTag = '<set attributeName="opacity" to="' + op + '" begin="' + glow.delay + 's" fill="freeze" />';
       }
+    }
 
-      let shapeEl = '';
-      if (shape === 'custom' && glow.customB64) {
-        const w = glow.customW;
-        const h = glow.customH;
-        shapeEl = '<g transform="translate(' + px.toFixed(2) + ', ' + py.toFixed(2) + ') scale(' + scale + ')"><image href="data:' + glow.customMime + ';base64,' + glow.customB64 + '" xlink:href="data:' + glow.customMime + ';base64,' + glow.customB64 + '" x="' + (-w / 2) + '" y="' + (-h / 2) + '" width="' + w + '" height="' + h + '" ' + filterAttr + ' /></g>';
-      } else if (shape === 'square') {
-        shapeEl = '<rect x="' + (px - glow.size).toFixed(2) + '" y="' + (py - glow.size).toFixed(2) + '" width="' + (glow.size * 2) + '" height="' + (glow.size * 2) + '" ' + fillAttr + ' ' + filterAttr + ' />';
-      } else if (shape === 'radar') {
-        const coreR = glow.coreR !== undefined ? glow.coreR : 5;
-        const strokeW = glow.thick !== undefined ? glow.thick : 2;
-        const ringCount = glow.rings !== undefined ? glow.rings : 1;
-        const ringRepeat = (glow.playback === 'once' || glow.playback === 'static') ? '1' : 'indefinite';
-        const ringFreeze = (glow.playback === 'once' || glow.playback === 'static') ? 'fill="freeze"' : '';
-        let ringElements = '';
+    let visibilityControl = '';
+    let setAnim = '';
+    if (glow.delay > 0) {
+      visibilityControl = 'visibility="hidden"';
+      setAnim = '<set attributeName="visibility" to="visible" begin="' + glow.delay + 's" fill="freeze" />';
+    }
 
-        if (glow.playback !== 'static') {
-          for (let i = 0; i < ringCount; i++) {
-            const stagger = (glow.dur / ringCount) * i;
-            let rAnim = '';
-            let opAnim = '';
-            if (endDelay > 0) {
-              const rRatio = (glow.dur / totalDur).toFixed(4);
-              rAnim = '<animate attributeName="r" values="' + coreR + '; ' + glow.size + '; ' + glow.size + '" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + radarSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
-              opAnim = '<animate attributeName="opacity" values="' + op + '; 0; 0" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + radarSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
-            } else {
-              rAnim = '<animate attributeName="r" values="' + coreR + '; ' + glow.size + '" keyTimes="0; 1" calcMode="spline" keySplines="' + radarSpline + '" dur="' + glow.dur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
-              opAnim = '<animate attributeName="opacity" values="' + op + '; 0" keyTimes="0; 1" calcMode="spline" keySplines="' + radarSpline + '" dur="' + glow.dur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
-            }
-            ringElements += '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + coreR + '" fill="none" stroke="' + glow.color + '" stroke-width="' + strokeW + '" opacity="0" ' + filterAttr + '>' + rAnim + opAnim + '</circle>';
+    let shapeEl = '';
+    if (shape === 'custom' && glow.customB64) {
+      const w = glow.customW;
+      const h = glow.customH;
+      shapeEl = '<g transform="translate(' + px.toFixed(2) + ', ' + py.toFixed(2) + ') scale(' + scale + ')"><image href="data:' + glow.customMime + ';base64,' + glow.customB64 + '" xlink:href="data:' + glow.customMime + ';base64,' + glow.customB64 + '" x="' + (-w / 2) + '" y="' + (-h / 2) + '" width="' + w + '" height="' + h + '" ' + filterAttr + ' /></g>';
+    } else if (shape === 'square') {
+      shapeEl = '<rect x="' + (px - glow.size).toFixed(2) + '" y="' + (py - glow.size).toFixed(2) + '" width="' + (glow.size * 2) + '" height="' + (glow.size * 2) + '" ' + fillAttr + ' ' + filterAttr + ' />';
+    } else if (shape === 'radar') {
+      const coreR = glow.coreR !== undefined ? glow.coreR : 5;
+      const strokeW = glow.thick !== undefined ? glow.thick : 2;
+      const ringCount = glow.rings !== undefined ? glow.rings : 1;
+      const ringRepeat = (glow.playback === 'once' || glow.playback === 'static') ? '1' : 'indefinite';
+      const ringFreeze = (glow.playback === 'once' || glow.playback === 'static') ? 'fill="freeze"' : '';
+      let ringElements = '';
+
+      if (glow.playback !== 'static') {
+        for (let i = 0; i < ringCount; i++) {
+          const stagger = (glow.dur / ringCount) * i;
+          let rAnim = '';
+          let opAnim = '';
+          if (endDelay > 0) {
+            const rRatio = (glow.dur / totalDur).toFixed(4);
+            rAnim = '<animate attributeName="r" values="' + coreR + '; ' + glow.size + '; ' + glow.size + '" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + radarSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
+            opAnim = '<animate attributeName="opacity" values="' + op + '; 0; 0" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + radarSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
+          } else {
+            rAnim = '<animate attributeName="r" values="' + coreR + '; ' + glow.size + '" keyTimes="0; 1" calcMode="spline" keySplines="' + radarSpline + '" dur="' + glow.dur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
+            opAnim = '<animate attributeName="opacity" values="' + op + '; 0" keyTimes="0; 1" calcMode="spline" keySplines="' + radarSpline + '" dur="' + glow.dur + 's" begin="' + (glow.delay + stagger).toFixed(3) + 's" repeatCount="' + ringRepeat + '" ' + ringFreeze + ' />';
           }
+          ringElements += '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + coreR + '" fill="none" stroke="' + glow.color + '" stroke-width="' + strokeW + '" opacity="0" ' + filterAttr + '>' + rAnim + opAnim + '</circle>';
         }
-        shapeEl = '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + coreR + '" fill="none" stroke="' + glow.color + '" stroke-width="' + strokeW + '" ' + filterAttr + ' />' + ringElements;
-      } else {
-        shapeEl = '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + glow.size + '" ' + fillAttr + ' />';
       }
-      let hitTargetEl = '';
-      const hitRadius = Math.max(20, glow.size || 25);
-      if (shape === 'square') {
-        hitTargetEl = '<rect class="glow-hit-target" x="' + (px - glow.size).toFixed(2) + '" y="' + (py - glow.size).toFixed(2) + '" width="' + (glow.size * 2) + '" height="' + (glow.size * 2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
-      } else if (shape === 'custom' && glow.customW && glow.customH) {
-        const hw = (glow.customW * scale) / 2;
-        const hh = (glow.customH * scale) / 2;
-        hitTargetEl = '<rect class="glow-hit-target" x="' + (px - hw).toFixed(2) + '" y="' + (py - hh).toFixed(2) + '" width="' + (hw * 2).toFixed(2) + '" height="' + (hh * 2).toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
-      } else {
-        hitTargetEl = '<circle class="glow-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + hitRadius.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
-      }
+      shapeEl = '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + coreR + '" fill="none" stroke="' + glow.color + '" stroke-width="' + strokeW + '" ' + filterAttr + ' />' + ringElements;
+    } else {
+      shapeEl = '<circle cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + glow.size + '" ' + fillAttr + ' />';
+    }
+    let hitTargetEl = '';
+    const hitRadius = Math.max(20, glow.size || 25);
+    if (shape === 'square') {
+      hitTargetEl = '<rect class="glow-hit-target" x="' + (px - glow.size).toFixed(2) + '" y="' + (py - glow.size).toFixed(2) + '" width="' + (glow.size * 2) + '" height="' + (glow.size * 2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+    } else if (shape === 'custom' && glow.customW && glow.customH) {
+      const hw = (glow.customW * scale) / 2;
+      const hh = (glow.customH * scale) / 2;
+      hitTargetEl = '<rect class="glow-hit-target" x="' + (px - hw).toFixed(2) + '" y="' + (py - hh).toFixed(2) + '" width="' + (hw * 2).toFixed(2) + '" height="' + (hh * 2).toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+    } else {
+      hitTargetEl = '<circle class="glow-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + hitRadius.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+    }
 
-      elements += '<g class="diagram-glow-instance" data-glow-id="' + glow.id + '">' +
-        hitTargetEl +
-        '<g ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + animTag + shapeEl + '</g></g>' +
-        '</g>';
+    return '<g class="diagram-glow-instance" data-glow-id="' + glow.id + '">' +
+      hitTargetEl +
+      '<g ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + animTag + shapeEl + '</g></g>' +
+      '</g>';
+  },
+
+  injectIntoSVG(svgString, width, height) {
+    if (this.list.length === 0) return svgString;
+    const defs = this.getGlowDefs();
+    let elements = '';
+
+    let orderedList = this.list;
+    if (window.LayerManager && typeof window.LayerManager.getLayers === 'function') {
+      const layers = window.LayerManager.getLayers();
+      if (Array.isArray(layers) && layers.length > 0) {
+        const orderMap = new Map();
+        layers.filter((l) => l.type === 'glow').forEach((l, idx) => orderMap.set(String(l.id), idx));
+        orderedList = [...this.list].sort((a, b) => {
+          const idxA = orderMap.has(String(a.id)) ? orderMap.get(String(a.id)) : -1;
+          const idxB = orderMap.has(String(b.id)) ? orderMap.get(String(b.id)) : -1;
+          return idxA - idxB;
+        });
+      }
+    }
+
+    orderedList.forEach((glow) => {
+      elements += this.renderGlowElement(glow, width, height);
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="glows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');

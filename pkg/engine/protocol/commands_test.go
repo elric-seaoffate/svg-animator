@@ -1599,3 +1599,166 @@ func TestDispatchImageAndLayerCommands(t *testing.T) {
 		t.Fatalf("Image.Delete mismatch: %+v", delRes)
 	}
 }
+
+func TestLayerReorderProtocolPayloads(t *testing.T) {
+	activeScene = scene.NewScene()
+
+	// Setup scene objects
+	n1 := activeScene.CreateNode(scene.Node{Shape: "rect", Text: "Node 1"}, nil, false)
+	n2 := activeScene.CreateNode(scene.Node{Shape: "circle", Text: "Node 2"}, nil, false)
+	f1 := activeScene.CreateFlow(scene.Flow{Route: "straight", Color: "#ff0000"})
+	g1 := activeScene.CreateGlow(scene.Glow{Name: "Glow 1", X: 10, Y: 10})
+	img1, err := activeScene.CreateImage(scene.Image{Name: "Img 1", Width: 100, Height: 100})
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+
+	// Create a group with Node 1 and Flow 1
+	grp1, err := activeScene.CreateGroup("Group 1", []scene.GroupMember{
+		{Type: scene.SelectionNode, ID: n1.ID},
+		{Type: scene.SelectionFlow, ID: f1.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+
+	// Create a group containing Image 1 and Glow 1
+	grp2, err := activeScene.CreateGroup("Group 2", []scene.GroupMember{
+		{Type: scene.SelectionImage, ID: img1.ID},
+		{Type: scene.SelectionGlow, ID: g1.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup 2 failed: %v", err)
+	}
+
+	// 1. Regression test: malformed payload with object instead of array (the original defect)
+	malformedJSON := []byte(`{"targets":{"type":"node","id":"` + string(n1.ID) + `"}}`)
+	_, err = Dispatch("Layer.BringToFront", malformedJSON)
+	if err == nil {
+		t.Fatal("Expected error when targets is an object instead of array, got nil")
+	}
+
+	// 2. Empty selection test
+	emptyJSON := []byte(`{"targets":[]}`)
+	respBytes, err := Dispatch("Layer.BringToFront", emptyJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront with empty array failed unexpectedly: %v", err)
+	}
+	var emptyResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &emptyResp); err != nil || emptyResp.Success {
+		t.Fatalf("Expected failure for empty targets, got: %+v", emptyResp)
+	}
+
+	// 3. Invalid object type test
+	invalidTypeJSON := []byte(`{"targets":[{"type":"camera","id":"start"}]}`)
+	respBytes, err = Dispatch("Layer.BringToFront", invalidTypeJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront failed: %v", err)
+	}
+	var invalidResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &invalidResp); err != nil || invalidResp.Success {
+		t.Fatalf("Expected failure for invalid target type, got: %+v", invalidResp)
+	}
+
+	// 4. Nonexistent object test
+	nonexistentJSON := []byte(`{"targets":[{"type":"node","id":"99999"}]}`)
+	respBytes, err = Dispatch("Layer.BringToFront", nonexistentJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront failed: %v", err)
+	}
+	var nonexistResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &nonexistResp); err != nil || nonexistResp.Success {
+		t.Fatalf("Expected failure for nonexistent target, got: %+v", nonexistResp)
+	}
+
+	// 5. Valid single shape: all four commands
+	commands := []string{"Layer.BringToFront", "Layer.SendToBack", "Layer.BringForward", "Layer.SendBackward"}
+	for _, cmd := range commands {
+		singleShapeJSON := []byte(`{"targets":[{"type":"node","id":"` + string(n2.ID) + `"}]}`)
+		respBytes, err := Dispatch(cmd, singleShapeJSON)
+		if err != nil {
+			t.Fatalf("Dispatch %s failed: %v", cmd, err)
+		}
+		var resp LayerReorderResponse
+		if err := json.Unmarshal(respBytes, &resp); err != nil || !resp.Success {
+			t.Fatalf("%s failed: %+v", cmd, resp)
+		}
+	}
+
+	// 6. Multiple selected shapes
+	multiShapeJSON := []byte(`{"targets":[{"type":"node","id":"` + string(n1.ID) + `"},{"type":"node","id":"` + string(n2.ID) + `"}]}`)
+	respBytes, err = Dispatch("Layer.BringToFront", multiShapeJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront with multi-shapes failed: %v", err)
+	}
+	var multiResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &multiResp); err != nil || !multiResp.Success {
+		t.Fatalf("Multi-shape reorder failed: %+v", multiResp)
+	}
+
+	// 7. Shape + Flow
+	shapeFlowJSON := []byte(`{"targets":[{"type":"node","id":"` + string(n1.ID) + `"},{"type":"flow","id":"` + string(f1.ID) + `"}]}`)
+	respBytes, err = Dispatch("Layer.SendToBack", shapeFlowJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.SendToBack with shape+flow failed: %v", err)
+	}
+	var sfResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &sfResp); err != nil || !sfResp.Success {
+		t.Fatalf("Shape+Flow reorder failed: %+v", sfResp)
+	}
+
+	// 8. One imported image
+	imageJSON := []byte(`{"targets":[{"type":"image","id":"` + string(img1.ID) + `"}]}`)
+	respBytes, err = Dispatch("Layer.BringToFront", imageJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront with image failed: %v", err)
+	}
+	var imgResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &imgResp); err != nil || !imgResp.Success {
+		t.Fatalf("Image reorder failed: %+v", imgResp)
+	}
+
+	// 9. Selected group
+	groupJSON := []byte(`{"targets":[{"type":"group","id":"` + string(grp1.ID) + `"}]}`)
+	respBytes, err = Dispatch("Layer.BringToFront", groupJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront with group failed: %v", err)
+	}
+	var grpResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &grpResp); err != nil || !grpResp.Success {
+		t.Fatalf("Group reorder failed: %+v", grpResp)
+	}
+
+	// 10. Group containing Image + Glow
+	grp2JSON := []byte(`{"targets":[{"type":"group","id":"` + string(grp2.ID) + `"}]}`)
+	respBytes, err = Dispatch("Layer.SendToBack", grp2JSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.SendToBack with group containing image failed: %v", err)
+	}
+	var grp2Resp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &grp2Resp); err != nil || !grp2Resp.Success {
+		t.Fatalf("Group 2 reorder failed: %+v", grp2Resp)
+	}
+
+	// 11. Numeric versus string IDs in JSON
+	numericIDJSON := []byte(`{"targets":[{"type":"node","id":` + string(n1.ID) + `}]}`)
+	respBytes, err = Dispatch("Layer.BringForward", numericIDJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringForward with numeric ID failed: %v", err)
+	}
+	var numResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &numResp); err != nil || !numResp.Success {
+		t.Fatalf("Numeric ID reorder failed: %+v", numResp)
+	}
+
+	// 12. Duplicate IDs
+	duplicateJSON := []byte(`{"targets":[{"type":"node","id":"` + string(n1.ID) + `"},{"type":"node","id":"` + string(n1.ID) + `"}]}`)
+	respBytes, err = Dispatch("Layer.BringToFront", duplicateJSON)
+	if err != nil {
+		t.Fatalf("Dispatch Layer.BringToFront with duplicates failed: %v", err)
+	}
+	var dupResp LayerReorderResponse
+	if err := json.Unmarshal(respBytes, &dupResp); err != nil || !dupResp.Success {
+		t.Fatalf("Duplicate ID reorder failed: %+v", dupResp)
+	}
+}

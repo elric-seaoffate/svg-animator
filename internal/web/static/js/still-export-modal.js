@@ -221,9 +221,9 @@ window.StillExportStudio = {
 
       // If user unchecked "Connectors & DataFlow Lines" but kept "Traveling Payloads", hide the track lines & midpoint badges
       if (!includeLines) {
-        const flowsLayer = svgEl.querySelector('#flows-layer');
-        if (flowsLayer) {
-          flowsLayer.querySelectorAll('path').forEach((p) => {
+        const flowsContainers = svgEl.querySelectorAll('#flows-layer, #scene-layers');
+        flowsContainers.forEach((flowsLayer) => {
+          flowsLayer.querySelectorAll('path.flow-track-path, [data-flow-id]').forEach((p) => {
             if (!p.closest('.flow-payload-wrapper')) {
               p.setAttribute('stroke', 'none');
               p.removeAttribute('marker-start');
@@ -231,7 +231,7 @@ window.StillExportStudio = {
             }
           });
           flowsLayer.querySelectorAll('.flow-label-badge').forEach((badge) => badge.remove());
-        }
+        });
       }
 
       svgEl.querySelectorAll('animate').forEach((anim) => {
@@ -246,7 +246,7 @@ window.StillExportStudio = {
         let val = this.evaluateSMILAnimate(anim, effectiveTime);
 
         if (forcePeakVis && (attr === 'opacity' || attr === 'stroke-opacity')) {
-          const inGlowOrFlow = parent.closest('#glows-layer') || parent.closest('#flows-layer');
+          const inGlowOrFlow = parent.closest('#glows-layer') || parent.closest('#flows-layer') || parent.closest('[data-glow-id]') || parent.closest('[data-flow-id]');
           const numVal = parseFloat(val);
           if (inGlowOrFlow && (val === null || isNaN(numVal) || numVal < 0.15)) {
             const valsAttr = anim.getAttribute('values') || '';

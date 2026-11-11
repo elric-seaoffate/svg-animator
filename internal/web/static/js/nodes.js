@@ -268,91 +268,112 @@ window.DiagramNodes = {
     return null;
   },
 
+  getNodeDefs() {
+    return '<filter id="nodeDropShadow" x="-30%" y="-30%" width="160%" height="160%">' +
+      '<feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.45" />' +
+      '</filter>';
+  },
+
+  renderNodeElement(n, canvasW = 1280, canvasH = 720) {
+    if (!n) return '';
+    if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+      const effL = window.LayerManager.getEffective('node', n.id);
+      if (effL && !effL.visible) return '';
+    }
+    const eff = this.getNodeEffectiveProps(n);
+    const cx = (n.x / 100) * canvasW;
+    const cy = (n.y / 100) * canvasH;
+    const w = eff.width;
+    const h = eff.height;
+    const hw = w / 2;
+    const hh = h / 2;
+
+    let dashAttr = '';
+    if (eff.strokeStyle === 'dashed') {
+      dashAttr = 'stroke-dasharray="8,5"';
+    } else if (eff.strokeStyle === 'dotted') {
+      dashAttr = 'stroke-dasharray="2,5" stroke-linecap="round"';
+    }
+
+    const commonStyle =
+      'fill="' + eff.fillColor + '" fill-opacity="' + eff.fillOpacity + '" stroke="' + eff.strokeColor + '" stroke-width="' + eff.strokeWidth + '" ' + dashAttr;
+    let shapeSVG = '';
+
+    if (window.ShapeRegistry && typeof window.ShapeRegistry.get === 'function') {
+      const shapeDef = window.ShapeRegistry.get(n.shape);
+      if (shapeDef) {
+        if (typeof window.ShapeRegistry.renderShapeSVG === 'function') {
+          shapeSVG = window.ShapeRegistry.renderShapeSVG(shapeDef, eff, w, h, hw, hh, commonStyle, n);
+        } else if (typeof shapeDef.buildSVG === 'function') {
+          shapeSVG = shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
+        }
+      }
+    }
+
+    const lines = (n.text || '').split('|').map((s) => s.trim()).filter(Boolean);
+    const hasSub = n.subtext && n.subtext.trim() !== '';
+    const fSize = eff.fontSize;
+    const subSize = Math.max(10, Math.round(fSize * 0.78));
+    const lineHeight = fSize * 1.25;
+
+    const totalTextHeight = lines.length * lineHeight + (hasSub ? subSize * 1.4 : 0);
+    const startY = -(totalTextHeight / 2) + (fSize * 0.82);
+
+    let textSVG = '';
+    if (n.shape === 'axes') {
+      if (lines.length > 0) {
+        textSVG += '<text x="' + (-hw) + '" y="' + (-hh - 10) + '" fill="' + eff.textColor + '" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="' + fSize + '" font-weight="600" text-anchor="start">' + this.escapeXML(lines.join(' ')) + '</text>';
+      }
+      if (hasSub) {
+        textSVG += '<text x="' + hw + '" y="' + (hh + subSize + 8) + '" fill="' + eff.textColor + '" fill-opacity="0.75" font-family="monospace" font-size="' + subSize + '" text-anchor="end">' + this.escapeXML(n.subtext) + '</text>';
+      }
+    } else {
+      lines.forEach((line, idx) => {
+        const ly = startY + idx * lineHeight;
+        textSVG += '<text x="0" y="' + ly.toFixed(1) + '" fill="' + eff.textColor + '" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="' + fSize + '" font-weight="600" text-anchor="middle">' + this.escapeXML(line) + '</text>';
+      });
+
+      if (hasSub) {
+        const subY = startY + lines.length * lineHeight + (subSize * 0.2);
+        textSVG += '<text x="0" y="' + subY.toFixed(1) + '" fill="' + eff.textColor + '" fill-opacity="0.75" font-family="monospace" font-size="' + subSize + '" text-anchor="middle">' + this.escapeXML(n.subtext) + '</text>';
+      }
+    }
+
+    let animTags = '';
+    if (n.anim === 'pulse-border') {
+      animTags = '<animate attributeName="opacity" values="1; 0.65; 1" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
+    } else if (n.anim === 'float') {
+      animTags = '<animateTransform attributeName="transform" type="translate" additive="sum" values="0,0; 0,-6; 0,0" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
+    } else if (n.anim === 'fade-in') {
+      animTags = '<animate attributeName="opacity" from="0" to="1" dur="1.2s" fill="freeze" />';
+    }
+
+    return '<g data-node-id="' + n.id + '" transform="translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')" style="cursor: move;">' + animTags + shapeSVG + textSVG + '</g>';
+  },
+
   injectIntoSVG(svgString, state) {
     if (this.list.length === 0) return svgString;
     const canvasW = state.image.width || 1280;
     const canvasH = state.image.height || 720;
-
-    const defs =
-      '<filter id="nodeDropShadow" x="-30%" y="-30%" width="160%" height="160%">' +
-      '<feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.45" />' +
-      '</filter>';
+    const defs = this.getNodeDefs();
     let elements = '';
 
-    this.list.forEach((n) => {
-      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
-        const effL = window.LayerManager.getEffective('node', n.id);
-        if (effL && !effL.visible) return;
-      }
-      const eff = this.getNodeEffectiveProps(n);
-      const cx = (n.x / 100) * canvasW;
-      const cy = (n.y / 100) * canvasH;
-      const w = eff.width;
-      const h = eff.height;
-      const hw = w / 2;
-      const hh = h / 2;
-
-      let dashAttr = '';
-      if (eff.strokeStyle === 'dashed') {
-        dashAttr = 'stroke-dasharray="8,5"';
-      } else if (eff.strokeStyle === 'dotted') {
-        dashAttr = 'stroke-dasharray="2,5" stroke-linecap="round"';
-      }
-
-      const commonStyle =
-        'fill="' + eff.fillColor + '" fill-opacity="' + eff.fillOpacity + '" stroke="' + eff.strokeColor + '" stroke-width="' + eff.strokeWidth + '" ' + dashAttr;
-      let shapeSVG = '';
-
-      if (window.ShapeRegistry && typeof window.ShapeRegistry.get === 'function') {
-        const shapeDef = window.ShapeRegistry.get(n.shape);
-        if (shapeDef) {
-          if (typeof window.ShapeRegistry.renderShapeSVG === 'function') {
-            shapeSVG = window.ShapeRegistry.renderShapeSVG(shapeDef, eff, w, h, hw, hh, commonStyle, n);
-          } else if (typeof shapeDef.buildSVG === 'function') {
-            shapeSVG = shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
-          }
-        }
-      }
-
-      const lines = (n.text || '').split('|').map((s) => s.trim()).filter(Boolean);
-      const hasSub = n.subtext && n.subtext.trim() !== '';
-      const fSize = eff.fontSize;
-      const subSize = Math.max(10, Math.round(fSize * 0.78));
-      const lineHeight = fSize * 1.25;
-
-      const totalTextHeight = lines.length * lineHeight + (hasSub ? subSize * 1.4 : 0);
-      const startY = -(totalTextHeight / 2) + (fSize * 0.82);
-
-      let textSVG = '';
-      if (n.shape === 'axes') {
-        if (lines.length > 0) {
-          textSVG += '<text x="' + (-hw) + '" y="' + (-hh - 10) + '" fill="' + eff.textColor + '" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="' + fSize + '" font-weight="600" text-anchor="start">' + this.escapeXML(lines.join(' ')) + '</text>';
-        }
-        if (hasSub) {
-          textSVG += '<text x="' + hw + '" y="' + (hh + subSize + 8) + '" fill="' + eff.textColor + '" fill-opacity="0.75" font-family="monospace" font-size="' + subSize + '" text-anchor="end">' + this.escapeXML(n.subtext) + '</text>';
-        }
-      } else {
-        lines.forEach((line, idx) => {
-          const ly = startY + idx * lineHeight;
-          textSVG += '<text x="0" y="' + ly.toFixed(1) + '" fill="' + eff.textColor + '" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="' + fSize + '" font-weight="600" text-anchor="middle">' + this.escapeXML(line) + '</text>';
+    let orderedList = this.list;
+    if (window.LayerManager && typeof window.LayerManager.getLayers === 'function') {
+      const layers = window.LayerManager.getLayers();
+      if (Array.isArray(layers) && layers.length > 0) {
+        const orderMap = new Map();
+        layers.filter((l) => l.type === 'node').forEach((l, idx) => orderMap.set(String(l.id), idx));
+        orderedList = [...this.list].sort((a, b) => {
+          const idxA = orderMap.has(String(a.id)) ? orderMap.get(String(a.id)) : -1;
+          const idxB = orderMap.has(String(b.id)) ? orderMap.get(String(b.id)) : -1;
+          return idxA - idxB;
         });
-
-        if (hasSub) {
-          const subY = startY + lines.length * lineHeight + (subSize * 0.2);
-          textSVG += '<text x="0" y="' + subY.toFixed(1) + '" fill="' + eff.textColor + '" fill-opacity="0.75" font-family="monospace" font-size="' + subSize + '" text-anchor="middle">' + this.escapeXML(n.subtext) + '</text>';
-        }
       }
+    }
 
-      let animTags = '';
-      if (n.anim === 'pulse-border') {
-        animTags = '<animate attributeName="opacity" values="1; 0.65; 1" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
-      } else if (n.anim === 'float') {
-        animTags = '<animateTransform attributeName="transform" type="translate" additive="sum" values="0,0; 0,-6; 0,0" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
-      } else if (n.anim === 'fade-in') {
-        animTags = '<animate attributeName="opacity" from="0" to="1" dur="1.2s" fill="freeze" />';
-      }
-
-      elements += '<g data-node-id="' + n.id + '" transform="translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')" style="cursor: move;">' + animTags + shapeSVG + textSVG + '</g>';
+    orderedList.forEach((n) => {
+      elements += this.renderNodeElement(n, canvasW, canvasH);
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="nodes-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');

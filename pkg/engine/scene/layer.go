@@ -174,23 +174,61 @@ func (s *Scene) SetLayers(entries []LayerEntry) error {
 	return nil
 }
 
+func isValidLayerTargetType(t SelectionType) bool {
+	switch t {
+	case SelectionNode, SelectionFlow, SelectionGlow, SelectionRipple, SelectionImage, SelectionGroup:
+		return true
+	default:
+		return false
+	}
+}
+
+// fixupAllGroupContiguitiesLocked ensures that members of each group are stored contiguously in s.layers.
+func (s *Scene) fixupAllGroupContiguitiesLocked() {
+	for _, grp := range s.groups {
+		s.coalesceGroupMembersInLayersLocked(grp)
+	}
+}
+
 // resolveTargetLayerKeys expands SelectionItems (including groups) into an ordered slice of unique layer keys.
-func (s *Scene) resolveTargetLayerKeys(targets []SelectionItem) (map[string]bool, []string) {
+func (s *Scene) resolveTargetLayerKeys(targets []SelectionItem) (map[string]bool, []string, error) {
+	if len(targets) == 0 {
+		return nil, nil, errors.New("no target objects specified")
+	}
+
 	keyMap := make(map[string]bool)
 	var orderedKeys []string
 
 	for _, t := range targets {
+		if !isValidLayerTargetType(t.Type) {
+			return nil, nil, fmt.Errorf("invalid target type %q", t.Type)
+		}
+		if t.ID == "" {
+			return nil, nil, fmt.Errorf("empty ID for target type %q", t.Type)
+		}
+
 		if t.Type == SelectionGroup {
-			if grp, ok := s.groups[t.ID]; ok {
-				for _, m := range grp.Members {
-					k := string(m.Type) + ":" + string(m.ID)
-					if !keyMap[k] {
-						keyMap[k] = true
-						orderedKeys = append(orderedKeys, k)
-					}
+			grp, ok := s.groups[t.ID]
+			if !ok {
+				return nil, nil, fmt.Errorf("group %q not found", t.ID)
+			}
+			if len(grp.Members) == 0 {
+				return nil, nil, fmt.Errorf("group %q has no members", t.ID)
+			}
+			for _, m := range grp.Members {
+				if !s.objectExistsLocked(m.Type, m.ID) {
+					return nil, nil, fmt.Errorf("group member %s:%s does not exist", m.Type, m.ID)
+				}
+				k := string(m.Type) + ":" + string(m.ID)
+				if !keyMap[k] {
+					keyMap[k] = true
+					orderedKeys = append(orderedKeys, k)
 				}
 			}
 		} else {
+			if !s.objectExistsLocked(t.Type, t.ID) {
+				return nil, nil, fmt.Errorf("target object %s:%s does not exist", t.Type, t.ID)
+			}
 			k := string(t.Type) + ":" + string(t.ID)
 			if !keyMap[k] {
 				keyMap[k] = true
@@ -198,7 +236,12 @@ func (s *Scene) resolveTargetLayerKeys(targets []SelectionItem) (map[string]bool
 			}
 		}
 	}
-	return keyMap, orderedKeys
+
+	if len(keyMap) == 0 {
+		return nil, nil, errors.New("no valid targets found")
+	}
+
+	return keyMap, orderedKeys, nil
 }
 
 // BringToFront moves specified target object(s) or group to the top (end) of layer order.
@@ -206,14 +249,10 @@ func (s *Scene) BringToFront(targets []SelectionItem) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(targets) == 0 {
-		return false, errors.New("no target objects specified")
-	}
-
 	s.ensureLayersInitializedLocked()
-	targetMap, _ := s.resolveTargetLayerKeys(targets)
-	if len(targetMap) == 0 {
-		return false, errors.New("no valid targets found")
+	targetMap, _, err := s.resolveTargetLayerKeys(targets)
+	if err != nil {
+		return false, err
 	}
 
 	// Check if already at the top
@@ -247,6 +286,7 @@ func (s *Scene) BringToFront(targets []SelectionItem) (bool, error) {
 	}
 
 	s.layers = append(nonTargets, movingTargets...)
+	s.fixupAllGroupContiguitiesLocked()
 	s.revision++
 	return true, nil
 }
@@ -256,14 +296,10 @@ func (s *Scene) SendToBack(targets []SelectionItem) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(targets) == 0 {
-		return false, errors.New("no target objects specified")
-	}
-
 	s.ensureLayersInitializedLocked()
-	targetMap, _ := s.resolveTargetLayerKeys(targets)
-	if len(targetMap) == 0 {
-		return false, errors.New("no valid targets found")
+	targetMap, _, err := s.resolveTargetLayerKeys(targets)
+	if err != nil {
+		return false, err
 	}
 
 	// Check if already at bottom
@@ -297,8 +333,63 @@ func (s *Scene) SendToBack(targets []SelectionItem) (bool, error) {
 	}
 
 	s.layers = append(movingTargets, nonTargets...)
+	s.fixupAllGroupContiguitiesLocked()
 	s.revision++
 	return true, nil
+}
+
+type layerBlock struct {
+	entries  []LayerEntry
+	isTarget bool
+}
+
+// buildLayerBlocksLocked partitions s.layers into contiguous semantic units (groups or individual objects).
+func (s *Scene) buildLayerBlocksLocked(targetMap map[string]bool) []layerBlock {
+	s.fixupAllGroupContiguitiesLocked()
+
+	// Map each object to its group ID if any
+	objGroup := make(map[string]StringID)
+	for gid, grp := range s.groups {
+		for _, m := range grp.Members {
+			objGroup[string(m.Type)+":"+string(m.ID)] = gid
+		}
+	}
+
+	var blocks []layerBlock
+	i := 0
+	for i < len(s.layers) {
+		k := string(s.layers[i].Type) + ":" + string(s.layers[i].ID)
+		gid, inGroup := objGroup[k]
+		if inGroup {
+			// Gather all contiguous entries belonging to the same group
+			start := i
+			hasTarget := false
+			for i < len(s.layers) {
+				curK := string(s.layers[i].Type) + ":" + string(s.layers[i].ID)
+				if objGroup[curK] != gid {
+					break
+				}
+				if targetMap[curK] {
+					hasTarget = true
+				}
+				i++
+			}
+			blockEntries := make([]LayerEntry, i-start)
+			copy(blockEntries, s.layers[start:i])
+			blocks = append(blocks, layerBlock{
+				entries:  blockEntries,
+				isTarget: hasTarget,
+			})
+		} else {
+			// Standalone entry
+			blocks = append(blocks, layerBlock{
+				entries:  []LayerEntry{s.layers[i]},
+				isTarget: targetMap[k],
+			})
+			i++
+		}
+	}
+	return blocks
 }
 
 // BringForward shifts target object(s) or group one position forward (towards top) in layer order.
@@ -306,42 +397,37 @@ func (s *Scene) BringForward(targets []SelectionItem) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(targets) == 0 {
-		return false, errors.New("no target objects specified")
-	}
-
 	s.ensureLayersInitializedLocked()
-	targetMap, _ := s.resolveTargetLayerKeys(targets)
-	if len(targetMap) == 0 {
-		return false, errors.New("no valid targets found")
+	targetMap, _, err := s.resolveTargetLayerKeys(targets)
+	if err != nil {
+		return false, err
 	}
 
-	// If the topmost target is already at the very top of layers, can't move forward
-	topIdx := -1
-	for i := len(s.layers) - 1; i >= 0; i-- {
-		k := string(s.layers[i].Type) + ":" + string(s.layers[i].ID)
-		if targetMap[k] {
-			topIdx = i
-			break
-		}
-	}
-	if topIdx == len(s.layers)-1 {
-		// Target already includes the top item
+	blocks := s.buildLayerBlocksLocked(targetMap)
+	if len(blocks) <= 1 {
 		return false, nil
 	}
 
-	// Swap each target block with the item immediately above it (scanning top to bottom)
+	// If the topmost block is already a target, can't move forward
+	if blocks[len(blocks)-1].isTarget {
+		return false, nil
+	}
+
 	changed := false
-	for i := len(s.layers) - 2; i >= 0; i-- {
-		curKey := string(s.layers[i].Type) + ":" + string(s.layers[i].ID)
-		aboveKey := string(s.layers[i+1].Type) + ":" + string(s.layers[i+1].ID)
-		if targetMap[curKey] && !targetMap[aboveKey] {
-			s.layers[i], s.layers[i+1] = s.layers[i+1], s.layers[i]
+	for i := len(blocks) - 2; i >= 0; i-- {
+		if blocks[i].isTarget && !blocks[i+1].isTarget {
+			blocks[i], blocks[i+1] = blocks[i+1], blocks[i]
 			changed = true
 		}
 	}
 
 	if changed {
+		newLayers := make([]LayerEntry, 0, len(s.layers))
+		for _, b := range blocks {
+			newLayers = append(newLayers, b.entries...)
+		}
+		s.layers = newLayers
+		s.fixupAllGroupContiguitiesLocked()
 		s.revision++
 	}
 	return changed, nil
@@ -352,41 +438,37 @@ func (s *Scene) SendBackward(targets []SelectionItem) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(targets) == 0 {
-		return false, errors.New("no target objects specified")
-	}
-
 	s.ensureLayersInitializedLocked()
-	targetMap, _ := s.resolveTargetLayerKeys(targets)
-	if len(targetMap) == 0 {
-		return false, errors.New("no valid targets found")
+	targetMap, _, err := s.resolveTargetLayerKeys(targets)
+	if err != nil {
+		return false, err
 	}
 
-	// If the bottommost target is already at index 0, can't move backward
-	bottomIdx := -1
-	for i := 0; i < len(s.layers); i++ {
-		k := string(s.layers[i].Type) + ":" + string(s.layers[i].ID)
-		if targetMap[k] {
-			bottomIdx = i
-			break
-		}
-	}
-	if bottomIdx == 0 {
+	blocks := s.buildLayerBlocksLocked(targetMap)
+	if len(blocks) <= 1 {
 		return false, nil
 	}
 
-	// Swap each target block with the item immediately below it (scanning bottom to top)
+	// If the bottommost block is already a target, can't move backward
+	if blocks[0].isTarget {
+		return false, nil
+	}
+
 	changed := false
-	for i := 1; i < len(s.layers); i++ {
-		curKey := string(s.layers[i].Type) + ":" + string(s.layers[i].ID)
-		belowKey := string(s.layers[i-1].Type) + ":" + string(s.layers[i-1].ID)
-		if targetMap[curKey] && !targetMap[belowKey] {
-			s.layers[i], s.layers[i-1] = s.layers[i-1], s.layers[i]
+	for i := 1; i < len(blocks); i++ {
+		if blocks[i].isTarget && !blocks[i-1].isTarget {
+			blocks[i], blocks[i-1] = blocks[i-1], blocks[i]
 			changed = true
 		}
 	}
 
 	if changed {
+		newLayers := make([]LayerEntry, 0, len(s.layers))
+		for _, b := range blocks {
+			newLayers = append(newLayers, b.entries...)
+		}
+		s.layers = newLayers
+		s.fixupAllGroupContiguitiesLocked()
 		s.revision++
 	}
 	return changed, nil

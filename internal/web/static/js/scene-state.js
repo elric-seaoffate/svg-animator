@@ -348,6 +348,112 @@
       const includeImages = overrides.includeImages !== false;
       const includeNodes = overrides.includeNodes !== false;
 
+      // If LayerManager has authoritative unified layers, render in strict layer order
+      if (window.LayerManager && typeof window.LayerManager.getLayers === 'function') {
+        const layers = window.LayerManager.getLayers();
+        if (Array.isArray(layers) && layers.length > 0) {
+          const canvasW = (state && state.image && state.image.width) || 1280;
+          const canvasH = (state && state.image && state.image.height) || 720;
+
+          let defs = '';
+          if (includeNodes && window.DiagramNodes && typeof window.DiagramNodes.getNodeDefs === 'function') {
+            defs += window.DiagramNodes.getNodeDefs() + '\n';
+          }
+          if (includeFlows && window.DataFlows && typeof window.DataFlows.getFlowDefs === 'function') {
+            defs += window.DataFlows.getFlowDefs() + '\n';
+          }
+          if (includeGlows && window.Glows && typeof window.Glows.getGlowDefs === 'function') {
+            defs += window.Glows.getGlowDefs() + '\n';
+          }
+          if (includeRipples && window.Ripples && typeof window.Ripples.getRippleDefs === 'function') {
+            defs += window.Ripples.getRippleDefs(state) + '\n';
+          }
+
+          let elements = '';
+          const rendered = new Set();
+
+          layers.forEach((l) => {
+            if (!l || !l.type || l.id == null) return;
+            const key = `${l.type}:${l.id}`;
+            rendered.add(key);
+
+            if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+              const eff = window.LayerManager.getEffective(l.type, l.id);
+              if (eff && !eff.visible) return;
+            }
+
+            if (l.type === 'node' && includeNodes && window.DiagramNodes) {
+              const n = window.DiagramNodes.getNode(l.id);
+              if (n) elements += window.DiagramNodes.renderNodeElement(n, canvasW, canvasH) + '\n';
+            } else if (l.type === 'flow' && includeFlows && window.DataFlows) {
+              const f = window.DataFlows.getFlow(l.id);
+              if (f) elements += window.DataFlows.renderFlowElement(f, canvasW, canvasH) + '\n';
+            } else if (l.type === 'glow' && includeGlows && window.Glows) {
+              const g = window.Glows.getGlow(l.id);
+              if (g) elements += window.Glows.renderGlowElement(g, canvasW, canvasH) + '\n';
+            } else if (l.type === 'ripple' && includeRipples && window.Ripples) {
+              const r = window.Ripples.getRipple(l.id);
+              if (r) elements += window.Ripples.renderRippleElement(r, state) + '\n';
+            } else if (l.type === 'image' && includeImages) {
+              const img = (window.ImageObjects && typeof window.ImageObjects.getImage === 'function')
+                ? window.ImageObjects.getImage(l.id)
+                : (window.ImageManager && typeof window.ImageManager.getImage === 'function')
+                  ? window.ImageManager.getImage(l.id)
+                  : null;
+              if (img) {
+                const renderer = (window.ImageObjects && typeof window.ImageObjects.renderImageElement === 'function')
+                  ? window.ImageObjects.renderImageElement.bind(window.ImageObjects)
+                  : (window.ImageManager && typeof window.ImageManager.renderImageElement === 'function')
+                    ? window.ImageManager.renderImageElement.bind(window.ImageManager)
+                    : null;
+                if (renderer) elements += renderer(img, canvasW, canvasH) + '\n';
+              }
+            }
+          });
+
+          // Render any unlayered objects if present
+          if (includeRipples && window.Ripples && Array.isArray(window.Ripples.list)) {
+            window.Ripples.list.forEach((r) => {
+              if (!rendered.has(`ripple:${r.id}`)) {
+                elements += window.Ripples.renderRippleElement(r, state) + '\n';
+              }
+            });
+          }
+          if (includeGlows && window.Glows && Array.isArray(window.Glows.list)) {
+            window.Glows.list.forEach((g) => {
+              if (!rendered.has(`glow:${g.id}`)) {
+                elements += window.Glows.renderGlowElement(g, canvasW, canvasH) + '\n';
+              }
+            });
+          }
+          if (includeFlows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+            window.DataFlows.list.forEach((f) => {
+              if (!rendered.has(`flow:${f.id}`)) {
+                elements += window.DataFlows.renderFlowElement(f, canvasW, canvasH) + '\n';
+              }
+            });
+          }
+          if (includeImages && window.ImageObjects && Array.isArray(window.ImageObjects.list)) {
+            window.ImageObjects.list.forEach((img) => {
+              if (!rendered.has(`image:${img.id}`)) {
+                elements += window.ImageObjects.renderImageElement(img, canvasW, canvasH) + '\n';
+              }
+            });
+          }
+          if (includeNodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+            window.DiagramNodes.list.forEach((n) => {
+              if (!rendered.has(`node:${n.id}`)) {
+                elements += window.DiagramNodes.renderNodeElement(n, canvasW, canvasH) + '\n';
+              }
+            });
+          }
+
+          let svgString = window.Effects.build(state);
+          const layerMarkup = '\n<defs>\n' + defs + '</defs>\n<g id="scene-layers" class="scene-layers ripples-layer glows-layer flows-layer images-layer nodes-layer">\n' + elements + '</g>\n';
+          return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', layerMarkup + '<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
+        }
+      }
+
       let svgString = window.Effects.build(state);
       if (includeRipples && window.Ripples) svgString = window.Ripples.injectIntoSVG(svgString, state);
       if (includeGlows && window.Glows) svgString = window.Glows.injectIntoSVG(svgString, state.image.width, state.image.height);

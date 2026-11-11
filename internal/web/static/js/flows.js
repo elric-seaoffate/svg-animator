@@ -379,79 +379,80 @@ window.DataFlows = {
     return { x: mx, y: my };
   },
 
-  injectIntoSVG(svgString, stateOrWidth, heightArg) {
-    if (this.list.length === 0) return svgString;
-    let width;
-    let height;
-    if (stateOrWidth && stateOrWidth.image) {
-      width = stateOrWidth.image.width;
-      height = stateOrWidth.image.height;
-    } else {
-      width = stateOrWidth;
-      height = heightArg;
-    }
-
+  getFlowDefs(customFlows = null) {
+    const list = customFlows || this.list || [];
     let defs = '';
-    let elements = '';
-
-    this.list.forEach((f) => {
-      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
-        const effL = window.LayerManager.getEffective('flow', f.id);
-        if (effL && !effL.visible) return;
-      }
-      const routeMode = f.route || 'curve';
-      const pathD = this.generatePathString(f.nodes, f.curvature || 0, width, height, routeMode);
-      if (!pathD) return;
-
-      const pathId = 'flowPath-' + f.id;
-      const totalDur = f.speed + (f.endDelay || 0);
-      const ratio = f.endDelay > 0 ? (f.speed / totalDur).toFixed(4) : '1';
-      const lw = f.lineWidth !== undefined ? f.lineWidth : Math.max(1.5, 3 * f.scale);
-
+    list.forEach((f) => {
       const arrowMode = f.arrow || 'none';
-      let markerAttrs = '';
       if (arrowMode !== 'none') {
         const markerId = 'flowArrow-' + f.id;
         defs +=
           '<marker id="' + markerId + '" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
           '<path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="' + f.color + '" />' +
           '</marker>';
-        if (arrowMode === 'end' || arrowMode === 'both') markerAttrs += ' marker-end="url(#' + markerId + ')"';
-        if (arrowMode === 'start' || arrowMode === 'both') markerAttrs += ' marker-start="url(#' + markerId + ')"';
       }
+      if (f.type === 'orb' && f.glow > 0) {
+        defs += '<filter id="flowBlur-' + f.id + '" filterUnits="userSpaceOnUse" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="' + (f.glow / 4).toFixed(2) + '" /></filter>';
+      }
+    });
+    return defs;
+  },
 
-      if (f.showLine) {
-        const lStyle = f.lineStyle || 'dashed';
-        if (lStyle === 'solid') {
-          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"' + markerAttrs + ' />';
-        } else if (lStyle === 'dotted') {
-          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
-        } else if (lStyle === 'marching') {
-          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
-        } else if (lStyle === 'double') {
-          elements += '<path class="flow-track-path" data-flow-id="' + f.id + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
-          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
-        } else {
-          elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="8,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"' + markerAttrs + ' />';
-        }
+  renderFlowElement(f, width = 1280, height = 720) {
+    if (!f) return '';
+    if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+      const effL = window.LayerManager.getEffective('flow', f.id);
+      if (effL && !effL.visible) return '';
+    }
+    const routeMode = f.route || 'curve';
+    const pathD = this.generatePathString(f.nodes, f.curvature || 0, width, height, routeMode);
+    if (!pathD) return '';
+
+    const pathId = 'flowPath-' + f.id;
+    const totalDur = f.speed + (f.endDelay || 0);
+    const ratio = f.endDelay > 0 ? (f.speed / totalDur).toFixed(4) : '1';
+    const lw = f.lineWidth !== undefined ? f.lineWidth : Math.max(1.5, 3 * f.scale);
+
+    const arrowMode = f.arrow || 'none';
+    let markerAttrs = '';
+    if (arrowMode !== 'none') {
+      const markerId = 'flowArrow-' + f.id;
+      if (arrowMode === 'end' || arrowMode === 'both') markerAttrs += ' marker-end="url(#' + markerId + ')"';
+      if (arrowMode === 'start' || arrowMode === 'both') markerAttrs += ' marker-start="url(#' + markerId + ')"';
+    }
+
+    let elements = '';
+    if (f.showLine) {
+      const lStyle = f.lineStyle || 'dashed';
+      if (lStyle === 'solid') {
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"' + markerAttrs + ' />';
+      } else if (lStyle === 'dotted') {
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
+      } else if (lStyle === 'marching') {
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
+      } else if (lStyle === 'double') {
+        elements += '<path class="flow-track-path" data-flow-id="' + f.id + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
       } else {
-        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="none" />';
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="8,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"' + markerAttrs + ' />';
       }
+    } else {
+      elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="none" />';
+    }
 
-      if (f.label && f.label.trim() !== '') {
-        const mid = this.getMidpoint(f.nodes, routeMode === 'curve' ? (f.curvature || 0) : 0, width, height);
-        const cleanLabel = this.escapeXML(f.label.trim());
-        const badgeW = Math.max(44, f.label.trim().length * 8.2 + 16);
-        const badgeH = 22;
-        elements +=
-          '<g class="flow-label-badge" transform="translate(' + mid.x.toFixed(1) + ', ' + mid.y.toFixed(1) + ')" pointer-events="none">' +
-          '<rect x="' + (-badgeW / 2).toFixed(1) + '" y="' + (-badgeH / 2).toFixed(1) + '" width="' + badgeW.toFixed(1) + '" height="' + badgeH + '" rx="5" fill="#0d1117" fill-opacity="0.9" stroke="' + f.color + '" stroke-width="1.2" />' +
-          '<text x="0" y="4.5" fill="#e6edf3" font-family="monospace" font-size="12" font-weight="600" text-anchor="middle">' + cleanLabel + '</text>' +
-          '</g>';
-      }
+    if (f.label && f.label.trim() !== '') {
+      const mid = this.getMidpoint(f.nodes, routeMode === 'curve' ? (f.curvature || 0) : 0, width, height);
+      const cleanLabel = this.escapeXML(f.label.trim());
+      const badgeW = Math.max(44, f.label.trim().length * 8.2 + 16);
+      const badgeH = 22;
+      elements +=
+        '<g class="flow-label-badge" transform="translate(' + mid.x.toFixed(1) + ', ' + mid.y.toFixed(1) + ')" pointer-events="none">' +
+        '<rect x="' + (-badgeW / 2).toFixed(1) + '" y="' + (-badgeH / 2).toFixed(1) + '" width="' + badgeW.toFixed(1) + '" height="' + badgeH + '" rx="5" fill="#0d1117" fill-opacity="0.9" stroke="' + f.color + '" stroke-width="1.2" />' +
+        '<text x="0" y="4.5" fill="#e6edf3" font-family="monospace" font-size="12" font-weight="600" text-anchor="middle">' + cleanLabel + '</text>' +
+        '</g>';
+    }
 
-      if (f.type === 'line-only') return;
-
+    if (f.type !== 'line-only') {
       let payloadSVG = '';
       const sc = f.scale;
 
@@ -459,7 +460,6 @@ window.DataFlows = {
         payloadSVG = '<image href="data:' + f.customMime + ';base64,' + f.customB64 + '" xlink:href="data:' + f.customMime + ';base64,' + f.customB64 + '" x="' + (-f.customW / 2) + '" y="' + (-f.customH / 2) + '" width="' + f.customW + '" height="' + f.customH + '" transform="scale(' + sc + ')" />';
       } else if (f.type === 'orb') {
         const glowFilter = f.glow > 0 ? ('filter="url(#flowBlur-' + f.id + ')"') : '';
-        if (f.glow > 0) defs += '<filter id="flowBlur-' + f.id + '" filterUnits="userSpaceOnUse" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="' + (f.glow / 4).toFixed(2) + '" /></filter>';
         payloadSVG = '<circle r="' + (8 * sc).toFixed(2) + '" fill="' + f.color + '" />';
         if (f.glow > 0) payloadSVG += '<circle r="' + (12 * sc).toFixed(2) + '" fill="' + f.color + '" opacity="0.55" ' + glowFilter + ' />';
       } else if (f.type === 'packet') {
@@ -500,6 +500,42 @@ window.DataFlows = {
       }
 
       elements += '<g class="flow-payload-wrapper" ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0" class="flow-payload-group" data-flow-id="' + f.id + '">' + opAnim + motionAnim + payloadSVG + '</g></g>';
+    }
+
+    return '<g data-flow-id="' + f.id + '" class="diagram-flow-instance">' + elements + '</g>';
+  },
+
+  injectIntoSVG(svgString, stateOrWidth, heightArg) {
+    if (this.list.length === 0) return svgString;
+    let width;
+    let height;
+    if (stateOrWidth && stateOrWidth.image) {
+      width = stateOrWidth.image.width;
+      height = stateOrWidth.image.height;
+    } else {
+      width = stateOrWidth;
+      height = heightArg;
+    }
+
+    const defs = this.getFlowDefs();
+    let elements = '';
+
+    let orderedList = this.list;
+    if (window.LayerManager && typeof window.LayerManager.getLayers === 'function') {
+      const layers = window.LayerManager.getLayers();
+      if (Array.isArray(layers) && layers.length > 0) {
+        const orderMap = new Map();
+        layers.filter((l) => l.type === 'flow').forEach((l, idx) => orderMap.set(String(l.id), idx));
+        orderedList = [...this.list].sort((a, b) => {
+          const idxA = orderMap.has(String(a.id)) ? orderMap.get(String(a.id)) : -1;
+          const idxB = orderMap.has(String(b.id)) ? orderMap.get(String(b.id)) : -1;
+          return idxA - idxB;
+        });
+      }
+    }
+
+    orderedList.forEach((f) => {
+      elements += this.renderFlowElement(f, width, height);
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="flows-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');

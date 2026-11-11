@@ -827,6 +827,58 @@
       return true;
     },
 
+    bringSelectionToFront(targets = null) {
+      return this._coordinateLayerReorder('bringToFront', targets);
+    },
+
+    bringSelectionForward(targets = null) {
+      return this._coordinateLayerReorder('bringForward', targets);
+    },
+
+    sendSelectionBackward(targets = null) {
+      return this._coordinateLayerReorder('sendBackward', targets);
+    },
+
+    sendSelectionToBack(targets = null) {
+      return this._coordinateLayerReorder('sendToBack', targets);
+    },
+
+    _coordinateLayerReorder(action, explicitTargets = null) {
+      let targets = explicitTargets;
+      if (!targets) {
+        if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+          targets = [{ type: 'group', id: String(this.activeSelection.id) }];
+        } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
+          targets = this.activeSelection.items;
+        } else if (this.activeSelection.type && this.activeSelection.id != null) {
+          targets = [{ type: this.activeSelection.type, id: String(this.activeSelection.id) }];
+        }
+      }
+
+      if (!targets || (Array.isArray(targets) && targets.length === 0)) {
+        this.showNotification('Select an object or group to reorder.', 'warning', 2000);
+        return false;
+      }
+
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge[action] === 'function') {
+        res = window.EngineBridge[action](targets);
+      } else if (window.LayerManager && typeof window.LayerManager[action] === 'function') {
+        res = window.LayerManager[action](targets);
+      }
+
+      if (res && res.success) {
+        this.emit('layers:changed', window.LayerManager ? window.LayerManager.getLayers() : []);
+        this.requestRender();
+        this.recordHistoryImmediate();
+        this.updateActiveOverlays();
+        return true;
+      } else if (res && res.error) {
+        this.showNotification('Layer reorder failed: ' + res.error, 'error', 3000);
+      }
+      return false;
+    },
+
     deleteSelectedObjects() {
       if (this.activeSelection.type === 'group' && this.activeSelection.id) {
         const grpId = this.activeSelection.id;

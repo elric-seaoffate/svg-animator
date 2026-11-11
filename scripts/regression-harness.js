@@ -6060,6 +6060,244 @@ async function runHarness() {
   assert.strictEqual(window.LayerManager.getEffective('image', s42Img.id).visible, false, 'Scenario 42: Redo restored image hidden state');
   console.log('[HARNESS] Scenario 42 PASS: History undo/redo state restoration for images and layers verified.');
 
+  // ===========================================================================
+  // SCENARIO 43: JavaScript-to-Go Protocol Boundary Normalization
+  // (Prevents "cannot unmarshal object into []scene.SelectionItem" regression)
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 43: Protocol boundary normalization and Go schema validation...');
+  window.ProjectManager.resetToNewProject();
+
+  const s43NodeA = window.DiagramNodes.createNode({ text: 'Node A', x: 20, y: 20 });
+  const s43NodeB = window.DiagramNodes.createNode({ text: 'Node B', x: 40, y: 40 });
+  const s43GroupRes = window.EngineBridge.createGroup('Proto Group', [
+    { type: 'node', id: s43NodeA.id },
+    { type: 'node', id: s43NodeB.id }
+  ]);
+  const s43GroupId = (s43GroupRes && s43GroupRes.group) ? s43GroupRes.group.id : 'group-1';
+  window.LayerManager.syncFromEngine();
+
+  // Test 1: Single bare object (original browser failure shape: { type: 'node', id: '1' })
+  // In the original bug, floating toolbar dispatched this bare object, crashing Go unmarshal
+  const resBare = window.EngineBridge.bringToFront({ type: 'node', id: s43NodeA.id });
+  assert.ok(resBare && resBare.success, 'Scenario 43: Single bare object must be normalized and accepted by Go engine');
+
+  // Test 2: Standard array shape: [{ type: 'node', id: '1' }]
+  const resArray = window.EngineBridge.sendToBack([{ type: 'node', id: s43NodeA.id }]);
+  assert.ok(resArray && resArray.success, 'Scenario 43: Standard array shape accepted by Go engine');
+
+  // Test 3: SelectionState object with .items array
+  const mockSelState = {
+    type: 'multi',
+    items: [
+      { type: 'node', id: s43NodeB.id }
+    ]
+  };
+  const resSelState = window.EngineBridge.bringForward(mockSelState);
+  assert.ok(resSelState && resSelState.success, 'Scenario 43: SelectionState object with .items normalized and accepted by Go engine');
+
+  // Test 4: Group reference: { type: 'group', id: s43GroupId }
+  const resGroup = window.EngineBridge.bringToFront({ type: 'group', id: s43GroupId });
+  assert.ok(resGroup && resGroup.success, 'Scenario 43: Group reference expanded and accepted by Go engine');
+
+  // Test 5: Numeric versus string IDs
+  const resNumId = window.EngineBridge.sendBackward([{ type: 'node', id: Number(s43NodeA.id) }]);
+  assert.ok(resNumId && resNumId.success, 'Scenario 43: Numeric ID normalized to canonical string ID in Go engine');
+
+  // Test 6: Rejection of invalid object types (e.g. 'camera')
+  const resInvalidType = window.EngineBridge.bringToFront([{ type: 'camera', id: '1' }]);
+  assert.ok(resInvalidType && resInvalidType.error, 'Scenario 43: Invalid object type correctly rejected with error');
+
+  // Test 7: Rejection of empty targets
+  const resEmpty = window.EngineBridge.bringToFront([]);
+  assert.ok(resEmpty && resEmpty.error, 'Scenario 43: Empty selection correctly rejected with error');
+
+  // Test 8: All four layer-order actions dispatch cleanly via AppCoordinator
+  const s43NodeC = window.DiagramNodes.createNode({ text: 'Node C', x: 60, y: 60 });
+  window.LayerManager.syncFromEngine();
+
+  window.AppCoordinator.selectObject('node', s43NodeC.id);
+  window.AppCoordinator.bringSelectionToFront();
+  let curLayers = window.LayerManager.getLayers();
+  assert.strictEqual(String(curLayers[curLayers.length - 1].id), String(s43NodeC.id), 'Scenario 43: bringSelectionToFront moved Node C to top');
+
+  window.AppCoordinator.sendSelectionToBack();
+  curLayers = window.LayerManager.getLayers();
+  assert.strictEqual(String(curLayers[0].id), String(s43NodeC.id), 'Scenario 43: sendSelectionToBack moved Node C to bottom');
+
+  window.AppCoordinator.bringSelectionForward();
+  curLayers = window.LayerManager.getLayers();
+  const cIdx = curLayers.findIndex((l) => String(l.id) === String(s43NodeC.id));
+  assert.ok(cIdx > 0, 'Scenario 43: bringSelectionForward moved Node C up from bottom');
+
+  window.AppCoordinator.sendSelectionBackward();
+  curLayers = window.LayerManager.getLayers();
+  const cIdxBack = curLayers.findIndex((l) => String(l.id) === String(s43NodeC.id));
+  assert.strictEqual(cIdxBack, 0, 'Scenario 43: sendSelectionBackward moved Node C back to bottom');
+
+  console.log('[HARNESS] Scenario 43 PASS: Protocol boundary normalization and Go schema validation verified.');
+
+  // ===========================================================================
+  // SCENARIO 44: Real Visual SVG Stacking Order Reversal
+  // (Verifies SVG DOM element order matches Go authoritative layer order)
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 44: Real visual SVG stacking order reversal...');
+  window.ProjectManager.resetToNewProject();
+
+  // 1. Two Overlapping Shapes
+  const shapeRear = window.DiagramNodes.createNode({ shape: 'rect', text: 'Rear Shape', x: 30, y: 30, width: 120, height: 80 });
+  const shapeFront = window.DiagramNodes.createNode({ shape: 'rect', text: 'Front Shape', x: 35, y: 35, width: 120, height: 80 });
+  window.LayerManager.syncFromEngine();
+
+  let state = window.SceneState.buildRenderState();
+  let svg = window.SceneState.buildFullSVG(state);
+  let idxRear = svg.indexOf(`data-node-id="${shapeRear.id}"`);
+  let idxFront = svg.indexOf(`data-node-id="${shapeFront.id}"`);
+  assert.ok(idxRear !== -1 && idxFront !== -1, 'Scenario 44: Both shapes present in SVG');
+  assert.ok(idxRear < idxFront, 'Scenario 44: Initially Rear Shape is before Front Shape in SVG DOM');
+
+  // Move Rear Shape to front
+  window.LayerManager.bringToFront([{ type: 'node', id: shapeRear.id }]);
+  svg = window.SceneState.buildFullSVG(state);
+  idxRear = svg.indexOf(`data-node-id="${shapeRear.id}"`);
+  idxFront = svg.indexOf(`data-node-id="${shapeFront.id}"`);
+  assert.ok(idxFront < idxRear, 'Scenario 44: Visible overlap reversed: Rear Shape is now AFTER Front Shape in SVG DOM (on top)');
+
+  // Send it back
+  window.LayerManager.sendToBack([{ type: 'node', id: shapeRear.id }]);
+  svg = window.SceneState.buildFullSVG(state);
+  idxRear = svg.indexOf(`data-node-id="${shapeRear.id}"`);
+  idxFront = svg.indexOf(`data-node-id="${shapeFront.id}"`);
+  assert.ok(idxRear < idxFront, 'Scenario 44: Send to Back reversed overlap again: Rear Shape is back underneath');
+
+  // 2. Shape and Flow
+  const s44Flow = window.DataFlows.createFlow({ name: 'Cross Flow', nodes: [{ x: 25, y: 25 }, { x: 45, y: 45 }] });
+  window.LayerManager.syncFromEngine();
+  // Bring Rear Shape to front of Flow
+  window.LayerManager.bringToFront([{ type: 'node', id: shapeRear.id }]);
+  svg = window.SceneState.buildFullSVG(state);
+  idxRear = svg.indexOf(`data-node-id="${shapeRear.id}"`);
+  const idxFlow = svg.indexOf(`data-flow-id="${s44Flow.id}"`);
+  assert.ok(idxFlow !== -1 && idxRear !== -1, 'Scenario 44: Shape and Flow present in SVG');
+  assert.ok(idxFlow < idxRear, 'Scenario 44: Shape brought to front is rendered AFTER Flow in SVG DOM (on top)');
+
+  // 3. Glow and Shape
+  const s44Glow = window.Glows.createGlow({ name: 'Beacon Glow', x: 30, y: 30, size: 40 });
+  window.LayerManager.syncFromEngine();
+  window.LayerManager.bringToFront([{ type: 'glow', id: s44Glow.id }]);
+  svg = window.SceneState.buildFullSVG(state);
+  const idxGlow = svg.indexOf(`data-glow-id="${s44Glow.id}"`);
+  idxRear = svg.indexOf(`data-node-id="${shapeRear.id}"`);
+  assert.ok(idxGlow !== -1 && idxRear !== -1, 'Scenario 44: Glow and Shape present in SVG');
+  assert.ok(idxRear < idxGlow, 'Scenario 44: Glow brought to front is rendered AFTER Shape in SVG DOM (on top of Shape)');
+
+  // 4. Ripple and Image Object
+  const s44Ripple = window.Ripples.createRipple({ x: 50, y: 50, outerR: 80 });
+  const s44Img = window.ImageObjects.createImage({ name: 'Overlay Image', x: 50, y: 50, width: 100, height: 100 });
+  window.LayerManager.syncFromEngine();
+  window.LayerManager.bringToFront([{ type: 'ripple', id: s44Ripple.id }]);
+  svg = window.SceneState.buildFullSVG(state);
+  const idxRipple = svg.indexOf(`data-ripple-id="${s44Ripple.id}"`);
+  const idxImg = svg.indexOf(`data-image-id="${s44Img.id}"`);
+  assert.ok(idxRipple !== -1 && idxImg !== -1, 'Scenario 44: Ripple and Image present in SVG');
+  assert.ok(idxImg < idxRipple, 'Scenario 44: Ripple brought to front is rendered AFTER Image in SVG DOM (on top of Image)');
+
+  console.log('[HARNESS] Scenario 44 PASS: Real visual SVG stacking order reversal verified.');
+
+  // ===========================================================================
+  // SCENARIO 45: Persistent Group Contiguity and Layer Integration
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 45: Group contiguity across BringForward and SendBackward...');
+  window.ProjectManager.resetToNewProject();
+
+  const gNode1 = window.DiagramNodes.createNode({ text: 'G Node 1', x: 10, y: 10 });
+  const gGlow1 = window.Glows.createGlow({ name: 'G Glow 1', x: 15, y: 15 });
+  const standaloneNode = window.DiagramNodes.createNode({ text: 'Standalone Node', x: 50, y: 50 });
+  const standaloneFlow = window.DataFlows.createFlow({ name: 'Standalone Flow', nodes: [{ x: 40, y: 40 }, { x: 60, y: 60 }] });
+
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: gNode1.id },
+    { type: 'glow', id: gGlow1.id }
+  ]);
+  const mixedGrp = window.AppCoordinator.createGroupFromSelection('Mixed Group 45');
+  assert.ok(mixedGrp, 'Scenario 45: Mixed group created');
+  window.LayerManager.syncFromEngine();
+
+  // Verify group is initially contiguous in layers
+  let lList = window.LayerManager.getLayers();
+  let idxM1 = lList.findIndex((l) => l.type === 'node' && String(l.id) === String(gNode1.id));
+  let idxM2 = lList.findIndex((l) => l.type === 'glow' && String(l.id) === String(gGlow1.id));
+  assert.strictEqual(Math.abs(idxM1 - idxM2), 1, 'Scenario 45: Group members must be contiguous in initial layers');
+
+  // Bring group forward past standalone elements
+  window.LayerManager.bringToFront({ type: 'group', id: mixedGrp.id });
+  lList = window.LayerManager.getLayers();
+  idxM1 = lList.findIndex((l) => l.type === 'node' && String(l.id) === String(gNode1.id));
+  idxM2 = lList.findIndex((l) => l.type === 'glow' && String(l.id) === String(gGlow1.id));
+  assert.strictEqual(Math.abs(idxM1 - idxM2), 1, 'Scenario 45: Group members remain contiguous after bringToFront');
+  assert.ok(Math.min(idxM1, idxM2) >= 2, 'Scenario 45: Group members moved to the front of standalone elements');
+
+  // Send group backward
+  window.LayerManager.sendBackward({ type: 'group', id: mixedGrp.id });
+  lList = window.LayerManager.getLayers();
+  idxM1 = lList.findIndex((l) => l.type === 'node' && String(l.id) === String(gNode1.id));
+  idxM2 = lList.findIndex((l) => l.type === 'glow' && String(l.id) === String(gGlow1.id));
+  assert.strictEqual(Math.abs(idxM1 - idxM2), 1, 'Scenario 45: Group members remain contiguous after sendBackward');
+
+  // Group membership must not be lost or split
+  const verifyGrp = window.ObjectGroups.getGroup(mixedGrp.id);
+  assert.ok(verifyGrp, 'Scenario 45: Group definition intact');
+  assert.strictEqual(verifyGrp.members.length, 2, 'Scenario 45: All 2 members retained');
+
+  console.log('[HARNESS] Scenario 45 PASS: Group contiguity across BringForward and SendBackward verified.');
+
+  // ===========================================================================
+  // SCENARIO 46: Undo/Redo & SVA Round-Trip Persistence of Layer Order
+  // ===========================================================================
+  console.log('\n[HARNESS] Scenario 46: Undo/redo and SVA round-trip persistence of layer order...');
+  window.ProjectManager.resetToNewProject();
+
+  const pNode = window.DiagramNodes.createNode({ text: 'Persist Node', x: 20, y: 20 });
+  const pFlow = window.DataFlows.createFlow({ name: 'Persist Flow', nodes: [{ x: 10, y: 10 }, { x: 30, y: 30 }] });
+  const pImg = window.ImageObjects.createImage({ name: 'Persist Image', x: 40, y: 40, width: 80, height: 60 });
+  window.LayerManager.syncFromEngine();
+  window.HistoryManager.recordImmediate();
+
+  // Baseline order
+  const s46BaselineLayers = window.LayerManager.getLayers().map((l) => `${l.type}:${l.id}`);
+
+  // Reorder: bring Flow to front (past image and node)
+  window.AppCoordinator.selectObject('flow', pFlow.id);
+  window.AppCoordinator.bringSelectionToFront();
+
+  const s46ReorderedLayers = window.LayerManager.getLayers().map((l) => `${l.type}:${l.id}`);
+  assert.strictEqual(s46ReorderedLayers[s46ReorderedLayers.length - 1], `flow:${pFlow.id}`, 'Scenario 46: Flow brought to top');
+
+  // Undo restores baseline
+  window.HistoryManager.undo();
+  const s46UndoneLayers = window.LayerManager.getLayers().map((l) => `${l.type}:${l.id}`);
+  assert.deepStrictEqual(s46UndoneLayers, s46BaselineLayers, 'Scenario 46: Undo restored exact baseline layer order');
+
+  // Redo reapplies reordering
+  window.HistoryManager.redo();
+  const s46RedoneLayers = window.LayerManager.getLayers().map((l) => `${l.type}:${l.id}`);
+  assert.deepStrictEqual(s46RedoneLayers, s46ReorderedLayers, 'Scenario 46: Redo reapplied reordered layers');
+
+  // Export to native .sva and re-import
+  const s46Serialized = window.ProjectManager.serializeStudioState();
+  const s46Parsed = JSON.parse(s46Serialized);
+  assert.ok(s46Parsed.layers, 'Scenario 46: Layers included in serialized studio state');
+  assert.strictEqual(s46Parsed.layers.length, 3, 'Scenario 46: All 3 layers serialized');
+
+  window.ProjectManager.resetToNewProject();
+  assert.strictEqual(window.LayerManager.getLayers().length, 0, 'Scenario 46: Project reset cleared layers');
+
+  window.ProjectManager.applyStudioState(s46Serialized);
+  window.LayerManager.syncFromEngine();
+  const s46RestoredLayers = window.LayerManager.getLayers().map((l) => `${l.type}:${l.id}`);
+  assert.deepStrictEqual(s46RestoredLayers, s46ReorderedLayers, 'Scenario 46: SVA round-trip restored exact reordered layer sequence');
+
+  console.log('[HARNESS] Scenario 46 PASS: Undo/redo and SVA round-trip persistence of layer order verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13 & 14 unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

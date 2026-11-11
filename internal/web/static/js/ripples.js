@@ -213,35 +213,24 @@ window.Ripples = {
     };
   },
 
-  injectIntoSVG(svgString, state) {
-    if (this.list.length === 0) return svgString;
-    const width = state.image.width;
-    const height = state.image.height;
-    const isBlank = !!state.image.isBlankCanvas;
-
+  getRippleDefs(state) {
+    if (!state || !state.image) return '';
+    const width = state.image.width || 1280;
+    const height = state.image.height || 720;
     let defs = '';
-    let elements = '';
+    const easeSpline = '0.1 0.8 0.3 1';
+    const holdSpline = '0 0 1 1';
 
     this.list.forEach((rp) => {
-      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
-        const effL = window.LayerManager.getEffective('ripple', rp.id);
-        if (effL && !effL.visible) return;
-      }
       const px = (rp.x / 100) * width;
       const py = (rp.y / 100) * height;
       const totalDur = rp.dur + (rp.endDelay || 0);
-      const scaleRefract = 1.0 + (rp.refraction / 1000);
       const maskId = 'rippleMask-' + rp.id;
       const blurId = 'rippleBlur-' + rp.id;
-
       const blurAmount = Math.max(2, rp.thick * 1.5);
       defs += '<filter id="' + blurId + '" filterUnits="userSpaceOnUse" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="' + blurAmount + '" /></filter>';
 
       let ringMasks = '';
-      let ringHighlights = '';
-      let ringShadows = '';
-      const easeSpline = '0.1 0.8 0.3 1';
-      const holdSpline = '0 0 1 1';
       const rRatio = rp.endDelay > 0 ? (rp.dur / totalDur).toFixed(4) : '1';
 
       for (let i = 0; i < rp.rings; i++) {
@@ -249,36 +238,99 @@ window.Ripples = {
         const beginTime = rp.delay + stagger;
         let rAnim = '';
         let opAnimMask = '';
-        let opAnimCrest = '';
 
         if (rp.endDelay > 0) {
           rAnim = '<animate attributeName="r" values="' + rp.innerR + '; ' + rp.outerR + '; ' + rp.outerR + '" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + easeSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
           opAnimMask = '<animate attributeName="stroke-opacity" values="1; 0; 0" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + easeSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
-          opAnimCrest = '<animate attributeName="stroke-opacity" values="' + rp.opacity + '; 0; 0" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + easeSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
         } else {
           rAnim = '<animate attributeName="r" values="' + rp.innerR + '; ' + rp.outerR + '" keyTimes="0; 1" calcMode="spline" keySplines="' + easeSpline + '" dur="' + rp.dur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
           opAnimMask = '<animate attributeName="stroke-opacity" values="1; 0" keyTimes="0; 1" calcMode="spline" keySplines="' + easeSpline + '" dur="' + rp.dur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
-          opAnimCrest = '<animate attributeName="stroke-opacity" values="' + rp.opacity + '; 0" keyTimes="0; 1" calcMode="spline" keySplines="' + easeSpline + '" dur="' + rp.dur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
         }
-
-        const shadowOp = (rp.opacity * 0.7).toFixed(2);
-        const opAnimShadow = opAnimCrest.replace('values="' + rp.opacity, 'values="' + shadowOp);
-
         ringMasks += '<circle cx="' + px + '" cy="' + py + '" r="0" fill="none" stroke="white" stroke-width="' + (rp.thick * 3) + '" stroke-opacity="0" filter="url(#' + blurId + ')">' + rAnim + opAnimMask + '</circle>';
-        ringHighlights += '<circle cx="' + px + '" cy="' + py + '" r="0" fill="none" stroke="' + rp.color + '" stroke-width="' + (rp.thick * 0.8) + '" stroke-opacity="0" filter="url(#' + blurId + ')">' + rAnim + opAnimCrest + '</circle>';
-        ringShadows += '<g transform="translate(' + px + ', ' + py + ') scale(0.92) translate(' + (-px) + ', ' + (-py) + ')"><circle cx="' + px + '" cy="' + py + '" r="0" fill="none" stroke="black" stroke-width="' + (rp.thick * 1.5) + '" stroke-opacity="0" filter="url(#' + blurId + ')">' + rAnim + opAnimShadow + '</circle></g>';
       }
 
       defs += '<mask id="' + maskId + '">' + ringMasks + '</mask>';
-      const refractedPhoto = !isBlank && window.Effects
-        ? '<g mask="url(#' + maskId + ')" pointer-events="none"><g transform="translate(' + px + ', ' + py + ') scale(' + scaleRefract + ') translate(' + (-px) + ', ' + (-py) + ')">' + window.Effects.buildPhotoElement(state.image, width, height) + '</g></g>'
-        : '';
-      const maxR = Math.max(30, rp.outerR || 100);
-      const hitTargetEl = '<circle class="ripple-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + maxR.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
-      elements += '<g class="diagram-ripple-instance" data-ripple-id="' + rp.id + '">' +
-        hitTargetEl +
-        refractedPhoto + '<g pointer-events="none">' + ringShadows + '</g><g pointer-events="none">' + ringHighlights + '</g>' +
-        '</g>';
+    });
+
+    return defs;
+  },
+
+  renderRippleElement(rp, state) {
+    if (!rp) return '';
+    if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+      const effL = window.LayerManager.getEffective('ripple', rp.id);
+      if (effL && !effL.visible) return '';
+    }
+    const width = state && state.image ? state.image.width : 1280;
+    const height = state && state.image ? state.image.height : 720;
+    const isBlank = state && state.image ? !!state.image.isBlankCanvas : true;
+
+    const px = (rp.x / 100) * width;
+    const py = (rp.y / 100) * height;
+    const totalDur = rp.dur + (rp.endDelay || 0);
+    const scaleRefract = 1.0 + (rp.refraction / 1000);
+    const maskId = 'rippleMask-' + rp.id;
+    const blurId = 'rippleBlur-' + rp.id;
+
+    let ringHighlights = '';
+    let ringShadows = '';
+    const easeSpline = '0.1 0.8 0.3 1';
+    const holdSpline = '0 0 1 1';
+    const rRatio = rp.endDelay > 0 ? (rp.dur / totalDur).toFixed(4) : '1';
+
+    for (let i = 0; i < rp.rings; i++) {
+      const stagger = (rp.dur / rp.rings) * i;
+      const beginTime = rp.delay + stagger;
+      let rAnim = '';
+      let opAnimCrest = '';
+
+      if (rp.endDelay > 0) {
+        rAnim = '<animate attributeName="r" values="' + rp.innerR + '; ' + rp.outerR + '; ' + rp.outerR + '" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + easeSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
+        opAnimCrest = '<animate attributeName="stroke-opacity" values="' + rp.opacity + '; 0; 0" keyTimes="0; ' + rRatio + '; 1" calcMode="spline" keySplines="' + easeSpline + '; ' + holdSpline + '" dur="' + totalDur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
+      } else {
+        rAnim = '<animate attributeName="r" values="' + rp.innerR + '; ' + rp.outerR + '" keyTimes="0; 1" calcMode="spline" keySplines="' + easeSpline + '" dur="' + rp.dur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
+        opAnimCrest = '<animate attributeName="stroke-opacity" values="' + rp.opacity + '; 0" keyTimes="0; 1" calcMode="spline" keySplines="' + easeSpline + '" dur="' + rp.dur + 's" begin="' + beginTime + 's" repeatCount="indefinite" />';
+      }
+
+      const shadowOp = (rp.opacity * 0.7).toFixed(2);
+      const opAnimShadow = opAnimCrest.replace('values="' + rp.opacity, 'values="' + shadowOp);
+
+      ringHighlights += '<circle cx="' + px + '" cy="' + py + '" r="0" fill="none" stroke="' + rp.color + '" stroke-width="' + (rp.thick * 0.8) + '" stroke-opacity="0" filter="url(#' + blurId + ')">' + rAnim + opAnimCrest + '</circle>';
+      ringShadows += '<g transform="translate(' + px + ', ' + py + ') scale(0.92) translate(' + (-px) + ', ' + (-py) + ')"><circle cx="' + px + '" cy="' + py + '" r="0" fill="none" stroke="black" stroke-width="' + (rp.thick * 1.5) + '" stroke-opacity="0" filter="url(#' + blurId + ')">' + rAnim + opAnimShadow + '</circle></g>';
+    }
+
+    const refractedPhoto = !isBlank && window.Effects
+      ? '<g mask="url(#' + maskId + ')" pointer-events="none"><g transform="translate(' + px + ', ' + py + ') scale(' + scaleRefract + ') translate(' + (-px) + ', ' + (-py) + ')">' + window.Effects.buildPhotoElement(state.image, width, height) + '</g></g>'
+      : '';
+    const maxR = Math.max(30, rp.outerR || 100);
+    const hitTargetEl = '<circle class="ripple-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + maxR.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
+    return '<g class="diagram-ripple-instance" data-ripple-id="' + rp.id + '">' +
+      hitTargetEl +
+      refractedPhoto + '<g pointer-events="none">' + ringShadows + '</g><g pointer-events="none">' + ringHighlights + '</g>' +
+      '</g>';
+  },
+
+  injectIntoSVG(svgString, state) {
+    if (this.list.length === 0) return svgString;
+    const defs = this.getRippleDefs(state);
+    let elements = '';
+
+    let orderedList = this.list;
+    if (window.LayerManager && typeof window.LayerManager.getLayers === 'function') {
+      const layers = window.LayerManager.getLayers();
+      if (Array.isArray(layers) && layers.length > 0) {
+        const orderMap = new Map();
+        layers.filter((l) => l.type === 'ripple').forEach((l, idx) => orderMap.set(String(l.id), idx));
+        orderedList = [...this.list].sort((a, b) => {
+          const idxA = orderMap.has(String(a.id)) ? orderMap.get(String(a.id)) : -1;
+          const idxB = orderMap.has(String(b.id)) ? orderMap.get(String(b.id)) : -1;
+          return idxA - idxB;
+        });
+      }
+    }
+
+    orderedList.forEach((rp) => {
+      elements += this.renderRippleElement(rp, state);
     });
 
     return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', '\n<defs>\n' + defs + '\n</defs>\n<g id="ripples-layer">\n' + elements + '\n</g>\n<!-- INJECT_CAMERA_RIG_ELEMENTS -->');

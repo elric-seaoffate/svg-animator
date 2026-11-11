@@ -1414,60 +1414,164 @@
       if (this.isReady()) {
         const res = this.dispatch('Layer.Set', { layers });
         if (res && res.success) return res;
+        return res || { success: false, error: 'Layer.Set dispatch failed' };
       }
-      if (window.LayerManager) {
-        window.LayerManager.setLayers(layers);
+      if (window.LayerManager && typeof window.LayerManager.setLayers === 'function') {
+        window.LayerManager.setLayers(layers, { skipBridge: true });
         return { success: true };
       }
       return null;
     },
 
-    bringToFront(targets) {
-      if (this.isReady()) {
-        const res = this.dispatch('Layer.BringToFront', { targets });
-        if (res && res.success && window.LayerManager) {
-          window.LayerManager.syncFromEngine();
-          return res;
+    normalizeLayerTargets(rawTargets) {
+      if (!rawTargets) {
+        return { valid: false, error: 'No target objects specified for layer reordering', targets: [] };
+      }
+
+      const VALID_TYPES = new Set(['node', 'flow', 'glow', 'ripple', 'image', 'group']);
+      let candidates = [];
+
+      if (!Array.isArray(rawTargets) && typeof rawTargets === 'object') {
+        if (rawTargets.type === 'group' && rawTargets.id != null) {
+          candidates = [{ type: 'group', id: rawTargets.id }];
+        } else if (Array.isArray(rawTargets.items) && rawTargets.items.length > 0) {
+          candidates = rawTargets.items;
+        } else if (rawTargets.type && rawTargets.id != null) {
+          candidates = [rawTargets];
+        } else {
+          return { valid: false, error: 'Malformed layer target object: missing type or id', targets: [] };
+        }
+      } else if (Array.isArray(rawTargets)) {
+        candidates = rawTargets;
+      } else if (typeof rawTargets === 'string') {
+        const str = rawTargets.trim();
+        if (str.startsWith('group-') || str.startsWith('group:')) {
+          candidates = [{ type: 'group', id: str.replace(/^group:/, '') }];
+        } else if (str.includes(':')) {
+          const parts = str.split(':');
+          candidates = [{ type: parts[0], id: parts[1] }];
+        } else {
+          return { valid: false, error: `Invalid layer target string representation: "${rawTargets}"`, targets: [] };
+        }
+      } else {
+        return { valid: false, error: 'Invalid layer targets: expected array or object reference', targets: [] };
+      }
+
+      if (candidates.length === 0) {
+        return { valid: false, error: 'No target objects specified for layer reordering', targets: [] };
+      }
+
+      const seen = new Set();
+      const normalized = [];
+
+      for (let i = 0; i < candidates.length; i++) {
+        const item = candidates[i];
+        if (!item || typeof item !== 'object') {
+          return { valid: false, error: `Invalid layer target at index ${i}: expected object`, targets: [] };
+        }
+
+        const t = typeof item.type === 'string' ? item.type.toLowerCase().trim() : '';
+        if (!VALID_TYPES.has(t)) {
+          return { valid: false, error: `Invalid layer target type at index ${i}: "${item.type}"`, targets: [] };
+        }
+
+        if (item.id === null || item.id === undefined || String(item.id).trim() === '') {
+          return { valid: false, error: `Missing or empty ID for layer target at index ${i} (${t})`, targets: [] };
+        }
+
+        const idStr = String(item.id).trim();
+        const key = `${t}:${idStr}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          normalized.push({ type: t, id: idStr });
         }
       }
-      if (window.LayerManager) return window.LayerManager.bringToFront(targets);
-      return null;
+
+      if (normalized.length === 0) {
+        return { valid: false, error: 'No valid target objects found', targets: [] };
+      }
+
+      return { valid: true, targets: normalized };
+    },
+
+    bringToFront(targets) {
+      const norm = this.normalizeLayerTargets(targets);
+      if (!norm.valid) {
+        console.error('[EngineBridge] Layer.BringToFront validation error:', norm.error);
+        return { success: false, error: norm.error };
+      }
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.BringToFront', { targets: norm.targets });
+        if (res && res.success) {
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
+          return res;
+        }
+        return res || { success: false, error: 'Layer.BringToFront dispatch failed' };
+      }
+      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
+        return window.LayerManager._fallbackReorder(norm.targets, 'bringToFront');
+      }
+      return { success: false, error: 'EngineBridge not ready' };
     },
 
     sendToBack(targets) {
+      const norm = this.normalizeLayerTargets(targets);
+      if (!norm.valid) {
+        console.error('[EngineBridge] Layer.SendToBack validation error:', norm.error);
+        return { success: false, error: norm.error };
+      }
       if (this.isReady()) {
-        const res = this.dispatch('Layer.SendToBack', { targets });
-        if (res && res.success && window.LayerManager) {
-          window.LayerManager.syncFromEngine();
+        const res = this.dispatch('Layer.SendToBack', { targets: norm.targets });
+        if (res && res.success) {
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
+        return res || { success: false, error: 'Layer.SendToBack dispatch failed' };
       }
-      if (window.LayerManager) return window.LayerManager.sendToBack(targets);
-      return null;
+      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
+        return window.LayerManager._fallbackReorder(norm.targets, 'sendToBack');
+      }
+      return { success: false, error: 'EngineBridge not ready' };
     },
 
     bringForward(targets) {
+      const norm = this.normalizeLayerTargets(targets);
+      if (!norm.valid) {
+        console.error('[EngineBridge] Layer.BringForward validation error:', norm.error);
+        return { success: false, error: norm.error };
+      }
       if (this.isReady()) {
-        const res = this.dispatch('Layer.BringForward', { targets });
-        if (res && res.success && window.LayerManager) {
-          window.LayerManager.syncFromEngine();
+        const res = this.dispatch('Layer.BringForward', { targets: norm.targets });
+        if (res && res.success) {
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
+        return res || { success: false, error: 'Layer.BringForward dispatch failed' };
       }
-      if (window.LayerManager) return window.LayerManager.bringForward(targets);
-      return null;
+      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
+        return window.LayerManager._fallbackReorder(norm.targets, 'bringForward');
+      }
+      return { success: false, error: 'EngineBridge not ready' };
     },
 
     sendBackward(targets) {
+      const norm = this.normalizeLayerTargets(targets);
+      if (!norm.valid) {
+        console.error('[EngineBridge] Layer.SendBackward validation error:', norm.error);
+        return { success: false, error: norm.error };
+      }
       if (this.isReady()) {
-        const res = this.dispatch('Layer.SendBackward', { targets });
-        if (res && res.success && window.LayerManager) {
-          window.LayerManager.syncFromEngine();
+        const res = this.dispatch('Layer.SendBackward', { targets: norm.targets });
+        if (res && res.success) {
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
           return res;
         }
+        return res || { success: false, error: 'Layer.SendBackward dispatch failed' };
       }
-      if (window.LayerManager) return window.LayerManager.sendBackward(targets);
-      return null;
+      if (window.LayerManager && typeof window.LayerManager._fallbackReorder === 'function') {
+        return window.LayerManager._fallbackReorder(norm.targets, 'sendBackward');
+      }
+      return { success: false, error: 'EngineBridge not ready' };
     },
 
     setLayerVisibility(type, id, visible) {
@@ -2991,7 +3095,7 @@
       return JSON.parse(JSON.stringify(this.list));
     },
 
-    setLayers(layers) {
+    setLayers(layers, options = {}) {
       if (Array.isArray(layers)) {
         this.list = layers.map((l) => ({
           type: String(l.type),
@@ -2999,7 +3103,7 @@
           visible: l.visible !== undefined ? !!l.visible : true,
           locked: !!l.locked
         }));
-        if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+        if (!options.skipBridge && typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
           window.EngineBridge.setLayers(this.list);
         }
       }
@@ -3139,46 +3243,46 @@
 
     bringToFront(targets) {
       if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
-        const res = window.EngineBridge.bringToFront(targets);
-        if (res && res.success) {
-          this.syncFromEngine();
-          return res;
-        }
+        return window.EngineBridge.bringToFront(targets);
       }
-      return this._fallbackReorder(targets, 'bringToFront');
+      const norm = typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.normalizeLayerTargets === 'function'
+        ? window.EngineBridge.normalizeLayerTargets(targets)
+        : null;
+      const t = (norm && norm.valid) ? norm.targets : targets;
+      return this._fallbackReorder(t, 'bringToFront');
     },
 
     sendToBack(targets) {
       if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
-        const res = window.EngineBridge.sendToBack(targets);
-        if (res && res.success) {
-          this.syncFromEngine();
-          return res;
-        }
+        return window.EngineBridge.sendToBack(targets);
       }
-      return this._fallbackReorder(targets, 'sendToBack');
+      const norm = typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.normalizeLayerTargets === 'function'
+        ? window.EngineBridge.normalizeLayerTargets(targets)
+        : null;
+      const t = (norm && norm.valid) ? norm.targets : targets;
+      return this._fallbackReorder(t, 'sendToBack');
     },
 
     bringForward(targets) {
       if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
-        const res = window.EngineBridge.bringForward(targets);
-        if (res && res.success) {
-          this.syncFromEngine();
-          return res;
-        }
+        return window.EngineBridge.bringForward(targets);
       }
-      return this._fallbackReorder(targets, 'bringForward');
+      const norm = typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.normalizeLayerTargets === 'function'
+        ? window.EngineBridge.normalizeLayerTargets(targets)
+        : null;
+      const t = (norm && norm.valid) ? norm.targets : targets;
+      return this._fallbackReorder(t, 'bringForward');
     },
 
     sendBackward(targets) {
       if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
-        const res = window.EngineBridge.sendBackward(targets);
-        if (res && res.success) {
-          this.syncFromEngine();
-          return res;
-        }
+        return window.EngineBridge.sendBackward(targets);
       }
-      return this._fallbackReorder(targets, 'sendBackward');
+      const norm = typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.normalizeLayerTargets === 'function'
+        ? window.EngineBridge.normalizeLayerTargets(targets)
+        : null;
+      const t = (norm && norm.valid) ? norm.targets : targets;
+      return this._fallbackReorder(t, 'sendBackward');
     },
 
     _fallbackReorder(targets, action) {
