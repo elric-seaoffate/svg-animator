@@ -9204,6 +9204,268 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 74 PASS: Batch 8E Verification Hardening, Idempotency & Dispatch Parity verified.');
 
+  // ===========================================================================
+  // SCENARIO 75: Batch 8F Snip, Extract and Background Crop Interaction Integrity
+  // ===========================================================================
+  console.log('\n[HARNESS] Testing Scenario 75: Batch 8F Snip, Extract and Background Crop Interaction Integrity...');
+
+  // Test 1: Problem A - Snip / Extract Image Confirmation & Drawer Parity
+  console.log('[HARNESS] Scenario 75 Test 1: Snip / Extract execution parity & non-inert floating button...');
+  if (window.Stage) {
+    // Setup background photo
+    const s75BgPhoto = {
+      filename: 'bg_extract_test.png',
+      mime: 'image/png',
+      b64: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      naturalWidth: 1280,
+      naturalHeight: 720
+    };
+    window.setLoadedPhoto(s75BgPhoto);
+    if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+      window.EngineBridge.setBackground(s75BgPhoto);
+    }
+
+    // Start background extract mode
+    window.Stage.startBgExtractMode();
+    assert.strictEqual(window.Stage.isExtractingBg, true, 'Test 1: isExtractingBg active');
+    const extractBar = document.getElementById('bgExtractBar');
+    extractBar.classList.add('stage-banner-bar');
+    assert.ok(extractBar && extractBar.style.display === 'flex', 'Test 1: bgExtractBar visible');
+    const btnConfirmExt = document.getElementById('btnConfirmExtract');
+    btnConfirmExt.parentElement = extractBar;
+    const btnCapArea = document.getElementById('btnCaptureSelectedArea');
+    assert.ok(btnConfirmExt && btnConfirmExt.disabled === true, 'Test 1: Confirm extract initially disabled');
+
+    // Simulate drag across canvas to define extraction region (e.g. 100, 100, 300, 200)
+    window.Stage.previewBox.dispatchEvent({ type: 'pointerdown', clientX: 100, clientY: 100, button: 0, pointerId: 1 });
+    window.Stage.previewBox.dispatchEvent({ type: 'pointermove', clientX: 400, clientY: 300, pointerId: 1 });
+    window.Stage.previewBox.dispatchEvent({ type: 'pointerup', clientX: 400, clientY: 300, pointerId: 1 });
+
+    assert.ok(window.Stage.bgExtractBox, 'Test 1: bgExtractBox defined after drag');
+    assert.ok(window.Stage.bgExtractBox.w >= 10 && window.Stage.bgExtractBox.h >= 10, 'Test 1: Extracted box meets minimum dimensions');
+    assert.strictEqual(btnConfirmExt.disabled, false, 'Test 1: Floating Extract Image button enabled');
+    if (btnCapArea) {
+      assert.strictEqual(btnCapArea.disabled, false, 'Test 1: Drawer Capture Selected Area button enabled');
+    }
+
+    // Verify banner bar click is protected from stage pointerdown drag reset
+    const bannerClickEvt = {
+      target: btnConfirmExt,
+      button: 0,
+      clientX: 500,
+      clientY: 30,
+      pointerId: 1,
+      preventDefault: () => {},
+      stopPropagation: () => {}
+    };
+    const prevExtractBox = Object.assign({}, window.Stage.bgExtractBox);
+    window.Stage.previewBox.dispatchEvent(Object.assign({ type: 'pointerdown' }, bannerClickEvt));
+    assert.deepStrictEqual(window.Stage.bgExtractBox, prevExtractBox, 'Test 1: Clicking banner bar does not reset bgExtractBox');
+
+    // Spy on executeBackgroundExtraction and confirmBgSnip
+    let execExtCalled = false;
+    let snipCalled = false;
+    let snipOpts = null;
+    const origExecExt = window.executeBackgroundExtraction;
+    const origConfirmSnip = window.ImageToolsController ? window.ImageToolsController.confirmBgSnip : null;
+
+    window.executeBackgroundExtraction = function(box) {
+      execExtCalled = true;
+      assert.strictEqual(box.w, prevExtractBox.w, 'Test 1: Extraction box width matches');
+      assert.strictEqual(box.h, prevExtractBox.h, 'Test 1: Extraction box height matches');
+      if (origExecExt) origExecExt(box);
+    };
+    if (window.ImageToolsController) {
+      window.ImageToolsController.confirmBgSnip = function(box, opts) {
+        snipCalled = true;
+        snipOpts = opts;
+        if (origConfirmSnip) origConfirmSnip.call(window.ImageToolsController, box, opts);
+      };
+    }
+
+    try {
+      // Trigger confirmBgExtractMode (simulating clicking floating Extract Image button)
+      window.Stage.confirmBgExtractMode();
+      assert.strictEqual(execExtCalled, true, 'Test 1: Floating button executes background extraction into Image Object');
+      assert.strictEqual(snipCalled, true, 'Test 1: confirmBgSnip called to keep preview in sync');
+      assert.ok(snipOpts && snipOpts.silent === true, 'Test 1: confirmBgSnip called with silent option to avoid double toast');
+      assert.strictEqual(window.Stage.isExtractingBg, false, 'Test 1: isExtractingBg cancelled after confirm');
+      assert.strictEqual(extractBar.style.display, 'none', 'Test 1: bgExtractBar hidden after confirm');
+    } finally {
+      window.executeBackgroundExtraction = origExecExt;
+      if (window.ImageToolsController && origConfirmSnip) {
+        window.ImageToolsController.confirmBgSnip = origConfirmSnip;
+      }
+    }
+  }
+
+  // Test 2: Problem B - Background Crop Selection, Move & Manipulation
+  console.log('[HARNESS] Scenario 75 Test 2: Background Crop Selection, Move & Handle Manipulation...');
+  if (window.Stage) {
+    // Setup clean background photo
+    const origGetBCR = window.Stage.previewBox.getBoundingClientRect;
+    const origZoomScale = window.Stage.zoomScale;
+    const origZoomMode = window.Stage.zoomMode;
+    window.Stage.previewBox.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1280, height: 720 });
+    window.Stage.zoomScale = 1.0;
+    window.Stage.zoomMode = 'fit';
+
+    const s75CropPhoto = {
+      filename: 'bg_crop_test.png',
+      mime: 'image/png',
+      b64: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      naturalWidth: 1280,
+      naturalHeight: 720
+    };
+    window.setLoadedPhoto(s75CropPhoto);
+    if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+      window.EngineBridge.setBackground(s75CropPhoto);
+    }
+
+    // Start background crop mode
+    window.Stage.startBackgroundCropMode();
+    assert.strictEqual(window.Stage.isCroppingImage, true, 'Test 2: Stage in cropping image mode');
+    assert.strictEqual(window.Stage.isCroppingBackground, true, 'Test 2: Stage in cropping background mode');
+    assert.ok(window.Stage.previewBox.classList.contains('crop-mode-active'), 'Test 2: previewBox has crop-mode-active class');
+
+    const overlayLayer = document.getElementById('stageOverlayLayer');
+    if (overlayLayer) {
+      assert.strictEqual(overlayLayer.style.pointerEvents, 'auto', 'Test 2: stageOverlayLayer pointerEvents enabled during crop');
+    }
+    const cropOverlayGroup = document.getElementById('cropOverlayGroup');
+    assert.ok(cropOverlayGroup && cropOverlayGroup.style.display === 'block', 'Test 2: cropOverlayGroup visible');
+    const cropBar = document.getElementById('cropBar');
+    assert.ok(cropBar && cropBar.style.display === 'flex', 'Test 2: cropBar visible');
+
+    // 2a. Drag to SELECT new crop region (when box is full size, drag anywhere on canvas selects region)
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointerdown',
+      clientX: 200,
+      clientY: 150,
+      button: 0,
+      pointerId: 1,
+      target: window.Stage.previewBox,
+      stopPropagation: () => {}
+    });
+    assert.strictEqual(window.Stage.cropDragMode, 'select', 'Test 2: Drag on full box initiates select mode');
+
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointermove',
+      clientX: 800,
+      clientY: 550,
+      pointerId: 1
+    });
+    assert.strictEqual(Math.round(window.Stage.cropBox.x), 160, 'Test 2: Selected crop box X updated');
+    assert.strictEqual(Math.round(window.Stage.cropBox.y), 120, 'Test 2: Selected crop box Y updated');
+    assert.strictEqual(Math.round(window.Stage.cropBox.w), 480, 'Test 2: Selected crop box width updated');
+    assert.strictEqual(Math.round(window.Stage.cropBox.h), 320, 'Test 2: Selected crop box height updated');
+
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointerup',
+      clientX: 800,
+      clientY: 550,
+      pointerId: 1
+    });
+    assert.strictEqual(window.Stage.cropDragMode, null, 'Test 2: cropDragMode cleared on pointerup');
+
+    // 2b. Drag to MOVE the established crop box
+    const cropBoxEl = document.getElementById('cropBoxRect');
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointerdown',
+      clientX: 300,
+      clientY: 200,
+      button: 0,
+      pointerId: 1,
+      target: cropBoxEl,
+      stopPropagation: () => {}
+    });
+    assert.strictEqual(window.Stage.cropDragMode, 'move', 'Test 2: Clicking interior of non-full crop box initiates move');
+
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointermove',
+      clientX: 350,
+      clientY: 230,
+      pointerId: 1
+    });
+    const effScale = window.Stage.getEffectiveScale();
+    const expectedMoveX = 160 + (50 / effScale);
+    const expectedMoveY = 120 + (30 / effScale);
+    assert.strictEqual(Math.round(window.Stage.cropBox.x), Math.round(expectedMoveX), 'Test 2: Moved crop box X translated');
+    assert.strictEqual(Math.round(window.Stage.cropBox.y), Math.round(expectedMoveY), 'Test 2: Moved crop box Y translated');
+    assert.strictEqual(Math.round(window.Stage.cropBox.w), 480, 'Test 2: Crop box width preserved during move');
+    assert.strictEqual(Math.round(window.Stage.cropBox.h), 320, 'Test 2: Crop box height preserved during move');
+
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointerup',
+      clientX: 350,
+      clientY: 230,
+      pointerId: 1
+    });
+
+    // 2c. Drag handle (e.g. SE handle) to RESIZE
+    const handleSe = document.getElementById('cropHandle-se');
+    handleSe.classList.add('crop-handle');
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointerdown',
+      clientX: 850,
+      clientY: 580,
+      button: 0,
+      pointerId: 1,
+      target: handleSe,
+      stopPropagation: () => {}
+    });
+    assert.strictEqual(window.Stage.cropDragMode, 'se', 'Test 2: Clicking SE handle initiates se resize');
+
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointermove',
+      clientX: 900,
+      clientY: 630,
+      pointerId: 1
+    });
+    const expectedResizeW = 480 + (50 / effScale);
+    const expectedResizeH = 320 + (50 / effScale);
+    assert.strictEqual(Math.round(window.Stage.cropBox.w), Math.round(expectedResizeW), 'Test 2: SE handle drag resized width');
+    assert.strictEqual(Math.round(window.Stage.cropBox.h), Math.round(expectedResizeH), 'Test 2: SE handle drag resized height');
+
+    window.Stage.previewBox.dispatchEvent({
+      type: 'pointerup',
+      clientX: 900,
+      clientY: 630,
+      pointerId: 1
+    });
+
+    // 2d. Apply Crop and verify engine receives crop data
+    let cropBridgeReceived = null;
+    const origCropBg = window.EngineBridge.cropBackground;
+    window.EngineBridge.cropBackground = function(data) {
+      cropBridgeReceived = data;
+      if (origCropBg) return origCropBg.call(window.EngineBridge, data);
+      return { success: true };
+    };
+
+    try {
+      const finalBoxX = Math.round(window.Stage.cropBox.x);
+      const finalBoxY = Math.round(window.Stage.cropBox.y);
+      const finalBoxW = Math.round(window.Stage.cropBox.w);
+      const finalBoxH = Math.round(window.Stage.cropBox.h);
+      window.Stage.applyCropMode();
+      assert.strictEqual(window.Stage.isCroppingImage, false, 'Test 2: Stage exited crop mode after apply');
+      assert.ok(cropBridgeReceived && cropBridgeReceived.enabled, 'Test 2: cropBackground received enabled crop');
+      assert.strictEqual(cropBridgeReceived.sourceX, finalBoxX, 'Test 2: sourceX matches final cropBox X');
+      assert.strictEqual(cropBridgeReceived.sourceY, finalBoxY, 'Test 2: sourceY matches final cropBox Y');
+      assert.strictEqual(cropBridgeReceived.sourceWidth, finalBoxW, 'Test 2: sourceWidth matches final cropBox W');
+      assert.strictEqual(cropBridgeReceived.sourceHeight, finalBoxH, 'Test 2: sourceHeight matches final cropBox H');
+      if (overlayLayer) {
+        assert.strictEqual(overlayLayer.style.pointerEvents, 'none', 'Test 2: stageOverlayLayer pointerEvents restored to none');
+      }
+      assert.strictEqual(window.Stage.previewBox.classList.contains('crop-mode-active'), false, 'Test 2: crop-mode-active removed');
+    } finally {
+      window.EngineBridge.cropBackground = origCropBg;
+    }
+  }
+
+  console.log('[HARNESS] Scenario 75 PASS: Batch 8F Snip, Extract and Background Crop Interaction Integrity verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

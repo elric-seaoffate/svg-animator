@@ -640,6 +640,58 @@ header h1 {
   cursor: grabbing;
 }
 
+.preview-wrapper.crop-mode-active {
+  cursor: crosshair;
+}
+.preview-wrapper.crop-mode-active #cropBoxRect {
+  cursor: move !important;
+}
+.preview-wrapper.crop-mode-active .crop-handle {
+  cursor: grab !important;
+}
+.preview-wrapper.crop-mode-active #cropHandle-nw,
+.preview-wrapper.crop-mode-active #cropHandle-se {
+  cursor: nwse-resize !important;
+}
+.preview-wrapper.crop-mode-active #cropHandle-ne,
+.preview-wrapper.crop-mode-active #cropHandle-sw {
+  cursor: nesw-resize !important;
+}
+.preview-wrapper.crop-mode-active #cropHandle-n,
+.preview-wrapper.crop-mode-active #cropHandle-s {
+  cursor: ns-resize !important;
+}
+.preview-wrapper.crop-mode-active #cropHandle-e,
+.preview-wrapper.crop-mode-active #cropHandle-w {
+  cursor: ew-resize !important;
+}
+
+.preview-wrapper.clip-mode-active {
+  cursor: crosshair;
+}
+.preview-wrapper.clip-mode-active #clipBoxRect {
+  cursor: move !important;
+}
+.preview-wrapper.clip-mode-active .clip-handle {
+  cursor: grab !important;
+}
+.preview-wrapper.clip-mode-active #clipHandle-nw,
+.preview-wrapper.clip-mode-active #clipHandle-se {
+  cursor: nwse-resize !important;
+}
+.preview-wrapper.clip-mode-active #clipHandle-ne,
+.preview-wrapper.clip-mode-active #clipHandle-sw {
+  cursor: nesw-resize !important;
+}
+.preview-wrapper.clip-mode-active #clipHandle-n,
+.preview-wrapper.clip-mode-active #clipHandle-s {
+  cursor: ns-resize !important;
+}
+.preview-wrapper.clip-mode-active #clipHandle-e,
+.preview-wrapper.clip-mode-active #clipHandle-w {
+  cursor: ew-resize !important;
+}
+
 #svgContainer {
   position: absolute;
   top: 0;

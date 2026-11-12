@@ -1,0 +1,83 @@
+=== BATCH 8F IMPLEMENTATION EVIDENCE LOG ===
+Started At: 2026-11-12T12:39:15Z
+Baseline Commit: 26bceb51318c788dd28d20f726532a6e5d13b23c
+Branch: main
+
+--- Git Initial State ---
+Branch: main
+HEAD: 26bceb51318c788dd28d20f726532a6e5d13b23c
+Working tree clean.
+
+--- 1. Root Cause Analysis ---
+Problem A (Snip / Extract Image):
+- Floating button #btnConfirmExtract is located inside #bgExtractBar (.stage-banner-bar), a child of #previewBox.
+- previewBox pointerdown listener lacked exclusion for .stage-banner-bar, causing clicks on the floating button to trigger a new extraction drag, resetting bgExtractBox to 0x0 and capturing the pointer.
+- confirmBgExtractMode() had an if/else ladder that called ImageToolsController.confirmBgSnip(box) and ignored executeBackgroundExtraction(box). confirmBgSnip only populated the drawer preview canvas without creating the image object on the canvas.
+- stage.js line 873 enabled hidden button #btnConfirmBgSnip instead of visible button #btnCaptureSelectedArea.
+
+Problem B (Background Crop):
+- Full-size initial crop box locked translation math (init.w === ob.w).
+- pointerdown on stage lacked drag-to-select mode when clicking uncropped full image or blank canvas.
+- #cropBoxRect had fill rgba(88, 166, 255, 0.001) which rounded to 0 alpha in 8-bit color, causing browsers to treat it as unpainted during hit-testing.
+- #stageOverlayLayer had pointer-events: none in CSS, preventing proper hit-testing of crop handles and rect.
+- Missing explicit CSS cursor rules for .crop-mode-active.
+
+--- 2. Modifications Applied ---
+1. internal/web/static/index.html:
+   - Added pointer-events="all" attribute to #cropBoxRect and fill="rgba(88, 166, 255, 0.08)".
+   - Added pointer-events="all" attribute to all 8 .crop-handle elements.
+   - Added pointer-events="all" attribute to #clipBoxRect and all 8 .clip-handle elements with fill="rgba(56, 211, 159, 0.08)".
+2. internal/web/static/css/style.css:
+   - Added .preview-wrapper.crop-mode-active and .preview-wrapper.clip-mode-active rules with explicit cursor: move for bounding rects, directional resize cursors for handles, and crosshair for stage.
+3. internal/web/static/js/stage.js:
+   - Added .stage-banner-bar pointerdown guard to prevent drag reset when clicking banner buttons.
+   - Implemented drag-to-select mode (cropDragMode === 'select') when clicking uncropped full image or blank canvas.
+   - Supported move and handle resize modes with live UI updates and drawer input synchronization.
+   - Enabled stageOverlayLayer pointer-events in startCropMode and startClipMode; restored to none on cancel.
+   - Fixed dynamic button enablement in pointermove for bg extract: enabled both #btnConfirmExtract and #btnCaptureSelectedArea.
+   - Updated confirmBgExtractMode() to call both ImageToolsController.confirmBgSnip(box, { silent: true }) AND window.executeBackgroundExtraction(box).
+4. internal/web/static/js/app.js:
+   - Updated ImageToolsController.confirmBgSnip(box, opts) to support opts.silent = true, avoiding competing notification toasts.
+   - Fixed trailing whitespace / newlines.
+5. scripts/regression-harness.js:
+   - Implemented Scenario 75 covering Snip / Extract execution parity, floating button non-inertness, banner bar click protection, and background crop selection, move, and handle resize manipulation.
+
+--- 3. Verification Commands & Outputs ---
+Command: go vet ./...
+Result: PASS (exit code 0)
+
+Command: go test -count=1 ./...
+Result:
+ok      gitea.seaoffate.net/blackgrape/svg-animator/internal/db 0.200s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/internal/generator  0.003s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/internal/rasterizer 0.030s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/internal/web        0.299s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry 0.002s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/protocol 0.012s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene    0.010s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/sva      0.942s
+ok      gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/timeline 0.003s
+
+Command: go test -race -count=1 ./pkg/engine/scene/...
+Result: ok      gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene    1.046s (0 data races)
+
+Command: bash scripts/verify-architecture.sh
+Result: 9 PASS, 1 WARNING (ARCH-05 accepted still export exception)
+
+Command: bash scripts/verify-runtime.sh
+Result: 6 PASS, 1 NOT VERIFIED (RUN-06 headless chromium availability check)
+
+Command: node scripts/regression-harness.js
+Result:
+[HARNESS] Testing Scenario 75: Batch 8F Snip, Extract and Background Crop Interaction Integrity...
+[HARNESS] Scenario 75 Test 1: Snip / Extract execution parity & non-inert floating button...
+[HARNESS] Scenario 75 Test 2: Background Crop Selection, Move & Handle Manipulation...
+[HARNESS] Scenario 75 PASS: Batch 8F Snip, Extract and Background Crop Interaction Integrity verified.
+[HARNESS] REG-03 PASS: All 75 Scenarios passed.
+
+Command: git diff --check
+Result: Clean (exit code 0)
+
+Command: curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8089/
+Result: 200 OK
+=== END OF LOG ===

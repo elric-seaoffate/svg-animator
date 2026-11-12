@@ -2021,7 +2021,7 @@ window.ImageToolsController = {
     this.confirmClipArea(img, { x, y, w, h });
   },
 
-  confirmBgSnip(box) {
+  confirmBgSnip(box, opts = {}) {
     if (!box || box.w < 10 || box.h < 10) return;
     this._snipCounter++;
     this._extractBackgroundSnipDataUrl(box, (res) => {
@@ -2055,8 +2055,10 @@ window.ImageToolsController = {
       this._updatePreviewMeta(res.sw, res.sh, `Background snip (${Math.round(res.sw)} × ${Math.round(res.sh)} px)`);
       this._syncPreviewButtons();
 
-      if (window.AppCoordinator) {
-        window.AppCoordinator.showNotification('Background snip captured to preview. Click Create Image Object or Export.', 'success', 3000);
+      if (!opts || !opts.silent) {
+        if (window.AppCoordinator) {
+          window.AppCoordinator.showNotification('Background snip captured to preview. Click Create Image Object or Export.', 'success', 3000);
+        }
       }
     });
   },

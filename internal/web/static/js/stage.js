@@ -285,6 +285,11 @@ window.Stage = {
           return;
         }
 
+        // Floating banner bar buttons should NOT trigger stage/canvas drag interactions
+        if (e.target && e.target.closest && e.target.closest('.stage-banner-bar')) {
+          return;
+        }
+
         if (e.button === 1 || (e.button === 0 && this.spacePressed)) {
           e.preventDefault();
           this.isPanningStage = true;
@@ -308,6 +313,11 @@ window.Stage = {
         if (this.isCroppingImage) {
           const handleEl = e.target.closest ? e.target.closest('.crop-handle') : null;
           const boxEl = e.target.closest ? e.target.closest('#cropBoxRect') : null;
+          const ob = this.cropOrigBounds;
+          const isFullBox = this.cropBox && ob &&
+            Math.abs(this.cropBox.w - ob.w) < 4 &&
+            Math.abs(this.cropBox.h - ob.h) < 4;
+
           if (handleEl) {
             e.stopPropagation();
             const hId = handleEl.id.replace('cropHandle-', '');
@@ -319,7 +329,7 @@ window.Stage = {
             };
             try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
             return;
-          } else if (boxEl) {
+          } else if (boxEl && !isFullBox) {
             e.stopPropagation();
             this.cropDragMode = 'move';
             this.cropDragStart = {
@@ -329,8 +339,20 @@ window.Stage = {
             };
             try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
             return;
+          } else {
+            // Drag on canvas / image to SELECT a new crop region
+            e.stopPropagation();
+            const pt = this.clientToCanvasPixels(e.clientX, e.clientY);
+            this.cropDragMode = 'select';
+            this.cropDragStart = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              startCanvas: pt,
+              box: Object.assign({}, this.cropBox)
+            };
+            try { this.previewBox.setPointerCapture(e.pointerId); } catch (_) {}
+            return;
           }
-          return;
         }
 
         if (this.isClippingImage) {
@@ -757,11 +779,27 @@ window.Stage = {
         }
 
         if (this.isCroppingImage && this.cropDragMode && this.cropDragStart && this.cropOrigBounds) {
+          const ob = this.cropOrigBounds;
+          if (this.cropDragMode === 'select') {
+            const pt = this.clientToCanvasPixels(e.clientX, e.clientY);
+            const x = Math.max(ob.left, Math.min(ob.left + ob.w, Math.min(this.cropDragStart.startCanvas.x, pt.x)));
+            const y = Math.max(ob.top, Math.min(ob.top + ob.h, Math.min(this.cropDragStart.startCanvas.y, pt.y)));
+            const right = Math.max(ob.left, Math.min(ob.left + ob.w, Math.max(this.cropDragStart.startCanvas.x, pt.x)));
+            const bottom = Math.max(ob.top, Math.min(ob.top + ob.h, Math.max(this.cropDragStart.startCanvas.y, pt.y)));
+            const w = Math.max(10, right - x);
+            const h = Math.max(10, bottom - y);
+            this.cropBox = { x, y, w, h };
+            this.updateCropOverlayUI();
+            if (typeof window.syncImageToolsFromCrop === 'function') {
+              window.syncImageToolsFromCrop();
+            }
+            return;
+          }
+
           const scale = this.getEffectiveScale();
           const dx = (e.clientX - this.cropDragStart.clientX) / scale;
           const dy = (e.clientY - this.cropDragStart.clientY) / scale;
           const init = this.cropDragStart.box;
-          const ob = this.cropOrigBounds;
 
           let newX = init.x;
           let newY = init.y;
@@ -870,9 +908,13 @@ window.Stage = {
           if (btn) {
             btn.disabled = !(w >= 10 && h >= 10);
           }
-          const btnDrawer = document.getElementById('btnConfirmBgSnip');
+          const btnDrawer = document.getElementById('btnCaptureSelectedArea');
           if (btnDrawer) {
             btnDrawer.disabled = !(w >= 10 && h >= 10);
+          }
+          const btnDrawerLegacy = document.getElementById('btnConfirmBgSnip');
+          if (btnDrawerLegacy) {
+            btnDrawerLegacy.disabled = !(w >= 10 && h >= 10);
           }
           if (typeof window.syncImageToolsFromSnip === 'function') {
             window.syncImageToolsFromSnip();
@@ -1050,6 +1092,17 @@ window.Stage = {
         }
 
         if (this.isCroppingImage) {
+          if (this.cropDragMode === 'select' && this.cropDragStart) {
+            const dist = Math.hypot(e.clientX - this.cropDragStart.clientX, e.clientY - this.cropDragStart.clientY);
+            if (dist < 6 && this.cropDragStart.box) {
+              // Click without significant drag: preserve previous crop box
+              this.cropBox = Object.assign({}, this.cropDragStart.box);
+              this.updateCropOverlayUI();
+              if (typeof window.syncImageToolsFromCrop === 'function') {
+                window.syncImageToolsFromCrop();
+              }
+            }
+          }
           this.cropDragMode = null;
           try { this.previewBox.releasePointerCapture(e.pointerId); } catch (_) {}
           return;
@@ -1713,6 +1766,8 @@ window.Stage = {
 
     if (this.previewBox) this.previewBox.classList.add('crop-mode-active');
     if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'auto';
+    const overlayLayer = document.getElementById('stageOverlayLayer');
+    if (overlayLayer) overlayLayer.style.pointerEvents = 'auto';
 
     const selBox = document.getElementById('nodeSelectionBox');
     if (selBox) selBox.style.display = 'none';
@@ -1942,8 +1997,13 @@ window.Stage = {
     this.activeCropImage = null;
     this.activeCropImageId = null;
     this.cropDragMode = null;
-    if (this.previewBox) this.previewBox.classList.remove('crop-mode-active');
+    if (this.previewBox) {
+      this.previewBox.classList.remove('clip-mode-active');
+      this.previewBox.classList.remove('crop-mode-active');
+    }
     if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'none';
+    const overlayLayer = document.getElementById('stageOverlayLayer');
+    if (overlayLayer) overlayLayer.style.pointerEvents = 'none';
     const cropBar = document.getElementById('cropBar');
     if (cropBar) cropBar.style.display = 'none';
     const groupEl = document.getElementById('cropOverlayGroup');
@@ -2043,8 +2103,10 @@ window.Stage = {
       h: clipH
     };
 
-    if (this.previewBox) this.previewBox.classList.add('crop-mode-active');
+    if (this.previewBox) this.previewBox.classList.add('clip-mode-active');
     if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'auto';
+    const overlayLayer = document.getElementById('stageOverlayLayer');
+    if (overlayLayer) overlayLayer.style.pointerEvents = 'auto';
 
     const selBox = document.getElementById('nodeSelectionBox');
     if (selBox) selBox.style.display = 'none';
@@ -2187,8 +2249,13 @@ window.Stage = {
     this.activeClipImage = null;
     this.activeClipImageId = null;
     this.clipDragMode = null;
-    if (this.previewBox) this.previewBox.classList.remove('crop-mode-active');
+    if (this.previewBox) {
+      this.previewBox.classList.remove('clip-mode-active');
+      this.previewBox.classList.remove('crop-mode-active');
+    }
     if (this.trajectorySvg) this.trajectorySvg.style.pointerEvents = 'none';
+    const overlayLayer = document.getElementById('stageOverlayLayer');
+    if (overlayLayer) overlayLayer.style.pointerEvents = 'none';
     const clipBar = document.getElementById('clipBar');
     if (clipBar) clipBar.style.display = 'none';
     const groupEl = document.getElementById('clipOverlayGroup');
@@ -2267,8 +2334,9 @@ window.Stage = {
     const box = Object.assign({}, this.bgExtractBox);
     this.cancelBgExtractMode();
     if (window.ImageToolsController && typeof window.ImageToolsController.confirmBgSnip === 'function') {
-      window.ImageToolsController.confirmBgSnip(box);
-    } else if (typeof window.executeBackgroundExtraction === 'function') {
+      window.ImageToolsController.confirmBgSnip(box, { silent: true });
+    }
+    if (typeof window.executeBackgroundExtraction === 'function') {
       window.executeBackgroundExtraction(box);
     }
   }
