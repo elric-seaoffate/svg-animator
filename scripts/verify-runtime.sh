@@ -218,22 +218,25 @@ fi
 # -----------------------------------------------------------------------------
 # RUN-04: Live HTTP Delivery, Content-Type, & Byte-for-Byte Match of Embedded Assets
 # -----------------------------------------------------------------------------
-echo ">> Running RUN-04: Verifying live HTTP delivery, Content-Type, and source match of / and all 14 /js/*.js files..."
+echo ">> Running RUN-04: Verifying live HTTP delivery, Content-Type, and source match of /, all 17 /js/*.js files, and /wasm/engine.wasm..."
 EXPECTED_JS=(
-  "js/effects.js"
-  "js/scene-state.js"
+  "js/app.js"
   "js/coordinator.js"
-  "js/stage.js"
-  "js/presets.js"
-  "js/nodes.js"
+  "js/effects.js"
+  "js/engine-bridge.js"
+  "js/export-modal.js"
   "js/flows.js"
   "js/glows.js"
-  "js/ripples.js"
   "js/history.js"
+  "js/nodes.js"
+  "js/presets.js"
   "js/projects.js"
-  "js/app.js"
+  "js/ripples.js"
+  "js/scene-state.js"
+  "js/shape-registry.js"
+  "js/stage.js"
   "js/still-export-modal.js"
-  "js/export-modal.js"
+  "js/wasm_exec.js"
 )
 
 if [ "${SERVER_READY}" -ne 1 ]; then
@@ -265,8 +268,18 @@ else
     fi
   done
 
+  # Verify WebAssembly binary delivery
+  wasm_meta="$(curl --connect-timeout 2 --max-time 10 -s -o "${TMP_DIR}/wasm.tmp" -w "%{http_code}|%{content_type}" "http://127.0.0.1:${PORT}/wasm/engine.wasm")"
+  wasm_code="${wasm_meta%%|*}"
+  wasm_ct="${wasm_meta#*|}"
+  if [ "${wasm_code}" != "200" ] \
+     || [[ "${wasm_ct}" != *"wasm"* ]] \
+     || ! cmp -s "${TMP_DIR}/wasm.tmp" "${REPO_ROOT}/internal/web/static/wasm/engine.wasm"; then
+    ASSET_FAILS+=("wasm/engine.wasm(status=${wasm_code},ct=${wasm_ct})")
+  fi
+
   if [ "${#ASSET_FAILS[@]}" -eq 0 ]; then
-    record_result "PASS" "RUN-04" "Live HTTP server delivered / (text/html) and all 14 embedded /js/*.js files (application/javascript) with HTTP 200 and exact byte-for-byte match against internal/web/static/"
+    record_result "PASS" "RUN-04" "Live HTTP server delivered / (text/html), all 17 embedded /js/*.js files (application/javascript), and /wasm/engine.wasm with HTTP 200 and exact byte-for-byte match against internal/web/static/"
   else
     record_result "FAIL" "RUN-04" "Asset delivery or content verification failed: ${ASSET_FAILS[*]}"
   fi

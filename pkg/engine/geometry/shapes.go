@@ -164,6 +164,13 @@ var BuiltinShapes = []ShapeDefinition{
 		DefaultWidth:  170,
 		DefaultHeight: 80,
 	},
+	{
+		ID:            "actor",
+		DisplayName:   "Actor / Stick Figure",
+		Category:      "basic",
+		DefaultWidth:  100,
+		DefaultHeight: 120,
+	},
 }
 
 // GetShapeCatalog returns the list of all registered shape definitions.
@@ -226,12 +233,17 @@ func ComputeTextPlacement(rawText, rawSubtext, shape string, width, height, font
 	hh := height / 2.0
 
 	if shape == "axes" {
+		startY := -hh - 10
+		lineYs := make([]float64, len(lines))
+		for i := range lines {
+			lineYs[i] = math.Round((startY+float64(i)*lineHeight)*10) / 10
+		}
 		return TextPlacement{
-			StartY:      -hh - 10,
+			StartY:      startY,
 			LineHeight:  lineHeight,
 			TotalHeight: float64(len(lines)) * lineHeight,
 			Lines:       lines,
-			LineYs:      []float64{-hh - 10},
+			LineYs:      lineYs,
 			HasSubtext:  hasSub,
 			Subtext:     trimmedSub,
 			SubY:        hh + subSize + 8,

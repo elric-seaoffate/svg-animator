@@ -407,8 +407,6 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 				break
 			}
 		}
-		newGroupID = newGID
-
 		remappedMembers := make([]GroupMember, 0, len(g.Members))
 		for _, m := range g.Members {
 			switch m.Type {
@@ -445,6 +443,7 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 			s.groupIDs = append(s.groupIDs, newGID)
 			s.ensureLayersInitializedLocked()
 			s.coalesceGroupMembersInLayersLocked(clonedGroup)
+			newGroupID = newGID
 		}
 	}
 

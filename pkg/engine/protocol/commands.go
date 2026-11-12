@@ -2481,7 +2481,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 	case "History.Record":
 		var req HistoryRecordRequest
 		if len(payloadJSON) > 0 && string(payloadJSON) != "{}" && string(payloadJSON) != "null" {
-			_ = json.Unmarshal(payloadJSON, &req)
+			if err := json.Unmarshal(payloadJSON, &req); err != nil {
+				return nil, fmt.Errorf("decoding HistoryRecordRequest: %w", err)
+			}
 		}
 		snap := activeScene.GetSnapshot()
 		if req.Snapshot != nil {
@@ -2593,8 +2595,10 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 
 	case "Project.EncodeSVA":
 		var req EncodeSVARequest
-		if len(payloadJSON) > 0 {
-			_ = json.Unmarshal(payloadJSON, &req)
+		if len(payloadJSON) > 0 && string(payloadJSON) != "{}" && string(payloadJSON) != "null" {
+			if err := json.Unmarshal(payloadJSON, &req); err != nil {
+				return nil, fmt.Errorf("decoding EncodeSVARequest: %w", err)
+			}
 		}
 		var proj *sva.Project
 		var err error

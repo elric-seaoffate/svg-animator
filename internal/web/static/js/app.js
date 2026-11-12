@@ -4577,6 +4577,10 @@ window.ImageToolsController = {
   _snipCounter: 0,
   _clipCounter: 0,
 
+  clearCache() {
+    this._imageCache.clear();
+  },
+
   _getBackgroundPhoto() {
     return (window.getLoadedPhoto && typeof window.getLoadedPhoto === 'function')
       ? window.getLoadedPhoto()

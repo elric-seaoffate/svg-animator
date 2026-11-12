@@ -493,7 +493,32 @@
       cancelCurrentRender();
     }
     const vid = document.getElementById('previewVideo');
-    if (vid) vid.pause();
+    if (vid) {
+      vid.pause();
+      vid.removeAttribute('src');
+      vid.load();
+    }
+    const previewImg = document.getElementById('previewImg');
+    if (previewImg) previewImg.removeAttribute('src');
+
+    if (cachedPreviewBlobUrl) {
+      try { URL.revokeObjectURL(cachedPreviewBlobUrl); } catch (_) {}
+      cachedPreviewBlobUrl = null;
+    }
+    if (cachedFinalWebpBlobUrl) {
+      try { URL.revokeObjectURL(cachedFinalWebpBlobUrl); } catch (_) {}
+      cachedFinalWebpBlobUrl = null;
+    }
+    if (cachedFinalApngBlobUrl) {
+      try { URL.revokeObjectURL(cachedFinalApngBlobUrl); } catch (_) {}
+      cachedFinalApngBlobUrl = null;
+    }
+    if (cachedFinalMp4BlobUrl) {
+      try { URL.revokeObjectURL(cachedFinalMp4BlobUrl); } catch (_) {}
+      cachedFinalMp4BlobUrl = null;
+    }
+    cachedPreviewBlob = null;
+
     const modal = document.getElementById('exportModal');
     if (modal) modal.style.display = 'none';
   }

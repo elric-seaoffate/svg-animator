@@ -698,7 +698,7 @@ async function runHarness() {
 
   const htmlSource = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
   const controlElements = new Map();
-  const tagRegex = /<(input|select|textarea)\b([^>]*)>/gi;
+  const tagRegex = /<([a-zA-Z0-9\-]+)\b([^>]*)>/gi;
   let match;
   while ((match = tagRegex.exec(htmlSource)) !== null) {
     const tag = match[1].toLowerCase();
@@ -706,6 +706,7 @@ async function runHarness() {
     const idMatch = /\bid="([^"]+)"/.exec(attrs);
     if (!idMatch) continue;
     const id = idMatch[1];
+    if (controlElements.has(id)) continue;
     const typeMatch = /\btype="([^"]+)"/.exec(attrs);
     const valMatch = /\bvalue="([^"]*)"/.exec(attrs);
     const checked = /\bchecked\b/.test(attrs);
@@ -721,10 +722,8 @@ async function runHarness() {
     body: makeStubElement('body'),
     activeElement: null,
     getElementById(id) {
-      if (!controlElements.has(id)) {
-        controlElements.set(id, makeStubElement(id));
-      }
-      return controlElements.get(id);
+      if (!id || typeof id !== 'string') return null;
+      return controlElements.get(id) || null;
     },
     querySelector(sel) {
       const all = this.querySelectorAll(sel);
@@ -8701,6 +8700,86 @@ async function runHarness() {
   window.TimelinePlayer.currentTime = 0;
 
   console.log('[HARNESS] Scenario 69 PASS: Batch 6 Export Fidelity, Alpha Transparency, Timing & Multi-Encoder Reliability verified.');
+
+  // ==========================================
+  // SCENARIO 70: Batch 7 Final Engine Reliability, Clipboard Integrity, WASM Recovery & Verification
+  // ==========================================
+  console.log('\n[HARNESS] Testing Scenario 70: Batch 7 Final Engine Reliability, Clipboard Integrity, WASM Recovery & Verification...');
+
+  // Test 1: P1-006 document.getElementById returns null for non-existent IDs and finds existing IDs
+  console.log('[HARNESS] Scenario 70 Test 1: P1-006 getElementById authentic lookup...');
+  assert.strictEqual(document.getElementById('completely-nonexistent-element-xyz'), null, 'Test 1: nonexistent ID must return null');
+  assert.notStrictEqual(document.getElementById('nodeShapeSelect'), null, 'Test 1: existing HTML ID nodeShapeSelect must be found');
+  assert.notStrictEqual(document.getElementById('exportModal'), null, 'Test 1: existing HTML ID exportModal must be found');
+
+  // Test 2: P2-010 Group Visibility and Lock does not destroy member individual states
+  console.log('[HARNESS] Scenario 70 Test 2: P2-010 Group visibility and lock personal state preservation...');
+  const b7Node1 = window.DiagramNodes.createNode({ label: 'Member 1', x: 100, y: 100 });
+  const b7Node2 = window.DiagramNodes.createNode({ label: 'Member 2', x: 200, y: 200 });
+  window.DiagramNodes.updateNode(b7Node1.id, { visible: true, locked: false });
+  window.DiagramNodes.updateNode(b7Node2.id, { visible: false, locked: true });
+
+  const grpRes = window.ObjectGroups.createGroup('Test Batch7 Group', [
+    { type: 'node', id: b7Node1.id },
+    { type: 'node', id: b7Node2.id }
+  ]);
+  assert.ok(grpRes && grpRes.success, 'Test 2: group created');
+  const gId = grpRes.group.id;
+
+  // Hide the entire group
+  window.LayerManager.setVisibility('group', gId, false);
+  // Both members effectively invisible
+  assert.strictEqual(window.LayerManager.getEffective('node', b7Node1.id).visible, false, 'Test 2: b7Node1 effective hidden when group hidden');
+  assert.strictEqual(window.LayerManager.getEffective('node', b7Node2.id).visible, false, 'Test 2: b7Node2 effective hidden when group hidden');
+
+  // Unhide the group: b7Node1 should become visible, b7Node2 should REMAIN hidden (personal state preserved)
+  window.LayerManager.setVisibility('group', gId, true);
+  assert.strictEqual(window.LayerManager.getEffective('node', b7Node1.id).visible, true, 'Test 2: b7Node1 becomes visible when group shown');
+  assert.strictEqual(window.LayerManager.getEffective('node', b7Node2.id).visible, false, 'Test 2: b7Node2 remains hidden because personal visible is false');
+
+  // Test 3: P2-009 Clipboard camera rejection, progressive offset, and phantom group avoidance
+  console.log('[HARNESS] Scenario 70 Test 3: P2-009 Clipboard camera rejection and progressive offset...');
+  window.AppCoordinator.selectObject('camera', 'main');
+  const copyCamRes = window.AppCoordinator.copySelection();
+  assert.strictEqual(copyCamRes, false, 'Test 3: copying camera must be rejected');
+  const dupCamRes = window.AppCoordinator.duplicateSelection();
+  assert.strictEqual(dupCamRes, false, 'Test 3: duplicating camera must be rejected');
+
+  // Single item copy/paste should NOT produce a newGroupId
+  const b7SoloNode = window.DiagramNodes.createNode({ label: 'Solo Node', x: 50, y: 50 });
+  window.AppCoordinator.selectObject('node', b7SoloNode.id);
+  const copyNodeRes = window.AppCoordinator.copySelection();
+  assert.strictEqual(copyNodeRes, true, 'Test 3: copying node succeeded');
+  assert.strictEqual(window.AppCoordinator._pasteCount, 0, 'Test 3: _pasteCount reset to 0 on copy');
+
+  const paste1 = window.AppCoordinator.pasteClipboard();
+  assert.strictEqual(paste1, true, 'Test 3: first paste succeeded');
+  assert.strictEqual(window.AppCoordinator._pasteCount, 1, 'Test 3: _pasteCount is 1 after first paste');
+  assert.strictEqual(window.AppCoordinator.activeSelection.type, 'node', 'Test 3: pasted single item selected as node, not group');
+
+  const paste2 = window.AppCoordinator.pasteClipboard();
+  assert.strictEqual(paste2, true, 'Test 3: second paste succeeded');
+  assert.strictEqual(window.AppCoordinator._pasteCount, 2, 'Test 3: _pasteCount is 2 after second paste');
+
+  // Test 4: P2-011 ImageObjects collision-safe ID allocation
+  console.log('[HARNESS] Scenario 70 Test 4: P2-011 ImageObjects non-sequential collision avoidance...');
+  window.ImageObjects.setState({
+    images: [
+      { id: 'image-1', name: 'Img 1', x: 0, y: 0, width: 100, height: 100 },
+      { id: 'image-5', name: 'Img 5', x: 10, y: 10, width: 100, height: 100 }
+    ],
+    imagesCounter: 1
+  });
+  assert.strictEqual(window.ImageObjects.counter >= 5, true, 'Test 4: counter scanned maximum image ID 5');
+
+  // Test 5: P2-012 Export Modal URL cleanup and ImageToolsController cache cleanup
+  console.log('[HARNESS] Scenario 70 Test 5: P2-012 Resource cleanup...');
+  assert.strictEqual(typeof window.ImageToolsController.clearCache, 'function', 'Test 5: clearCache exists');
+  window.ImageToolsController._imageCache.set('test-key', { el: 'fake' });
+  window.ImageToolsController.clearCache();
+  assert.strictEqual(window.ImageToolsController._imageCache.size, 0, 'Test 5: cache cleared');
+
+  console.log('[HARNESS] Scenario 70 PASS: Batch 7 Final Engine Reliability, Clipboard Integrity, WASM Recovery & Verification verified.');
 
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');

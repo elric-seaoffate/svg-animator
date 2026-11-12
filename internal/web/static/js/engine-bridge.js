@@ -140,14 +140,33 @@
 
     dispatch(command, payload) {
       if (!this.isReady()) {
+        this._lastError = 'Go/WASM engine is unavailable';
         return null;
       }
+      if (typeof command !== 'string' || !command.trim()) {
+        this._stats.errors++;
+        this._lastError = 'Invalid command: must be a non-empty string';
+        return null;
+      }
+
+      let safePayload = payload;
+      if (safePayload !== undefined && safePayload !== null && typeof safePayload === 'object') {
+        try {
+          JSON.stringify(safePayload);
+        } catch (jsonErr) {
+          this._stats.errors++;
+          this._lastError = 'Invalid payload: not JSON serializable (' + (jsonErr && jsonErr.message) + ')';
+          console.error('[EngineBridge] Payload serialization failed (' + command + '):', jsonErr);
+          return null;
+        }
+      }
+
       const t0 = (typeof performance !== 'undefined' && typeof performance.now === 'function')
         ? performance.now()
         : Date.now();
 
       try {
-        const res = this._bridge.dispatch(command, payload);
+        const res = this._bridge.dispatch(command, safePayload);
         const t1 = (typeof performance !== 'undefined' && typeof performance.now === 'function')
           ? performance.now()
           : Date.now();
@@ -2980,6 +2999,10 @@
     },
 
     createGroup(name, members) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.createGroup(name, members);
+        if (res && res.success) return res;
+      }
       if (!Array.isArray(members) || members.length < 2) {
         return { success: false, error: 'At least 2 objects required to form a group' };
       }
@@ -2996,6 +3019,10 @@
     },
 
     ungroup(groupId) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.ungroup(groupId);
+        if (res && res.success) return res;
+      }
       const strId = String(groupId);
       const idx = this.list.findIndex((g) => String(g.id) === strId);
       if (idx === -1) return { success: false, error: 'Group not found' };
@@ -3005,6 +3032,10 @@
     },
 
     removeMembers(groupId, membersToRemove) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.removeGroupMembers(groupId, membersToRemove);
+        if (res && res.success) return res;
+      }
       const strId = String(groupId);
       const idx = this.list.findIndex((g) => String(g.id) === strId);
       if (idx === -1) return { success: false, error: 'Group not found' };
@@ -3024,6 +3055,10 @@
     },
 
     renameGroup(groupId, name) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.renameGroup(groupId, name);
+        if (res && res.success) return res;
+      }
       const strId = String(groupId);
       const grp = this.list.find((g) => String(g.id) === strId);
       if (!grp) return { success: false, error: 'Group not found' };
@@ -3377,12 +3412,18 @@
         return null;
       }
 
-      this.counter++;
-      const id = initial.id || ('image-' + this.counter);
-      const m = String(id).match(/image-(\d+)/);
-      if (m) {
-        const num = parseInt(m[1], 10);
-        if (num > this.counter) this.counter = num;
+      let id = initial.id;
+      if (!id) {
+        do {
+          this.counter++;
+          id = 'image-' + this.counter;
+        } while (this.list.some((i) => String(i.id) === id));
+      } else {
+        const m = String(id).match(/image-(\d+)/);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (num > this.counter) this.counter = num;
+        }
       }
       const name = initial.name || ('Image ' + this.counter);
       const img = {
@@ -3907,15 +3948,13 @@
       if (!state) return;
       this.list = Array.isArray(state.images) ? JSON.parse(JSON.stringify(state.images)) : [];
       this.counter = parseInt(state.imagesCounter, 10) || 0;
-      if (this.counter === 0 && this.list.length > 0) {
-        this.list.forEach((img) => {
-          const match = String(img.id).match(/image-(\d+)/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > this.counter) this.counter = num;
-          }
-        });
-      }
+      this.list.forEach((img) => {
+        const match = String(img.id).match(/image-(\d+)/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > this.counter) this.counter = num;
+        }
+      });
     },
 
     findImageAtPct(xPct, yPct, canvasW = 1280, canvasH = 720) {
@@ -4259,7 +4298,12 @@
         if (grp) {
           if (!grp.metadata) grp.metadata = {};
           grp.metadata.visible = v;
-          (grp.members || []).forEach((m) => this.setVisibility(m.type, m.id, v));
+          grp.visible = v;
+        }
+        const vEntry = this.list.find((l) => l.type === 'group' && String(l.id) === strId);
+        if (vEntry) vEntry.visible = v;
+        if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+          window.EngineBridge.setLayerVisibility('group', strId, v);
         }
         return;
       }
@@ -4290,7 +4334,12 @@
         if (grp) {
           if (!grp.metadata) grp.metadata = {};
           grp.metadata.locked = l;
-          (grp.members || []).forEach((m) => this.setLocked(m.type, m.id, l));
+          grp.locked = l;
+        }
+        const lEntry = this.list.find((lItem) => lItem.type === 'group' && String(lItem.id) === strId);
+        if (lEntry) lEntry.locked = l;
+        if (typeof window !== 'undefined' && window.EngineBridge && window.EngineBridge.isReady()) {
+          window.EngineBridge.setLayerLocked('group', strId, l);
         }
         return;
       }
@@ -4314,6 +4363,12 @@
     },
 
     getEffective(type, id) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Layer.GetEffective', { type: String(type), id: String(id) });
+        if (res && res.visible !== undefined && res.locked !== undefined) {
+          return { visible: !!res.visible, locked: !!res.locked };
+        }
+      }
       let ownVisible = true;
       let ownLocked = false;
       const strId = String(id);
@@ -4350,17 +4405,21 @@
         }
       } else if (type === 'group' && window.ObjectGroups) {
         const grp = window.ObjectGroups.getGroup(strId);
-        if (grp && grp.metadata) {
-          if (grp.metadata.visible !== undefined) ownVisible = !!grp.metadata.visible;
-          if (grp.metadata.locked !== undefined) ownLocked = !!grp.metadata.locked;
+        if (grp) {
+          if (grp.visible !== undefined) ownVisible = !!grp.visible;
+          else if (grp.metadata && grp.metadata.visible !== undefined) ownVisible = !!grp.metadata.visible;
+          if (grp.locked !== undefined) ownLocked = !!grp.locked;
+          else if (grp.metadata && grp.metadata.locked !== undefined) ownLocked = !!grp.metadata.locked;
         }
       }
 
       if (type !== 'group' && window.ObjectGroups) {
         const grp = window.ObjectGroups.findGroupByMember(type, strId);
-        if (grp && grp.metadata) {
-          if (grp.metadata.visible === false) ownVisible = false;
-          if (grp.metadata.locked === true) ownLocked = true;
+        if (grp) {
+          const grpVis = grp.visible !== undefined ? grp.visible : (grp.metadata && grp.metadata.visible !== undefined ? grp.metadata.visible : true);
+          const grpLock = grp.locked !== undefined ? grp.locked : (grp.metadata && grp.metadata.locked !== undefined ? grp.metadata.locked : false);
+          if (grpVis === false) ownVisible = false;
+          if (grpLock === true) ownLocked = true;
         }
       }
 

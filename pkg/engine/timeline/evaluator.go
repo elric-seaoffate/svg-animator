@@ -268,7 +268,10 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		if rDur <= 0 {
 			rDur = 2.0
 		}
-		numRings := r.Rings
+		numRings := r.WaveCount
+		if numRings <= 0 {
+			numRings = r.Rings
+		}
 		if numRings <= 0 {
 			numRings = 1
 		}
@@ -387,12 +390,18 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 			op = 1.0
 		}
 		var dy float64
+		anim := n.Animation
+		if anim == "" {
+			anim = n.Anim
+		}
 		if !s.GetEffectiveVisibility(scene.SelectionNode, n.ID) {
 			op = 0
-		} else if n.Animation == "pulse" {
+		} else if anim == "pulse" || anim == "pulse-border" {
 			op = 0.65 + 0.35*(math.Sin(timeSec*2.0*math.Pi/2.6)+1.0)/2.0
-		} else if n.Animation == "float" {
+		} else if anim == "float" {
 			dy = -6.0 * (math.Sin(timeSec*2.0*math.Pi/3.2) + 1.0) / 2.0
+		} else if anim == "fade" || anim == "fade-in" {
+			op = 0.3 + 0.7*(math.Sin(timeSec*2.0*math.Pi/3.0)+1.0)/2.0
 		}
 		res.Nodes = append(res.Nodes, NodeFrameUpdate{
 			ID:         string(n.ID),

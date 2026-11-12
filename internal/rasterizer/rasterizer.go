@@ -48,8 +48,14 @@ func ProbeAudioFile(ctx context.Context, audioPath string) (AudioInspectResult, 
 	var res AudioInspectResult
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-protocol_whitelist", "file", "-i", audioPath, "-f", "null", "-")
-	outBytes, _ := cmd.CombinedOutput()
+	outBytes, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return res, fmt.Errorf("audio probe cancelled or timed out: %w", ctx.Err())
+	}
 	out := string(outBytes)
+	if err != nil && len(outBytes) == 0 {
+		return res, fmt.Errorf("ffmpeg probe failed: %w", err)
+	}
 
 	if m := reInputDur.FindStringSubmatch(out); len(m) == 4 {
 		res.HeaderDuration = parseHMS(m[1], m[2], m[3])
@@ -562,17 +568,26 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			document.querySelectorAll('filter animate, filter animateTransform, mask animate, mask animateTransform').forEach(anim => {
 				const parent = anim.parentElement;
 				const attr = anim.getAttribute('attributeName');
-				let dur = parseFloat(anim.getAttribute('dur'));
+				let durAttr = anim.getAttribute('dur') || '';
+				let dur = parseFloat(durAttr);
+				if (durAttr.endsWith('ms')) dur = dur / 1000.0;
 				if (isNaN(dur) || dur <= 0) dur = 1.0;
-				const begin = parseFloat(anim.getAttribute('begin')) || 0.0;
+
+				let beginAttr = anim.getAttribute('begin') || '';
+				let begin = parseFloat(beginAttr) || 0.0;
+				if (beginAttr.endsWith('ms')) begin = begin / 1000.0;
 
 				const localSec = sec - begin;
 				if (localSec < 0) return;
 
 				let progress;
+				const fill = anim.getAttribute('fill') || 'remove';
 				if (anim.getAttribute('repeatCount') === 'indefinite') {
 					progress = (localSec % dur) / dur;
 				} else {
+					if (localSec > dur && fill !== 'freeze') {
+						return;
+					}
 					progress = localSec / dur;
 					if (progress > 1.0) progress = 1.0;
 				}

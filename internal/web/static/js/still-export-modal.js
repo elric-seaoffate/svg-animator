@@ -625,6 +625,13 @@ window.StillExportStudio = {
 
   close() {
     if (this.isGeneratingFinal) return;
+    if (this.cachedBlobUrl) {
+      try { URL.revokeObjectURL(this.cachedBlobUrl); } catch (_) {}
+      this.cachedBlobUrl = null;
+    }
+    this.cachedBlob = null;
+    const previewImg = document.getElementById('stillPreviewImg');
+    if (previewImg) previewImg.removeAttribute('src');
     document.getElementById('stillExportModal').style.display = 'none';
   },
 

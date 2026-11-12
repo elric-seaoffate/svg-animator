@@ -215,6 +215,10 @@ window.ProjectManager = {
     const data = typeof schemaJsonStr === 'string' ? JSON.parse(schemaJsonStr) : schemaJsonStr;
     if (!data || typeof data !== 'object') return;
 
+    if (window.ImageToolsController && typeof window.ImageToolsController.clearCache === 'function') {
+      window.ImageToolsController.clearCache();
+    }
+
     // Reset all 95 tracked controls to defaults first so omitted controls never leak across projects
     if (window.SceneState && typeof window.SceneState.getDefaultControls === 'function' && window.ControlStateAdaptor) {
       window.ControlStateAdaptor.syncToDOM(window.SceneState.getDefaultControls());

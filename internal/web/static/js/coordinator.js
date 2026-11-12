@@ -23,6 +23,7 @@
     activeSelection: { type: null, id: null, items: [] },
     groupEditModeGroupId: null,
     _clipboardPayload: null,
+    _pasteCount: 0,
     _listeners: {},
     _renderHandler: null,
     _isCoordinatingSelection: false,
@@ -649,10 +650,15 @@
       if (this.activeSelection.type === 'group' && this.activeSelection.id) {
         groupId = this.activeSelection.id;
       } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
-        items = this.activeSelection.items;
+        items = this.activeSelection.items.filter((it) => it.type !== 'camera');
       } else if (this.activeSelection.type && this.activeSelection.id) {
+        if (this.activeSelection.type === 'camera') {
+          this.showNotification('Camera cannot be duplicated.', 'warning', 2000);
+          return false;
+        }
         items = [{ type: this.activeSelection.type, id: this.activeSelection.id }];
-      } else {
+      }
+      if (!groupId && items.length === 0) {
         this.showNotification('Nothing selected to duplicate.', 'warning', 2000);
         return false;
       }
@@ -682,15 +688,25 @@
       return false;
     },
 
+    clearClipboard() {
+      this._clipboardPayload = null;
+      this._pasteCount = 0;
+    },
+
     copySelection() {
       let items = [], groupId = null;
       if (this.activeSelection.type === 'group' && this.activeSelection.id) {
         groupId = this.activeSelection.id;
       } else if (Array.isArray(this.activeSelection.items) && this.activeSelection.items.length > 0) {
-        items = this.activeSelection.items;
+        items = this.activeSelection.items.filter((it) => it.type !== 'camera');
       } else if (this.activeSelection.type && this.activeSelection.id) {
+        if (this.activeSelection.type === 'camera') {
+          this.showNotification('Camera cannot be copied.', 'warning', 2000);
+          return false;
+        }
         items = [{ type: this.activeSelection.type, id: this.activeSelection.id }];
-      } else {
+      }
+      if (!groupId && items.length === 0) {
         this.showNotification('Nothing selected to copy.', 'warning', 2000);
         return false;
       }
@@ -702,6 +718,7 @@
       }
       if (payload) {
         this._clipboardPayload = payload;
+        this._pasteCount = 0;
         this.showNotification('Copied selection to clipboard.', 'info', 1500);
         return true;
       }
@@ -714,11 +731,13 @@
         this.showNotification('Clipboard is empty.', 'warning', 2000);
         return false;
       }
+      this._pasteCount = (this._pasteCount || 0) + 1;
+      const offset = 5.0 + (this._pasteCount - 1) * 20.0;
       let res = null;
       if (window.EngineBridge && typeof window.EngineBridge.pastePayload === 'function') {
-        res = window.EngineBridge.pastePayload(this._clipboardPayload, 5.0, 5.0);
+        res = window.EngineBridge.pastePayload(this._clipboardPayload, offset, offset);
       } else if (window.ObjectGroups && typeof window.ObjectGroups.pastePayload === 'function') {
-        res = window.ObjectGroups.pastePayload(this._clipboardPayload, 5.0, 5.0);
+        res = window.ObjectGroups.pastePayload(this._clipboardPayload, offset, offset);
       }
       if (res && res.success) {
         this._refreshAllInstanceLists();
@@ -1162,6 +1181,12 @@
      * @param {Object} [options] - Context info ({ source: 'undo'|'redo'|'project'|'new_project'|'direct_apply', projectId })
      */
     coordinatePostRestore(options = {}) {
+      if (options && (options.source === 'new_project' || options.source === 'project')) {
+        this.clearClipboard();
+        if (window.ImageToolsController && typeof window.ImageToolsController.clearCache === 'function') {
+          window.ImageToolsController.clearCache();
+        }
+      }
       let selectionRestored = false;
       const rSel = options && options.restoredSelection;
       if (rSel && rSel.type && rSel.id !== null && rSel.id !== undefined) {
