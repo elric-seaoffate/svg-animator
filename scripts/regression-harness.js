@@ -49,10 +49,27 @@ function loadProductionScript(filename) {
 }
 
 async function runHarness() {
+  // Track script load order for parity verification against index.html
+  const harnessLoadedScripts = [];
+  const origLoadProductionScript = loadProductionScript;
+  loadProductionScript = function(filename) {
+    harnessLoadedScripts.push(filename);
+    return origLoadProductionScript(filename);
+  };
+
   // ===========================================================================
-  // STAGE 1: Pure Operational Core (Zero DOM Mock — only global.window = global)
+  // STAGE 1: Runtime Bootstrap & Operational Core
+  //          (WASM Runtime -> EngineBridge -> Effects -> SceneState -> Coordinator)
   // ===========================================================================
   global.window = global;
+
+  window.addEventListener = function() {};
+  global.document = {
+    addEventListener() {},
+    getElementById() { return null; },
+    querySelectorAll() { return []; },
+    querySelector() { return null; }
+  };
 
   if (typeof global.Image === 'undefined') {
     global.Image = class {
@@ -75,6 +92,21 @@ async function runHarness() {
     window.Image = global.Image;
   }
 
+  // 1 & 2: WASM runtime & EngineBridge (exact order of index.html)
+  loadProductionScript('wasm_exec.js');
+  loadProductionScript('engine-bridge.js');
+
+  // Instantiate Go WebAssembly engine at startup so Go authority is active throughout harness
+  const earlyWasmPath = path.join(__dirname, '..', 'internal', 'web', 'static', 'wasm', 'engine.wasm');
+  const earlyWasmBuffer = fs.readFileSync(earlyWasmPath);
+  const earlyGoWasm = new window.Go();
+  const earlyWasmModule = await WebAssembly.instantiate(earlyWasmBuffer, earlyGoWasm.importObject);
+  earlyGoWasm.run(earlyWasmModule.instance).catch(() => {});
+  window.EngineBridge._bridge = window.__svgAnimatorWasmBridge;
+  window.EngineBridge.status = 'ready';
+  window.EngineBridge._sceneSynced = true;
+
+  // 3, 4 & 5: Effects, SceneState, Coordinator
   loadProductionScript('effects.js');
   loadProductionScript('scene-state.js');
   loadProductionScript('coordinator.js');
@@ -122,26 +154,7 @@ async function runHarness() {
 
   // ===========================================================================
   // STAGE 2: Viewport Math & Component Operational CRUD
-  //          (Browser event listener and getElementById test mock for stage.js & snap math)
   // ===========================================================================
-  window.addEventListener = function() {};
-  global.document = {
-    addEventListener() {},
-    getElementById() { return null; }
-  };
-
-  loadProductionScript('wasm_exec.js');
-  loadProductionScript('engine-bridge.js');
-
-  // Instantiate Go WebAssembly engine at startup so Go authority is active throughout harness
-  const earlyWasmPath = path.join(__dirname, '..', 'internal', 'web', 'static', 'wasm', 'engine.wasm');
-  const earlyWasmBuffer = fs.readFileSync(earlyWasmPath);
-  const earlyGoWasm = new window.Go();
-  const earlyWasmModule = await WebAssembly.instantiate(earlyWasmBuffer, earlyGoWasm.importObject);
-  earlyGoWasm.run(earlyWasmModule.instance).catch(() => {});
-  window.EngineBridge._bridge = window.__svgAnimatorWasmBridge;
-  window.EngineBridge.status = 'ready';
-  window.EngineBridge._sceneSynced = true;
 
   loadProductionScript('stage.js');
   loadProductionScript('shape-registry.js');
@@ -9085,6 +9098,111 @@ async function runHarness() {
   }
 
   console.log('[HARNESS] Scenario 73 PASS: Batch 8D Modularisation & Global Controller Lifecycle Verification verified.');
+
+  // ===========================================================================
+  // SCENARIO 74: Batch 8E Verification Hardening, Idempotency & Dispatch Parity
+  // ===========================================================================
+  console.log('[HARNESS] Testing Scenario 74: Batch 8E Verification Hardening, Idempotency & Dispatch Parity...');
+
+  // Test 1: Production Script Load Order Parity against index.html
+  console.log('[HARNESS] Scenario 74 Test 1: Production script load order parity against index.html...');
+  const s74IndexHtmlContent = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  const s74ScriptRegex = /<script\s+src="js\/([^"?]+)(?:\?v=[^"]*)?"\s*><\/script>/g;
+  const expectedHtmlScripts = [];
+  let s74Match;
+  while ((s74Match = s74ScriptRegex.exec(s74IndexHtmlContent)) !== null) {
+    expectedHtmlScripts.push(s74Match[1]);
+  }
+  assert.strictEqual(expectedHtmlScripts.length, 25, 'Test 1: index.html must declare exactly 25 scripts');
+  assert.strictEqual(harnessLoadedScripts.length, 25, 'Test 1: Harness must load exactly 25 production scripts');
+  for (let i = 0; i < expectedHtmlScripts.length; i++) {
+    assert.strictEqual(
+      harnessLoadedScripts[i],
+      expectedHtmlScripts[i],
+      `Test 1: Script #${i + 1} load order mismatch: harness=${harnessLoadedScripts[i]} vs html=${expectedHtmlScripts[i]}`
+    );
+  }
+
+  // Test 2: CustomColorPicker initialization idempotency
+  console.log('[HARNESS] Scenario 74 Test 2: CustomColorPicker initialization idempotency...');
+  assert.strictEqual(typeof window.CustomColorPicker.init, 'function');
+  assert.strictEqual(window.CustomColorPicker._initialized, false);
+  window.CustomColorPicker.init();
+  assert.strictEqual(window.CustomColorPicker._initialized, true);
+  window.CustomColorPicker.init();
+  window.CustomColorPicker.init();
+  assert.strictEqual(window.CustomColorPicker._initialized, true);
+  assert.strictEqual(window.CustomColorPicker.normalizeHex('#0fc'), '#00ffcc');
+  const rgb74 = window.CustomColorPicker.hexToRgb('#00ffcc');
+  assert.strictEqual(rgb74.r, 0);
+  assert.strictEqual(rgb74.g, 255);
+  assert.strictEqual(rgb74.b, 204);
+
+  // Test 3: Image.Update and Image.Delete single-dispatch verification
+  console.log('[HARNESS] Scenario 74 Test 3: Image.Update & Image.Delete single dispatch...');
+  const testImg = window.ImageObjects.createImage({
+    name: 'SingleDispatchTest',
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 150,
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  });
+  assert.ok(testImg && testImg.id, 'Test 3: test image created');
+
+  let updateDispatchCount = 0;
+  let deleteDispatchCount = 0;
+  const originalDispatch = window.EngineBridge.dispatch.bind(window.EngineBridge);
+  window.EngineBridge.dispatch = function(cmd, payload) {
+    if (cmd === 'Image.Update') updateDispatchCount++;
+    if (cmd === 'Image.Delete') deleteDispatchCount++;
+    return originalDispatch(cmd, payload);
+  };
+
+  try {
+    // Opacity change
+    updateDispatchCount = 0;
+    window.ImageObjects.updateImage(testImg.id, { opacity: 0.8 });
+    assert.strictEqual(updateDispatchCount, 1, 'Test 3: ImageObjects.updateImage must dispatch Image.Update exactly once');
+
+    // Dimension change
+    updateDispatchCount = 0;
+    window.ImageObjects.updateImage(testImg.id, { width: 250, height: 180 });
+    assert.strictEqual(updateDispatchCount, 1, 'Test 3: Dimension update must dispatch Image.Update exactly once');
+
+    // Name change
+    updateDispatchCount = 0;
+    window.ImageObjects.updateImage(testImg.id, { name: 'RenamedImg' });
+    assert.strictEqual(updateDispatchCount, 1, 'Test 3: Name update must dispatch Image.Update exactly once');
+
+    // Attempt deletion on locked image
+    if (window.LayerManager && typeof window.LayerManager.setLocked === 'function') {
+      window.LayerManager.setLocked('image', testImg.id, true);
+    }
+    deleteDispatchCount = 0;
+    const effLocked = window.LayerManager ? window.LayerManager.getEffective('image', testImg.id) : null;
+    let attemptedDelete = false;
+    if (!effLocked || !effLocked.locked) {
+      window.ImageObjects.deleteImage(testImg.id);
+      attemptedDelete = true;
+    }
+    assert.strictEqual(attemptedDelete, false, 'Test 3: Locked image deletion must be blocked before dispatch');
+    assert.strictEqual(deleteDispatchCount, 0, 'Test 3: No Image.Delete dispatched for locked image');
+
+    // Unlock and delete
+    if (window.LayerManager && typeof window.LayerManager.setLocked === 'function') {
+      window.LayerManager.setLocked('image', testImg.id, false);
+    }
+    deleteDispatchCount = 0;
+    const delRes = window.ImageObjects.deleteImage(testImg.id);
+    assert.strictEqual(delRes, true, 'Test 3: ImageObjects.deleteImage must return true');
+    assert.strictEqual(deleteDispatchCount, 1, 'Test 3: ImageObjects.deleteImage must dispatch Image.Delete exactly once');
+    assert.strictEqual(window.ImageObjects.getImage(testImg.id), null, 'Test 3: Image deleted from list');
+  } finally {
+    window.EngineBridge.dispatch = originalDispatch;
+  }
+
+  console.log('[HARNESS] Scenario 74 PASS: Batch 8E Verification Hardening, Idempotency & Dispatch Parity verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }

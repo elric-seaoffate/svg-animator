@@ -29,8 +29,14 @@
       '#238636', '#3fb950', '#d29922', '#f0883e',
       '#f85149', '#ff7b72', '#a371f7', '#bc8cff'
     ],
+    _initialized: false,
 
     init() {
+      if (this._initialized) {
+        this.loadSwatches();
+        return;
+      }
+      this._initialized = true;
       this.loadSwatches();
 
       const popover = document.getElementById('customColorPickerModal');

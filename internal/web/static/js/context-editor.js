@@ -1342,15 +1342,15 @@ window.FloatingPropertiesEditor = {
     if (imgNameIn) {
       imgNameIn.addEventListener('input', (e) => {
         if (this._isSyncing || this.activeType !== 'image') return;
-        if (window.ImageObjects) {
-          window.ImageObjects.updateImage(this.activeId, { name: e.target.value });
-        }
-        if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
-          window.EngineBridge.updateImage(this.activeId, { name: e.target.value });
+        let res = null;
+        if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+          res = window.ImageObjects.updateImage(this.activeId, { name: e.target.value });
+        } else if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
+          res = window.EngineBridge.updateImage(this.activeId, { name: e.target.value });
         }
         const titleEl = document.getElementById('floatingEditorTitle');
         if (titleEl) titleEl.textContent = 'Image: ' + (e.target.value || this.activeId);
-        if (window.AppCoordinator) {
+        if (res && window.AppCoordinator) {
           window.AppCoordinator.requestRender();
           window.AppCoordinator.recordHistoryDebounced();
         }
@@ -1382,11 +1382,13 @@ window.FloatingPropertiesEditor = {
         }
       }
 
-      window.ImageObjects.updateImage(this.activeId, patch);
-      if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.updateImage(this.activeId, patch);
+      let res = null;
+      if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+        res = window.ImageObjects.updateImage(this.activeId, patch);
+      } else if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
+        res = window.EngineBridge.updateImage(this.activeId, patch);
       }
-      if (window.AppCoordinator) {
+      if (res && window.AppCoordinator) {
         window.AppCoordinator.requestRender();
         window.AppCoordinator.recordHistoryDebounced();
         window.AppCoordinator.updateActiveOverlays();
@@ -1410,8 +1412,9 @@ window.FloatingPropertiesEditor = {
     if (imgLockChk) {
       imgLockChk.addEventListener('change', (e) => {
         if (this._isSyncing || this.activeType !== 'image') return;
-        if (window.ImageObjects) window.ImageObjects.updateImage(this.activeId, { maintainAspectRatio: e.target.checked });
-        if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
+        if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+          window.ImageObjects.updateImage(this.activeId, { maintainAspectRatio: e.target.checked });
+        } else if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
           window.EngineBridge.updateImage(this.activeId, { maintainAspectRatio: e.target.checked });
         }
       });
@@ -1424,11 +1427,13 @@ window.FloatingPropertiesEditor = {
       const parsed = Math.max(0, Math.min(1, parseFloat(val) || 0));
       if (imgOpSlider) imgOpSlider.value = parsed;
       if (imgOpNum) imgOpNum.value = parsed;
-      if (window.ImageObjects) window.ImageObjects.updateImage(this.activeId, { opacity: parsed });
-      if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.updateImage(this.activeId, { opacity: parsed });
+      let res = null;
+      if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+        res = window.ImageObjects.updateImage(this.activeId, { opacity: parsed });
+      } else if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
+        res = window.EngineBridge.updateImage(this.activeId, { opacity: parsed });
       }
-      if (window.AppCoordinator) {
+      if (res && window.AppCoordinator) {
         window.AppCoordinator.requestRender();
         window.AppCoordinator.recordHistoryDebounced();
       }
@@ -1441,12 +1446,25 @@ window.FloatingPropertiesEditor = {
       btnDelImage.addEventListener('click', () => {
         if (this.activeType === 'image' && this.activeId !== null) {
           const id = this.activeId;
-          this.close();
-          if (window.ImageObjects) window.ImageObjects.deleteImage(id);
-          if (window.EngineBridge && typeof window.EngineBridge.deleteImage === 'function' && window.EngineBridge.isReady()) {
-            window.EngineBridge.deleteImage(id);
+          if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+            const eff = window.LayerManager.getEffective('image', id);
+            if (eff && eff.locked) {
+              if (window.StudioNotification && typeof window.StudioNotification.show === 'function') {
+                window.StudioNotification.show('Cannot delete locked image.', 'warning', 2000);
+              }
+              return;
+            }
           }
-          if (window.AppCoordinator) {
+          this.close();
+          let deleted = false;
+          if (window.ImageObjects && typeof window.ImageObjects.deleteImage === 'function') {
+            deleted = window.ImageObjects.deleteImage(id);
+          } else if (window.EngineBridge && typeof window.EngineBridge.deleteImage === 'function' && window.EngineBridge.isReady()) {
+            const res = window.EngineBridge.deleteImage(id);
+            deleted = !!(res && res.success);
+          }
+          if (deleted && window.AppCoordinator) {
+            window.AppCoordinator.clearSelection();
             window.AppCoordinator.requestRender();
             window.AppCoordinator.recordHistoryImmediate();
             window.AppCoordinator.updateActiveOverlays();

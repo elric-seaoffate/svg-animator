@@ -3107,8 +3107,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (window.AppCoordinator && window.AppCoordinator.activeSelection && window.AppCoordinator.activeSelection.type === 'image' && window.ImageObjects) {
       const imgId = window.AppCoordinator.activeSelection.id;
-      window.ImageObjects.updateImage(imgId, { x, y });
-      if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
+      if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+        window.ImageObjects.updateImage(imgId, { x, y });
+      } else if (window.EngineBridge && typeof window.EngineBridge.updateImage === 'function' && window.EngineBridge.isReady()) {
         window.EngineBridge.updateImage(imgId, { x, y });
       }
       render();

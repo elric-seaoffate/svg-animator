@@ -53,10 +53,10 @@ To maintain architectural clarity as the application evolves towards Digital Twi
 
 ## 3. Script Load Order (`internal/web/static/index.html`)
 
-Because the frontend uses browser globals embedded via `//go:embed`, script load order in `index.html` is significant:
+Because the frontend uses browser globals embedded via `//go:embed`, script load order in `index.html` is significant (25 scripts total, updated in Batch 8D & Batch 8E):
 
 1. `js/wasm_exec.js` — Standard Go WebAssembly runtime bootstrap.
-2. `js/engine-bridge.js` (`window.EngineBridge`) — Go/WASM engine loader, command dispatcher, and readiness manager.
+2. `js/engine-bridge.js` (`window.EngineBridge`, `window.ImageObjects`, `window.ObjectGroups`, `window.LayerManager`) — Go/WASM engine loader, command dispatcher, and readiness manager.
 3. `js/effects.js` (`window.Effects`) — Operational SVG filter, camera rig, and 3D mitered frame builders.
 4. `js/scene-state.js` (`window.SceneState`, `window.ControlStateAdaptor`) — Operational canvas/control/photo state and DOM control synchronization adaptor.
 5. `js/coordinator.js` (`window.AppCoordinator`) — Central coordination layer for selection, history recording, rendering, and cross-module commands.
@@ -69,9 +69,17 @@ Because the frontend uses browser globals embedded via `//go:embed`, script load
 12. `js/ripples.js` (`window.Ripples`) — Refractive water ripple state, CRUD API, displacement filter/ring SVG generation, and ripple UI.
 13. `js/history.js` (`window.HistoryManager`) — Undo/redo snapshot stacks (`undoStack`, `redoStack`, `maxDepth: 50`) and `trackedControlIds` (95 DOM controls).
 14. `js/projects.js` (`window.ProjectManager`) — Schema `1.2.0` project serialization/deserialization, `/api/export/projects*` (and `/api/projects*`) REST client, and library modal UI.
-15. `js/app.js` — Main initialization, UI panel/accordion bindings, control listeners, dynamic shape dropdown population, and master preview compilation (`window.triggerRender`, `window.buildFullSVG`, `window.syncUIAfterHistoryRestore`).
-16. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
-17. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
+15. `js/shape-dropdown.js` (`window.ensureShapeInDropdown`, `window.populateShapeDropdowns`) — Shape selector population & preset synchronization.
+16. `js/export-adapter.js` (`window.SVGExportAdapter`, `window.serializeSVGForExport`) — XML validation, xlink injection & export serialization.
+17. `js/workspace.js` (`window.WorkspaceController`, `window.openAccordionById`, `window.toggleAllAccordions`) — Sliding drawers, icon rails, accordions & stage maximization.
+18. `js/notifications.js` (`window.StudioNotification`) — Studio toast notifications & status messaging.
+19. `js/color-picker.js` (`window.CustomColorPicker`) — Popover palette, swatches, and HSV/RGB color mathematics.
+20. `js/timeline.js` (`window.TimelinePlayer`) — Playback transport, timeline scrubber & timecode display.
+21. `js/layers-ui.js` (`window.renderLayersList`, `window.updateLayersToolbarState`, `window.syncInspectorLayerSections`, `window.syncImageEditorUI`) — Layer list DOM rendering, reorder buttons, lock/visibility toggles, and image inspector UI.
+22. `js/context-editor.js` (`window.FloatingPropertiesEditor`) — Floating contextual property inspector and form controls.
+23. `js/app.js` (`window.ImageToolsController`, `window.executeBakeImage`, `window.triggerRender`) — Studio bootstrapping, canvas image baking pipeline, crop-clip coordination, and master preview compilation.
+24. `js/still-export-modal.js` (`window.StillExportStudio`) — Still render configuration (`buildStillRenderConfig`), time-scrubbed SMIL frame evaluation (`bakeStaticSVGAtTime`, `evaluateSMILAnimate`), and still/print export modal.
+25. `js/export-modal.js` (`window.AnimatedExportStudio`) — Animated export payload builder (`constructExportJobPayload`) and multi-frame export modal (`POST /api/render`, progress polling, media downloads).
 
 ---
 

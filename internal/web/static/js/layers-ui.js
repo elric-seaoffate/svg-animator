@@ -635,9 +635,13 @@
       nameIn.addEventListener('input', (e) => {
         const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
         if (!sel || sel.type !== 'image' || !sel.id) return;
-        if (window.ImageObjects) window.ImageObjects.updateImage(sel.id, { name: e.target.value });
-        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(sel.id, { name: e.target.value });
-        if (window.AppCoordinator) {
+        let res = null;
+        if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+          res = window.ImageObjects.updateImage(sel.id, { name: e.target.value });
+        } else if (window.EngineBridge && window.EngineBridge.isReady()) {
+          res = window.EngineBridge.updateImage(sel.id, { name: e.target.value });
+        }
+        if (res && window.AppCoordinator) {
           window.AppCoordinator.requestRender();
           window.AppCoordinator.recordHistoryDebounced();
         }
@@ -678,9 +682,13 @@
         }
       }
 
-      window.ImageObjects.updateImage(sel.id, patch);
-      if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(sel.id, patch);
-      if (window.AppCoordinator) {
+      let res = null;
+      if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+        res = window.ImageObjects.updateImage(sel.id, patch);
+      } else if (window.EngineBridge && window.EngineBridge.isReady()) {
+        res = window.EngineBridge.updateImage(sel.id, patch);
+      }
+      if (res && window.AppCoordinator) {
         window.AppCoordinator.requestRender();
         window.AppCoordinator.recordHistoryDebounced();
         window.AppCoordinator.updateActiveOverlays();
@@ -715,8 +723,11 @@
       lockChk.addEventListener('change', (e) => {
         const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
         if (!sel || sel.type !== 'image' || !sel.id) return;
-        if (window.ImageObjects) window.ImageObjects.updateImage(sel.id, { maintainAspectRatio: e.target.checked });
-        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(sel.id, { maintainAspectRatio: e.target.checked });
+        if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+          window.ImageObjects.updateImage(sel.id, { maintainAspectRatio: e.target.checked });
+        } else if (window.EngineBridge && window.EngineBridge.isReady()) {
+          window.EngineBridge.updateImage(sel.id, { maintainAspectRatio: e.target.checked });
+        }
       });
     }
 
@@ -728,9 +739,13 @@
       const opNum = document.getElementById('imageOpacityNum');
       if (opSlider) opSlider.value = parsed;
       if (opNum) opNum.value = parsed;
-      if (window.ImageObjects) window.ImageObjects.updateImage(sel.id, { opacity: parsed });
-      if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(sel.id, { opacity: parsed });
-      if (window.AppCoordinator) {
+      let res = null;
+      if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+        res = window.ImageObjects.updateImage(sel.id, { opacity: parsed });
+      } else if (window.EngineBridge && window.EngineBridge.isReady()) {
+        res = window.EngineBridge.updateImage(sel.id, { opacity: parsed });
+      }
+      if (res && window.AppCoordinator) {
         window.AppCoordinator.requestRender();
         window.AppCoordinator.recordHistoryDebounced();
       }
@@ -755,9 +770,23 @@
         const sel = window.AppCoordinator ? window.AppCoordinator.getActiveSelection() : null;
         if (!sel || sel.type !== 'image' || !sel.id) return;
         const id = sel.id;
-        if (window.ImageObjects) window.ImageObjects.deleteImage(id);
-        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.deleteImage(id);
-        if (window.AppCoordinator) {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('image', id);
+          if (eff && eff.locked) {
+            if (window.StudioNotification && typeof window.StudioNotification.show === 'function') {
+              window.StudioNotification.show('Cannot delete locked image.', 'warning', 2000);
+            }
+            return;
+          }
+        }
+        let deleted = false;
+        if (window.ImageObjects && typeof window.ImageObjects.deleteImage === 'function') {
+          deleted = window.ImageObjects.deleteImage(id);
+        } else if (window.EngineBridge && window.EngineBridge.isReady()) {
+          const res = window.EngineBridge.deleteImage(id);
+          deleted = !!(res && res.success);
+        }
+        if (deleted && window.AppCoordinator) {
           window.AppCoordinator.clearSelection();
           window.AppCoordinator.requestRender();
           window.AppCoordinator.recordHistoryImmediate();
