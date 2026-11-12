@@ -1,0 +1,404 @@
+=== Claude post-Batch 8D evidence log — Thu Nov 12 10:46:11 UTC 2026 ===
+HEAD: b607832963ce538b306180c0ff548347391ead55
+--- index.html script tags ---
+2931:  <script src="js/wasm_exec.js?v=6.0"></script>
+2932:  <script src="js/engine-bridge.js?v=6.0"></script>
+2933:  <script src="js/effects.js?v=6.0"></script>
+2934:  <script src="js/scene-state.js?v=6.0"></script>
+2935:  <script src="js/coordinator.js?v=6.0"></script>
+2936:  <script src="js/stage.js?v=6.0"></script>
+2937:  <script src="js/shape-registry.js?v=6.0"></script>
+2938:  <script src="js/presets.js?v=6.0"></script>
+2939:  <script src="js/nodes.js?v=6.0"></script>
+2940:  <script src="js/flows.js?v=6.0"></script>
+2941:  <script src="js/glows.js?v=6.0"></script>
+2942:  <script src="js/ripples.js?v=6.0"></script>
+2943:  <script src="js/history.js?v=6.0"></script>
+2944:  <script src="js/projects.js?v=6.0"></script>
+2945:  <script src="js/shape-dropdown.js?v=6.0"></script>
+2946:  <script src="js/export-adapter.js?v=6.0"></script>
+2947:  <script src="js/workspace.js?v=6.0"></script>
+2948:  <script src="js/notifications.js?v=6.0"></script>
+2949:  <script src="js/color-picker.js?v=6.0"></script>
+2950:  <script src="js/timeline.js?v=6.0"></script>
+2951:  <script src="js/layers-ui.js?v=6.0"></script>
+2952:  <script src="js/context-editor.js?v=6.0"></script>
+2953:  <script src="js/app.js?v=6.0"></script>
+2954:  <script src="js/still-export-modal.js?v=6.0"></script>
+2955:  <script src="js/export-modal.js?v=6.0"></script>
+--- line counts ---
+   3747 internal/web/static/js/app.js
+    478 internal/web/static/js/color-picker.js
+   1781 internal/web/static/js/context-editor.js
+   1408 internal/web/static/js/coordinator.js
+    771 internal/web/static/js/effects.js
+   4371 internal/web/static/js/engine-bridge.js
+     59 internal/web/static/js/export-adapter.js
+   1009 internal/web/static/js/export-modal.js
+   1053 internal/web/static/js/flows.js
+    784 internal/web/static/js/glows.js
+    572 internal/web/static/js/history.js
+    884 internal/web/static/js/layers-ui.js
+   1165 internal/web/static/js/nodes.js
+     94 internal/web/static/js/notifications.js
+    306 internal/web/static/js/presets.js
+   1035 internal/web/static/js/projects.js
+    656 internal/web/static/js/ripples.js
+    712 internal/web/static/js/scene-state.js
+     97 internal/web/static/js/shape-dropdown.js
+    255 internal/web/static/js/shape-registry.js
+   2275 internal/web/static/js/stage.js
+    867 internal/web/static/js/still-export-modal.js
+    291 internal/web/static/js/timeline.js
+    575 internal/web/static/js/wasm_exec.js
+    547 internal/web/static/js/workspace.js
+  25792 total
+
+=== Static analysis (heuristic free-identifier scan of 8 modules) ===
+===== shape-dropdown.js =====
+===== export-adapter.js =====
+===== workspace.js =====
+===== notifications.js =====
+===== color-picker.js =====
+===== timeline.js =====
+===== layers-ui.js =====
+  executeBakeImage (ref)  window.executeBakeImage in app.js  script-global in app.js
+===== context-editor.js =====
+
+=== Normalized diff: parent app.js L1-4122 vs concatenated modules (whitespace/blank-line normalized) ===
+2c2
+< * Main Studio UI Controller & Initialization (`app.js`)
+---
+> * SVG Animator Studio — Shape Dropdown Presentation Module (`shape-dropdown.js`)
+4,9c4,7
+< * Layer 1 (UI Presentation & Control Bindings):
+< *   - Accordion expand/collapse (`window.openAccordionById`, `window.toggleAllAccordions`)
+< *   - Canvas preset, orientation, background pattern, and photo crop UI bindings
+< *   - Paired slider/number input synchronization and settings panel listeners
+< *   - Standalone SVG/HTML download handlers
+< *   - Shape Registry UI dropdown population (`window.populateShapeDropdowns`)
+---
+> * Responsibilities:
+> *   - Populate shape dropdown menus from the authoritative ShapeRegistry
+> *   - Display unknown/legacy shapes safely as temporary disabled options
+> *   - Clean up temporary options when user selects a known shape
+11,12c9
+< * Delegates Layer 2 coordination to `window.AppCoordinator` (`coordinator.js`)
+< * and Layer 3 scene state / SVG compilation to `window.SceneState` (`scene-state.js`).
+---
+> * Layer 1 (UI Presentation) — Depends on ShapeRegistry (Layer 3).
+14,16c11,12
+< // =========================================================================
+< // Layer 1 (UI Presentation): Shape Registry Dropdown Population & Unknown Shape Handling
+< // =========================================================================
+---
+> (function() {
+> 'use strict';
+89,91c85,97
+< // =========================================================================
+< // Layer 1 (Export Adapter): SVG XML Parsing, Validation, and Serialization
+< // =========================================================================
+---
+> })();
+> /**
+> * SVG Animator Studio — SVG Export Adapter (`export-adapter.js`)
+> *
+> * Responsibilities:
+> *   - Browser XML parsing, validation, and XML serialization for SVG export
+> *   - Automatic xmlns:xlink namespace injection and xlink:href resolution
+> *   - Global adapter `window.serializeSVGForExport`
+> *
+> * Layer 1 (Export Presentation Adapter).
+> */
+> (function() {
+> 'use strict';
+129,131c135,149
+< // =========================================================================
+< // Layer 1: Workspace Controller (Sliding Drawers, Icon Rails & Viewport HUD)
+< // =========================================================================
+---
+> })();
+> /**
+> * SVG Animator Studio — Workspace Controller (`workspace.js`)
+> *
+> * Responsibilities:
+> *   - Sliding drawers (left/right) with Blender-inspired icon rails
+> *   - Tool accordion expansion, collapse, and panel switching
+> *   - Maximized canvas stage mode toggle
+> *   - Keyboard shortcuts for workspace navigation (T, N, Shift+Space, Esc)
+> *   - Responsive mobile/desktop drawer state adaptation
+> *
+> * Layer 1 (UI Presentation).
+> */
+> (function() {
+> 'use strict';
+604,606c622,635
+< // =========================================================================
+< // Layer 1: Studio Non-Blocking Notification UI System
+< // =========================================================================
+---
+> })();
+> /**
+> * SVG Animator Studio — Studio Notification Presentation System (`notifications.js`)
+> *
+> * Responsibilities:
+> *   - Non-blocking toast notifications (info, success, warning, error)
+> *   - Accessible polite live-region announcements
+> *   - Auto-dismiss timeouts with smooth fade-out animations
+> *   - Idempotent subscription to AppCoordinator 'notification:show' events
+> *
+> * Layer 1 (UI Presentation).
+> */
+> (function() {
+> 'use strict';
+607a637
+> _subscriptionAttached: false,
+661,663c691,695
+< }
+< };
+< if (window.AppCoordinator && typeof window.AppCoordinator.on === 'function') {
+---
+> },
+> bindCoordinator() {
+> if (this._subscriptionAttached) return;
+> if (typeof window !== 'undefined' && window.AppCoordinator && typeof window.AppCoordinator.on === 'function') {
+> this._subscriptionAttached = true;
+670,672c702,720
+< // =========================================================================
+< // Layer 1: Floating Contextual Object Properties Editor
+< // =========================================================================
+---
+> }
+> };
+> window.StudioNotification.bindCoordinator();
+> })();
+> /**
+> * SVG Animator Studio — Context-Sensitive Floating Properties Editor (`context-editor.js`)
+> *
+> * Responsibilities:
+> *   - Context-sensitive floating property inspector (#floatingContextEditor)
+> *   - Object-specific inspector views for Node, Flow, Glow, Ripple, Image, and Group
+> *   - Multi-selection alignment, distribution, group creation, and color tools
+> *   - Draggable inspector header with viewport boundary clamping
+> *   - Dispatches property mutations authoritatively to Go engine
+> *   - Syncs form fields from authoritative Go scene objects
+> *
+> * Layer 1 (UI Presentation) — Coordinates with AppCoordinator and dispatches to Go engine.
+> */
+> (function() {
+> 'use strict';
+2293a2342,2357
+> })();
+> /**
+> * SVG Animator Studio — Timeline Player (`timeline.js`)
+> *
+> * Responsibilities:
+> *   - Browser playback transport state machine (stopped | playing | paused | ended)
+> *   - requestAnimationFrame scheduling loop and time advancement
+> *   - Loop mode handling ('once' | 'loop' | 'pingpong')
+> *   - UI scrubber, time display, play/pause toggle, and engine status badge
+> *   - Evaluates frame state authoritatively through window.EngineBridge.evaluateSceneAtTime
+> *   - Applies camera rig transforms and optical filter parameters to the live SVG DOM
+> *
+> * Layer 1 (UI Presentation & Playback Transport) — Authoritative evaluation in Go/WASM.
+> */
+> (function() {
+> 'use strict';
+2543a2608,2623
+> })();
+> /**
+> * SVG Animator Studio — Custom Color Picker (`color-picker.js`)
+> *
+> * Responsibilities:
+> *   - HSV-based interactive color picker popover
+> *   - 2D Saturation/Value gradient canvas with pointer capture
+> *   - Hue slider, RGB numeric/slider inputs, and HEX validation
+> *   - Quick palette, recent swatches (localStorage), and favourite swatches
+> *   - Live transactional input preview and history recording
+> *   - Optional HTML EyeDropper API integration
+> *
+> * Layer 1 (UI Presentation).
+> */
+> (function() {
+> 'use strict';
+2954,2956c3034,3049
+< // =========================================================================
+< // Layer 1: Unified Layers Drawer UI & Toolbar State
+< // =========================================================================
+---
+> })();
+> /**
+> * SVG Animator Studio — Unified Layers Drawer UI & Inspector Layer Presentation (`layers-ui.js`)
+> *
+> * Responsibilities:
+> *   - Render layer list items with reverse z-order (top-most layer on top)
+> *   - Display node, flow, glow, ripple, and image items with icon and title
+> *   - Layer action buttons: Visibility toggle, Lock toggle, Click/Shift/Ctrl selection
+> *   - Layer reordering toolbar buttons (Bring to Front, Forward, Backward, Send to Back)
+> *   - Object inspector layer sub-sections (position label, lock, visibility, reorder)
+> *   - Image editor inspector panel synchronization and event bindings
+> *
+> * Layer 1 (UI Presentation) — Reads authoritative layers from LayerManager (Layer 3).
+> */
+> (function() {
+> 'use strict';
+3216,3222d3308
+< window.renderLayersList = renderLayersList;
+< window.updateLayersToolbarState = updateLayersToolbarState;
+< window.initLayersToolbarEvents = initLayersToolbarEvents;
+< window.syncInspectorLayerSections = syncInspectorLayerSections;
+< window.initInspectorLayerSectionEvents = initInspectorLayerSectionEvents;
+< window.syncImageEditorUI = syncImageEditorUI;
+< window.initImageEditorEvents = initImageEditorEvents;
+3702c3788,3790
+< btnBakeClose.addEventListener('click', () => window.closeBakeModal());
+---
+> btnBakeClose.addEventListener('click', () => {
+> if (typeof window.closeBakeModal === 'function') window.closeBakeModal();
+> });
+3706c3794,3796
+< btnBakeCancel.addEventListener('click', () => window.closeBakeModal());
+---
+> btnBakeCancel.addEventListener('click', () => {
+> if (typeof window.closeBakeModal === 'function') window.closeBakeModal();
+> });
+3712c3802,3805
+< if (window._bakeTargetImage) executeBakeImage(window._bakeTargetImage, 'remove');
+---
+> if (window._bakeTargetImage) {
+> const fn = window.executeBakeImage || (typeof executeBakeImage === 'function' ? executeBakeImage : null);
+> if (typeof fn === 'function') fn(window._bakeTargetImage, 'remove');
+> }
+3719c3812,3815
+< if (window._bakeTargetImage) executeBakeImage(window._bakeTargetImage, 'keep');
+---
+> if (window._bakeTargetImage) {
+> const fn = window.executeBakeImage || (typeof executeBakeImage === 'function' ? executeBakeImage : null);
+> if (typeof fn === 'function') fn(window._bakeTargetImage, 'keep');
+> }
+3722a3819,3826
+> window.renderLayersList = renderLayersList;
+> window.updateLayersToolbarState = updateLayersToolbarState;
+> window.initLayersToolbarEvents = initLayersToolbarEvents;
+> window.syncInspectorLayerSections = syncInspectorLayerSections;
+> window.initInspectorLayerSectionEvents = initInspectorLayerSectionEvents;
+> window.syncImageEditorUI = syncImageEditorUI;
+> window.initImageEditorEvents = initImageEditorEvents;
+> })();
+
+=== Retained region diff: parent app.js L4123-7839 vs current app.js L28-3747 ===
+142a143
+>
+322a324,325
+>
+> window.executeBakeImage = executeBakeImage;
+
+=== Strict-mode implicit-global scan (8 modules) ===
+(no output = none found; detector sanity-tested on synthetic sample)
+
+=== 'use strict' in parent app.js ===
+0
+
+=== Harness load order ===
+78:  loadProductionScript('effects.js');
+79:  loadProductionScript('scene-state.js');
+80:  loadProductionScript('coordinator.js');
+133:  loadProductionScript('wasm_exec.js');
+134:  loadProductionScript('engine-bridge.js');
+146:  loadProductionScript('stage.js');
+147:  loadProductionScript('shape-registry.js');
+148:  loadProductionScript('presets.js');
+149:  loadProductionScript('nodes.js');
+150:  loadProductionScript('flows.js');
+151:  loadProductionScript('glows.js');
+152:  loadProductionScript('ripples.js');
+807:  loadProductionScript('history.js');
+808:  loadProductionScript('projects.js');
+809:  loadProductionScript('shape-dropdown.js');
+810:  loadProductionScript('export-adapter.js');
+811:  loadProductionScript('workspace.js');
+812:  loadProductionScript('notifications.js');
+813:  loadProductionScript('color-picker.js');
+814:  loadProductionScript('timeline.js');
+815:  loadProductionScript('layers-ui.js');
+816:  loadProductionScript('context-editor.js');
+817:  loadProductionScript('app.js');
+1375:  loadProductionScript('still-export-modal.js');
+1376:  loadProductionScript('export-modal.js');
+
+=== Documented-vs-actual protocol commands ===
+Layer.Reorder: 0 refs
+Selection.Move: 0 refs
+Group.Dissolve: 0 refs
+SVA.Encode: 0 refs
+SVA.Decode: 0 refs
+Layer.SetVisibility: 4 refs
+Layer.SetLocked: 4 refs
+Timeline.EvaluateSceneAtTime: 4 refs
+
+=== Documented-vs-actual APIs/IDs ===
+isLeftDrawerOpen: 0 files
+toggleStageMaximized: 0 files
+sync(selectedObject: 0 files
+isVisible(): 0 files
+#playBtn: 0 files
+customColorPickerPopover: 0 files
+notificationToast: 0 files
+state.js: 2 files
+objects.js: 0 files
+selection.js: 0 files
+groups.js: 0 files
+layers.js: 0 files
+alignment.js: 0 files
+clipboard.js: 0 files
+
+=== Chromium availability ===
+
+=== node scripts/regression-harness.js (Thu Nov 12 10:57:47 UTC 2026) ===
+exit=0
+PASS-lines: 47
+[HARNESS] REG-02 PASS: Stage 1 & 2 operational state, math, presets, and CRUD verified.
+[HARNESS] Testing Scenario 73: Batch 8D Modularisation & Global Controller Lifecycle Verification...
+[HARNESS] Scenario 73 Test 1: Extracted controller availability...
+[HARNESS] Scenario 73 Test 2: Controller initialization idempotency...
+[HARNESS] Scenario 73 Test 3: WorkspaceController panel operations...
+[HARNESS] Scenario 73 Test 4: CustomColorPicker color mathematics...
+[HARNESS] Scenario 73 Test 5: TimelinePlayer state transitions...
+[HARNESS] Scenario 73 Test 6: SVGExportAdapter XML serialization...
+[HARNESS] Scenario 73 PASS: Batch 8D Modularisation & Global Controller Lifecycle Verification verified.
+[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.
+
+=== go vet ./... ===
+exit=0
+
+=== go test -count=1 ./... ===
+?   	gitea.seaoffate.net/blackgrape/svg-animator/cmd/svg-animator	[no test files]
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/db	0.029s
+?   	gitea.seaoffate.net/blackgrape/svg-animator/internal/effects	[no test files]
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/generator	0.002s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/rasterizer	0.006s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/web	0.074s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry	0.002s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/protocol	0.012s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene	0.010s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/sva	0.720s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/timeline	0.003s
+exit=0
+
+=== bash scripts/verify-architecture.sh ===
+[RESULT] PASS | ARCH-01 | [STATIC] | No recognised direct DOM access found in inspected operational/coordination core (effects.js, coordinator.js, shape-registry.js, scene-state.js lines 1..653) — effects.js=0, coordinator.js=0, shape-registry.js=0, scene-state.js(1..653)=0
+[RESULT] PASS | ARCH-02 | [STATIC] | SceneState.serializeSVGForExport has no browser Web API dependency
+[RESULT] PASS | ARCH-03 | [STATIC] | Targeted static scan found no recognised direct DOM access or Layer 1 UI method calls in the inspected Layer 3 sections of presets, nodes, flows, glows, ripples, stage, and export-modal (pattern-based static scan of inspected regions, not proof of complete UI independence) — presets.js(46..146), nodes.js(24..366), flows.js(28..552), glows.js(22..410), ripples.js(22..347), stage.js(60..122), export-modal.js(37..186)
+[RESULT] PASS | ARCH-04 | [STATIC] | No recognised document.getElementById calls in history.js and projects.js Layer 3 sections
+[RESULT] WARNING | ARCH-05 | [STATIC] | Known architectural exception: StillExportStudio.bakeStaticSVGAtTime (Layer 3) uses offscreen DOM sandbox for SVG path geometry — still-export-modal.js(L3 25..434) lines [209, 212, 213, 380]
+[RESULT] PASS | ARCH-06 | [STATIC] | No direct UI presentation method calls in Layer 3 restore methods
+[RESULT] PASS | ARCH-07 | [STATIC] | Targeted static scan found no recognised direct cross-module state mutations or peer Layer 1 UI calls in the inspected Layer 1 regions (pattern-based static check, not proof that all interactions exclusively use AppCoordinator)
+[RESULT] PASS | ARCH-08 | [STATIC] | ControlStateAdaptor object (lines 663..711) defines syncFromDOM, syncToDOM, and setPairValue as direct object methods and confines all document.getElementById calls in scene-state.js to this boundary — direct_methods=[syncFromDOM:L664, syncToDOM:L687, setPairValue:L701], adaptor_getElementById_lines=[671, 679, 693, 706, 707], outside_adaptor_getElementById_lines=[]
+[RESULT] PASS | ARCH-09 | [STATIC] | Control ID sets verified across HistoryManager, SceneState, ControlStateAdaptor, and index.html — HistoryManager.trackedControlIds=95 == SceneState.trackedControlIds=95; ControlStateAdaptor=96 (95 + chkAutoApplyPreset); all present in index.html (390 total form controls)
+[RESULT] PASS | ARCH-10 | [STATIC] | All 25 <script> tags in index.html are in exact dependency order and all required window.* globals/method definitions are present in stripped source (static definition check) — scripts=25, method_and_global_definitions_verified=127
+exit=0
+
+=== git diff --check ===
+exit=0
+
+=== Review completed Thu Nov 12 11:01:30 UTC 2026; report written to docs/architecture/claude-post-batch8d-independent-review.md ===
