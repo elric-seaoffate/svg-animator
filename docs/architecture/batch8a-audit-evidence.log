@@ -1,0 +1,2254 @@
+
+===== BATCH 8A: BASELINE =====
+Thu Nov 12 04:40:51 UTC 2026
+61ca201e42d9f4672aca75f9f8f42e3c02ddb073
+?? .github/
+?? docs/architecture/batch8a-audit-evidence.log
+?? release/
+?? scripts/verification-review.txt
+?? svg-animator
+
+===== VERIFYING DOCUMENTATION BASELINE =====
+-rw-r--r-- 1 root root 40344 Nov 10 03:08 AGENTS.md
+-rw-r--r-- 1 root root 18312 Nov 10 19:14 AI_GUIDE.md
+-rw-r--r-- 1 root root  6853 Nov  9 20:01 docs/architecture/sva-format-specification.md
+-rw-r--r-- 1 root root 31056 Nov 10 03:09 docs/architecture/wasm-migration-roadmap.md
+-rw-r--r-- 1 root root 135496 Nov 11 16:19 /root/projects/svg-animator-review/pass2-adversarial-review.md
+
+===== BASELINE TEST RUN =====
+go vet exit: 0
+?   	gitea.seaoffate.net/blackgrape/svg-animator/cmd/svg-animator	[no test files]
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/db	0.029s
+?   	gitea.seaoffate.net/blackgrape/svg-animator/internal/effects	[no test files]
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/generator	0.004s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/rasterizer	0.009s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/internal/web	0.080s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/geometry	0.002s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/protocol	0.011s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene	0.012s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/sva	0.718s
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/timeline	0.002s
+go test count=1 exit: 0
+ok  	gitea.seaoffate.net/blackgrape/svg-animator/pkg/engine/scene	1.029s
+go test race scene exit: 0
+[HARNESS] REG-02 PASS: Stage 1 & 2 operational state, math, presets, and CRUD verified.
+[EngineBridge] Command failed (Scene.SetState): decoding SetSceneStateRequest: invalid character 'i' looking for beginning of object key string
+Node.Delete failed in Go engine: 1
+Node.Delete failed in Go engine: 2
+Flow.Delete failed in Go engine: 1
+Glow.Delete failed in Go engine: 1
+Ripple.Delete failed in Go engine: 1
+[HARNESS] Testing WASM Stage 4 Flow operations, geometry & connections...
+[EngineBridge] Command failed (Flow.RemoveWaypoint): command Flow.RemoveWaypoint failed
+Flow.RemoveWaypoint failed in Go engine: 5
+[HARNESS] Testing WASM Stages 5 & 6 Glow and Ripple optical engines...
+[HARNESS] Testing WASM Stage 7 Camera, Optics & Frame engines...
+[HARNESS] Testing Defect 1 regression: Shape selection after Snap Preset...
+[HARNESS] Testing Defect 2 regression: Timeline scene playback & presentation...
+[HARNESS] Testing Playback Control Ownership & Timeline State Machine...
+[HARNESS] Testing Independent Object Animations vs Global Camera Transport Separation...
+[HARNESS] Testing Camera and Optics Preview Playback (17s Scene, 8s Ken Burns, 6s Focus Pull)...
+[HARNESS] Testing WASM Stage 8: Authoritative Scene State, Selection, History and Object Naming...
+[HARNESS] Testing WASM Stage 9: Native .sva Project Format & Asset Packaging...
+[HARNESS] Testing Stage 9 Regression: Background Photo Packaging & Restoration...
+[HARNESS] Testing Stage 11 Quality & Usability Improvements...
+[HARNESS] Testing Stage 12 Multi-Selection, Group Move, Alignment, Distribution & Colour Tool...
+[HARNESS] Testing Stage 13 Persistent Groups, Duplication and Copy/Paste...
+[HARNESS] Testing Stage 13 Mixed-Type Selection and Persistent Grouping (Scenarios 1-15)...
+[HARNESS] Testing Stage 13 Regression Repair: Member Detachment & Ungrouping (Scenarios 16-22)...
+[EngineBridge] Command failed (Group.Bounds): group not found: group-8
+[EngineBridge] Command failed (Group.Bounds): group not found: group-11
+[HARNESS] Testing Stage 13 Final UI Repair: Marquee & Overlay Geometry (Scenarios 23-28)...
+
+[HARNESS] Scenario 29: Full SVA Export/Import Round-Trip of Mixed-Type Group...
+[HARNESS] Scenario 29 PASS: Full SVA round-trip of mixed-type group verified.
+
+[HARNESS] Scenario 30: Group Selection, Member Removal & Dissolution...
+[EngineBridge] Command failed (Group.Bounds): group not found: group-1
+[EngineBridge] Command failed (Group.Bounds): group not found: group-1
+[HARNESS] Scenario 30 PASS: Group selection, member removal, and dissolution verified.
+
+[HARNESS] Scenario 31: Undo/Redo of Member Removal and Ungroup...
+[HARNESS] Scenario 31 PASS: Undo/Redo of member removal and ungroup verified.
+
+[HARNESS] Scenario 32: Optical-Only Group SVA Round-Trip...
+[HARNESS] Scenario 32 PASS: Optical-only group SVA round-trip verified.
+
+[HARNESS] Scenario 33: Double SVA Round-Trip with Group Duplication...
+[HARNESS] Scenario 33 PASS: Double SVA round-trip with group duplication verified.
+
+[HARNESS] Scenario 34: Backward Compatibility, Malformed IDs & SQLite State Integration...
+[HARNESS] Scenario 34 PASS: Backward compatibility, malformed IDs and SQLite serialization verified.
+
+[HARNESS] Testing Stage 14 Unified Layer Management & Independent Image Objects...
+
+[HARNESS] Scenario 35: Layer ordering CRUD and reordering operations...
+[HARNESS] Scenario 35 PASS: Layer ordering CRUD and reordering operations verified.
+
+[HARNESS] Scenario 36: Object visibility and exclusion from output and hit-testing...
+[HARNESS] Scenario 36 PASS: Object visibility verified.
+
+[HARNESS] Scenario 37: Object locking, canvas blocking, and deletion skip...
+[HARNESS] Scenario 37 PASS: Object locking and deletion skip verified.
+
+[HARNESS] Scenario 38: Image Object lifecycle, aspect ratio math, and hit-testing...
+[HARNESS] Scenario 38 PASS: Image Object lifecycle and rendering verified.
+
+[HARNESS] Scenario 39: Layer and Group integration, contiguity, and hierarchy...
+[HARNESS] Scenario 39 PASS: Layer and Group integration verified.
+
+[HARNESS] Scenario 40: Multi-selection with images, duplication and copy/paste...
+[HARNESS] Scenario 40 PASS: Multi-selection with images, duplication and copy/paste verified.
+
+[HARNESS] Scenario 41: Native .sva round-trip with bundled image asset extraction...
+[HARNESS] Scenario 41 PASS: Native .sva round-trip with bundled assets and layers verified.
+
+[HARNESS] Scenario 42: History undo/redo state restoration for images and layers...
+[HARNESS] Scenario 42 PASS: History undo/redo state restoration for images and layers verified.
+
+[HARNESS] Scenario 43: Protocol boundary normalization and Go schema validation...
+[EngineBridge] Layer.BringToFront validation error: Invalid layer target type at index 0: "camera"
+[EngineBridge] Layer.BringToFront validation error: No target objects specified for layer reordering
+[HARNESS] Scenario 43 PASS: Protocol boundary normalization and Go schema validation verified.
+
+[HARNESS] Scenario 44: Real visual SVG stacking order reversal...
+[HARNESS] Scenario 44 PASS: Real visual SVG stacking order reversal verified.
+
+[HARNESS] Scenario 45: Group contiguity across BringForward and SendBackward...
+[HARNESS] Scenario 45 PASS: Group contiguity across BringForward and SendBackward verified.
+
+[HARNESS] Scenario 46: Undo/redo and SVA round-trip persistence of layer order...
+[EngineBridge] Command failed (Layer.Set): invalid layer entry: image image-1 does not exist
+[HARNESS] Scenario 46 PASS: Undo/redo and SVA round-trip persistence of layer order verified.
+
+[HARNESS] Scenario 47: Layers Drawer toolbar accessibility, dynamic button enabling and reordering...
+[HARNESS] Scenario 47 PASS: Layers Drawer toolbar accessibility, dynamic button enabling and reordering verified.
+
+[HARNESS] Scenario 48: Layer ordering and state controls in normal object properties panels...
+[HARNESS] Scenario 48 PASS: Layer ordering and state controls in normal object properties panels verified.
+
+[HARNESS] Scenario 49: Non-destructive Image Cropping (Model, EngineBridge, & SVG compilation)...
+[HARNESS] Scenario 49 PASS: Non-destructive Image Cropping (Model, EngineBridge, & SVG compilation) verified.
+
+[HARNESS] Scenario 50: Interactive Crop Mode Lifecycle & Boundary Clamping...
+[HARNESS] Scenario 50 PASS: Interactive Crop Mode Lifecycle & Boundary Clamping verified.
+
+[HARNESS] Scenario 51: Background Region Extraction & Selection Validation...
+[HARNESS] Scenario 51 PASS: Background Region Extraction & Selection Validation verified.
+
+[HARNESS] Scenario 52: Image Baking into Background (Remove and Keep options) & Undo...
+[EngineBridge] Command failed (Image.Delete): image not found: image-4
+[HARNESS] Scenario 52 PASS: Image Baking into Background & Undo verified.
+
+[HARNESS] Scenario 53: Cropped Image Object SVA Roundtrip Preservation...
+[HARNESS] Scenario 53 PASS: Cropped Image Object SVA Roundtrip Preservation verified.
+
+[HARNESS] Scenario 54: Background Extraction -> Drag -> Bake -> Undo/Redo & SVA Roundtrip...
+[EngineBridge] Command failed (Image.Delete): image not found: image-3
+[HARNESS] Scenario 54 PASS: Background Extraction -> Drag -> Bake -> Undo/Redo & SVA Roundtrip verified.
+
+[HARNESS] Scenario 55: Dedicated Crop, Clip & Snip Workspace Lifecycle & UI Modes...
+[HARNESS] Scenario 55 PASS: Dedicated Crop, Clip & Snip Workspace Lifecycle & UI Modes verified.
+
+[HARNESS] Scenario 56: Non-Destructive Object-Local Image Clipping & SVG Compilation...
+[HARNESS] Scenario 56 PASS: Non-Destructive Object-Local Image Clipping & SVG Compilation verified.
+
+[HARNESS] Scenario 57: Selection Box Context-Menu Target Resolution for Image Objects...
+[HARNESS] Scenario 57 PASS: Selection Box Context-Menu Target Resolution for Image Objects verified.
+
+[HARNESS] Scenario 58: Crop Versions Lifecycle & Authoritative Selection Parity...
+[HARNESS] Scenario 58 PASS: Crop Versions Lifecycle & Authoritative Selection Parity verified.
+
+[HARNESS] Scenario 59: Two-Step Clip Area Workflow & Independent Object Creation...
+[HARNESS] Scenario 59 PASS: Two-Step Clip Area Workflow & Independent Object Creation verified.
+
+[HARNESS] Scenario 60: Two-Step Snip Background Workflow & Export...
+[HARNESS] Scenario 60 PASS: Two-Step Snip Background Workflow & Export verified.
+
+[HARNESS] Scenario 61: Commit Current Crop (Preserve vs Discard Versions)...
+[HARNESS] Scenario 61 PASS: Commit Current Crop (Preserve vs Discard Versions) verified.
+
+[HARNESS] Scenario 62: Scene Exports Render the Currently Active Crop Version...
+[HARNESS] Scenario 62 PASS: Scene Exports Render the Currently Active Crop Version verified.
+
+[HARNESS] Scenario 63: Full End-to-End Background Crop Workflow, DOM Re-Rendering & Version Switching...
+[HARNESS] Scenario 63 PASS: Full End-to-End Background Crop Workflow, DOM Re-Rendering & Version Switching verified.
+
+[HARNESS] Scenario 64: Stage 15 Final Precision - Background Crop Height & Aspect Ratio (Tests A-G)...
+[HARNESS] Scenario 64 Test A: Full-height crop retention...
+[HARNESS] Scenario 64 Test B: Full-width crop retention...
+[HARNESS] Scenario 64 Test C: Full-image crop retention...
+[HARNESS] Scenario 64 Test D: Free aspect ratio on non-square canvas (1280x720)...
+[HARNESS] Scenario 64 Test E: Display fit mode separation...
+[HARNESS] Scenario 64 Test F: Crop versions switching without drift...
+[HARNESS] Scenario 64 Test G: Native .sva roundtrip without drift...
+[HARNESS] Scenario 64 PASS: Stage 15 Final Precision - Background Crop Height & Aspect Ratio (Tests A-G) verified.
+
+[HARNESS] Scenario 65: Background Crop Display Size & Framing Parity (Policies A-D)...
+[HARNESS] Scenario 65 Test A: Policy A Crop Framing (1:1 display scale, zero letterbox, zero shrinkage)...
+[HARNESS] Scenario 65 Test B: Crop version switching & reset to original...
+[HARNESS] Scenario 65 Test C: Fixed canvas policies B (contain), C (cover), D (stretch)...
+[HARNESS] Scenario 65 Test D: Foreground object preservation...
+[HARNESS] Scenario 65 Test E: Native .sva serialization & restoration...
+[HARNESS] Scenario 65 PASS: Background Crop Display Size & Framing Parity (Policies A-D) verified.
+
+[HARNESS] Testing Scenario 66: Batch 3 Unified Go History, Undo/Redo & Project Lifecycle...
+[HARNESS] Scenario 66 Test G: New Blank Project complete reset...
+[HARNESS] Scenario 66 Test A: First edit undo/redo on fresh page...
+[HARNESS] Scenario 66 Test M: Keydown ignores input/textarea...
+[HARNESS] Scenario 66 Test I: Project load resets controls before applying state...
+[HARNESS] Scenario 66 Test J: Atomic failed project load preserves active scene...
+[HARNESS] Scenario 66 PASS: Batch 3 Unified Go History, Undo/Redo & Project Lifecycle (Tests A-M) verified.
+
+[HARNESS] Testing Scenario 67: Batch 4 Group Integrity, Attached Flow Geometry, Layer Visibility & Lock Enforcement...
+[HARNESS] Scenario 67 Test 1: Group creation with image, nested group rejection, rename & deleteGroup...
+[EngineBridge] Command failed (Group.Create): nested groups are not supported
+[HARNESS] Scenario 67 Test 2: Flow geometry synchronization on move, align, distribute...
+[HARNESS] Scenario 67 Test 3: Drag preview transform parity (translate dx, dy)...
+[HARNESS] Scenario 67 Test 4: Lock and visibility enforcement...
+[HARNESS] Scenario 67 PASS: Batch 4 Group Integrity, Attached Flow Geometry, Layer Visibility & Lock Enforcement verified.
+
+[HARNESS] Testing Scenario 68: Batch 5 Background Crop, Clip/Snip, Image Baking and Pixel Composition Integrity...
+[HARNESS] Scenario 68 Test 1: P1-010 Image Clip pointer scaling with getEffectiveScale()...
+[HARNESS] Scenario 68 Test 2: P1-011 & P2-003 Image Object commit priority over background and key compatibility...
+[HARNESS] Scenario 68 Test 3: P1-011 Background Commit Crop (preserve rejection & discard execution)...
+[HARNESS] Scenario 68 Test 4: P1-012 renderBackgroundToOffscreenCanvas crop-awareness...
+[HARNESS] Scenario 68 Test 5: P1-012 executeBakeImage integrity...
+[HARNESS] Scenario 68 PASS: Batch 5 Background Crop, Clip/Snip, Image Baking and Pixel Composition Integrity verified.
+
+[HARNESS] Testing Scenario 69: Batch 6 Export Fidelity, Alpha Transparency, Timing & Multi-Encoder Reliability...
+[HARNESS] Scenario 69 Test 1: P2-005 Still Export <set> timing & visibility...
+[HARNESS] Scenario 69 Test 2: P1-019 SMIL animate finite repeatCount & fill handling...
+[HARNESS] Scenario 69 Test 3: P1-019 animateTransform scale and rotate baking...
+[HARNESS] Scenario 69 Test 4: P1-020 TimelinePlayer pingpong cycle wrapping...
+[HARNESS] Scenario 69 PASS: Batch 6 Export Fidelity, Alpha Transparency, Timing & Multi-Encoder Reliability verified.
+
+[HARNESS] Testing Scenario 70: Batch 7 Final Engine Reliability, Clipboard Integrity, WASM Recovery & Verification...
+[HARNESS] Scenario 70 Test 1: P1-006 getElementById authentic lookup...
+[HARNESS] Scenario 70 Test 2: P2-010 Group visibility and lock personal state preservation...
+[HARNESS] Scenario 70 Test 3: P2-009 Clipboard camera rejection and progressive offset...
+[HARNESS] Scenario 70 Test 4: P2-011 ImageObjects non-sequential collision avoidance...
+[HARNESS] Scenario 70 Test 5: P2-012 Resource cleanup...
+[HARNESS] Scenario 70 PASS: Batch 7 Final Engine Reliability, Clipboard Integrity, WASM Recovery & Verification verified.
+[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.
+regression harness exit: 0
+=============================================================================
+ SVG Animator Studio — Phase 1 Static Architecture Report ([STATIC])
+=============================================================================
+[RESULT] PASS | ARCH-01 | [STATIC] | No recognised direct DOM access found in inspected operational/coordination core (effects.js, coordinator.js, shape-registry.js, scene-state.js lines 1..593) — effects.js=0, coordinator.js=0, shape-registry.js=0, scene-state.js(1..593)=0
+[RESULT] PASS | ARCH-02 | [STATIC] | SceneState.serializeSVGForExport has no browser Web API dependency
+[RESULT] PASS | ARCH-03 | [STATIC] | Targeted static scan found no recognised direct DOM access or Layer 1 UI method calls in the inspected Layer 3 sections of presets, nodes, flows, glows, ripples, stage, and export-modal (pattern-based static scan of inspected regions, not proof of complete UI independence) — presets.js(46..146), nodes.js(24..414), flows.js(28..584), glows.js(22..435), ripples.js(22..363), stage.js(60..122), export-modal.js(37..186)
+[RESULT] PASS | ARCH-04 | [STATIC] | No recognised document.getElementById calls in history.js and projects.js Layer 3 sections
+[RESULT] WARNING | ARCH-05 | [STATIC] | Known architectural exception: StillExportStudio.bakeStaticSVGAtTime (Layer 3) uses offscreen DOM sandbox for SVG path geometry — still-export-modal.js(L3 25..434) lines [209, 212, 213, 380]
+[RESULT] PASS | ARCH-06 | [STATIC] | No direct UI presentation method calls in Layer 3 restore methods
+[RESULT] PASS | ARCH-07 | [STATIC] | Targeted static scan found no recognised direct cross-module state mutations or peer Layer 1 UI calls in the inspected Layer 1 regions (pattern-based static check, not proof that all interactions exclusively use AppCoordinator)
+[RESULT] PASS | ARCH-08 | [STATIC] | ControlStateAdaptor object (lines 603..651) defines syncFromDOM, syncToDOM, and setPairValue as direct object methods and confines all document.getElementById calls in scene-state.js to this boundary — direct_methods=[syncFromDOM:L604, syncToDOM:L627, setPairValue:L641], adaptor_getElementById_lines=[611, 619, 633, 646, 647], outside_adaptor_getElementById_lines=[]
+[RESULT] PASS | ARCH-09 | [STATIC] | Control ID sets verified across HistoryManager, SceneState, ControlStateAdaptor, and index.html — HistoryManager.trackedControlIds=95 == SceneState.trackedControlIds=95; ControlStateAdaptor=96 (95 + chkAutoApplyPreset); all present in index.html (390 total form controls)
+[RESULT] PASS | ARCH-10 | [STATIC] | All 17 <script> tags in index.html are in exact dependency order and all required window.* globals/method definitions are present in stripped source (static definition check) — scripts=17, method_and_global_definitions_verified=116
+-----------------------------------------------------------------------------
+ Four-Way Architectural Classification Summary ([STATIC] targeted pattern scan):
+   (Note: Static pattern scan of stripped source, not a full JS AST parser or proof
+    of complete runtime separation. Unsupported syntax such as computed property names,
+    generators, accessors, or dynamic attachments will produce FAIL.)
+   1. Inspected Operational Regions with No Recognised Direct DOM/UI Pattern Hits:
+      - effects.js (window.Effects)
+      - coordinator.js (window.AppCoordinator)
+      - shape-registry.js (window.ShapeRegistry)
+      - scene-state.js (window.SceneState lines 1..593)
+      - Inspected Layer 3 regions of presets.js, nodes.js, flows.js, glows.js, ripples.js, stage.js, export-modal.js
+   2. Intentional or Legacy DOM/Web-API Access in Operational/Adaptor Code:
+      - Intentional: window.ControlStateAdaptor in scene-state.js (PASS)
+      - Intentional: window.SVGExportAdapter in app.js for export XML serialization (PASS)
+      - Exception:   Offscreen DOM sandbox in still-export-modal.js bakeStaticSVGAtTime (WARNING)
+   3. Operational Code Directly Invoking UI Presentation Methods:
+      - Operational restore and serialization methods in HistoryManager and ProjectManager operate cleanly with zero direct UI presentation calls (PASS)
+   4. Inspected Layer 1 UI Delegation vs Recognised Cross-Module Coupling:
+      - Inspected Layer 1 regions use AppCoordinator for selection, waypoint activation, overlay refresh, history recording, and render requests (PASS)
+=============================================================================
+verify architecture exit: 0
+
+===== INVESTIGATION A8A-001: setLoadedPhoto and setBackground =====
+132-
+133-    getLoadedPhoto() {
+134-      return this.loadedPhoto;
+135-    },
+136-
+137:    setLoadedPhoto(photoObj) {
+138-      this.loadedPhoto = photoObj || null;
+139-      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+140-        const p = this.loadedPhoto;
+141-        window.EngineBridge.setBackground(p ? {
+142-          filename: p.filename || '',
+--- Callers of setLoadedPhoto ---
+internal/web/static/js/engine-bridge.js:1754:        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+internal/web/static/js/engine-bridge.js:1755:          window.setLoadedPhoto(photo);
+internal/web/static/js/history.js:300:      if (typeof window.setLoadedPhoto === 'function') {
+internal/web/static/js/history.js:301:        window.setLoadedPhoto(data.loadedPhoto || null);
+internal/web/static/js/history.js:303:        window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
+internal/web/static/js/scene-state.js:137:    setLoadedPhoto(photoObj) {
+internal/web/static/js/projects.js:227:    if (typeof window.setLoadedPhoto === 'function') {
+internal/web/static/js/projects.js:228:      window.setLoadedPhoto(data.loadedPhoto || null);
+internal/web/static/js/projects.js:230:      window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
+internal/web/static/js/projects.js:734:    if (typeof window.setLoadedPhoto === 'function') {
+internal/web/static/js/projects.js:735:      window.setLoadedPhoto(null);
+internal/web/static/js/projects.js:737:      window.SceneState.setLoadedPhoto(null);
+internal/web/static/js/app.js:4349:      if (typeof window.setLoadedPhoto === 'function') {
+internal/web/static/js/app.js:4350:        window.setLoadedPhoto(newPhoto);
+internal/web/static/js/app.js:5694:        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+internal/web/static/js/app.js:5705:          window.setLoadedPhoto(photo);
+internal/web/static/js/app.js:6656:  window.setLoadedPhoto = function(photoObj) {
+internal/web/static/js/app.js:6658:      ? window.SceneState.setLoadedPhoto(photoObj)
+internal/web/static/js/app.js:7108:    window.setLoadedPhoto(imgData);
+--- Callers of setBackground ---
+internal/web/static/js/engine-bridge.js:1636:    setBackground(bg) {
+internal/web/static/js/engine-bridge.js:1711:    resetBackgroundCrop() {
+internal/web/static/js/scene-state.js:139:      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+internal/web/static/js/scene-state.js:141:        window.EngineBridge.setBackground(p ? {
+internal/web/static/js/app.js:4352:      if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+internal/web/static/js/app.js:4353:        window.EngineBridge.setBackground(newPhoto);
+internal/web/static/js/app.js:5222:    if (window.EngineBridge && typeof window.EngineBridge.resetBackgroundCrop === 'function') {
+internal/web/static/js/app.js:5223:      window.EngineBridge.resetBackgroundCrop();
+internal/web/static/js/app.js:6669:    if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+internal/web/static/js/app.js:6670:      window.EngineBridge.setBackground(normalized ? {
+
+===== A8A-001 DETAILS =====
+--- scene-state.js:135-165 ---
+    },
+
+    setLoadedPhoto(photoObj) {
+      this.loadedPhoto = photoObj || null;
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+        const p = this.loadedPhoto;
+        window.EngineBridge.setBackground(p ? {
+          filename: p.filename || '',
+          mime: p.mime || '',
+          src: p.src || p.dataUrl || '',
+          b64: p.b64 || '',
+          naturalWidth: p.naturalWidth || 0,
+          naturalHeight: p.naturalHeight || 0,
+          sourceWidth: p.sourceWidth || p.naturalWidth || 0,
+          sourceHeight: p.sourceHeight || p.naturalHeight || 0,
+          crop: p.crop || null,
+          cropVersions: p.cropVersions || null,
+          activeCropVersionId: p.activeCropVersionId || 'original'
+        } : null);
+      }
+      return this.loadedPhoto;
+    },
+
+    setControl(id, value) {
+      if (!id) return;
+      this.controls[id] = value;
+    },
+
+    setControls(controlsMap) {
+      if (!controlsMap || typeof controlsMap !== 'object') return;
+      Object.keys(controlsMap).forEach((id) => {
+--- engine-bridge.js:1636-1670 ---
+    setBackground(bg) {
+      if (this.isReady()) {
+        const payload = { background: bg };
+        const res = this.dispatch('Background.Set', payload);
+        return res;
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    getBackground() {
+      if (this.isReady()) {
+        const res = this.dispatch('Background.Get', {});
+        return res;
+      }
+      return null;
+    },
+
+    cropBackground(crop, name = '') {
+      if (this.isReady()) {
+        const payload = {
+          name: name ? String(name) : '',
+          crop: Object.assign({ enabled: true }, crop)
+        };
+        const res = this.dispatch('Background.Crop', payload);
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to crop background in Go engine' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    selectBackgroundCropVersion(versionId) {
+      const vId = String(versionId || 'original');
+--- app.js:6650-6675 ---
+  window.currentRenderState = null;
+
+  window.getLoadedPhoto = function() {
+    return window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+  };
+
+  window.setLoadedPhoto = function(photoObj) {
+    const normalized = window.SceneState
+      ? window.SceneState.setLoadedPhoto(photoObj)
+      : (photoObj || null);
+    const dropLabel = document.getElementById('uploadDropLabel');
+    const dropMeta = document.getElementById('uploadPhotoMeta');
+    if (normalized) {
+      if (dropLabel) dropLabel.innerText = '📷 ' + (normalized.filename || 'Loaded Photo');
+      if (dropMeta) dropMeta.innerText = 'Native: ' + normalized.naturalWidth + ' \u00d7 ' + normalized.naturalHeight + 'px (Click to replace)';
+    } else {
+      if (dropLabel) dropLabel.innerText = 'Upload Background Photo';
+      if (dropMeta) dropMeta.innerText = 'Drop JPEG, PNG, or WebP here';
+    }
+    if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+      window.EngineBridge.setBackground(normalized ? {
+        filename: normalized.filename,
+        mime: normalized.mime,
+        src: normalized.src || normalized.dataUrl || '',
+        b64: normalized.b64 || '',
+        naturalWidth: normalized.naturalWidth,
+
+===== GO IMPLEMENTATION OF Background.Set =====
+930-type BackgroundCropVersionDeleteRequest struct {
+931-	VersionID string `json:"versionId"`
+932-}
+933-
+934-// BackgroundCropCommitRequest payload for "Background.CropCommit".
+935-type BackgroundCropCommitRequest struct {
+936-	NewB64          string `json:"newB64,omitempty"`
+937-	DiscardVersions bool   `json:"discardVersions"`
+938-}
+939-
+940:// BackgroundSetRequest payload for "Background.Set".
+941-type BackgroundSetRequest struct {
+942-	Background *scene.BackgroundConfig `json:"background"`
+943-}
+944-
+945-// LayerGetResponse response for "Layer.Get".
+946-type LayerGetResponse struct {
+947-	Layers []scene.LayerEntry `json:"layers"`
+948-	Count  int                `json:"count"`
+949-}
+950-
+--
+3077-
+3078-	case "Layer.GetEffective":
+3079-		var req LayerEffectiveRequest
+3080-		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+3081-			return nil, fmt.Errorf("decoding LayerEffectiveRequest: %w", err)
+3082-		}
+3083-		vis := activeScene.GetEffectiveVisibility(req.Type, req.ID)
+3084-		locked := activeScene.GetEffectiveLocked(req.Type, req.ID)
+3085-		return json.Marshal(LayerEffectiveResponse{Visible: vis, Locked: locked})
+3086-
+3087:	case "Background.Set":
+3088-		var req BackgroundSetRequest
+3089-		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+3090-			return nil, fmt.Errorf("decoding BackgroundSetRequest: %w", err)
+3091-		}
+3092-		activeScene.SetBackground(req.Background)
+3093-		return json.Marshal(map[string]any{
+3094-			"success":    true,
+3095-			"background": activeScene.GetBackground(),
+3096-			"revision":   activeScene.Revision(),
+3097-		})
+
+===== GO Scene.SetBackground =====
+pkg/engine/scene/scene.go-1006-}
+pkg/engine/scene/scene.go-1007-
+pkg/engine/scene/scene.go-1008-// GetSnapshot exports an immutable, deep-copied snapshot of current scene state.
+pkg/engine/scene/scene.go-1009-func (s *Scene) GetSnapshot() Snapshot {
+pkg/engine/scene/scene.go-1010-	s.mu.RLock()
+pkg/engine/scene/scene.go-1011-	defer s.mu.RUnlock()
+pkg/engine/scene/scene.go-1012-	return s.getSnapshotLocked()
+pkg/engine/scene/scene.go-1013-}
+pkg/engine/scene/scene.go-1014-
+pkg/engine/scene/scene.go-1015-// SetBackground sets or replaces the authoritative background configuration.
+pkg/engine/scene/scene.go:1016:func (s *Scene) SetBackground(bg *BackgroundConfig) {
+pkg/engine/scene/scene.go-1017-	s.mu.Lock()
+pkg/engine/scene/scene.go-1018-	defer s.mu.Unlock()
+pkg/engine/scene/scene.go-1019-
+pkg/engine/scene/scene.go-1020-	if bg == nil {
+pkg/engine/scene/scene.go-1021-		s.background = nil
+pkg/engine/scene/scene.go-1022-		s.revision++
+pkg/engine/scene/scene.go-1023-		return
+pkg/engine/scene/scene.go-1024-	}
+pkg/engine/scene/scene.go-1025-
+pkg/engine/scene/scene.go-1026-	b := *bg
+        photo.cropVersions = Array.isArray(bg.cropVersions) ? bg.cropVersions : [];
+        photo.activeCropVersionId = bg.activeCropVersionId || 'original';
+        if (bg.naturalWidth) photo.naturalWidth = bg.naturalWidth;
+        if (bg.naturalHeight) photo.naturalHeight = bg.naturalHeight;
+        if (bg.b64) {
+          photo.b64 = bg.b64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+          photo.src = bg.src || bg.data || ('data:' + (bg.mime || photo.mime || 'image/png') + ';base64,' + photo.b64);
+          photo.dataUrl = photo.src;
+        }
+        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+          window.setLoadedPhoto(photo);
+        }
+      }
+      if (window.triggerRender) window.triggerRender();
+    },
+
+    deleteImage(id) {
+      if (this.isReady()) {
+        const res = this.dispatch('Image.Delete', { id: String(id) });
+        if (res && res.success) {
+          if (window.ImageObjects) {
+        const payload = {
+          newB64: options.newB64 || options.b64 || '',
+          discardVersions: !!options.discardVersions
+        };
+        const res = this.dispatch('Background.CropCommit', payload);
+        if (res && res.success && res.background) {
+          this._applyBackgroundUpdate(res.background);
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to commit background crop in Go engine' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    _applyBackgroundUpdate(bg) {
+      if (!bg) return;
+      let photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo && window.getLoadedPhoto) photo = window.getLoadedPhoto();
+      if (photo) {
+        photo.crop = bg.crop || null;
+        photo.cropVersions = Array.isArray(bg.cropVersions) ? bg.cropVersions : [];
+        photo.activeCropVersionId = bg.activeCropVersionId || 'original';
+        if (bg.naturalWidth) photo.naturalWidth = bg.naturalWidth;
+        if (bg.naturalHeight) photo.naturalHeight = bg.naturalHeight;
+        if (bg.b64) {
+          photo.b64 = bg.b64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+// SetBackground sets or replaces the authoritative background configuration.
+func (s *Scene) SetBackground(bg *BackgroundConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if bg == nil {
+		s.background = nil
+		s.revision++
+		return
+	}
+
+	b := *bg
+	nw := b.NaturalWidth
+	if nw <= 0 {
+		nw = b.SourceWidth
+	}
+	if nw <= 0 {
+		nw = 1280
+	}
+	nh := b.NaturalHeight
+	if nh <= 0 {
+		nh = b.SourceHeight
+	}
+	if nh <= 0 {
+		nh = 720
+	}
+	b.NaturalWidth = nw
+	b.NaturalHeight = nh
+	if b.SourceWidth <= 0 {
+		b.SourceWidth = nw
+	}
+	if b.SourceHeight <= 0 {
+		b.SourceHeight = nh
+	}
+
+	if len(b.CropVersions) == 0 {
+		b.CropVersions = []BackgroundCropVersion{
+			{
+				ID:           "original",
+				Name:         "Original",
+				SourceX:      0,
+				SourceY:      0,
+				SourceWidth:  nw,
+				SourceHeight: nh,
+			},
+		}
+		b.ActiveCropVersionID = "original"
+	}
+	if b.ActiveCropVersionID == "" {
+		b.ActiveCropVersionID = "original"
+	}
+
+===== INVESTIGATION A8A-002: Timeline Evaluation & _sceneSynced =====
+17-    version: '1.0.0',
+18-    status: 'uninitialized', // 'uninitialized' | 'loading' | 'ready' | 'fallback' | 'failed'
+19-    _bridge: null,
+20-    _initPromise: null,
+21-    _sceneCache: null,
+22:    _sceneSynced: false,
+23-    _lastSyncError: null,
+24-    _lastSyncErrorLogged: null,
+25-    _syncRevision: 0,
+26-    _lastEngineUsed: 'Unavailable',
+27-    _stats: {
+--
+2070-    },
+2071-
+2072-    getActiveEngineName() {
+2073-      if (!this.isReady()) return 'JS fallback';
+2074-      if (this._lastSyncError) return 'Sync Failed (JS fallback)';
+2075:      if (!this._sceneSynced) return 'WASM (Syncing...)';
+2076-      if (this._lastEngineUsed === 'WASM') return 'WASM';
+2077-      return 'WASM (Ready)';
+2078-    },
+2079-
+2080-    getFrameEvaluationStats() {
+2081-      return {
+2082-        activeEngine: this.getActiveEngineName(),
+2083:        sceneSynced: this._sceneSynced,
+2084-        lastSyncError: this._lastSyncError,
+2085-        framesEvaluated: this._stats.framesEvaluated,
+2086-        avgDurationMs: this._stats.totalCalls > 0
+2087-          ? Number((this._stats.totalDurationMs / this._stats.totalCalls).toFixed(3))
+2088-          : 0,
+--
+2511-    syncScene(snapshot) {
+2512-      this._sceneCache = this.normalizeSceneSnapshot(snapshot || this.buildCurrentSceneSnapshot());
+2513-      if (this.isReady()) {
+2514-        const res = this.dispatch('Scene.SetState', this._sceneCache);
+2515-        if (res && res.status === 'ok') {
+2516:          this._sceneSynced = true;
+2517-          this._lastSyncError = null;
+2518-          this._lastSyncErrorLogged = null;
+2519-          this._syncRevision = res.revision;
+2520-          return true;
+2521-        } else {
+2522:          this._sceneSynced = false;
+2523-          this._lastSyncError = (res && res.error) || 'Failed to sync scene';
+2524-          if (this._lastSyncError !== this._lastSyncErrorLogged) {
+2525-            console.warn('[EngineBridge] Scene synchronization failed; falling back to JavaScript engine:', this._lastSyncError);
+2526-            this._lastSyncErrorLogged = this._lastSyncError;
+2527-          }
+2528-          return false;
+2529-        }
+2530-      }
+2531:      this._sceneSynced = false;
+2532-      return false;
+2533-    },
+2534-
+2535-    evaluateSceneAtTime(timeSec) {
+2536-      const t = Number(timeSec) || 0;
+2537-      if (!this._sceneCache) {
+2538-        this._sceneCache = this.buildCurrentSceneSnapshot();
+2539-      }
+2540-
+2541:      if (this.isReady() && this._sceneSynced) {
+2542-        const res = this.dispatch('Timeline.EvaluateSceneAtTime', { time: t });
+2543-        if (res && res.flows) {
+2544-          this._stats.framesEvaluated++;
+2545-          this._lastEngineUsed = 'WASM';
+2546-          return res;
+2547-        } else {
+2548-          // If evaluation failed unexpectedly, mark unsynced
+2549:          this._sceneSynced = false;
+2550-        }
+2551-      }
+2552-
+2553-      // Seamless mathematical JavaScript fallback
+2554-      this._stats.framesEvaluated++;
+--
+2560-      if (!Array.isArray(times) || times.length === 0) return [];
+2561-      if (!this._sceneCache) {
+2562-        this._sceneCache = this.buildCurrentSceneSnapshot();
+2563-      }
+2564-
+2565:      if (this.isReady() && this._sceneSynced) {
+2566-        const res = this.dispatch('Timeline.EvaluateBatch', { times: times });
+2567-        if (Array.isArray(res)) {
+2568-          this._stats.framesEvaluated += times.length;
+2569-          this._lastEngineUsed = 'WASM';
+2570-          return res;
+--- evaluateSceneAtTime in engine-bridge.js ---
+2535:    evaluateSceneAtTime(timeSec) {
+2536-      const t = Number(timeSec) || 0;
+2537-      if (!this._sceneCache) {
+2538-        this._sceneCache = this.buildCurrentSceneSnapshot();
+2539-      }
+2540-
+2541-      if (this.isReady() && this._sceneSynced) {
+2542-        const res = this.dispatch('Timeline.EvaluateSceneAtTime', { time: t });
+2543-        if (res && res.flows) {
+2544-          this._stats.framesEvaluated++;
+2545-          this._lastEngineUsed = 'WASM';
+2546-          return res;
+2547-        } else {
+2548-          // If evaluation failed unexpectedly, mark unsynced
+2549-          this._sceneSynced = false;
+2550-        }
+2551-      }
+2552-
+2553-      // Seamless mathematical JavaScript fallback
+2554-      this._stats.framesEvaluated++;
+2555-      this._lastEngineUsed = this._lastSyncError ? 'Sync failed (JS fallback)' : 'JS fallback';
+2556-      return this._evaluateSceneAtTimeJS(this._sceneCache, t);
+2557-    },
+2558-
+2559-    evaluateBatch(times) {
+2560-      if (!Array.isArray(times) || times.length === 0) return [];
+2561-      if (!this._sceneCache) {
+2562-        this._sceneCache = this.buildCurrentSceneSnapshot();
+2563-      }
+2564-
+2565-      if (this.isReady() && this._sceneSynced) {
+2566-        const res = this.dispatch('Timeline.EvaluateBatch', { times: times });
+2567-        if (Array.isArray(res)) {
+2568-          this._stats.framesEvaluated += times.length;
+2569-          this._lastEngineUsed = 'WASM';
+2570-          return res;
+
+===== ALL USAGES OF syncScene =====
+internal/web/static/js/engine-bridge.js:2511:    syncScene(snapshot) {
+internal/web/static/js/projects.js:338:    if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
+internal/web/static/js/projects.js:339:      window.EngineBridge.syncScene();
+
+===== SIZE AND IMPLEMENTATION OF _evaluateSceneAtTimeJS =====
+2556:      return this._evaluateSceneAtTimeJS(this._sceneCache, t);
+2557-    },
+2558-
+2559-    evaluateBatch(times) {
+2560-      if (!Array.isArray(times) || times.length === 0) return [];
+2561-      if (!this._sceneCache) {
+2562-        this._sceneCache = this.buildCurrentSceneSnapshot();
+2563-      }
+2564-
+2565-      if (this.isReady() && this._sceneSynced) {
+2566-        const res = this.dispatch('Timeline.EvaluateBatch', { times: times });
+2567-        if (Array.isArray(res)) {
+2568-          this._stats.framesEvaluated += times.length;
+2569-          this._lastEngineUsed = 'WASM';
+2570-          return res;
+2571-        }
+2572-      }
+2573-
+2574-      this._stats.framesEvaluated += times.length;
+2575-      this._lastEngineUsed = this._lastSyncError ? 'Sync failed (JS fallback)' : 'JS fallback';
+2576:      return times.map((t) => this._evaluateSceneAtTimeJS(this._sceneCache, t));
+2577-    },
+2578-
+2579-    _solveCubicBezierJS(x1, y1, x2, y2, x) {
+2580-      if (x <= 0) return 0;
+2581-      if (x >= 1) return 1;
+2582-      if (x1 === y1 && x2 === y2) return x;
+2583-      let t = x;
+2584-      for (let i = 0; i < 8; i++) {
+2585-        const cx = 3 * x1;
+2586-        const bx = 3 * (x2 - x1) - cx;
+2587-        const ax = 1 - cx - bx;
+2588-        const currentX = ((ax * t + bx) * t + cx) * t - x;
+2589-        if (Math.abs(currentX) < 1e-6) break;
+2590-        const deriv = (3 * ax * t + 2 * bx) * t + cx;
+2591-        if (Math.abs(deriv) < 1e-6) break;
+2592-        t -= currentX / deriv;
+2593-      }
+2594-      t = Math.max(0, Math.min(1, t));
+2595-      const cy = 3 * y1;
+2596-      const by = 3 * (y2 - y1) - cy;
+--
+2783:    _evaluateSceneAtTimeJS(snap, timeSec) {
+2784-      if (!snap) return { time: timeSec, flows: [], glows: [], ripples: [], nodes: [] };
+2785-      const width = (snap.canvas && snap.canvas.width) || 1280;
+2786-      const height = (snap.canvas && snap.canvas.height) || 720;
+2787-      const dur = (snap.canvas && snap.canvas.duration) || 7.0;
+2788-      const loop = (snap.canvas && snap.canvas.loop) || 'once';
+2789-
+2790-      const norm = this._evaluateTimelineProgressJS(timeSec, dur, loop);
+2791-
+2792-      const flows = (snap.flows || []).map((f) => {
+2793-        const speed = f.speed > 0 ? f.speed : 2.0;
+2794-        const cyc = this._evaluateCycleJS(timeSec, f.delay || 0, speed, f.endDelay || 0, 'loop');
+2795-        const visible = timeSec >= (f.delay || 0);
+2796-
+2797-        const baseOp = f.opacity > 0 ? f.opacity : 0.85;
+2798-        let op = baseOp;
+2799-        if (!visible || (!cyc.active && f.hideOnDelay)) {
+2800-          op = 0;
+2801-        } else if (cyc.active) {
+2802-          if (cyc.progress < 0.08) op = baseOp * (cyc.progress / 0.08);
+2803-          else if (cyc.progress > 0.92) op = baseOp * ((1.0 - cyc.progress) / 0.08);
+
+===== INVESTIGATION A8A-003: isReady() usages in engine-bridge.js =====
+9: *     fails, isReady() returns false so caller modules seamlessly use their built-in
+35:    isReady() {
+142:      if (!this.isReady()) {
+206:      if (!this.isReady() || !nodes || nodes.length < 2) return null;
+218:      if (!this.isReady() || !nodes || nodes.length < 2) return null;
+230:      if (!this.isReady()) return null;
+245:      if (this.isReady()) {
+255:      if (this.isReady()) {
+298:      if (this.isReady()) {
+310:      if (this.isReady() && preset && preset.preset) {
+326:      if (this.isReady() && preset && preset.preset) {
+338:      if (this.isReady()) {
+350:      if (this.isReady() && id !== undefined && id !== null) {
+361:      if (this.isReady() && id !== undefined && id !== null) {
+369:      if (this.isReady() && id !== undefined && id !== null) {
+381:      if (this.isReady()) {
+394:      if (this.isReady()) {
+404:      if (this.isReady() && id !== undefined && id !== null) {
+415:      if (this.isReady() && id !== undefined && id !== null) {
+423:      if (this.isReady() && id !== undefined && id !== null) {
+431:      if (this.isReady()) {
+439:      if (this.isReady()) {
+452:      if (this.isReady() && id !== undefined && id !== null) {
+464:      if (this.isReady() && id !== undefined && id !== null) {
+477:      if (this.isReady() && id !== undefined && id !== null) {
+488:      if (this.isReady() && id !== undefined && id !== null) {
+501:      if (this.isReady() && flowId !== undefined && nodeId !== undefined) {
+513:      if (this.isReady() && flowId !== undefined) {
+524:      if (this.isReady() && nodeId !== undefined) {
+534:      if (this.isReady() && Array.isArray(nodes)) {
+552:      if (this.isReady()) {
+588:      if (this.isReady() && id !== undefined && id !== null) {
+601:      if (this.isReady() && id !== undefined && id !== null) {
+609:      if (this.isReady() && id !== undefined && id !== null) {
+617:      if (this.isReady()) {
+625:      if (this.isReady()) {
+638:      if (this.isReady() && id !== undefined && id !== null) {
+650:      if (this.isReady() && id !== undefined && id !== null) {
+666:      if (this.isReady()) {
+692:      if (this.isReady() && id !== undefined && id !== null) {
+
+===== ImageObjects Fallback Methods =====
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Create', { image: initial });
+        if (res && res.success && res.image) {
+          const img = res.image;
+          const idx = this.list.findIndex((i) => String(i.id) === String(img.id));
+          if (idx >= 0) this.list[idx] = img;
+          else this.list.push(img);
+          this.counter = Math.max(this.counter, parseInt(String(img.id).replace(/\D/g, '') || '0', 10));
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
+          return img;
+        }
+        console.error('Image.Create failed in Go engine');
+        return null;
+      }
+
+      let id = initial.id;
+      if (!id) {
+        do {
+          this.counter++;
+          id = 'image-' + this.counter;
+        } while (this.list.some((i) => String(i.id) === id));
+      } else {
+        const m = String(id).match(/image-(\d+)/);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (num > this.counter) this.counter = num;
+        }
+      }
+      const name = initial.name || ('Image ' + this.counter);
+      const img = {
+        id: String(id),
+        name: String(name),
+        filename: String(initial.filename || ''),
+        mime: String(initial.mime || 'image/png'),
+        assetRef: String(initial.assetRef || ''),
+        src: String(initial.src || initial.data || ''),
+        data: String(initial.data || initial.src || ''),
+        x: typeof initial.x === 'number' ? initial.x : 50.0,
+        y: typeof initial.y === 'number' ? initial.y : 50.0,
+        width: Number(initial.width) || 200,
+        height: Number(initial.height) || 150,
+        naturalWidth: Number(initial.naturalWidth) || 0,
+        naturalHeight: Number(initial.naturalHeight) || 0,
+        maintainAspectRatio: initial.maintainAspectRatio !== undefined ? !!initial.maintainAspectRatio : true,
+        crop: (initial.crop && typeof initial.crop === 'object') ? JSON.parse(JSON.stringify(initial.crop)) : undefined,
+        cropVersions: Array.isArray(initial.cropVersions) ? JSON.parse(JSON.stringify(initial.cropVersions)) : [],
+        activeCropVersionId: initial.activeCropVersionId || 'original',
+        opacity: typeof initial.opacity === 'number' ? initial.opacity : 1.0,
+        visible: initial.visible !== undefined ? !!initial.visible : true,
+        locked: !!initial.locked,
+        metadata: (initial.metadata && typeof initial.metadata === 'object') ? initial.metadata : undefined
+      };
+      this.list.push(img);
+      if (typeof window !== 'undefined' && window.LayerManager) {
+        window.LayerManager.addEntry('image', img.id);
+      }
+      return img;
+    },
+
+    updateImage(id, patch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Update', { id: String(id), patch });
+        if (!res || !res.success || !res.image) {
+          console.error('Image.Update failed in Go engine:', res && res.error);
+          return null;
+        }
+        const img = this.getImage(id);
+        if (img) {
+          Object.assign(img, res.image);
+          if (patch.visible !== undefined) img.visible = !!patch.visible;
+          if (patch.locked !== undefined) img.locked = !!patch.locked;
+        metadata: (initial.metadata && typeof initial.metadata === 'object') ? initial.metadata : undefined
+      };
+      this.list.push(img);
+      if (typeof window !== 'undefined' && window.LayerManager) {
+        window.LayerManager.addEntry('image', img.id);
+      }
+      return img;
+    },
+
+    updateImage(id, patch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Update', { id: String(id), patch });
+        if (!res || !res.success || !res.image) {
+          console.error('Image.Update failed in Go engine:', res && res.error);
+          return null;
+        }
+        const img = this.getImage(id);
+        if (img) {
+          Object.assign(img, res.image);
+          if (patch.visible !== undefined) img.visible = !!patch.visible;
+          if (patch.locked !== undefined) img.locked = !!patch.locked;
+          return img;
+        }
+        return res.image;
+      }
+      const img = this.getImage(id);
+      if (!img) return null;
+      if (patch.name !== undefined) img.name = String(patch.name);
+      if (patch.filename !== undefined) img.filename = String(patch.filename);
+      if (patch.mime !== undefined) img.mime = String(patch.mime);
+      if (patch.assetRef !== undefined) img.assetRef = String(patch.assetRef);
+      if (patch.src !== undefined) img.src = String(patch.src);
+      if (patch.x !== undefined) img.x = Number(patch.x);
+      if (patch.y !== undefined) img.y = Number(patch.y);
+      if (patch.width !== undefined) img.width = Math.max(10, Number(patch.width) || 10);
+      if (patch.height !== undefined) img.height = Math.max(10, Number(patch.height) || 10);
+      if (patch.naturalWidth !== undefined) img.naturalWidth = Number(patch.naturalWidth);
+      if (patch.naturalHeight !== undefined) img.naturalHeight = Number(patch.naturalHeight);
+      if (patch.maintainAspectRatio !== undefined) img.maintainAspectRatio = !!patch.maintainAspectRatio;
+      if (patch.crop !== undefined) {
+        img.crop = (patch.crop && typeof patch.crop === 'object') ? JSON.parse(JSON.stringify(patch.crop)) : undefined;
+      }
+      if (patch.clip !== undefined) {
+        img.clip = (patch.clip && typeof patch.clip === 'object') ? JSON.parse(JSON.stringify(patch.clip)) : undefined;
+      }
+      if (patch.opacity !== undefined) img.opacity = Math.max(0, Math.min(1, Number(patch.opacity)));
+      if (patch.visible !== undefined) img.visible = !!patch.visible;
+      if (patch.locked !== undefined) img.locked = !!patch.locked;
+      if (patch.metadata !== undefined) img.metadata = patch.metadata;
+      return img;
+    },
+
+    cropImage(id, crop = {}, geom = {}, name = '') {
+      const strId = String(id);
+      const payload = {
+        id: strId,
+        name: name ? String(name) : '',
+        crop: {
+          enabled: true,
+          sourceX: Number(crop.sourceX) || 0,
+          sourceY: Number(crop.sourceY) || 0,
+          sourceWidth: Number(crop.sourceWidth) || 0,
+          sourceHeight: Number(crop.sourceHeight) || 0,
+          origX: crop.origX !== undefined ? Number(crop.origX) : undefined,
+          origY: crop.origY !== undefined ? Number(crop.origY) : undefined,
+          origWidth: crop.origWidth !== undefined ? Number(crop.origWidth) : undefined,
+          origHeight: crop.origHeight !== undefined ? Number(crop.origHeight) : undefined
+        }
+      };
+      if (geom.newX !== undefined) payload.newX = Number(geom.newX);
+      if (geom.newY !== undefined) payload.newY = Number(geom.newY);
+      if (geom.newW !== undefined) payload.newW = Number(geom.newW);
+      if (geom.newH !== undefined) payload.newH = Number(geom.newH);
+
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.dispatch('Image.Crop', payload);
+        if (res && res.success && res.image) {
+          const idx = this.list.findIndex((i) => String(i.id) === strId);
+          if (idx >= 0) {
+            Object.assign(this.list[idx], res.image);
+            return this.list[idx];
+          }
+          return res.image;
+        }
+        console.error('Image.Crop failed in Go engine');
+        return null;
+      }
+
+      // Fallback JS logic
+      const img = this.getImage(strId);
+      if (!img) return null;
+      if (!img.cropVersions || !img.cropVersions.length) {
+        img.cropVersions = [{
+          id: 'original',
+          name: 'Original',
+          sourceX: 0,
+          sourceY: 0,
+          sourceWidth: img.naturalWidth || img.width,
+          sourceHeight: img.naturalHeight || img.height,
+          width: img.width,
+          height: img.height,
+
+===== INVESTIGATION A8A-004: Coordinator Operations =====
+757-      }
+758-      this.showNotification((res && res.error) ? res.error : 'Failed to paste.', 'error', 3000);
+759-      return false;
+760-    },
+761-
+762:    moveSelectedNodes(deltaX, deltaY) {
+763-      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+764-        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+765-          const eff = window.LayerManager.getEffective('group', this.activeSelection.id);
+766-          if (eff && eff.locked) return false;
+767-        }
+--- alignSelection ---
+--- distributeSelection ---
+    },
+
+    moveSelectedNodes(deltaX, deltaY) {
+      if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('group', this.activeSelection.id);
+          if (eff && eff.locked) return false;
+        }
+        let res = null;
+        if (window.EngineBridge && typeof window.EngineBridge.moveGroup === 'function') {
+          res = window.EngineBridge.moveGroup(this.activeSelection.id, deltaX, deltaY);
+        } else if (window.ObjectGroups && typeof window.ObjectGroups.moveGroup === 'function') {
+          res = window.ObjectGroups.moveGroup(this.activeSelection.id, deltaX, deltaY);
+        }
+        if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+          window.DiagramNodes.refreshAfterChange();
+        }
+        this.updateActiveOverlays();
+        return true;
+      }
+      const ids = this.getSelectedNodeIds();
+      if (ids.length === 0) return false;
+      const unlockedIds = ids.filter((id) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('node', id);
+          if (eff && eff.locked) return false;
+        }
+        return true;
+      });
+      if (unlockedIds.length === 0) return false;
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.moveNodesGroup === 'function') {
+        res = window.EngineBridge.moveNodesGroup(unlockedIds, deltaX, deltaY);
+      }
+      if (res && res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        res.nodes.forEach((un) => {
+          const existing = window.DiagramNodes.getNode(un.id);
+          if (existing) {
+            existing.x = un.x;
+            existing.y = un.y;
+          }
+        });
+      }
+      if (res && res.flows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        res.flows.forEach((uf) => {
+          const existing = window.DataFlows.getFlow(uf.id);
+          if (existing) {
+            existing.nodes = uf.nodes;
+            existing.fromNodeId = uf.fromNodeId;
+            existing.toNodeId = uf.toNodeId;
+          }
+        });
+      }
+      if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+        window.DiagramNodes.refreshAfterChange();
+      }
+      this.updateActiveOverlays();
+      return true;
+    },
+
+    alignSelectedNodes(mode) {
+      const ids = this.getSelectedNodeIds();
+      const unlockedIds = ids.filter((id) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('node', id);
+          if (eff && eff.locked) return false;
+        }
+        return true;
+      });
+      if (unlockedIds.length < 2) {
+        this.showNotification('Select at least 2 unlocked shapes to align.', 'warning');
+        return false;
+      }
+      const dims = this.getCanvasDimensions();
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.alignNodes === 'function') {
+        res = window.EngineBridge.alignNodes(unlockedIds, mode, dims.width, dims.height);
+      }
+      if (!res || !res.success) {
+        this.showNotification((res && res.error) ? res.error : 'Alignment failed.', 'error');
+        return false;
+        return false;
+      }
+      if (res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        res.nodes.forEach((un) => {
+          const existing = window.DiagramNodes.getNode(un.id);
+          if (existing) {
+            existing.x = un.x;
+            existing.y = un.y;
+          }
+        });
+      }
+      if (res.flows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        res.flows.forEach((uf) => {
+          const existing = window.DataFlows.getFlow(uf.id);
+          if (existing) {
+            existing.nodes = uf.nodes;
+            existing.fromNodeId = uf.fromNodeId;
+            existing.toNodeId = uf.toNodeId;
+          }
+        });
+      }
+      if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+        window.DiagramNodes.refreshAfterChange();
+      }
+      this.requestRender();
+      this.recordHistoryImmediate();
+      this.updateActiveOverlays();
+      this.showNotification(`Aligned ${unlockedIds.length} shapes.`, 'info', 2000);
+      return true;
+    },
+
+    distributeSelectedNodes(mode) {
+      const ids = this.getSelectedNodeIds();
+      const unlockedIds = ids.filter((id) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('node', id);
+          if (eff && eff.locked) return false;
+        }
+        return true;
+      });
+      if (unlockedIds.length < 3) {
+        this.showNotification('Select at least 3 unlocked shapes to distribute.', 'warning');
+        return false;
+      }
+      const dims = this.getCanvasDimensions();
+      let res = null;
+      if (window.EngineBridge && typeof window.EngineBridge.distributeNodes === 'function') {
+        res = window.EngineBridge.distributeNodes(unlockedIds, mode, dims.width, dims.height);
+      }
+      if (!res || !res.success) {
+        this.showNotification((res && res.error) ? res.error : 'Distribution failed.', 'error');
+        return false;
+      }
+      if (res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
+        res.nodes.forEach((un) => {
+          const existing = window.DiagramNodes.getNode(un.id);
+          if (existing) {
+            existing.x = un.x;
+            existing.y = un.y;
+          }
+        });
+      }
+      if (res.flows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        res.flows.forEach((uf) => {
+          const existing = window.DataFlows.getFlow(uf.id);
+          if (existing) {
+            existing.nodes = uf.nodes;
+            existing.fromNodeId = uf.fromNodeId;
+            existing.toNodeId = uf.toNodeId;
+          }
+        });
+      }
+      if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
+        window.DiagramNodes.refreshAfterChange();
+      }
+      this.requestRender();
+      this.recordHistoryImmediate();
+      this.updateActiveOverlays();
+      this.showNotification(`Distributed ${unlockedIds.length} shapes.`, 'info', 2000);
+      return true;
+    },
+      const slider = document.getElementById('colorPicker' + channel + 'Slider');
+      const num = document.getElementById('colorPicker' + channel + 'Num');
+      if (slider && num) {
+        const onValChange = (val) => {
+          slider.value = val;
+          num.value = val;
+          this.syncFromRgbSliders();
+        };
+        slider.addEventListener('input', (e) => onValChange(parseInt(e.target.value, 10) || 0));
+        num.addEventListener('input', (e) => onValChange(Math.max(0, Math.min(255, parseInt(e.target.value, 10) || 0))));
+      }
+    });
+
+    // 5. Hex input
+    if (hexInput) {
+      hexInput.addEventListener('input', (e) => {
+        let val = e.target.value.trim();
+        if (!val.startsWith('#')) val = '#' + val;
+        if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+          const rgb = this.hexToRgb(val);
+          this.currentHsv = this.rgbToHsv(rgb.r, rgb.g, rgb.b);
+          this.syncAllFromHsv({ skipHexInput: true });
+        }
+      });
+    }
+
+    // 6. Click-outside to cancel & close non-modal popover
+    document.addEventListener('pointerdown', (e) => {
+      if (!this.isOpen) return;
+      if (popover && !popover.contains(e.target)) {
+        if (!this.activeInput || !this.activeInput.contains(e.target)) {
+          this.cancel();
+        }
+      }
+    });
+
+    // 7. Event delegation for opening custom colour picker on any input[type="color"]
+    document.addEventListener('click', (e) => {
+      const colorInput = e.target.closest ? e.target.closest('input[type="color"]') : null;
+      if (colorInput) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.openFor(colorInput);
+      }
+    });
+  },
+
+  loadSwatches() {
+    try {
+      const rec = JSON.parse(localStorage.getItem('svg_animator_recent_colors') || '[]');
+      this.recentColors = Array.isArray(rec) ? rec : [];
+    } catch (_) {
+      this.recentColors = [];
+    }
+    try {
+      const fav = JSON.parse(localStorage.getItem('svg_animator_fav_colors') || '[]');
+      this.favColors = Array.isArray(fav) ? fav : [];
+    } catch (_) {
+      this.favColors = [];
+    }
+  },
+
+===== Scene.SetState USAGES =====
+2509-    },
+2510-
+2511-    syncScene(snapshot) {
+2512-      this._sceneCache = this.normalizeSceneSnapshot(snapshot || this.buildCurrentSceneSnapshot());
+2513-      if (this.isReady()) {
+2514:        const res = this.dispatch('Scene.SetState', this._sceneCache);
+2515-        if (res && res.status === 'ok') {
+2516-          this._sceneSynced = true;
+2517-          this._lastSyncError = null;
+2518-          this._lastSyncErrorLogged = null;
+2519-          this._syncRevision = res.revision;
+
+===== buildCurrentSceneSnapshot in engine-bridge.js =====
+      const rs = (typeof window !== 'undefined' && window.SceneState && typeof window.SceneState.buildRenderState === 'function')
+        ? window.SceneState.buildRenderState()
+        : null;
+      const cw = (rs && rs.image && rs.image.width) || 1280;
+      const ch = (rs && rs.image && rs.image.height) || 720;
+      const dur = (rs && rs.duration) || 7.0;
+      const loop = (rs && rs.loop) || 'once';
+      const cam = (rs && rs.camera) || { motion: 'static', startX: 50, startY: 50, startZoom: 1.0 };
+      const optical = (rs && rs.optical) || {};
+      const overlays = (rs && rs.overlays) || {};
+
+      const bg = (typeof window !== 'undefined' && window.SceneState && typeof window.SceneState.getLoadedPhoto === 'function')
+        ? window.SceneState.getLoadedPhoto()
+        : (typeof window !== 'undefined' && typeof window.getLoadedPhoto === 'function' ? window.getLoadedPhoto() : null);
+
+      const nodes = (typeof window !== 'undefined' && window.DiagramNodes && Array.isArray(window.DiagramNodes.list))
+        ? window.DiagramNodes.list
+        : [];
+      const flows = (typeof window !== 'undefined' && window.DataFlows && Array.isArray(window.DataFlows.list))
+        ? window.DataFlows.list
+        : [];
+      const glows = (typeof window !== 'undefined' && window.Glows && Array.isArray(window.Glows.list))
+        ? window.Glows.list
+        : [];
+      const ripples = (typeof window !== 'undefined' && window.Ripples && Array.isArray(window.Ripples.list))
+        ? window.Ripples.list
+        : [];
+
+      let groups = [];
+      let groupsCounter = 0;
+      if (typeof window !== 'undefined' && window.ObjectGroups && Array.isArray(window.ObjectGroups.list)) {
+        groups = window.ObjectGroups.list;
+        groupsCounter = window.ObjectGroups.counter || 0;
+      } else if (this.isReady()) {
+        groups = this.listGroups() || [];
+        groupsCounter = this.getGroupsCounter() || 0;
+      }
+
+      const images = (typeof window !== 'undefined' && window.ImageObjects && Array.isArray(window.ImageObjects.list))
+        ? window.ImageObjects.list
+        : [];
+      const imagesCounter = (typeof window !== 'undefined' && window.ImageObjects) ? (window.ImageObjects.counter || 0) : 0;
+      const layers = (typeof window !== 'undefined' && window.LayerManager && Array.isArray(window.LayerManager.list))
+        ? window.LayerManager.list
+        : [];
+
+      return this.normalizeSceneSnapshot({
+        revision: Date.now(),
+        canvas: {
+          width: cw,
+          height: ch,
+          duration: dur,
+          loop: loop
+        },
+        camera: cam,
+        background: bg,
+        optical: optical,
+        frame: overlays,
+        overlays: overlays,
+        nodes: nodes,
+        flows: flows,
+        glows: glows,
+        ripples: ripples,
+        groups: groups,
+        groupsCounter: groupsCounter,
+        images: images,
+        imagesCounter: imagesCounter,
+        layers: layers
+      });
+    },
+
+
+===== syncFromEngineSnapshot =====
+1159-        const res = this.dispatch('Group.Delete', { groupId: String(groupId), deleteMembers: !!deleteMembers });
+1160-        if (res && res.success) {
+1161-          if (window.ObjectGroups) {
+1162-            window.ObjectGroups.list = window.ObjectGroups.list.filter((g) => String(g.id) !== String(groupId));
+1163-            if (deleteMembers && res.snapshot) {
+1164:              this.syncFromEngineSnapshot(res.snapshot);
+1165-            }
+1166-          }
+1167-          return res;
+1168-        }
+1169-        return { success: false, error: (res && res.error) || this.getLastError() || 'Failed to delete group in Go engine' };
+--
+1227-        return window.ObjectGroups.counter || 0;
+1228-      }
+1229-      return 0;
+1230-    },
+1231-
+1232:    syncFromEngineSnapshot(snap) {
+1233-      if (!snap) return;
+1234-
+1235-      if (snap.background) {
+1236-        this._applyBackgroundUpdate(snap.background);
+1237-      } else {
+--
+1337-          groupId: String(groupId),
+1338-          dx: Number(dx) || 0,
+1339-          dy: Number(dy) || 0
+1340-        });
+1341-        if (res && res.success) {
+1342:          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+1343-          return res;
+1344-        }
+1345-      }
+1346-      if (window.ObjectGroups) {
+1347-        return window.ObjectGroups.moveGroup(groupId, dx, dy);
+--
+1396-          payload,
+1397-          offsetX: Number(offsetX) || 0,
+1398-          offsetY: Number(offsetY) || 0
+1399-        });
+1400-        if (res && res.success) {
+1401:          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+1402-          return res;
+1403-        }
+1404-        return { success: false, error: (res && res.error) || 'Failed to paste payload in Go engine' };
+1405-      }
+1406-      return { success: false, error: 'Go/WASM engine is unavailable' };
+--
+1413-          groupId: groupId ? String(groupId) : '',
+1414-          offsetX: Number(offsetX) || 5.0,
+1415-          offsetY: Number(offsetY) || 5.0
+1416-        });
+1417-        if (res && res.success) {
+1418:          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+1419-          return res;
+1420-        }
+1421-        return { success: false, error: (res && res.error) || 'Failed to duplicate selection in Go engine' };
+1422-      }
+1423-      return { success: false, error: 'Go/WASM engine is unavailable' };
+--
+2019-    resetScene() {
+2020-      if (this.isReady()) {
+2021-        const res = this.dispatch('Scene.Reset', {});
+2022-        if (res && res.success) {
+2023-          if (res.snapshot) {
+2024:            this.syncFromEngineSnapshot(res.snapshot);
+2025-          }
+2026-          return res;
+2027-        }
+2028-      }
+2029-      return null;
+
+===== scene-state.js buildCurrentCanvasState & buildRenderState =====
+          return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', layerMarkup + '<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
+        }
+      }
+
+      let svgString = window.Effects.build(state);
+      if (includeRipples && window.Ripples) svgString = window.Ripples.injectIntoSVG(svgString, state);
+      if (includeGlows && window.Glows) svgString = window.Glows.injectIntoSVG(svgString, state.image.width, state.image.height);
+      if (includeFlows && window.DataFlows) svgString = window.DataFlows.injectIntoSVG(svgString, state);
+      if (includeImages && window.ImageObjects) svgString = window.ImageObjects.injectIntoSVG(svgString, state);
+      if (includeNodes && window.DiagramNodes) svgString = window.DiagramNodes.injectIntoSVG(svgString, state);
+      return svgString;
+    },
+
+    getDefaultControls() {
+      return {
+        canvasPatternSelect: 'blueprint',
+        canvasPresetSelect: 'custom',
+        canvasWidthInput: 1280,
+        canvasHeightInput: 720,
+        photoFitSelect: 'contain',
+        photoCropZoomSlider: 1,
+        photoCropZoomNum: 1,
+        photoCropXSlider: 0,
+        photoCropXNum: 0,
+        photoCropYSlider: 0,
+        photoCropYNum: 0,
+        canvasBgColorPicker: '#0f172a',
+        canvasBgTransparent: false,
+        canvasGridColorPicker: '#334155',
+        canvasGridSizeSlider: 40,
+        canvasGridSizeNum: 40,
+        chkSnapToGrid: false,
+        snapGridSizeSlider: 20,
+        snapGridSizeNum: 20,
+        loopSelect: 'once',
+        durationSlider: 7,
+        durationNum: 7,
+        cameraMotionSelect: 'static',
+        camLoopSelect: 'once',
+        camDurationSlider: 7,
+        camDurationNum: 7,
+        staticZoomSlider: 1,
+        staticZoomNum: 1,
+        staticXSlider: 50,
+        staticXNum: 50,
+        staticYSlider: 50,
+        staticYNum: 50,
+        startXZoomSlider: 1,
+        startXZoomNum: 1,
+        startXSlider: 50,
+        startXNum: 50,
+        startYSlider: 50,
+        startYNum: 50,
+        endXZoomSlider: 1.3,
+        endXZoomNum: 1.3,
+        endXSlider: 60,
+        endXNum: 60,
+        endYSlider: 40,
+        endYNum: 40,
+        handZoomSlider: 1.1,
+        handZoomNum: 1.1,
+        handXSlider: 50,
+        handXNum: 50,
+        handYSlider: 50,
+        handYNum: 50,
+        driftSwaySlider: 1.4,
+        driftSwayNum: 1.4,
+        driftBreatheSlider: 1.8,
+        driftBreatheNum: 1.8,
+        perspZoomSlider: 1,
+        perspZoomNum: 1,
+        perspXSlider: 0,
+        perspXNum: 0,
+        perspYSlider: 0,
+        perspYNum: 0,
+        perspTiltXSlider: 0,
+        perspTiltXNum: 0,
+        perspTiltYSlider: 0,
+        perspTiltYNum: 0,
+        effectSelect: 'none',
+        startBlurSlider: 0,
+          mbInt: this.getNumControl('mbIntSlider', 15),
+          mbAng: this.getNumControl('mbAngSlider', 0)
+        },
+        overlays: {
+          frame: this.getBoolControl('chkModuleFrame', false),
+          frameStyle: this.getControl('frameStyleSelect', 'walnut') || 'walnut',
+          frameDepth: this.getNumControl('frameDepthSlider', 44),
+          frameLighting: this.getBoolControl('chkFrameLighting', true),
+          frameLightDir: this.getControl('frameLightDirSelect', 'tl') || 'tl',
+          frameLightInt: this.getNumControl('frameLightIntSlider', 70),
+          frameShadow: this.getNumControl('frameShadowSlider', 0.55),
+          frameFillet: this.getBoolControl('chkFrameFillet', true)
+        }
+      };
+
+      this.currentRenderState = state;
+      window.currentRenderState = state;
+      return state;
+    },
+
+    buildFullSVG(state, overrides = {}) {
+      if (!state || !window.Effects) return '';
+      const includeFlows = overrides.includeFlows !== false;
+      const includeGlows = overrides.includeGlows !== false;
+      const includeRipples = overrides.includeRipples !== false;
+      const includeImages = overrides.includeImages !== false;
+      const includeNodes = overrides.includeNodes !== false;
+
+      // If LayerManager has authoritative unified layers, render in strict layer order
+      if (window.LayerManager && typeof window.LayerManager.getLayers === 'function') {
+        const layers = window.LayerManager.getLayers();
+        if (Array.isArray(layers) && layers.length > 0) {
+          const canvasW = (state && state.image && state.image.width) || 1280;
+          const canvasH = (state && state.image && state.image.height) || 720;
+
+          let defs = '';
+          if (includeNodes && window.DiagramNodes && typeof window.DiagramNodes.getNodeDefs === 'function') {
+            defs += window.DiagramNodes.getNodeDefs() + '\n';
+          }
+          if (includeFlows && window.DataFlows && typeof window.DataFlows.getFlowDefs === 'function') {
+            defs += window.DataFlows.getFlowDefs() + '\n';
+          }
+          if (includeGlows && window.Glows && typeof window.Glows.getGlowDefs === 'function') {
+            defs += window.Glows.getGlowDefs() + '\n';
+          }
+          if (includeRipples && window.Ripples && typeof window.Ripples.getRippleDefs === 'function') {
+            defs += window.Ripples.getRippleDefs(state) + '\n';
+          }
+
+          let elements = '';
+          const rendered = new Set();
+
+          layers.forEach((l) => {
+            if (!l || !l.type || l.id == null) return;
+            const key = `${l.type}:${l.id}`;
+            rendered.add(key);
+
+            if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+              const eff = window.LayerManager.getEffective(l.type, l.id);
+              if (eff && !eff.visible) return;
+            }
+
+            if (l.type === 'node' && includeNodes && window.DiagramNodes) {
+              const n = window.DiagramNodes.getNode(l.id);
+              if (n) elements += window.DiagramNodes.renderNodeElement(n, canvasW, canvasH) + '\n';
+            } else if (l.type === 'flow' && includeFlows && window.DataFlows) {
+              const f = window.DataFlows.getFlow(l.id);
+              if (f) elements += window.DataFlows.renderFlowElement(f, canvasW, canvasH) + '\n';
+            } else if (l.type === 'glow' && includeGlows && window.Glows) {
+              const g = window.Glows.getGlow(l.id);
+              if (g) elements += window.Glows.renderGlowElement(g, canvasW, canvasH) + '\n';
+            } else if (l.type === 'ripple' && includeRipples && window.Ripples) {
+              const r = window.Ripples.getRipple(l.id);
+              if (r) elements += window.Ripples.renderRippleElement(r, state) + '\n';
+            } else if (l.type === 'image' && includeImages) {
+              const img = (window.ImageObjects && typeof window.ImageObjects.getImage === 'function')
+                ? window.ImageObjects.getImage(l.id)
+                : (window.ImageManager && typeof window.ImageManager.getImage === 'function')
+                  ? window.ImageManager.getImage(l.id)
+                  : null;
+              if (img) {
+                const renderer = (window.ImageObjects && typeof window.ImageObjects.renderImageElement === 'function')
+                  ? window.ImageObjects.renderImageElement.bind(window.ImageObjects)
+                  : (window.ImageManager && typeof window.ImageManager.renderImageElement === 'function')
+                    ? window.ImageManager.renderImageElement.bind(window.ImageManager)
+                    : null;
+                if (renderer) elements += renderer(img, canvasW, canvasH) + '\n';
+              }
+            }
+          });
+
+          // Render any unlayered objects if present
+          if (includeRipples && window.Ripples && Array.isArray(window.Ripples.list)) {
+            window.Ripples.list.forEach((r) => {
+              if (!rendered.has(`ripple:${r.id}`)) {
+                elements += window.Ripples.renderRippleElement(r, state) + '\n';
+              }
+            });
+          }
+          if (includeGlows && window.Glows && Array.isArray(window.Glows.list)) {
+            window.Glows.list.forEach((g) => {
+    getControl(id, fallback) {
+      if (Object.prototype.hasOwnProperty.call(this.controls, id) && this.controls[id] !== undefined) {
+        return this.controls[id];
+      }
+      return fallback;
+    },
+
+    getNumControl(id, fallback) {
+      const raw = this.getControl(id, undefined);
+      if (raw === undefined || raw === null || raw === '') return fallback;
+      const num = parseFloat(raw);
+      return isNaN(num) ? fallback : num;
+    },
+
+    getBoolControl(id, fallback) {
+      const raw = this.getControl(id, undefined);
+      if (raw === undefined || raw === null) return !!fallback;
+      if (typeof raw === 'boolean') return raw;
+      if (raw === 'true') return true;
+      if (raw === 'false') return false;
+      return !!raw;
+    },
+
+    getControlsSnapshot(controlIds) {
+      const ids = Array.isArray(controlIds) && controlIds.length > 0 ? controlIds : this.trackedControlIds;
+      const out = {};
+      ids.forEach((id) => {
+        if (Object.prototype.hasOwnProperty.call(this.controls, id)) {
+          out[id] = this.controls[id];
+        }
+      });
+      return out;
+    },
+
+    getSnapConfig() {
+      const cw = (this.currentImage && this.currentImage.width) || this.getNumControl('canvasWidthInput', 1280) || 1280;
+      const ch = (this.currentImage && this.currentImage.height) || this.getNumControl('canvasHeightInput', 720) || 720;
+      return {
+        enabled: this.getBoolControl('chkSnapToGrid', false),
+        gridSizePx: this.getNumControl('snapGridSizeNum', 20) || 20,
+        canvasWidth: cw,
+        canvasHeight: ch
+      };
+    },
+
+    buildCurrentCanvasState() {
+      let pattern = this.getControl('canvasPatternSelect', 'blueprint') || 'blueprint';
+      if (pattern === 'photo' && !this.loadedPhoto) {
+        pattern = 'blueprint';
+        this.controls.canvasPatternSelect = 'blueprint';
+      }
+
+      const fitMode = this.getControl('photoFitSelect', 'match') || 'match';
+
+      if (pattern === 'photo' && this.loadedPhoto) {
+        const crop = this.loadedPhoto.crop;
+179-          </div>
+180-
+181-          <div id="photoSizingControls" style="display: none; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed #30363d;">
+182-            <div class="control-row" style="margin-top: 0;">
+183-              <label>Photo Fit &amp; Crop Mode</label>
+184:              <select id="photoFitSelect">
+185-                <option value="match" selected>Force Canvas Size to Photo</option>
+186-                <option value="cover">Crop / Fill Custom Canvas Size</option>
+187-                <option value="contain">Fit Whole Photo Inside Canvas</option>
+188-                <option value="stretch">Stretch Photo to Canvas Size</option>
+189-              </select>
+     * @param {Object} [options] - Optional flags ({ openAccordionId, skipStageClear, skipModuleSelect, additive, toggle, items, primaryId })
+     */
+    selectObject(type, id, options = {}) {
+      if (this._isCoordinatingSelection) return;
+      this._isCoordinatingSelection = true;
+      try {
+        const normalizedType = (id !== null && id !== undefined) ? type : null;
+        const normalizedId = (id !== null && id !== undefined) ? id : null;
+
+        if (normalizedType && normalizedId !== null && options.source !== 'layers_list' && window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective(normalizedType, normalizedId);
+          if (eff && (eff.locked || !eff.visible)) {
+            return;
+          }
+        }
+
+        if (options.toggle && normalizedType && normalizedId !== null) {
+          this._toggleObjectSelectionInternal(normalizedType, normalizedId, options);
+          return;
+        }
+
+        if (options.additive && normalizedType && normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(normalizedType)) {
+          this._addToSelectionInternal(normalizedType, normalizedId, options);
+          return;
+        }
+
+        if (Array.isArray(options.items) && options.items.length > 0) {
+          this._setMultiSelectionInternal(options.items, options.primaryId || normalizedId, options);
+          return;
+        }
+
+        // Automatic group resolution: unless in group-edit mode or explicitly requested,
+        // selecting a member of a group selects the parent group.
+        if (normalizedType && normalizedId !== null && normalizedType !== 'camera' && !options.skipGroupResolve && !options.toggle && !options.additive) {
+          if (this.groupEditModeGroupId) {
+            const memberGroup = this.findGroupByMember(normalizedType, normalizedId);
+            if (!memberGroup || String(memberGroup.id) !== String(this.groupEditModeGroupId)) {
+              this.exitGroupEditMode();
+              if (memberGroup) {
+                this._isCoordinatingSelection = false;
+                this.selectGroup(memberGroup.id, options);
+                return;
+              }
+            }
+          } else {
+            const memberGroup = this.findGroupByMember(normalizedType, normalizedId);
+            if (memberGroup) {
+              this._isCoordinatingSelection = false;
+              this.selectGroup(memberGroup.id, options);
+              return;
+            }
+          }
+        }
+
+        // Single selection replacement
+        if (normalizedType !== 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+          window.DiagramNodes.deselectNode();
+        }
+        if (normalizedType !== 'flow' && window.DataFlows && window.DataFlows.activeId !== null) {
+          window.DataFlows.deselectFlow();
+        }
+        if (normalizedType !== 'glow' && window.Glows && window.Glows.activeId !== null) {
+          window.Glows.deselectGlow();
+        }
+        if (normalizedType !== 'ripple' && window.Ripples && window.Ripples.activeId !== null) {
+          window.Ripples.deselectRipple();
+        }
+        if (normalizedType !== 'camera' && !options.skipStageClear && window.Stage && window.Stage.activePlacement) {
+          window.Stage.clearActive();
+        }
+
+        // Activate the target object on its owner module if not already active
+        if (!options.skipModuleSelect && normalizedId !== null) {
+          if (normalizedType === 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== normalizedId) {
+            window.DiagramNodes.selectNode(normalizedId, false);
+          } else if (normalizedType === 'flow' && window.DataFlows && window.DataFlows.activeId !== normalizedId) {
+            window.DataFlows.selectFlow(normalizedId);
+          } else if (normalizedType === 'glow' && window.Glows && window.Glows.activeId !== normalizedId) {
+            window.Glows.selectGlow(normalizedId);
+          } else if (normalizedType === 'ripple' && window.Ripples && window.Ripples.activeId !== normalizedId) {
+            window.Ripples.selectRipple(normalizedId);
+          } else if (normalizedType === 'image') {
+            if (typeof window.syncImageEditorUI === 'function') {
+              window.syncImageEditorUI();
+            }
+          } else if (normalizedType === 'camera' && window.Stage && window.Stage.activePlacement !== normalizedId) {
+            window.Stage.setActive(normalizedId);
+          }
+        }
+
+        const items = (normalizedType && normalizedId !== null)
+          ? [{ type: normalizedType, id: normalizedId }]
+          : [];
+
+        this.activeSelection = {
+          type: normalizedType,
+          id: normalizedId,
+          items: items
+        };
+
+        if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+          if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(normalizedType)) {
+            window.EngineBridge.setSelection(normalizedType, normalizedId, items);
+          } else {
+            window.EngineBridge.clearSelection();
+          }
+        }
+        return { success: false, error: (res && res.error) || 'Layer.BringForward dispatch failed' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    sendBackward(targets) {
+      const norm = this.normalizeLayerTargets(targets);
+      if (!norm.valid) {
+        console.error('[EngineBridge] Layer.SendBackward validation error:', norm.error);
+        return { success: false, error: norm.error };
+      }
+      if (this.isReady()) {
+        const res = this.dispatch('Layer.SendBackward', { targets: norm.targets });
+        if (res && res.success) {
+          if (window.LayerManager) window.LayerManager.syncFromEngine();
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Layer.SendBackward dispatch failed' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    setLayerVisibility(type, id, visible) {
+      if (this.isReady()) {
+        return this.dispatch('Layer.SetVisibility', { type, id: String(id), visible: !!visible });
+888-        if (res && res.success) return res;
+889-      }
+890-      return null;
+891-    },
+892-
+893:    setSelection(type, id, items = null) {
+894-      if (this.isReady()) {
+895-        const payload = {
+896-          type: String(type || 'none'),
+897-          id: id != null ? String(id) : ''
+898-        };
+    setSelection(type, id, items = null) {
+      if (this.isReady()) {
+        const payload = {
+          type: String(type || 'none'),
+          id: id != null ? String(id) : ''
+        };
+        if (Array.isArray(items) && items.length > 0) {
+          payload.items = items.map((it) => ({
+            type: String(it.type || 'none'),
+            id: String(it.id != null ? it.id : '')
+          }));
+        }
+        const res = this.dispatch('Selection.Set', payload);
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    addToSelection(type, id) {
+      if (this.isReady() && type && id != null) {
+        const res = this.dispatch('Selection.Add', {
+          type: String(type),
+          id: String(id)
+        });
+        if (res && res.success) return res;
+      }
+      return null;
+    },
+
+    toggleSelection(type, id) {
+      if (this.isReady() && type && id != null) {
+        const res = this.dispatch('Selection.Toggle', {
+          type: String(type),
+
+===== INVESTIGATION A8A-010: executeBakeImage & commitCurrentCrop =====
+4105-
+4106-  const btnBakeRemove = document.getElementById('btnBakeAndRemove');
+4107-  if (btnBakeRemove && !btnBakeRemove._hasBound) {
+4108-    btnBakeRemove._hasBound = true;
+4109-    btnBakeRemove.addEventListener('click', () => {
+4110:      if (window._bakeTargetImage) executeBakeImage(window._bakeTargetImage, 'remove');
+4111-    });
+4112-  }
+4113-
+4114-  const btnBakeKeep = document.getElementById('btnBakeAndKeep');
+4115-  if (btnBakeKeep && !btnBakeKeep._hasBound) {
+4116-    btnBakeKeep._hasBound = true;
+4117-    btnBakeKeep.addEventListener('click', () => {
+4118:      if (window._bakeTargetImage) executeBakeImage(window._bakeTargetImage, 'keep');
+4119-    });
+4120-  }
+4121-}
+4122-
+4123-function renderBackgroundToOffscreenCanvas(canvasW, canvasH, callback) {
+--
+4259-  window._bakeTargetImage = null;
+4260-  const modal = document.getElementById('bakeConfirmModal');
+4261-  if (modal) modal.style.display = 'none';
+4262-};
+4263-
+4264:function executeBakeImage(img, mode) {
+4265-  if (!img) return;
+4266-
+4267-  const layerMeta = (window.LayerManager && typeof window.LayerManager.getEffective === 'function')
+4268-    ? window.LayerManager.getEffective('image', img.id)
+4269-    : { locked: false, visible: true };
+--- commitCurrentCrop ---
+4839-    }
+4840-
+4841-    const btnCommitPreserve = document.getElementById('btnCommitCropPreserve');
+4842-    if (btnCommitPreserve && !btnCommitPreserve._hasBound) {
+4843-      btnCommitPreserve._hasBound = true;
+4844:      btnCommitPreserve.addEventListener('click', () => this.commitCurrentCrop(false));
+4845-    }
+4846-
+4847-    const btnCommitDiscard = document.getElementById('btnCommitCropDiscard');
+4848-    if (btnCommitDiscard && !btnCommitDiscard._hasBound) {
+4849-      btnCommitDiscard._hasBound = true;
+4850:      btnCommitDiscard.addEventListener('click', () => this.commitCurrentCrop(true));
+4851-    }
+4852-
+4853-    // Bake
+4854-    const btnBake = document.getElementById('btnToolBake');
+4855-    if (btnBake && !btnBake._hasBound) {
+--
+5602-  closeCommitCropModal() {
+5603-    const modal = document.getElementById('commitCropModal');
+5604-    if (modal) modal.style.display = 'none';
+5605-  },
+5606-
+5607:  commitCurrentCrop(discardVersions = false) {
+5608-    const sel = window.AppCoordinator?.getActiveSelection();
+5609-    const isImageSelected = !!(sel && sel.type === 'image' && sel.id && window.ImageObjects && window.ImageObjects.getImage(sel.id));
+5610-
+5611-    if (isImageSelected) {
+5612-      const img = window.ImageObjects.getImage(sel.id);
+function executeBakeImage(img, mode) {
+  if (!img) return;
+
+  const layerMeta = (window.LayerManager && typeof window.LayerManager.getEffective === 'function')
+    ? window.LayerManager.getEffective('image', img.id)
+    : { locked: false, visible: true };
+  if (layerMeta.locked) {
+    window.closeBakeModal();
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification(`Cannot bake locked image "${img.name || img.id}". Unlock it first.`, 'warning');
+    }
+    return;
+  }
+  if (layerMeta.visible === false || img.visible === false) {
+    window.closeBakeModal();
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification(`Cannot bake hidden image "${img.name || img.id}". Make it visible first.`, 'warning');
+    }
+    return;
+  }
+
+  const imgSrc = img.dataUrl || img.dataURL || img.src || img.data || img.assetRef || (img.b64 ? ('data:' + (img.mime || 'image/png') + ';base64,' + img.b64) : '') || '';
+  if (!imgSrc) {
+    window.closeBakeModal();
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification('Cannot bake image: missing image asset data.', 'error');
+    }
+    return;
+  }
+
+  const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
+  const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
+
+  renderBackgroundToOffscreenCanvas(canvasW, canvasH, (bgCanvas) => {
+    if (!bgCanvas) return;
+    const ctx = bgCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const imgEl = new Image();
+    if (!imgSrc.startsWith('data:')) {
+      imgEl.crossOrigin = 'anonymous';
+    }
+    imgEl.onload = () => {
+      ctx.save();
+      const op = typeof img.opacity === 'number' ? img.opacity : 1.0;
+      ctx.globalAlpha = Math.max(0, Math.min(1, op));
+
+      const cx = (img.x / 100) * canvasW;
+      const cy = (img.y / 100) * canvasH;
+      const dw = Number(img.width) || 200;
+      const dh = Number(img.height) || 150;
+      const dx = cx - dw / 2;
+      const dy = cy - dh / 2;
+
+      if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {
+        ctx.beginPath();
+        ctx.rect(dx + Number(img.clip.x || 0), dy + Number(img.clip.y || 0), Number(img.clip.width), Number(img.clip.height));
+        ctx.clip();
+      }
+
+      if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
+        ctx.drawImage(
+          imgEl,
+          img.crop.sourceX, img.crop.sourceY, img.crop.sourceWidth, img.crop.sourceHeight,
+          dx, dy, dw, dh
+        );
+      } else {
+        ctx.drawImage(imgEl, dx, dy, dw, dh);
+      }
+      ctx.restore();
+
+      const bakedDataUrl = bgCanvas.toDataURL('image/png');
+      const b64 = bakedDataUrl.replace(/^data:image\/png;base64,/, '');
+
+      const newPhoto = {
+        filename: 'baked_background.png',
+        mime: 'image/png',
+        b64: b64,
+        dataUrl: bakedDataUrl,
+        src: bakedDataUrl,
+        data: bakedDataUrl,
+        naturalWidth: canvasW,
+        naturalHeight: canvasH
+      };
+
+      if (typeof window.setLoadedPhoto === 'function') {
+        window.setLoadedPhoto(newPhoto);
+      }
+      if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+        window.EngineBridge.setBackground(newPhoto);
+      }
+
+      const patSelect = document.getElementById('canvasPatternSelect');
+      if (patSelect) patSelect.value = 'photo';
+      const fitSelect = document.getElementById('photoFitSelect');
+      if (fitSelect) fitSelect.value = 'match';
+      const wInput = document.getElementById('canvasWidthInput');
+      const hInput = document.getElementById('canvasHeightInput');
+      if (wInput) wInput.value = canvasW;
+      if (hInput) hInput.value = canvasH;
+
+      if (mode === 'remove') {
+        if (window.ImageObjects) window.ImageObjects.deleteImage(img.id);
+        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.deleteImage(img.id);
+        if (window.AppCoordinator) window.AppCoordinator.clearSelection();
+      } else {
+        if (window.LayerManager && typeof window.LayerManager.setVisibility === 'function') {
+          window.LayerManager.setVisibility('image', img.id, false);
+        }
+        if (window.ImageObjects) window.ImageObjects.updateImage(img.id, { visible: false });
+        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(img.id, { visible: false });
+      }
+
+      window.closeBakeModal();
+
+      if (window.HistoryManager) {
+        window.HistoryManager.recordImmediate();
+  commitCurrentCrop(discardVersions = false) {
+    const sel = window.AppCoordinator?.getActiveSelection();
+    const isImageSelected = !!(sel && sel.type === 'image' && sel.id && window.ImageObjects && window.ImageObjects.getImage(sel.id));
+
+    if (isImageSelected) {
+      const img = window.ImageObjects.getImage(sel.id);
+      this._extractCroppedImageDataUrl(img, (res) => {
+        this.closeCommitCropModal();
+        if (!res || !res.dataUrl) {
+          if (window.AppCoordinator) window.AppCoordinator.showNotification('Failed to commit crop: could not extract pixels.', 'error', 3000);
+          return;
+        }
+
+        const commitOptions = {
+          src: res.dataUrl,
+          newSrc: res.dataUrl,
+          naturalWidth: res.sw,
+          naturalHeight: res.sh,
+          width: res.sw,
+          height: res.sh,
+          discardVersions: !!discardVersions
+        };
+
+        if (window.EngineBridge && typeof window.EngineBridge.commitCrop === 'function' && window.EngineBridge.isReady()) {
+          window.EngineBridge.commitCrop(img.id, commitOptions);
+        } else if (window.ImageObjects && typeof window.ImageObjects.commitCrop === 'function') {
+          window.ImageObjects.commitCrop(img.id, commitOptions);
+        }
+
+        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+          window.AppCoordinator.requestRender();
+        } else if (typeof window.triggerAppRender === 'function') {
+          window.triggerAppRender();
+        }
+        if (window.AppCoordinator) {
+          window.AppCoordinator.selectObject('image', img.id, { openAccordionId: 'acc-image-tools' });
+          window.AppCoordinator.updateActiveOverlays();
+          window.AppCoordinator.showNotification(
+            discardVersions ? 'Crop committed: previous versions discarded.' : 'Crop committed: base asset updated.',
+            'success',
+            3000
+          );
+        }
+        if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+        this.syncUI();
+      });
+      return;
+    }
+
+    const photo = this._getBackgroundPhoto();
+    if (photo) {
+      const crop = photo.crop;
+      const hasCrop = crop && crop.enabled !== false && (
+      const hasCrop = crop && crop.enabled !== false && (
+        (crop.sourceWidth || crop.width) > 0 &&
+        (crop.sourceHeight || crop.height) > 0
+      );
+      if (!hasCrop) {
+        this.closeCommitCropModal();
+        if (window.AppCoordinator) window.AppCoordinator.showNotification('Background has no active crop to commit.', 'warning', 2500);
+        return;
+      }
+      if (!discardVersions) {
+        this.closeCommitCropModal();
+        if (window.AppCoordinator) {
+          window.AppCoordinator.showNotification(
+            'Cannot commit background crop while preserving versions. Choose "Discard Previous Versions" to bake the crop, or use crop versions.',
+            'warning',
+            4000
+          );
+        }
+        return;
+      }
+
+      this._extractCroppedImageDataUrl(photo, (res) => {
+        this.closeCommitCropModal();
+        if (!res || !res.dataUrl) {
+          if (window.AppCoordinator) window.AppCoordinator.showNotification('Failed to commit crop: could not extract pixels.', 'error', 3000);
+          return;
+        }
+
+        const newB64 = res.dataUrl.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+
+        if (window.EngineBridge && typeof window.EngineBridge.commitBackgroundCrop === 'function') {
+          window.EngineBridge.commitBackgroundCrop({ newB64: res.dataUrl, discardVersions: true });
+        }
+
+        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+          photo.b64 = newB64;
+          photo.src = res.dataUrl;
+          photo.dataUrl = res.dataUrl;
+          photo.dataURL = res.dataUrl;
+          photo.data = res.dataUrl;
+          photo.naturalWidth = res.sw;
+          photo.naturalHeight = res.sh;
+          photo.crop = null;
+          photo.cropVersions = [{ id: 'original', name: 'Original', sourceX: 0, sourceY: 0, sourceWidth: res.sw, sourceHeight: res.sh }];
+          photo.activeCropVersionId = 'original';
+          window.setLoadedPhoto(photo);
+        }
+
+        if (window.matchCanvasToPhoto && typeof window.matchCanvasToPhoto === 'function') {
+          const fitSelect = document.getElementById('photoFitSelect');
+          if (fitSelect && fitSelect.value === 'match') {
+            window.matchCanvasToPhoto();
+          }
+        }
+
+        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+          window.AppCoordinator.requestRender();
+        } else if (typeof window.triggerAppRender === 'function') {
+          window.triggerAppRender();
+        }
+        if (window.AppCoordinator) {
+          window.AppCoordinator.showNotification('Background crop baked into new base image and previous versions discarded.', 'success', 2500);
+        }
+        this.syncUI();
+      });
+
+===== ALL DISPATCH COMMANDS IN commands.go =====
+1146:	case "Engine.Ping":
+1155:	case "Geometry.GenerateFlowPath":
+1167:	case "Geometry.ComputeSnappedPosition":
+1177:	case "Scene.SetState":
+1205:	case "Scene.Reset", "Scene.New":
+1220:	case "Scene.GetState":
+1224:	case "Scene.UpdateFlow":
+1232:	case "Scene.RemoveFlow":
+1242:	case "Timeline.EvaluateSceneAtTime":
+1255:	case "Timeline.EvaluateBatch":
+1271:	case "Shape.GetCatalog":
+1275:	case "Shape.Describe":
+1283:	case "Preset.GetDefaults":
+1287:	case "Preset.Apply":
+1298:	case "Preset.Extract":
+1306:	case "Node.Create":
+1317:	case "Node.Update":
+1417:	case "Node.Delete":
+1428:	case "Node.Get":
+1438:	case "Node.FindAt":
+1446:	case "Node.GetBounds":
+1482:	case "Node.MoveGroup", "Nodes.MoveGroup":
+1501:	case "Node.Align", "Nodes.Align":
+1520:	case "Node.Distribute", "Nodes.Distribute":
+1539:	case "Flow.Create":
+1550:	case "Flow.Update":
+1659:	case "Flow.Delete":
+1670:	case "Flow.Get":
+1680:	case "Flow.GetAll":
+1684:	case "Flow.FindAt":
+1692:	case "Flow.GetBounds":
+1708:	case "Flow.AddWaypoint":
+1721:	case "Flow.RemoveWaypoint":
+1734:	case "Flow.UpdateWaypoint":
+1746:	case "Flow.AttachToNode":
+1757:	case "Flow.DetachFromNode":
+1768:	case "Flow.RecalculateConnections":
+1778:	case "Flow.Describe":
+1786:	case "Glow.Create":
+1797:	case "Glow.Update":
+1905:	case "Glow.Delete":
+1916:	case "Glow.Get":
+1926:	case "Glow.GetAll":
+1930:	case "Glow.FindAt":
+1938:	case "Glow.GetBounds":
+1954:	case "Glow.Describe":
+1966:	case "Ripple.Create":
+1977:	case "Ripple.Update":
+2055:	case "Ripple.Delete":
+2066:	case "Ripple.Get":
+2076:	case "Ripple.GetAll":
+2080:	case "Ripple.FindAt":
+2088:	case "Ripple.GetBounds":
+2104:	case "Ripple.Describe":
+2116:	case "Camera.Get":
+2119:	case "Camera.Update":
+2186:	case "Camera.Evaluate":
+2205:	case "Optics.Get":
+2208:	case "Optics.Update":
+2261:	case "Optics.Evaluate":
+2278:	case "Frame.Get":
+2281:	case "Frame.Update":
+2339:	case "Frame.Describe":
+2355:	case "Selection.Get":
+2365:	case "Selection.Set":
+2399:	case "Selection.Add":
+2423:	case "Selection.Toggle":
+2447:	case "Selection.Remove":
+2471:	case "Selection.Clear":
+2481:	case "History.Record":
+2506:	case "History.Undo":
+2531:	case "History.Redo":
+2556:	case "History.GetState":
+2565:	case "History.Clear":
+2575:	case "Object.Rename":
+2596:	case "Project.EncodeSVA":
+2632:	case "Project.DecodeSVA":
+2661:	case "Project.ValidateSVA":
+2679:	case "Group.Create":
+2690:	case "Group.Ungroup":
+2701:	case "Group.RemoveMembers":
+2712:	case "Group.Delete":
+2727:	case "Group.Rename":
+2738:	case "Group.Get":
+2746:	case "Group.List":
+2754:	case "Group.Move":
+2765:	case "Group.FindByMember":
+2773:	case "Group.Bounds":
+2790:	case "Scene.Copy":
+2801:	case "Scene.Paste":
+2813:	case "Scene.Duplicate":
+2825:	case "Image.Create":
+2836:	case "Image.Update":
+2847:	case "Image.Delete":
+2857:	case "Image.Get":
+2865:	case "Image.List":
+2873:	case "Image.Crop":
+2890:	case "Image.CropVersionCreate":
+2901:	case "Image.CropVersionSelect":
+2912:	case "Image.CropVersionRename":
+2923:	case "Image.CropVersionDelete":
+2934:	case "Image.CommitCrop":
+2964:	case "Image.ResetCrop":
+2975:	case "Image.Clip":
+2986:	case "Image.ResetClip":
+2997:	case "Layer.Get":
+3004:	case "Layer.Set":
+3014:	case "Layer.BringToFront":
+3025:	case "Layer.SendToBack":
+3036:	case "Layer.BringForward":
+3047:	case "Layer.SendBackward":
+3058:	case "Layer.SetVisibility":
+3068:	case "Layer.SetLocked":
+3078:	case "Layer.GetEffective":
+3087:	case "Background.Set":
+3099:	case "Background.Get":
+3106:	case "Background.Crop", "Background.CropCreate", "Background.CropUpdate":
+3117:	case "Background.CropSelect":
+3128:	case "Background.CropRename":
+3139:	case "Background.CropDelete":
+3150:	case "Background.CropReset":
+3157:	case "Background.CropCommit":
+
+================================================================================
+BATCH 8A AUDIT DELIVERABLES GENERATION & CANONICAL ARTIFACT HASHES
+Timestamp: 2026-11-12T04:52:45Z
+Generated Artifacts:
+  1. docs/architecture/batch8a-authority-violation-register.csv (13,025 bytes)
+     SHA256: 8613d2f952516875b2c85830989130164ff04f3090445e34ae0e47aa2340ced0
+  2. docs/architecture/batch8a-js-function-inventory.csv (95,765 bytes, 437 functions)
+     SHA256: 3e72a6d16142e82d14aded66dd951e91a54734a486e6d242737054dbf366b6bd
+  3. docs/architecture/batch8a-go-command-coverage.md (25,726 bytes, 117 Go commands)
+     SHA256: 14317794c04a7b4411996141a390df587bb4218a1b7b9a50ce25bbfccc442d2d
+  4. docs/architecture/batch8a-migration-plan.md (12,618 bytes)
+     SHA256: 4766b734c2342ef2d4b4752efc4213aec0ef2f54ae900d390eea9c320fbb16d0
+  5. docs/architecture/batch8a-go-wasm-authority-audit.md (16,563 bytes)
+     SHA256: 569b6ec0b76b159ab999f9b7c8ff2902d6d0ea4006cc011391f098d62550a3e2
+  6. docs/architecture/batch8a-audit-evidence.log (Append-only audit trail)
+
+Status: AUDIT COMPLETE. Zero application source files were modified. All tests remain 100% passing.
