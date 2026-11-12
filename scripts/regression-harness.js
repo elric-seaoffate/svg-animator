@@ -806,6 +806,14 @@ async function runHarness() {
 
   loadProductionScript('history.js');
   loadProductionScript('projects.js');
+  loadProductionScript('shape-dropdown.js');
+  loadProductionScript('export-adapter.js');
+  loadProductionScript('workspace.js');
+  loadProductionScript('notifications.js');
+  loadProductionScript('color-picker.js');
+  loadProductionScript('timeline.js');
+  loadProductionScript('layers-ui.js');
+  loadProductionScript('context-editor.js');
   loadProductionScript('app.js');
 
   // 3.1 ControlStateAdaptor synchronization across 95 tracked controls + chkAutoApplyPreset
@@ -2178,7 +2186,7 @@ async function runHarness() {
   while ((scriptMatch = scriptRegex.exec(htmlSource)) !== null) {
     scriptTagsInHtml.push(scriptMatch[1]);
   }
-  assert.strictEqual(scriptTagsInHtml.length, 17, 'index.html must contain exactly 17 script tags');
+  assert.strictEqual(scriptTagsInHtml.length, 25, 'index.html must contain exactly 25 script tags');
   const expectedScriptOrder = [
     'js/wasm_exec.js',
     'js/engine-bridge.js',
@@ -2194,11 +2202,19 @@ async function runHarness() {
     'js/ripples.js',
     'js/history.js',
     'js/projects.js',
+    'js/shape-dropdown.js',
+    'js/export-adapter.js',
+    'js/workspace.js',
+    'js/notifications.js',
+    'js/color-picker.js',
+    'js/timeline.js',
+    'js/layers-ui.js',
+    'js/context-editor.js',
     'js/app.js',
     'js/still-export-modal.js',
     'js/export-modal.js'
   ];
-  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '17 script tags must be in exact dependency order');
+  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '25 script tags must be in exact dependency order');
 
   // 14. Phase 4: Floating Contextual Object Properties Editor Verification
   assert.ok(window.FloatingPropertiesEditor, 'window.FloatingPropertiesEditor must be defined');
@@ -8967,6 +8983,108 @@ async function runHarness() {
   assert.strictEqual(String(goNodeRes.id), String(idNode.id), 'Test 7: JS node ID must exactly match Go node ID');
 
   console.log('[HARNESS] Scenario 72 PASS: Batch 8C Go Authority, Shadow Engine Removal & Timeline Math verified.');
+
+  // ===========================================================================
+  // Scenario 73: Batch 8D Modularisation & Global Controller Lifecycle Verification
+  // ===========================================================================
+  console.log('\n[HARNESS] Testing Scenario 73: Batch 8D Modularisation & Global Controller Lifecycle Verification...');
+
+  // Test 1: Availability of all 8 extracted presentation modules
+  console.log('[HARNESS] Scenario 73 Test 1: Extracted controller availability...');
+  assert.strictEqual(typeof window.ensureShapeInDropdown, 'function', 'Test 1: ensureShapeInDropdown must be defined');
+  assert.strictEqual(typeof window.populateShapeDropdowns, 'function', 'Test 1: populateShapeDropdowns must be defined');
+  assert.ok(window.SVGExportAdapter && typeof window.SVGExportAdapter.serialize === 'function', 'Test 1: SVGExportAdapter must be defined');
+  assert.strictEqual(typeof window.serializeSVGForExport, 'function', 'Test 1: serializeSVGForExport must be defined');
+  assert.ok(window.WorkspaceController && typeof window.WorkspaceController.init === 'function', 'Test 1: WorkspaceController must be defined');
+  assert.strictEqual(typeof window.openAccordionById, 'function', 'Test 1: openAccordionById must be defined');
+  assert.strictEqual(typeof window.toggleAllAccordions, 'function', 'Test 1: toggleAllAccordions must be defined');
+  assert.ok(window.StudioNotification && typeof window.StudioNotification.show === 'function', 'Test 1: StudioNotification must be defined');
+  assert.ok(window.CustomColorPicker && typeof window.CustomColorPicker.openFor === 'function', 'Test 1: CustomColorPicker must be defined');
+  assert.ok(window.TimelinePlayer && typeof window.TimelinePlayer.play === 'function', 'Test 1: TimelinePlayer must be defined');
+  assert.strictEqual(typeof window.renderLayersList, 'function', 'Test 1: renderLayersList must be defined');
+  assert.strictEqual(typeof window.updateLayersToolbarState, 'function', 'Test 1: updateLayersToolbarState must be defined');
+  assert.ok(window.FloatingPropertiesEditor && typeof window.FloatingPropertiesEditor.openFor === 'function', 'Test 1: FloatingPropertiesEditor must be defined');
+
+  // Test 2: Idempotent initialization of controllers
+  console.log('[HARNESS] Scenario 73 Test 2: Controller initialization idempotency...');
+  window.WorkspaceController.init();
+  assert.strictEqual(window.WorkspaceController._initialized, true);
+  window.WorkspaceController.init();
+  assert.strictEqual(window.WorkspaceController._initialized, true);
+
+  window.TimelinePlayer.init();
+  assert.strictEqual(window.TimelinePlayer._initialized, true);
+  window.TimelinePlayer.init();
+  assert.strictEqual(window.TimelinePlayer._initialized, true);
+
+  // Test 3: WorkspaceController panel and drawer operations
+  console.log('[HARNESS] Scenario 73 Test 3: WorkspaceController panel operations...');
+  window.WorkspaceController.openLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, true, 'Test 3: Left drawer open');
+  window.WorkspaceController.showToolPanel('acc-background');
+  assert.strictEqual(window.WorkspaceController.lastLeftAccId, 'acc-background', 'Test 3: Tool panel switched to background');
+  window.WorkspaceController.closeLeftDrawer();
+  assert.strictEqual(window.WorkspaceController.leftDrawerOpen, false, 'Test 3: Left drawer closed');
+
+  // Test 4: CustomColorPicker math and normalization
+  console.log('[HARNESS] Scenario 73 Test 4: CustomColorPicker color mathematics...');
+  const normHex = window.CustomColorPicker.normalizeHex('#f00');
+  assert.strictEqual(normHex, '#ff0000', 'Test 4: 3-char hex normalized to 6-char');
+  const s73Rgb = window.CustomColorPicker.hexToRgb('#00ffcc');
+  assert.strictEqual(s73Rgb.r, 0);
+  assert.strictEqual(s73Rgb.g, 255);
+  assert.strictEqual(s73Rgb.b, 204);
+  const backHex = window.CustomColorPicker.rgbToHex(s73Rgb.r, s73Rgb.g, s73Rgb.b);
+  assert.strictEqual(backHex, '#00ffcc', 'Test 4: RGB back to HEX matches');
+
+  // Test 5: TimelinePlayer state transitions
+  console.log('[HARNESS] Scenario 73 Test 5: TimelinePlayer state transitions...');
+  window.TimelinePlayer.stop();
+  assert.strictEqual(window.TimelinePlayer.status, 'stopped');
+  window.TimelinePlayer.seek(2.5);
+  assert.strictEqual(window.TimelinePlayer.currentTime, 2.5, 'Test 5: Seek updates currentTime');
+  window.TimelinePlayer.stop();
+  assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'Test 5: Stop resets currentTime');
+
+  // Test 6: SVGExportAdapter XML serialization
+  console.log('[HARNESS] Scenario 73 Test 6: SVGExportAdapter XML serialization...');
+  assert.strictEqual(typeof window.SVGExportAdapter.serialize, 'function');
+  assert.throws(
+    () => window.SVGExportAdapter.serialize('<svg></svg>'),
+    /SVGExportAdapter requires a browser DOM environment with DOMParser and XMLSerializer/,
+    'Test 6: SVGExportAdapter throws without browser XML APIs'
+  );
+
+  class S73MockDOMParser {
+    parseFromString(str) {
+      return {
+        getElementsByTagName: () => [],
+        documentElement: {
+          hasAttribute: (attr) => attr === 'xmlns',
+          setAttribute: () => {}
+        },
+        querySelectorAll: () => []
+      };
+    }
+  }
+  class S73MockXMLSerializer {
+    serializeToString() {
+      return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100"><rect width="50" height="50"/></svg>';
+    }
+  }
+  global.DOMParser = S73MockDOMParser;
+  global.XMLSerializer = S73MockXMLSerializer;
+  try {
+    const sampleSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="50" height="50"/></svg>';
+    const s73Serialized = window.serializeSVGForExport(sampleSvg);
+    assert.ok(s73Serialized.startsWith('<?xml'), 'Test 6: Output contains XML declaration');
+    assert.ok(s73Serialized.includes('xmlns:xlink'), 'Test 6: Output contains xlink namespace');
+  } finally {
+    delete global.DOMParser;
+    delete global.XMLSerializer;
+  }
+
+  console.log('[HARNESS] Scenario 73 PASS: Batch 8D Modularisation & Global Controller Lifecycle Verification verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }

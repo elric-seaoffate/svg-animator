@@ -218,25 +218,33 @@ fi
 # -----------------------------------------------------------------------------
 # RUN-04: Live HTTP Delivery, Content-Type, & Byte-for-Byte Match of Embedded Assets
 # -----------------------------------------------------------------------------
-echo ">> Running RUN-04: Verifying live HTTP delivery, Content-Type, and source match of /, all 17 /js/*.js files, and /wasm/engine.wasm..."
+echo ">> Running RUN-04: Verifying live HTTP delivery, Content-Type, and source match of /, all 25 /js/*.js files, and /wasm/engine.wasm..."
 EXPECTED_JS=(
   "js/app.js"
+  "js/color-picker.js"
+  "js/context-editor.js"
   "js/coordinator.js"
   "js/effects.js"
   "js/engine-bridge.js"
+  "js/export-adapter.js"
   "js/export-modal.js"
   "js/flows.js"
   "js/glows.js"
   "js/history.js"
+  "js/layers-ui.js"
   "js/nodes.js"
+  "js/notifications.js"
   "js/presets.js"
   "js/projects.js"
   "js/ripples.js"
   "js/scene-state.js"
+  "js/shape-dropdown.js"
   "js/shape-registry.js"
   "js/stage.js"
   "js/still-export-modal.js"
+  "js/timeline.js"
   "js/wasm_exec.js"
+  "js/workspace.js"
 )
 
 if [ "${SERVER_READY}" -ne 1 ]; then
@@ -279,7 +287,7 @@ else
   fi
 
   if [ "${#ASSET_FAILS[@]}" -eq 0 ]; then
-    record_result "PASS" "RUN-04" "Live HTTP server delivered / (text/html), all 17 embedded /js/*.js files (application/javascript), and /wasm/engine.wasm with HTTP 200 and exact byte-for-byte match against internal/web/static/"
+    record_result "PASS" "RUN-04" "Live HTTP server delivered / (text/html), all 25 embedded /js/*.js files (application/javascript), and /wasm/engine.wasm with HTTP 200 and exact byte-for-byte match against internal/web/static/"
   else
     record_result "FAIL" "RUN-04" "Asset delivery or content verification failed: ${ASSET_FAILS[*]}"
   fi
