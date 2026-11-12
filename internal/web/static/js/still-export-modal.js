@@ -53,11 +53,25 @@ window.StillExportStudio = {
     const localSec = sec - begin;
     if (localSec < 0) return null;
 
+    const repeatCountAttr = anim.getAttribute('repeatCount');
+    const isIndefinite = repeatCountAttr === 'indefinite';
+    const rc = (!isIndefinite && repeatCountAttr) ? (parseFloat(repeatCountAttr) || 1.0) : 1.0;
+    const totalDur = isIndefinite ? Infinity : dur * rc;
+    const fill = anim.getAttribute('fill') || 'remove';
+
     let progress;
-    if (anim.getAttribute('repeatCount') === 'indefinite') {
+    if (isIndefinite) {
       progress = (localSec % dur) / dur;
     } else {
-      progress = Math.min(1.0, localSec / dur);
+      if (localSec >= totalDur) {
+        if (fill === 'freeze') {
+          progress = 1.0;
+        } else {
+          return null;
+        }
+      } else {
+        progress = (localSec % dur) / dur;
+      }
     }
     if (progress < 0) progress = 0;
 
@@ -130,6 +144,67 @@ window.StillExportStudio = {
     return out.length > 0 ? out.join(' ') : null;
   },
 
+  evaluateSetTiming(setEl, snapshotSec, forcePeakVis) {
+    const attr = setEl.getAttribute('attributeName');
+    const toVal = setEl.getAttribute('to');
+    const begin = parseFloat(setEl.getAttribute('begin')) || 0;
+    const durAttr = setEl.getAttribute('dur');
+    const hasDur = durAttr !== null && !isNaN(parseFloat(durAttr));
+    const dur = hasDur ? parseFloat(durAttr) : 0;
+    const fill = setEl.getAttribute('fill') || 'remove';
+
+    if (!attr || toVal === null) return { apply: false, attr, toVal };
+
+    // P2-005: If forcePeakVis is enabled, do not apply opacity-hiding overrides (e.g. toVal="0")
+    if (forcePeakVis && (attr === 'opacity' || attr === 'stroke-opacity') && parseFloat(toVal) === 0) {
+      return { apply: false, attr, toVal };
+    }
+
+    let apply = false;
+    if (hasDur) {
+      if (snapshotSec >= begin && snapshotSec < begin + dur) {
+        apply = true;
+      } else if (snapshotSec >= begin + dur && fill === 'freeze') {
+        apply = true;
+      }
+    } else {
+      if (snapshotSec >= begin) {
+        apply = true;
+      }
+    }
+    return { apply, attr, toVal };
+  },
+
+  evaluateAnimateTransform(animT, snapshotSec, forcePeakVis) {
+    const tType = animT.getAttribute('type') || 'translate';
+    const effectiveTime = (snapshotSec === 0 && forcePeakVis) ? ((parseFloat(animT.getAttribute('dur')) || 2.0) * 0.5) : snapshotSec;
+    const val = this.evaluateSMILAnimate(animT, effectiveTime);
+
+    if (val === null) return null;
+
+    let transformPatch = '';
+    if (tType === 'translate') {
+      const parts = val.split(/[\s,]+/).map(parseFloat);
+      const dx = !isNaN(parts[0]) ? parts[0] : 0;
+      const dy = !isNaN(parts[1]) ? parts[1] : 0;
+      transformPatch = 'translate(' + dx.toFixed(2) + ', ' + dy.toFixed(2) + ')';
+    } else if (tType === 'scale') {
+      const parts = val.split(/[\s,]+/).map(parseFloat);
+      const sx = !isNaN(parts[0]) ? parts[0] : 1;
+      const sy = !isNaN(parts[1]) ? parts[1] : sx;
+      transformPatch = 'scale(' + sx.toFixed(4) + ', ' + sy.toFixed(4) + ')';
+    } else if (tType === 'rotate') {
+      const parts = val.split(/[\s,]+/).map(parseFloat);
+      const deg = !isNaN(parts[0]) ? parts[0] : 0;
+      if (parts.length >= 3 && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        transformPatch = 'rotate(' + deg.toFixed(2) + ', ' + parts[1].toFixed(2) + ', ' + parts[2].toFixed(2) + ')';
+      } else {
+        transformPatch = 'rotate(' + deg.toFixed(2) + ')';
+      }
+    }
+    return { type: tType, transformPatch, value: val };
+  },
+
   bakeStaticSVGAtTime(rawSvg, snapshotSec, renderW, renderH, forcePeakVis, includeLines, includePayloads) {
     const sandbox = document.createElement('div');
     sandbox.style.cssText =
@@ -155,14 +230,20 @@ window.StillExportStudio = {
           camRig.style.animation = 'none';
         }
       }
+      const camStage3d = svgEl.querySelector('.camera-stage-3d');
+      if (camStage3d) {
+        const comp3d = window.getComputedStyle(camStage3d);
+        if (comp3d && comp3d.transform && comp3d.transform !== 'none') {
+          camStage3d.style.transform = comp3d.transform;
+          camStage3d.style.animation = 'none';
+        }
+      }
 
       svgEl.querySelectorAll('set').forEach((setEl) => {
         const parent = setEl.parentElement;
-        const attr = setEl.getAttribute('attributeName');
-        const toVal = setEl.getAttribute('to');
-        const begin = parseFloat(setEl.getAttribute('begin')) || 0;
-        if (parent && attr && toVal && (snapshotSec >= begin || forcePeakVis)) {
-          parent.setAttribute(attr, toVal);
+        const res = this.evaluateSetTiming(setEl, snapshotSec, forcePeakVis);
+        if (parent && res.apply) {
+          parent.setAttribute(res.attr, res.toVal);
         }
         setEl.remove();
       });
@@ -189,7 +270,26 @@ window.StillExportStudio = {
           let localSec = snapshotSec - begin;
           if (localSec < 0) localSec = forcePeakVis ? (dur * 0.5) : 0;
 
-          let prog = (localSec % dur) / dur;
+          const repeatCountAttr = motionEl.getAttribute('repeatCount');
+          const isIndefinite = repeatCountAttr === 'indefinite';
+          const rc = (!isIndefinite && repeatCountAttr) ? (parseFloat(repeatCountAttr) || 1.0) : 1.0;
+          const totalDur = isIndefinite ? Infinity : dur * rc;
+          const fill = motionEl.getAttribute('fill') || 'remove';
+
+          let prog;
+          if (!isIndefinite && localSec >= totalDur) {
+            if (fill === 'freeze') {
+              prog = 1.0;
+            } else {
+              const wrapper = payloadGroup.closest('.flow-payload-wrapper') || payloadGroup;
+              wrapper.remove();
+              motionEl.remove();
+              return;
+            }
+          } else {
+            prog = (localSec % dur) / dur;
+          }
+
           const ktAttr = motionEl.getAttribute('keyTimes');
           if (ktAttr) {
             const kts = ktAttr.split(';').map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n));
@@ -264,16 +364,10 @@ window.StillExportStudio = {
 
       svgEl.querySelectorAll('animateTransform').forEach((animT) => {
         const parent = animT.parentElement;
-        const tType = animT.getAttribute('type') || 'translate';
-        const effectiveTime = (snapshotSec === 0 && forcePeakVis) ? ((parseFloat(animT.getAttribute('dur')) || 2.0) * 0.5) : snapshotSec;
-        const val = this.evaluateSMILAnimate(animT, effectiveTime);
-
-        if (parent && val !== null && tType === 'translate') {
-          const parts = val.split(/[\s,]+/).map(parseFloat);
-          const dx = !isNaN(parts[0]) ? parts[0] : 0;
-          const dy = !isNaN(parts[1]) ? parts[1] : 0;
+        const res = this.evaluateAnimateTransform(animT, snapshotSec, forcePeakVis);
+        if (parent && res && res.transformPatch) {
           const baseTransform = parent.getAttribute('transform') || '';
-          parent.setAttribute('transform', (baseTransform + ' translate(' + dx.toFixed(2) + ', ' + dy.toFixed(2) + ')').trim());
+          parent.setAttribute('transform', (baseTransform + ' ' + res.transformPatch).trim());
         }
         animT.remove();
       });

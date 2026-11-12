@@ -11,8 +11,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -158,6 +161,7 @@ func buildWebPPipeArgs(outPath string, fps int, loopMode string) []string {
 		"-vcodec", "libwebp",
 		"-lossless", "0",
 		"-qscale", "80",
+		"-pix_fmt", "yuva420p",
 		"-an",
 	}
 	if loopMode == "once" {
@@ -177,6 +181,7 @@ func buildAPNGPipeArgs(outPath string, fps int, loopMode string) []string {
 		"-protocol_whitelist", "pipe",
 		"-i", "-",
 		"-f", "apng",
+		"-pix_fmt", "rgba",
 	}
 	if loopMode == "once" {
 		args = append(args, "-plays", "1")
@@ -259,6 +264,107 @@ func ExportBothContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath s
 	return ExportBundleContext(ctx, htmlPath, webpOutPath, apngOutPath, "", "", "loop", durationSecs, fps, loopMode, onProgress, dims...)
 }
 
+type encoderWorker struct {
+	enc *ffmpegPipeEncoder
+	ch  chan []byte
+	err error
+	wg  sync.WaitGroup
+}
+
+type fanOutDistributor struct {
+	workers []*encoderWorker
+	ctx     context.Context
+}
+
+func newFanOutDistributor(ctx context.Context, encoders []*ffmpegPipeEncoder) *fanOutDistributor {
+	d := &fanOutDistributor{
+		ctx: ctx,
+	}
+	for _, enc := range encoders {
+		w := &encoderWorker{
+			enc: enc,
+			ch:  make(chan []byte, 8),
+		}
+		w.wg.Add(1)
+		go func(worker *encoderWorker) {
+			defer worker.wg.Done()
+			defer worker.enc.stdin.Close()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case frame, ok := <-worker.ch:
+					if !ok {
+						return
+					}
+					if _, err := worker.enc.stdin.Write(frame); err != nil {
+						worker.err = fmt.Errorf("write error on %s: %w", worker.enc.name, err)
+						return
+					}
+				}
+			}
+		}(w)
+		d.workers = append(d.workers, w)
+	}
+	return d
+}
+
+func (d *fanOutDistributor) Write(frame []byte) (int, error) {
+	for _, w := range d.workers {
+		if w.err != nil {
+			return 0, w.err
+		}
+	}
+	frameCopy := make([]byte, len(frame))
+	copy(frameCopy, frame)
+
+	for _, w := range d.workers {
+		select {
+		case <-d.ctx.Done():
+			return 0, d.ctx.Err()
+		case w.ch <- frameCopy:
+		}
+	}
+	return len(frame), nil
+}
+
+func (d *fanOutDistributor) Finish() error {
+	for _, w := range d.workers {
+		close(w.ch)
+	}
+	for _, w := range d.workers {
+		w.wg.Wait()
+	}
+
+	var wg sync.WaitGroup
+	var errMu sync.Mutex
+	var errList []error
+
+	for _, w := range d.workers {
+		wg.Add(1)
+		go func(worker *encoderWorker) {
+			defer wg.Done()
+			if worker.err != nil {
+				errMu.Lock()
+				errList = append(errList, worker.err)
+				errMu.Unlock()
+				return
+			}
+			if err := worker.enc.cmd.Wait(); err != nil {
+				errMu.Lock()
+				errList = append(errList, fmt.Errorf("ffmpeg %s encode failed: %v\nOutput: %s", worker.enc.name, err, worker.enc.stderr.String()))
+				errMu.Unlock()
+			}
+		}(w)
+	}
+	wg.Wait()
+
+	if len(errList) > 0 {
+		return errList[0]
+	}
+	return nil
+}
+
 // ExportBundleContext captures SVG frames once and streams them directly into active FFmpeg pipes in RAM.
 func ExportBundleContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath, mp4OutPath, audioPath, audioFit string, durationSecs float64, fps int, loopMode string, onProgress ProgressFunc, dims ...int) error {
 	width, height, fps, captureDuration, totalFrames := normalizeParams(durationSecs, fps, loopMode, dims...)
@@ -275,7 +381,6 @@ func ExportBundleContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath
 	}
 
 	var encoders []*ffmpegPipeEncoder
-	var writers []io.Writer
 
 	abortAll := func() {
 		for _, enc := range encoders {
@@ -290,7 +395,6 @@ func ExportBundleContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath
 			return err
 		}
 		encoders = append(encoders, enc)
-		writers = append(writers, enc.stdin)
 	}
 
 	if apngOutPath != "" {
@@ -300,7 +404,6 @@ func ExportBundleContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath
 			return err
 		}
 		encoders = append(encoders, enc)
-		writers = append(writers, enc.stdin)
 	}
 
 	if mp4OutPath != "" {
@@ -310,12 +413,11 @@ func ExportBundleContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath
 			return err
 		}
 		encoders = append(encoders, enc)
-		writers = append(writers, enc.stdin)
 	}
 
-	multiOut := io.MultiWriter(writers...)
+	distributor := newFanOutDistributor(ctx, encoders)
 
-	if err := streamFramesToWriter(ctx, htmlPath, multiOut, captureDuration, fps, width, height, onProgress); err != nil {
+	if err := streamFramesToWriter(ctx, htmlPath, distributor, captureDuration, fps, width, height, onProgress); err != nil {
 		abortAll()
 		return fmt.Errorf("frame capture failed: %w", err)
 	}
@@ -324,11 +426,9 @@ func ExportBundleContext(ctx context.Context, htmlPath, webpOutPath, apngOutPath
 		onProgress(totalFrames, totalFrames, "Finalizing video container & audio streams...")
 	}
 
-	for _, enc := range encoders {
-		if err := enc.finish(); err != nil {
-			abortAll()
-			return err
-		}
+	if err := distributor.Finish(); err != nil {
+		abortAll()
+		return err
 	}
 
 	return nil
@@ -561,10 +661,19 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 	`
 
 	cssOverrideJS := `
+		var isTrans = document.body.getAttribute('data-bg-transparent') === 'true' ||
+			(document.querySelector('svg') && document.querySelector('svg').getAttribute('data-bg-transparent') === 'true');
+		var customBg = document.body.getAttribute('data-bg-color') || '';
 		document.body.style.margin = '0';
 		document.body.style.padding = '0';
 		document.body.style.overflow = 'hidden';
-		document.body.style.backgroundColor = '#000000';
+		if (isTrans) {
+			document.body.style.backgroundColor = 'transparent';
+		} else if (customBg) {
+			document.body.style.backgroundColor = customBg;
+		} else {
+			document.body.style.backgroundColor = '#000000';
+		}
 		
 		var vp = document.querySelector('.viewport');
 		if (vp) {
@@ -572,6 +681,9 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			vp.style.display = 'block';
 			vp.style.width = '100vw';
 			vp.style.height = '100vh';
+			if (isTrans) {
+				vp.style.backgroundColor = 'transparent';
+			}
 		}
 		
 		var svg = document.querySelector('svg');
@@ -583,7 +695,10 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			svg.style.height = '100vh';
 			svg.style.margin = '0';
 			svg.style.display = 'block';
-			svg.setAttribute('preserveAspectRatio', 'none'); 
+			var curPreserve = svg.getAttribute('preserveAspectRatio');
+			if (!curPreserve || curPreserve === 'none') {
+				svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+			}
 		}
 	`
 
@@ -602,8 +717,32 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 		return fmt.Errorf("svg failed to render: %w", err)
 	}
 
+	// Wait for any embedded images or images to fully decode before starting frame capture (H-001)
+	waitForImagesJS := `(async () => {
+		const imgs = Array.from(document.querySelectorAll('image, img'));
+		await Promise.all(imgs.map((img) => {
+			if (img.complete) return Promise.resolve();
+			if (typeof img.decode === 'function') return img.decode().catch(() => {});
+			return new Promise((res) => { img.onload = img.onerror = res; });
+		}));
+		return true;
+	})()`
+	if _, err := chromedp.Run(ctx, chromedp.Evaluate[any](waitForImagesJS)); err != nil {
+		fmt.Printf(">> Notice: image pre-decode completed or bypassed: %v\n", err)
+	}
+
 	if _, err := chromedp.Run(ctx, chromedp.Evaluate[any](cssOverrideJS)); err != nil {
 		return fmt.Errorf("failed to inject css overrides: %w", err)
+	}
+
+	// Apply transparent screenshot background override in CDP if scene is transparent
+	isTransparent, _ := chromedp.Run(ctx, chromedp.Evaluate[bool](`document.body.getAttribute('data-bg-transparent') === 'true' || (document.querySelector('svg') && document.querySelector('svg').getAttribute('data-bg-transparent') === 'true')`))
+	if isTransparent {
+		if _, err := chromedp.Call(ctx, emulation.SetDefaultBackgroundColorOverride, emulation.SetDefaultBackgroundColorOverrideParams{
+			Color: &cdp.RGBA{R: 0, G: 0, B: 0, A: 0},
+		}); err != nil {
+			fmt.Printf(">> Notice: failed to set transparent background override: %v\n", err)
+		}
 	}
 
 	if _, err := chromedp.Run(ctx, chromedp.Evaluate[any](scrubberJS)); err != nil {

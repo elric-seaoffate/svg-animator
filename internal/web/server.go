@@ -1023,7 +1023,7 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		svgText = generator.BuildStandaloneSVG(st.Image.Width, st.Image.Height, st.Image.Mime, st.Image.B64, opts)
 	}
 
-	htmlText := generator.BuildStandaloneHTML("export", exportWidth, exportHeight, svgText)
+	htmlText := generator.BuildStandaloneHTMLWithBackground("export", exportWidth, exportHeight, svgText, st.Camera.BgTransparent, st.Camera.BgColor)
 
 	htmlPath := filepath.Join(tmpDir, "index.html")
 	if err := os.WriteFile(htmlPath, []byte(htmlText), 0644); err != nil {

@@ -2656,7 +2656,9 @@ window.TimelinePlayer = {
         if (this.loopMode === 'loop') {
           this.currentTime = this.currentTime % this.duration;
         } else if (this.loopMode === 'pingpong') {
-          // Handled mathematically in evaluator
+          if (this.currentTime >= 2 * this.duration && this.duration > 0) {
+            this.currentTime = this.currentTime % (2 * this.duration);
+          }
         } else {
           // 'once' mode: Stop at end, freeze presentation, do not loop
           this.currentTime = this.duration;
@@ -2735,12 +2737,16 @@ window.TimelinePlayer = {
 
   updateUI() {
     const timeDisplay = document.getElementById('timelineTimeDisplay');
+    let displayTime = this.currentTime;
+    if (this.loopMode === 'pingpong' && this.duration > 0 && this.currentTime > this.duration) {
+      displayTime = Math.max(0, 2 * this.duration - this.currentTime);
+    }
     if (timeDisplay) {
-      timeDisplay.textContent = this.currentTime.toFixed(2) + 's / ' + this.duration.toFixed(2) + 's';
+      timeDisplay.textContent = displayTime.toFixed(2) + 's / ' + this.duration.toFixed(2) + 's';
     }
     const scrubber = document.getElementById('timelineScrubber');
     if (scrubber && document.activeElement !== scrubber) {
-      scrubber.value = String(this.currentTime);
+      scrubber.value = String(displayTime);
     }
     const badge = document.getElementById('timelineEngineBadge');
     if (badge && window.EngineBridge && typeof window.EngineBridge.getActiveEngineName === 'function') {

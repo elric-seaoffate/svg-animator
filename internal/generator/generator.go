@@ -171,7 +171,21 @@ func BuildStandaloneSVG(width, height int, mimeType, b64Data string, opts Option
 
 // BuildStandaloneHTML wraps the animated SVG in a responsive HTML container.
 func BuildStandaloneHTML(title string, width, height int, svgMarkup string) string {
+	return BuildStandaloneHTMLWithBackground(title, width, height, svgMarkup, false, "#0d1117")
+}
+
+// BuildStandaloneHTMLWithBackground wraps the animated SVG in an HTML container with explicit background controls.
+func BuildStandaloneHTMLWithBackground(title string, width, height int, svgMarkup string, bgTransparent bool, bgColor string) string {
 	safeTitle := html.EscapeString(title)
+	bodyBg := "#0d1117"
+	viewportBg := "#161b22"
+	if bgTransparent {
+		bodyBg = "transparent"
+		viewportBg = "transparent"
+	} else if bgColor != "" {
+		bodyBg = bgColor
+		viewportBg = bgColor
+	}
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -180,15 +194,15 @@ func BuildStandaloneHTML(title string, width, height int, svgMarkup string) stri
   <title>%s - Animated View</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background-color: #0d1117; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 1.5rem; }
-    .viewport { width: 100%%; max-width: %dpx; aspect-ratio: %d / %d; border-radius: 8px; overflow: hidden; box-shadow: 0 16px 36px rgba(0,0,0,0.6); background-color: #161b22; }
+    body { background-color: %s; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 1.5rem; }
+    .viewport { width: 100%%; max-width: %dpx; aspect-ratio: %d / %d; border-radius: 8px; overflow: hidden; box-shadow: 0 16px 36px rgba(0,0,0,0.6); background-color: %s; }
     svg { display: block; width: 100%%; height: 100%%; }
   </style>
 </head>
-<body>
+<body data-bg-transparent="%t" data-bg-color="%s">
   <div class="viewport">%s</div>
 </body>
-</html>`, safeTitle, width, width, height, svgMarkup)
+</html>`, safeTitle, bodyBg, width, width, height, viewportBg, bgTransparent, html.EscapeString(bgColor), svgMarkup)
 }
 
 // Run executes the generation workflow for headless CLI usage.

@@ -138,8 +138,26 @@ func EvaluateCameraAtTime(c CameraConfig, timeSec, w, h float64, easeFn func(p f
 		// 8-point asymmetric harmonic path
 		tNorm := 0.0
 		if camDur > 0 {
-			cycles := int(math.Floor(timeSec / camDur))
-			tNorm = (timeSec - float64(cycles)*camDur) / camDur
+			if c.Loop == "once" {
+				if timeSec >= camDur {
+					tNorm = 1.0
+				} else if timeSec <= 0 {
+					tNorm = 0.0
+				} else {
+					tNorm = timeSec / camDur
+				}
+			} else if c.Loop == "pingpong" {
+				cycles := int(math.Floor(timeSec / camDur))
+				rem := (timeSec - float64(cycles)*camDur) / camDur
+				if cycles%2 == 1 {
+					tNorm = 1.0 - rem
+				} else {
+					tNorm = rem
+				}
+			} else {
+				cycles := int(math.Floor(timeSec / camDur))
+				tNorm = (timeSec - float64(cycles)*camDur) / camDur
+			}
 			if tNorm < 0 {
 				tNorm = 0
 			} else if tNorm > 1 {

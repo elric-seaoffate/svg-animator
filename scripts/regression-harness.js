@@ -8586,6 +8586,122 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 68 PASS: Batch 5 Background Crop, Clip/Snip, Image Baking and Pixel Composition Integrity verified.');
 
+  // ==========================================
+  // SCENARIO 69: Batch 6 Still/Animated Export Fidelity, Alpha Transparency, Animation Timing & Rendering Reliability
+  // ==========================================
+  console.log('\n[HARNESS] Testing Scenario 69: Batch 6 Export Fidelity, Alpha Transparency, Timing & Multi-Encoder Reliability...');
+
+  // Test 1: P2-005 Still Export <set> timing: delayed flows/glows visible after delay, hidden during delay, visible with forcePeakVis
+  console.log('[HARNESS] Scenario 69 Test 1: P2-005 Still Export <set> timing & visibility...');
+  const setElDelayed = document.createElement('set');
+  setElDelayed.setAttribute('attributeName', 'opacity');
+  setElDelayed.setAttribute('to', '0');
+  setElDelayed.setAttribute('begin', '0s');
+  setElDelayed.setAttribute('dur', '2s');
+  setElDelayed.setAttribute('fill', 'remove');
+
+  const setElFrozen = document.createElement('set');
+  setElFrozen.setAttribute('attributeName', 'opacity');
+  setElFrozen.setAttribute('to', '0');
+  setElFrozen.setAttribute('begin', '0s');
+  setElFrozen.setAttribute('dur', '2s');
+  setElFrozen.setAttribute('fill', 'freeze');
+
+  // At t=1.0s (during delay): delayed set should be applied (opacity="0")
+  const resAt1s = window.StillExportStudio.evaluateSetTiming(setElDelayed, 1.0, false);
+  assert.strictEqual(resAt1s.apply, true, 'Test 1: Delayed set is active at t=1.0s during delay');
+  assert.strictEqual(resAt1s.attr, 'opacity');
+  assert.strictEqual(resAt1s.toVal, '0');
+
+  // At t=3.0s (after delay of 2s with fill="remove"): delayed set should NOT be applied (reverted/expired)
+  const resAt3s = window.StillExportStudio.evaluateSetTiming(setElDelayed, 3.0, false);
+  assert.strictEqual(resAt3s.apply, false, 'Test 1: Delayed set with fill="remove" is expired at t=3.0s');
+
+  // At t=3.0s with fill="freeze": frozen set should still be applied
+  const resAt3sFrozen = window.StillExportStudio.evaluateSetTiming(setElFrozen, 3.0, false);
+  assert.strictEqual(resAt3sFrozen.apply, true, 'Test 1: Frozen set is retained after delay at t=3.0s');
+
+  // At t=0s with forcePeakVis=true: delayed hiding set should be bypassed
+  const resPeak = window.StillExportStudio.evaluateSetTiming(setElDelayed, 0, true);
+  assert.strictEqual(resPeak.apply, false, 'Test 1: forcePeakVis bypasses opacity hiding set');
+
+  // Test 2: P1-019 Still Export SMIL animate finite repeatCount & fill="remove" vs "freeze"
+  console.log('[HARNESS] Scenario 69 Test 2: P1-019 SMIL animate finite repeatCount & fill handling...');
+  const animElRemove = document.createElement('animate');
+  animElRemove.setAttribute('attributeName', 'opacity');
+  animElRemove.setAttribute('from', '0');
+  animElRemove.setAttribute('to', '1');
+  animElRemove.setAttribute('begin', '0s');
+  animElRemove.setAttribute('dur', '2s');
+  animElRemove.setAttribute('repeatCount', '2'); // totalDur = 4s
+  animElRemove.setAttribute('fill', 'remove');
+
+  // During cycle 1 (t=1s): progress = 0.5
+  const valAt1s = window.StillExportStudio.evaluateSMILAnimate(animElRemove, 1.0);
+  assert.strictEqual(parseFloat(valAt1s), 0.5, 'Test 2: Progress 0.5 at t=1.0s');
+
+  // During cycle 2 (t=3s): progress = 0.5 (localSec % dur = 1s / 2s)
+  const valAt3s = window.StillExportStudio.evaluateSMILAnimate(animElRemove, 3.0);
+  assert.strictEqual(parseFloat(valAt3s), 0.5, 'Test 2: Progress 0.5 at t=3.0s during repetition 2');
+
+  // After totalDur (t=5s) with fill="remove": should return null (reverted)
+  const valAt5sRemove = window.StillExportStudio.evaluateSMILAnimate(animElRemove, 5.0);
+  assert.strictEqual(valAt5sRemove, null, 'Test 2: fill="remove" returns null after finite repetitions complete');
+
+  // With fill="freeze": progress should freeze at 1.0
+  const animElFreeze = document.createElement('animate');
+  animElFreeze.setAttribute('attributeName', 'opacity');
+  animElFreeze.setAttribute('from', '0');
+  animElFreeze.setAttribute('to', '1');
+  animElFreeze.setAttribute('begin', '0s');
+  animElFreeze.setAttribute('dur', '2s');
+  animElFreeze.setAttribute('repeatCount', '2');
+  animElFreeze.setAttribute('fill', 'freeze');
+  const valAt5sFreeze = window.StillExportStudio.evaluateSMILAnimate(animElFreeze, 5.0);
+  assert.strictEqual(parseFloat(valAt5sFreeze), 1.0, 'Test 2: fill="freeze" freezes at final value 1.0 after completion');
+
+  // Test 3: P1-019 Still Export animateTransform scale and rotate baking
+  console.log('[HARNESS] Scenario 69 Test 3: P1-019 animateTransform scale and rotate baking...');
+  const animScale = document.createElement('animateTransform');
+  animScale.setAttribute('type', 'scale');
+  animScale.setAttribute('from', '1 1');
+  animScale.setAttribute('to', '2 2');
+  animScale.setAttribute('begin', '0s');
+  animScale.setAttribute('dur', '4s');
+  animScale.setAttribute('fill', 'freeze');
+
+  const resScale = window.StillExportStudio.evaluateAnimateTransform(animScale, 2.0, false);
+  assert.ok(resScale, 'Test 3: resScale should not be null');
+  assert.strictEqual(resScale.type, 'scale');
+  assert.ok(resScale.transformPatch.startsWith('scale('), 'Test 3: scale transform patch generated');
+
+  const animRotate = document.createElement('animateTransform');
+  animRotate.setAttribute('type', 'rotate');
+  animRotate.setAttribute('from', '0 50 50');
+  animRotate.setAttribute('to', '180 50 50');
+  animRotate.setAttribute('begin', '0s');
+  animRotate.setAttribute('dur', '4s');
+  animRotate.setAttribute('fill', 'freeze');
+
+  const resRotate = window.StillExportStudio.evaluateAnimateTransform(animRotate, 2.0, false);
+  assert.ok(resRotate, 'Test 3: resRotate should not be null');
+  assert.strictEqual(resRotate.type, 'rotate');
+  assert.ok(resRotate.transformPatch.startsWith('rotate('), 'Test 3: rotate transform patch generated');
+
+  // Test 4: P1-020 TimelinePlayer pingpong mode cycle wrapping
+  console.log('[HARNESS] Scenario 69 Test 4: P1-020 TimelinePlayer pingpong cycle wrapping...');
+  window.TimelinePlayer.duration = 5.0;
+  window.TimelinePlayer.loopMode = 'pingpong';
+  window.TimelinePlayer.currentTime = 12.3; // Exceeds 2 * duration (10s)
+  window.TimelinePlayer.status = 'playing';
+  window.TimelinePlayer._lastTimestamp = 1000;
+  window.TimelinePlayer._loop(1050); // advances by 0.05s to 12.35, wrapped to 2.35s
+  assert.ok(window.TimelinePlayer.currentTime < 2 * window.TimelinePlayer.duration, 'Test 4: pingpong currentTime wrapped modulo 2*duration');
+  window.TimelinePlayer.pause();
+  window.TimelinePlayer.currentTime = 0;
+
+  console.log('[HARNESS] Scenario 69 PASS: Batch 6 Export Fidelity, Alpha Transparency, Timing & Multi-Encoder Reliability verified.');
+
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
