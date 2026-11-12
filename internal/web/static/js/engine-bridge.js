@@ -1090,7 +1090,7 @@
           }
           return res;
         }
-        return { success: false, error: (res && res.error) || 'Failed to create group in Go engine' };
+        return { success: false, error: (res && res.error) || this.getLastError() || 'Failed to create group in Go engine' };
       }
       return { success: false, error: 'Go/WASM engine is unavailable' };
     },
@@ -1105,7 +1105,7 @@
           }
           return res;
         }
-        return { success: false, error: (res && res.error) || 'Failed to ungroup in Go engine' };
+        return { success: false, error: (res && res.error) || this.getLastError() || 'Failed to ungroup in Go engine' };
       }
       return { success: false, error: 'Go/WASM engine is unavailable' };
     },
@@ -1129,7 +1129,7 @@
           }
           return res;
         }
-        return { success: false, error: (res && res.error) || 'Failed to remove group members in Go engine' };
+        return { success: false, error: (res && res.error) || this.getLastError() || 'Failed to remove group members in Go engine' };
       }
       return { success: false, error: 'Go/WASM engine is unavailable' };
     },
@@ -1147,7 +1147,7 @@
           }
           return res;
         }
-        return { success: false, error: (res && res.error) || 'Failed to delete group in Go engine' };
+        return { success: false, error: (res && res.error) || this.getLastError() || 'Failed to delete group in Go engine' };
       }
       return { success: false, error: 'Go/WASM engine is unavailable' };
     },
@@ -1163,7 +1163,7 @@
           }
           return res;
         }
-        return { success: false, error: (res && res.error) || 'Failed to rename group in Go engine' };
+        return { success: false, error: (res && res.error) || this.getLastError() || 'Failed to rename group in Go engine' };
       }
       return { success: false, error: 'Go/WASM engine is unavailable' };
     },
@@ -3527,8 +3527,13 @@
       img.x = targetX;
       img.y = targetY;
 
-      const verId = 'crop-' + img.cropVersions.length;
-      const verName = (name && name.trim()) ? name.trim() : ('Crop ' + img.cropVersions.length);
+      let verNum = img.cropVersions.length;
+      let verId = 'crop-' + verNum;
+      while (img.cropVersions.some((v) => v.id === verId)) {
+        verNum++;
+        verId = 'crop-' + verNum;
+      }
+      const verName = (name && name.trim()) ? name.trim() : ('Crop ' + verNum);
       img.cropVersions.push({
         id: verId,
         name: verName,

@@ -979,6 +979,15 @@ func TestDispatchSelectionCommands(t *testing.T) {
 		t.Fatalf("expected 1 item after Selection.Toggle, got %+v", togRes)
 	}
 
+	// Create a flow connected to node
+	flowReq, _ := json.Marshal(FlowCreateRequest{
+		Initial: scene.Flow{
+			FromNodeID: node.ID,
+			ToNodeID:   node2.ID,
+		},
+	})
+	Dispatch("Flow.Create", flowReq)
+
 	// Nodes.MoveGroup
 	moveReq, _ := json.Marshal(NodesMoveGroupRequest{
 		IDs: []scene.StringID{node.ID, node2.ID},
@@ -990,7 +999,7 @@ func TestDispatchSelectionCommands(t *testing.T) {
 		t.Fatalf("Nodes.MoveGroup failed: %v", err)
 	}
 	var mRes NodesTransformResponse
-	if err := json.Unmarshal(mBytes, &mRes); err != nil || !mRes.Success || mRes.Count != 2 {
+	if err := json.Unmarshal(mBytes, &mRes); err != nil || !mRes.Success || mRes.Count != 2 || len(mRes.Flows) == 0 {
 		t.Fatalf("Nodes.MoveGroup response mismatch: %+v", mRes)
 	}
 

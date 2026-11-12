@@ -192,6 +192,9 @@ func (s *Scene) FindGlowAt(xPct, yPct, canvasW, canvasH float64) *Glow {
 	// Inspect in reverse scene order (topmost first)
 	for i := len(s.glowIDs) - 1; i >= 0; i-- {
 		id := s.glowIDs[i]
+		if !s.getEffectiveVisibilityLocked(SelectionGlow, id) {
+			continue
+		}
 		g := s.glows[id]
 
 		gx := (g.X / 100.0) * canvasW

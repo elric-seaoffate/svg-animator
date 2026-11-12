@@ -10,8 +10,13 @@ import (
 
 // nextImageID generates the next sequential image ID.
 func (s *Scene) nextImageID() StringID {
-	s.imagesCounter++
-	return StringID("image-" + strconv.FormatInt(s.imagesCounter, 10))
+	for {
+		s.imagesCounter++
+		candidate := StringID("image-" + strconv.FormatInt(s.imagesCounter, 10))
+		if _, exists := s.images[candidate]; !exists {
+			return candidate
+		}
+	}
 }
 
 // ImagesCounter returns the current image ID counter.
@@ -423,15 +428,11 @@ func (s *Scene) UpdateImage(id StringID, patch Image) (Image, error) {
 	return s.UpdateImagePatch(id, p)
 }
 
-// DeleteImage deletes an image and removes it from layers and any parent group.
-func (s *Scene) DeleteImage(id StringID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// removeImageLocked removes an image by ID without acquiring the mutex or bumping revision.
+func (s *Scene) removeImageLocked(id StringID) bool {
 	if _, exists := s.images[id]; !exists {
-		return fmt.Errorf("image not found: %s", id)
+		return false
 	}
-
 	delete(s.images, id)
 
 	newIDs := make([]StringID, 0, len(s.imageIDs)-1)
@@ -446,8 +447,59 @@ func (s *Scene) DeleteImage(id StringID) error {
 	s.pruneSelectionLocked(SelectionImage, id)
 	s.pruneGroupMembersLocked(SelectionImage, id)
 	s.removeLayerEntryLocked(SelectionImage, id)
+	return true
+}
 
+// DeleteImage deletes an image and removes it from layers and any parent group.
+func (s *Scene) DeleteImage(id StringID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.images[id]; !exists {
+		return fmt.Errorf("image not found: %s", id)
+	}
+
+	s.removeImageLocked(id)
 	s.revision++
+	return nil
+}
+
+// FindImageAt hit-tests canvas percent coordinates against all images, returning the topmost match.
+func (s *Scene) FindImageAt(xPct, yPct, canvasW, canvasH float64) *Image {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if canvasW <= 0 {
+		canvasW = s.canvas.Width
+	}
+	if canvasW <= 0 {
+		canvasW = 1280
+	}
+	if canvasH <= 0 {
+		canvasH = s.canvas.Height
+	}
+	if canvasH <= 0 {
+		canvasH = 720
+	}
+
+	px := (xPct / 100.0) * canvasW
+	py := (yPct / 100.0) * canvasH
+
+	for i := len(s.imageIDs) - 1; i >= 0; i-- {
+		id := s.imageIDs[i]
+		if !s.getEffectiveVisibilityLocked(SelectionImage, id) {
+			continue
+		}
+		img := s.images[id]
+		cx := (img.X / 100.0) * canvasW
+		cy := (img.Y / 100.0) * canvasH
+		hw := (img.Width / 2.0)
+		hh := (img.Height / 2.0)
+		if px >= cx-hw && px <= cx+hw && py >= cy-hh && py <= cy+hh {
+			res := img
+			return &res
+		}
+	}
 	return nil
 }
 
@@ -507,6 +559,7 @@ func (s *Scene) CreateCropVersion(id StringID, name string, crop ImageCrop, newX
 	if !exists {
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
+
 
 	ensureCropVersionsInitializedLocked(&img)
 
@@ -631,6 +684,7 @@ func (s *Scene) SelectCropVersion(id StringID, versionID string) (Image, error) 
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
 
+
 	ensureCropVersionsInitializedLocked(&img)
 
 	var targetVer *CropVersion
@@ -697,6 +751,7 @@ func (s *Scene) RenameCropVersion(id StringID, versionID string, newName string)
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
 
+
 	trimmed := strings.TrimSpace(newName)
 	if trimmed == "" {
 		return Image{}, fmt.Errorf("crop version name cannot be empty")
@@ -730,6 +785,7 @@ func (s *Scene) DeleteCropVersion(id StringID, versionID string) (Image, error) 
 	if !exists {
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
+
 
 	if versionID == "original" {
 		return Image{}, fmt.Errorf("cannot delete original uncropped version")
@@ -814,6 +870,7 @@ func (s *Scene) CommitCrop(id StringID, newSrc, newAssetRef, newFilename, newMim
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
 
+
 	if newSrc != "" {
 		img.Src = newSrc
 		img.Data = newSrc
@@ -893,6 +950,7 @@ func (s *Scene) SetImageClip(id StringID, clip ImageClip) (Image, error) {
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
 
+
 	clip.Enabled = true
 	img.Clip = &clip
 	s.images[id] = img
@@ -909,6 +967,7 @@ func (s *Scene) ResetImageClip(id StringID) (Image, error) {
 	if !exists {
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
+
 
 	img.Clip = nil
 	s.images[id] = img

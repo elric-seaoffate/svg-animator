@@ -158,6 +158,9 @@ func (s *Scene) FindFlowAt(xPct, yPct, canvasW, canvasH float64) *Flow {
 	// Inspect in reverse scene order (topmost first)
 	for i := len(s.flowIDs) - 1; i >= 0; i-- {
 		id := s.flowIDs[i]
+		if !s.getEffectiveVisibilityLocked(SelectionFlow, id) {
+			continue
+		}
 		f := s.flows[id]
 		routeMode := f.RouteMode
 		if routeMode == "" {

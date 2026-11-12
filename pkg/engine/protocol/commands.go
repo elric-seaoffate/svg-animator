@@ -592,6 +592,7 @@ type NodesDistributeRequest struct {
 type NodesTransformResponse struct {
 	Success bool         `json:"success"`
 	Nodes   []scene.Node `json:"nodes,omitempty"`
+	Flows   []scene.Flow `json:"flows,omitempty"`
 	Count   int          `json:"count"`
 	Error   string       `json:"error,omitempty"`
 }
@@ -643,8 +644,9 @@ type GroupDeleteRequest struct {
 
 // GroupDeleteResponse response for "Group.Delete".
 type GroupDeleteResponse struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+	Success  bool            `json:"success"`
+	Snapshot *scene.Snapshot `json:"snapshot,omitempty"`
+	Error    string          `json:"error,omitempty"`
 }
 
 // GroupRenameRequest payload for "Group.Rename".
@@ -1488,6 +1490,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		return json.Marshal(NodesTransformResponse{
 			Success: true,
 			Nodes:   updated,
+			Flows:   activeScene.GetAllFlows(),
 			Count:   len(updated),
 		})
 
@@ -1506,6 +1509,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		return json.Marshal(NodesTransformResponse{
 			Success: true,
 			Nodes:   updated,
+			Flows:   activeScene.GetAllFlows(),
 			Count:   len(updated),
 		})
 
@@ -1524,6 +1528,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		return json.Marshal(NodesTransformResponse{
 			Success: true,
 			Nodes:   updated,
+			Flows:   activeScene.GetAllFlows(),
 			Count:   len(updated),
 		})
 
@@ -2704,7 +2709,12 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if err := activeScene.DeleteGroup(req.GroupID, req.DeleteMembers); err != nil {
 			return json.Marshal(GroupDeleteResponse{Success: false, Error: err.Error()})
 		}
-		return json.Marshal(GroupDeleteResponse{Success: true})
+		var snap *scene.Snapshot
+		if req.DeleteMembers {
+			s := activeScene.GetSnapshot()
+			snap = &s
+		}
+		return json.Marshal(GroupDeleteResponse{Success: true, Snapshot: snap})
 
 	case "Group.Rename":
 		var req GroupRenameRequest

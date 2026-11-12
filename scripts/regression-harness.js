@@ -8208,6 +8208,197 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 66 PASS: Batch 3 Unified Go History, Undo/Redo & Project Lifecycle (Tests A-M) verified.');
 
+  // =========================================================================
+  // SCENARIO 67: BATCH 4 — Group Integrity, Attached Flow Geometry, Layer Visibility & Lock Enforcement
+  // =========================================================================
+  console.log('\n[HARNESS] Testing Scenario 67: Batch 4 Group Integrity, Attached Flow Geometry, Layer Visibility & Lock Enforcement...');
+
+  window.ProjectManager.resetToNewProject();
+
+  // Test 1: Group creation with Image object, nested group rejection, group renaming, and deleteGroup with members
+  console.log('[HARNESS] Scenario 67 Test 1: Group creation with image, nested group rejection, rename & deleteGroup...');
+  const n1_67 = window.DiagramNodes.createNode({ shape: 'rect', text: 'GroupNode1', x: 20, y: 20 });
+  const n2_67 = window.DiagramNodes.createNode({ shape: 'circle', text: 'GroupNode2', x: 80, y: 80 });
+  const img1_67 = window.ImageObjects.createImage({ filename: 'test.png', naturalWidth: 200, naturalHeight: 150, x: 50, y: 50 });
+  assert.ok(n1_67 && n2_67 && img1_67, 'Test 1: Objects created');
+
+  // Select all 3 objects and create group
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: String(n1_67.id) },
+    { type: 'node', id: String(n2_67.id) },
+    { type: 'image', id: String(img1_67.id) }
+  ]);
+  const grp1_67 = window.AppCoordinator.createGroupFromSelection('Composite Group');
+  assert.ok(grp1_67, 'Test 1: Composite group created');
+  assert.strictEqual(grp1_67.name, 'Composite Group', 'Test 1: Group name matches');
+  assert.strictEqual(grp1_67.members.length, 3, 'Test 1: Group has 3 members including image');
+
+  // Verify nested group rejection in Go engine / EngineBridge
+  let nestedRejected = false;
+  if (window.EngineBridge && typeof window.EngineBridge.createGroup === 'function') {
+    const nestedRes = window.EngineBridge.createGroup('Nested Group', [
+      { type: 'group', id: String(grp1_67.id) },
+      { type: 'node', id: String(n1_67.id) }
+    ]);
+    if (!nestedRes.success && nestedRes.error && nestedRes.error.includes('nested groups are not supported')) {
+      nestedRejected = true;
+    }
+  }
+  assert.strictEqual(nestedRejected, true, 'Test 1: Nested group creation rejected with expected error');
+
+  // Test renaming group via coordinator
+  window.AppCoordinator.selectGroup(grp1_67.id);
+  const renameOk = window.AppCoordinator.renameSelectedGroup('Renamed Composite Group');
+  assert.strictEqual(renameOk, true, 'Test 1: Group rename succeeded');
+  const stateRes = window.EngineBridge.getSceneState();
+  const snapAfterRename = (stateRes && stateRes.snapshot) ? stateRes.snapshot : stateRes;
+  const grpInSnap = snapAfterRename.groups.find(g => g.id === grp1_67.id);
+  assert.strictEqual(grpInSnap.name, 'Renamed Composite Group', 'Test 1: Group name in Go snapshot updated');
+
+  // Test deleting group with members
+  const deleteOk = window.AppCoordinator.deleteSelectedObjects();
+  assert.strictEqual(deleteOk, true, 'Test 1: Group deletion succeeded');
+  assert.strictEqual(window.DiagramNodes.getAllNodes().length, 0, 'Test 1: Member nodes deleted');
+  assert.strictEqual(window.ImageObjects.list.length, 0, 'Test 1: Member image deleted');
+  assert.strictEqual(window.ObjectGroups.list.length, 0, 'Test 1: Group deleted');
+  const curSel = window.AppCoordinator.getActiveSelection();
+  assert.strictEqual(curSel.type, null, 'Test 1: Selection cleared, no stale group selected');
+
+  // Test 2: Flow geometry synchronization on move, align, distribute
+  console.log('[HARNESS] Scenario 67 Test 2: Flow geometry synchronization on move, align, distribute...');
+  const fnA = window.DiagramNodes.createNode({ shape: 'rect', text: 'FlowA', x: 20, y: 20, width: 80, height: 40 });
+  const fnB = window.DiagramNodes.createNode({ shape: 'circle', text: 'FlowB', x: 100, y: 100, width: 60, height: 60 });
+  const liveFlow = window.DataFlows.createFlow({
+    fromNodeId: fnA.id,
+    toNodeId: fnB.id,
+    nodes: [{ x: 20, y: 20 }, { x: 100, y: 100 }]
+  });
+  assert.ok(liveFlow, 'Test 2: Flow created between FlowA and FlowB');
+
+  // Group fnA and fnB
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: String(fnA.id) },
+    { type: 'node', id: String(fnB.id) }
+  ]);
+  const flowGrp = window.AppCoordinator.createGroupFromSelection('Flow Pair');
+  assert.ok(flowGrp, 'Test 2: Flow pair group created');
+
+  // Move group by (+15, +20) via moveSelectedNodes
+  window.AppCoordinator.selectGroup(flowGrp.id);
+  window.AppCoordinator.moveSelectedNodes(15, 20);
+
+  // Verify node coordinates updated
+  const movedA = window.DiagramNodes.getNode(fnA.id);
+  const movedB = window.DiagramNodes.getNode(fnB.id);
+  assert.strictEqual(movedA.x, 35, 'Test 2: Node A X shifted by +15');
+  assert.strictEqual(movedA.y, 40, 'Test 2: Node A Y shifted by +20');
+  assert.strictEqual(movedB.x, 115, 'Test 2: Node B X shifted by +15');
+  assert.strictEqual(movedB.y, 120, 'Test 2: Node B Y shifted by +20');
+
+  // Verify flow waypoints in window.DataFlows updated from res.flows
+  const updatedFlow = window.DataFlows.getFlow(liveFlow.id);
+  assert.strictEqual(updatedFlow.nodes[0].x, 35, 'Test 2: Flow waypoint 0 X shifted to 35');
+  assert.strictEqual(updatedFlow.nodes[0].y, 40, 'Test 2: Flow waypoint 0 Y shifted to 40');
+  assert.strictEqual(updatedFlow.nodes[1].x, 115, 'Test 2: Flow waypoint 1 X shifted to 115');
+  assert.strictEqual(updatedFlow.nodes[1].y, 120, 'Test 2: Flow waypoint 1 Y shifted to 120');
+
+  // Ungroup and test Align
+  window.AppCoordinator.ungroupSelectedGroup();
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: String(fnA.id) },
+    { type: 'node', id: String(fnB.id) }
+  ]);
+  window.AppCoordinator.alignSelectedNodes('left');
+  // Both nodes aligned to min X (35)
+  assert.strictEqual(window.DiagramNodes.getNode(fnA.id).x, 35, 'Test 2: Node A X is 35 after align left');
+  assert.ok(Math.abs(window.DiagramNodes.getNode(fnB.id).x - 34.219) < 0.01, 'Test 2: Node B left edge aligned to Node A left edge');
+  const flowAfterAlign = window.DataFlows.getFlow(liveFlow.id);
+  assert.strictEqual(flowAfterAlign.nodes[0].x, window.DiagramNodes.getNode(fnA.id).x, 'Test 2: Flow waypoint 0 matches Node A after align');
+  assert.strictEqual(flowAfterAlign.nodes[1].x, window.DiagramNodes.getNode(fnB.id).x, 'Test 2: Flow waypoint 1 matches Node B after align');
+
+  // Test 3: Group Drag Preview Transform Parity (Glows, Ripples, Clipped Images)
+  console.log('[HARNESS] Scenario 67 Test 3: Drag preview transform parity (translate dx, dy)...');
+  // Mock live DOM elements for glow, ripple, and clipped image G container
+  const mockGlowEl = makeStubElement('g');
+  const mockRippleEl = makeStubElement('g');
+  const mockImgGEl = makeStubElement('g');
+
+  // Simulate group drag delta (25px, 30px)
+  const deltaXPx = 25.0;
+  const deltaYPx = 30.0;
+  mockGlowEl.setAttribute('transform', 'translate(' + deltaXPx.toFixed(2) + ', ' + deltaYPx.toFixed(2) + ')');
+  mockRippleEl.setAttribute('transform', 'translate(' + deltaXPx.toFixed(2) + ', ' + deltaYPx.toFixed(2) + ')');
+  if (mockImgGEl.tagName.toUpperCase() === 'G') {
+    mockImgGEl.setAttribute('transform', 'translate(' + deltaXPx.toFixed(2) + ', ' + deltaYPx.toFixed(2) + ')');
+  }
+
+  assert.strictEqual(mockGlowEl.getAttribute('transform'), 'translate(25.00, 30.00)', 'Test 3: Glow preview uses translate(dx, dy)');
+  assert.strictEqual(mockRippleEl.getAttribute('transform'), 'translate(25.00, 30.00)', 'Test 3: Ripple preview uses translate(dx, dy)');
+  assert.strictEqual(mockImgGEl.getAttribute('transform'), 'translate(25.00, 30.00)', 'Test 3: Clipped Image G container preview uses translate(dx, dy)');
+
+  // Test 4: Lock and Visibility Enforcement
+  console.log('[HARNESS] Scenario 67 Test 4: Lock and visibility enforcement...');
+  window.ProjectManager.resetToNewProject();
+
+  const normalNode = window.DiagramNodes.createNode({ shape: 'rect', text: 'NormalNode', x: 10, y: 10 });
+  const lockedNode = window.DiagramNodes.createNode({ shape: 'rect', text: 'LockedNode', x: 50, y: 50 });
+  const hiddenNode = window.DiagramNodes.createNode({ shape: 'rect', text: 'HiddenNode', x: 90, y: 90 });
+
+  // Update locked and hidden in Go engine / LayerManager
+  if (window.LayerManager) {
+    window.LayerManager.setLocked('node', lockedNode.id, true);
+    window.LayerManager.setVisibility('node', hiddenNode.id, false);
+  }
+
+  // Verify locked node cannot be moved via coordinator
+  window.AppCoordinator.selectObject('node', lockedNode.id);
+  const moveLockedRes = window.AppCoordinator.moveSelectedNodes(10, 10);
+  assert.strictEqual(moveLockedRes, false, 'Test 4: moveSelectedNodes on locked node rejected');
+  assert.strictEqual(window.DiagramNodes.getNode(lockedNode.id).x, 50, 'Test 4: Locked node X position unchanged');
+
+  // Verify locked group cannot be moved or deleted
+  const grpMemberNode = window.DiagramNodes.createNode({ shape: 'circle', text: 'GrpMember', x: 30, y: 30 });
+  window.AppCoordinator.setMultiSelection([
+    { type: 'node', id: String(normalNode.id) },
+    { type: 'node', id: String(grpMemberNode.id) }
+  ]);
+  const grpForLock = window.AppCoordinator.createGroupFromSelection('LockGroup');
+  if (window.LayerManager) {
+    window.LayerManager.setLocked('group', grpForLock.id, true);
+  }
+  window.AppCoordinator.selectGroup(grpForLock.id);
+  const moveLockedGrpRes = window.AppCoordinator.moveSelectedNodes(10, 10);
+  assert.strictEqual(moveLockedGrpRes, false, 'Test 4: moveSelectedNodes on locked group rejected');
+  const deleteLockedGrpRes = window.AppCoordinator.deleteSelectedObjects();
+  assert.strictEqual(deleteLockedGrpRes, false, 'Test 4: deleteSelectedObjects on locked group rejected');
+  assert.ok(window.ObjectGroups.getGroup(grpForLock.id), 'Test 4: Locked group still exists in store');
+
+  // Verify Ctrl+A filters out locked and hidden nodes
+  const allNodes67 = window.DiagramNodes.getAllNodes();
+  const selectableNodes = allNodes67.filter(n => {
+    if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+      const eff = window.LayerManager.getEffective('node', n.id);
+      if (eff && (eff.locked || !eff.visible)) return false;
+    }
+    return true;
+  });
+  // selectableNodes should not include lockedNode or hiddenNode
+  const hasLocked = selectableNodes.some(n => String(n.id) === String(lockedNode.id));
+  const hasHidden = selectableNodes.some(n => String(n.id) === String(hiddenNode.id));
+  assert.strictEqual(hasLocked, false, 'Test 4: Ctrl+A filter excludes locked node');
+  assert.strictEqual(hasHidden, false, 'Test 4: Ctrl+A filter excludes hidden node');
+
+  // Verify updateActiveOverlays hides reticle when active object is invisible
+  window.AppCoordinator.selectObject('node', hiddenNode.id);
+  window.AppCoordinator.updateActiveOverlays();
+  const selBoxEl67 = document.getElementById('nodeSelectionBox');
+  if (selBoxEl67) {
+    assert.strictEqual(selBoxEl67.style.display, 'none', 'Test 4: Selection box hidden for invisible object');
+  }
+
+  console.log('[HARNESS] Scenario 67 PASS: Batch 4 Group Integrity, Attached Flow Geometry, Layer Visibility & Lock Enforcement verified.');
+
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
 

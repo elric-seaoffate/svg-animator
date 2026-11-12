@@ -284,7 +284,31 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 		}
 		if img.Crop != nil {
 			c := *img.Crop
+			c.OrigX += offsetX
+			c.OrigY += offsetY
 			cloned.Crop = &c
+		}
+		if img.Clip != nil {
+			cl := *img.Clip
+			cloned.Clip = &cl
+		}
+		if len(img.CropVersions) > 0 {
+			cloned.CropVersions = make([]CropVersion, len(img.CropVersions))
+			for i, cv := range img.CropVersions {
+				cvCopy := cv
+				cvCopy.X += offsetX
+				cvCopy.Y += offsetY
+				cvCopy.OrigX += offsetX
+				cvCopy.OrigY += offsetY
+				cloned.CropVersions[i] = cvCopy
+			}
+		}
+		if img.Metadata != nil {
+			mCopy := make(map[string]any, len(img.Metadata))
+			for k, v := range img.Metadata {
+				mCopy[k] = v
+			}
+			cloned.Metadata = mCopy
 		}
 
 		if s.images == nil {
@@ -329,11 +353,23 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 
 		// Offset waypoints
 		if len(cloned.Nodes) > 0 {
+			fromExternal := cloned.FromNodeID != "" && nodeIDMap[f.FromNodeID] == ""
+			toExternal := cloned.ToNodeID != "" && nodeIDMap[f.ToNodeID] == ""
+
 			newNodes := make([]geometry.Point, len(cloned.Nodes))
 			for i, p := range cloned.Nodes {
-				newNodes[i] = geometry.Point{
-					X: math.Round((p.X+offsetX)*1000.0) / 1000.0,
-					Y: math.Round((p.Y+offsetY)*1000.0) / 1000.0,
+				isFirst := i == 0
+				isLast := i == len(cloned.Nodes)-1
+
+				if isFirst && fromExternal {
+					newNodes[i] = p
+				} else if isLast && toExternal {
+					newNodes[i] = p
+				} else {
+					newNodes[i] = geometry.Point{
+						X: math.Round((p.X+offsetX)*1000.0) / 1000.0,
+						Y: math.Round((p.Y+offsetY)*1000.0) / 1000.0,
+					}
 				}
 			}
 			cloned.Nodes = newNodes
@@ -344,9 +380,21 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 		newItems = append(newItems, SelectionItem{Type: SelectionFlow, ID: newID})
 	}
 
-	// Recompute flow connections for all newly pasted nodes
+	// Recompute flow connections for all newly pasted nodes and attached external nodes
 	for _, newNID := range nodeIDMap {
 		s.recalculateNodeConnectionsLocked(newNID)
+	}
+	for _, f := range payload.Flows {
+		if remappedFrom, ok := nodeIDMap[f.FromNodeID]; ok {
+			s.recalculateNodeConnectionsLocked(remappedFrom)
+		} else if f.FromNodeID != "" {
+			s.recalculateNodeConnectionsLocked(f.FromNodeID)
+		}
+		if remappedTo, ok := nodeIDMap[f.ToNodeID]; ok {
+			s.recalculateNodeConnectionsLocked(remappedTo)
+		} else if f.ToNodeID != "" {
+			s.recalculateNodeConnectionsLocked(f.ToNodeID)
+		}
 	}
 
 	// 5. Paste Groups (with member remapping)
@@ -395,6 +443,7 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 			}
 			s.groups[newGID] = clonedGroup
 			s.groupIDs = append(s.groupIDs, newGID)
+			s.ensureLayersInitializedLocked()
 			s.coalesceGroupMembersInLayersLocked(clonedGroup)
 		}
 	}

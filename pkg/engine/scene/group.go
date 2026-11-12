@@ -36,8 +36,13 @@ func (grp Group) IsLocked() bool {
 
 // nextGroupID generates the next sequential group ID.
 func (s *Scene) nextGroupID() StringID {
-	s.groupsCounter++
-	return StringID("group-" + strconv.FormatInt(s.groupsCounter, 10))
+	for {
+		s.groupsCounter++
+		candidate := StringID("group-" + strconv.FormatInt(s.groupsCounter, 10))
+		if _, exists := s.groups[candidate]; !exists {
+			return candidate
+		}
+	}
 }
 
 // FindGroupByMember returns the group containing the specified object instance, if any.
@@ -116,6 +121,10 @@ func (s *Scene) CreateGroup(name string, members []GroupMember) (Group, error) {
 		}
 		seen[key] = true
 
+		if m.Type == SelectionGroup {
+			return Group{}, errors.New("nested groups are not supported")
+		}
+
 		// 1. Verify object exists
 		if !s.objectExistsLocked(m.Type, m.ID) {
 			return Group{}, fmt.Errorf("cannot group: %s %s does not exist", m.Type, m.ID)
@@ -164,14 +173,19 @@ func (s *Scene) Ungroup(groupID StringID) ([]GroupMember, error) {
 		return nil, fmt.Errorf("group not found: %s", groupID)
 	}
 
+	if grp.IsLocked() {
+		return nil, fmt.Errorf("cannot ungroup locked group: %s", groupID)
+	}
+
 	delete(s.groups, groupID)
-	newIDs := make([]StringID, 0, len(s.groupIDs)-1)
+	newIDs := make([]StringID, 0, len(s.groupIDs))
 	for _, id := range s.groupIDs {
 		if id != groupID {
 			newIDs = append(newIDs, id)
 		}
 	}
 	s.groupIDs = newIDs
+	s.pruneSelectionLocked(SelectionGroup, groupID)
 	s.revision++
 
 	return grp.Members, nil
@@ -187,6 +201,10 @@ func (s *Scene) RemoveGroupMembers(groupID StringID, membersToRemove []GroupMemb
 	grp, exists := s.groups[groupID]
 	if !exists {
 		return Group{}, false, fmt.Errorf("group not found: %s", groupID)
+	}
+
+	if grp.IsLocked() {
+		return Group{}, false, fmt.Errorf("cannot remove members from locked group: %s", groupID)
 	}
 
 	if len(membersToRemove) == 0 {
@@ -225,13 +243,14 @@ func (s *Scene) RemoveGroupMembers(groupID StringID, membersToRemove []GroupMemb
 	// 3. Apply group dissolution policy (< 2 members remaining)
 	if len(filtered) < 2 {
 		delete(s.groups, groupID)
-		newIDs := make([]StringID, 0, len(s.groupIDs)-1)
+		newIDs := make([]StringID, 0, len(s.groupIDs))
 		for _, id := range s.groupIDs {
 			if id != groupID {
 				newIDs = append(newIDs, id)
 			}
 		}
 		s.groupIDs = newIDs
+		s.pruneSelectionLocked(SelectionGroup, groupID)
 		s.revision++
 		return Group{}, true, nil
 	}
@@ -252,6 +271,10 @@ func (s *Scene) RenameGroup(groupID StringID, newName string) (Group, error) {
 	grp, exists := s.groups[groupID]
 	if !exists {
 		return Group{}, fmt.Errorf("group not found: %s", groupID)
+	}
+
+	if grp.IsLocked() {
+		return Group{}, fmt.Errorf("cannot rename locked group: %s", groupID)
 	}
 
 	displayName := newName
@@ -275,7 +298,17 @@ func (s *Scene) DeleteGroup(groupID StringID, deleteMembers bool) error {
 		return fmt.Errorf("group not found: %s", groupID)
 	}
 
+	if grp.IsLocked() {
+		return fmt.Errorf("cannot delete locked group: %s", groupID)
+	}
+
 	if deleteMembers {
+		for _, m := range grp.Members {
+			if s.getEffectiveLockedLocked(m.Type, m.ID) {
+				return fmt.Errorf("cannot delete group with locked member %s %s", m.Type, m.ID)
+			}
+		}
+
 		for _, m := range grp.Members {
 			switch m.Type {
 			case SelectionNode:
@@ -286,18 +319,21 @@ func (s *Scene) DeleteGroup(groupID StringID, deleteMembers bool) error {
 				s.removeGlowLocked(m.ID)
 			case SelectionRipple:
 				s.removeRippleLocked(m.ID)
+			case SelectionImage:
+				s.removeImageLocked(m.ID)
 			}
 		}
 	}
 
 	delete(s.groups, groupID)
-	newIDs := make([]StringID, 0, len(s.groupIDs)-1)
+	newIDs := make([]StringID, 0, len(s.groupIDs))
 	for _, id := range s.groupIDs {
 		if id != groupID {
 			newIDs = append(newIDs, id)
 		}
 	}
 	s.groupIDs = newIDs
+	s.pruneSelectionLocked(SelectionGroup, groupID)
 	s.revision++
 
 	return nil
@@ -329,13 +365,14 @@ func (s *Scene) pruneGroupMembersLocked(deletedType SelectionType, deletedID Str
 
 	for _, gID := range emptyOrSingle {
 		delete(s.groups, gID)
-		newIDs := make([]StringID, 0, len(s.groupIDs)-1)
+		newIDs := make([]StringID, 0, len(s.groupIDs))
 		for _, id := range s.groupIDs {
 			if id != gID {
 				newIDs = append(newIDs, id)
 			}
 		}
 		s.groupIDs = newIDs
+		s.pruneSelectionLocked(SelectionGroup, gID)
 	}
 }
 
@@ -348,6 +385,16 @@ func (s *Scene) MoveGroup(groupID StringID, deltaX float64, deltaY float64) erro
 	grp, exists := s.groups[groupID]
 	if !exists {
 		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	if grp.IsLocked() {
+		return fmt.Errorf("cannot move locked group: %s", groupID)
+	}
+
+	for _, m := range grp.Members {
+		if s.getEffectiveLockedLocked(m.Type, m.ID) {
+			return fmt.Errorf("cannot move group with locked member %s %s", m.Type, m.ID)
+		}
 	}
 
 	// 1. Move member nodes

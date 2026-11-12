@@ -2,6 +2,7 @@ package scene
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -15,6 +16,12 @@ func (s *Scene) MoveNodes(nodeIDs []StringID, deltaX float64, deltaY float64) ([
 
 	if len(nodeIDs) == 0 {
 		return nil, errors.New("no nodes specified to move")
+	}
+
+	for _, id := range nodeIDs {
+		if s.getEffectiveLockedLocked(SelectionNode, id) {
+			return nil, fmt.Errorf("cannot move locked node: %s", id)
+		}
 	}
 
 	updated := make([]Node, 0, len(nodeIDs))
@@ -85,6 +92,12 @@ func (s *Scene) AlignNodes(nodeIDs []StringID, mode string, canvasW float64, can
 
 	if len(validNodes) < 2 {
 		return nil, errors.New("at least 2 nodes required for alignment")
+	}
+
+	for _, n := range validNodes {
+		if s.getEffectiveLockedLocked(SelectionNode, n.ID) {
+			return nil, fmt.Errorf("cannot align locked node: %s", n.ID)
+		}
 	}
 
 	// Compute collective bounds in pixels
@@ -190,6 +203,12 @@ func (s *Scene) DistributeNodes(nodeIDs []StringID, mode string, canvasW float64
 
 	if len(validNodes) < 3 {
 		return nil, errors.New("at least 3 nodes required for distribution")
+	}
+
+	for _, n := range validNodes {
+		if s.getEffectiveLockedLocked(SelectionNode, n.ID) {
+			return nil, fmt.Errorf("cannot distribute locked node: %s", n.ID)
+		}
 	}
 
 	normMode := strings.ToLower(strings.TrimSpace(mode))

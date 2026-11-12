@@ -742,6 +742,10 @@
 
     moveSelectedNodes(deltaX, deltaY) {
       if (this.activeSelection.type === 'group' && this.activeSelection.id) {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('group', this.activeSelection.id);
+          if (eff && eff.locked) return false;
+        }
         let res = null;
         if (window.EngineBridge && typeof window.EngineBridge.moveGroup === 'function') {
           res = window.EngineBridge.moveGroup(this.activeSelection.id, deltaX, deltaY);
@@ -756,9 +760,17 @@
       }
       const ids = this.getSelectedNodeIds();
       if (ids.length === 0) return false;
+      const unlockedIds = ids.filter((id) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('node', id);
+          if (eff && eff.locked) return false;
+        }
+        return true;
+      });
+      if (unlockedIds.length === 0) return false;
       let res = null;
       if (window.EngineBridge && typeof window.EngineBridge.moveNodesGroup === 'function') {
-        res = window.EngineBridge.moveNodesGroup(ids, deltaX, deltaY);
+        res = window.EngineBridge.moveNodesGroup(unlockedIds, deltaX, deltaY);
       }
       if (res && res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
         res.nodes.forEach((un) => {
@@ -766,6 +778,16 @@
           if (existing) {
             existing.x = un.x;
             existing.y = un.y;
+          }
+        });
+      }
+      if (res && res.flows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        res.flows.forEach((uf) => {
+          const existing = window.DataFlows.getFlow(uf.id);
+          if (existing) {
+            existing.nodes = uf.nodes;
+            existing.fromNodeId = uf.fromNodeId;
+            existing.toNodeId = uf.toNodeId;
           }
         });
       }
@@ -778,14 +800,21 @@
 
     alignSelectedNodes(mode) {
       const ids = this.getSelectedNodeIds();
-      if (ids.length < 2) {
-        this.showNotification('Select at least 2 shapes to align.', 'warning');
+      const unlockedIds = ids.filter((id) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('node', id);
+          if (eff && eff.locked) return false;
+        }
+        return true;
+      });
+      if (unlockedIds.length < 2) {
+        this.showNotification('Select at least 2 unlocked shapes to align.', 'warning');
         return false;
       }
       const dims = this.getCanvasDimensions();
       let res = null;
       if (window.EngineBridge && typeof window.EngineBridge.alignNodes === 'function') {
-        res = window.EngineBridge.alignNodes(ids, mode, dims.width, dims.height);
+        res = window.EngineBridge.alignNodes(unlockedIds, mode, dims.width, dims.height);
       }
       if (!res || !res.success) {
         this.showNotification((res && res.error) ? res.error : 'Alignment failed.', 'error');
@@ -800,26 +829,43 @@
           }
         });
       }
+      if (res.flows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        res.flows.forEach((uf) => {
+          const existing = window.DataFlows.getFlow(uf.id);
+          if (existing) {
+            existing.nodes = uf.nodes;
+            existing.fromNodeId = uf.fromNodeId;
+            existing.toNodeId = uf.toNodeId;
+          }
+        });
+      }
       if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
         window.DiagramNodes.refreshAfterChange();
       }
       this.requestRender();
       this.recordHistoryImmediate();
       this.updateActiveOverlays();
-      this.showNotification(`Aligned ${ids.length} shapes.`, 'info', 2000);
+      this.showNotification(`Aligned ${unlockedIds.length} shapes.`, 'info', 2000);
       return true;
     },
 
     distributeSelectedNodes(mode) {
       const ids = this.getSelectedNodeIds();
-      if (ids.length < 3) {
-        this.showNotification('Select at least 3 shapes to distribute.', 'warning');
+      const unlockedIds = ids.filter((id) => {
+        if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+          const eff = window.LayerManager.getEffective('node', id);
+          if (eff && eff.locked) return false;
+        }
+        return true;
+      });
+      if (unlockedIds.length < 3) {
+        this.showNotification('Select at least 3 unlocked shapes to distribute.', 'warning');
         return false;
       }
       const dims = this.getCanvasDimensions();
       let res = null;
       if (window.EngineBridge && typeof window.EngineBridge.distributeNodes === 'function') {
-        res = window.EngineBridge.distributeNodes(ids, mode, dims.width, dims.height);
+        res = window.EngineBridge.distributeNodes(unlockedIds, mode, dims.width, dims.height);
       }
       if (!res || !res.success) {
         this.showNotification((res && res.error) ? res.error : 'Distribution failed.', 'error');
@@ -834,13 +880,23 @@
           }
         });
       }
+      if (res.flows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+        res.flows.forEach((uf) => {
+          const existing = window.DataFlows.getFlow(uf.id);
+          if (existing) {
+            existing.nodes = uf.nodes;
+            existing.fromNodeId = uf.fromNodeId;
+            existing.toNodeId = uf.toNodeId;
+          }
+        });
+      }
       if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
         window.DiagramNodes.refreshAfterChange();
       }
       this.requestRender();
       this.recordHistoryImmediate();
       this.updateActiveOverlays();
-      this.showNotification(`Distributed ${ids.length} shapes.`, 'info', 2000);
+      this.showNotification(`Distributed ${unlockedIds.length} shapes.`, 'info', 2000);
       return true;
     },
 
@@ -911,24 +967,39 @@
         }
         const grp = this.getGroup(grpId);
         if (grp && Array.isArray(grp.members)) {
-          grp.members.forEach((m) => {
-            if (m.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.deleteNode === 'function') {
-              window.DiagramNodes.deleteNode(m.id);
-            } else if (m.type === 'flow' && window.DataFlows && typeof window.DataFlows.deleteFlow === 'function') {
-              window.DataFlows.deleteFlow(m.id);
-            } else if (m.type === 'glow' && window.Glows && typeof window.Glows.deleteGlow === 'function') {
-              window.Glows.deleteGlow(m.id);
-            } else if (m.type === 'ripple' && window.Ripples && typeof window.Ripples.deleteRipple === 'function') {
-              window.Ripples.deleteRipple(m.id);
-            } else if (m.type === 'image' && window.ImageObjects && typeof window.ImageObjects.deleteImage === 'function') {
-              window.ImageObjects.deleteImage(m.id);
+          const hasLockedMember = grp.members.some((m) => {
+            if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+              const eff = window.LayerManager.getEffective(m.type, m.id);
+              if (eff && eff.locked) return true;
             }
+            return false;
           });
+          if (hasLockedMember) {
+            this.showNotification('Cannot delete group containing locked members.', 'warning', 2000);
+            return false;
+          }
         }
-        if (window.EngineBridge && typeof window.EngineBridge.deleteGroup === 'function') {
+        if (window.EngineBridge && typeof window.EngineBridge.deleteGroup === 'function' && window.EngineBridge.isReady()) {
           window.EngineBridge.deleteGroup(grpId, true);
-        } else if (window.ObjectGroups && typeof window.ObjectGroups.deleteGroup === 'function') {
-          window.ObjectGroups.deleteGroup(grpId, true);
+        } else {
+          if (grp && Array.isArray(grp.members)) {
+            grp.members.forEach((m) => {
+              if (m.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.deleteNode === 'function') {
+                window.DiagramNodes.deleteNode(m.id);
+              } else if (m.type === 'flow' && window.DataFlows && typeof window.DataFlows.deleteFlow === 'function') {
+                window.DataFlows.deleteFlow(m.id);
+              } else if (m.type === 'glow' && window.Glows && typeof window.Glows.deleteGlow === 'function') {
+                window.Glows.deleteGlow(m.id);
+              } else if (m.type === 'ripple' && window.Ripples && typeof window.Ripples.deleteRipple === 'function') {
+                window.Ripples.deleteRipple(m.id);
+              } else if (m.type === 'image' && window.ImageObjects && typeof window.ImageObjects.deleteImage === 'function') {
+                window.ImageObjects.deleteImage(m.id);
+              }
+            });
+          }
+          if (window.ObjectGroups && typeof window.ObjectGroups.deleteGroup === 'function') {
+            window.ObjectGroups.deleteGroup(grpId, true);
+          }
         }
         this._refreshAllInstanceLists();
         this.clearSelection();
@@ -1020,35 +1091,43 @@
 
       if (window.DiagramNodes) {
         if (window.DiagramNodes.activeId !== null) {
-          const activeNode = typeof window.DiagramNodes.getNode === 'function'
+          const isVis = !window.LayerManager || typeof window.LayerManager.getEffective !== 'function' ||
+            window.LayerManager.getEffective('node', window.DiagramNodes.activeId)?.visible !== false;
+          const activeNode = isVis && (typeof window.DiagramNodes.getNode === 'function'
             ? window.DiagramNodes.getNode(window.DiagramNodes.activeId)
-            : (window.DiagramNodes.list && window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId));
-          if (activeNode && typeof window.DiagramNodes.updateUIOverlay === 'function') {
-            window.DiagramNodes.updateUIOverlay(activeNode);
+            : (window.DiagramNodes.list && window.DiagramNodes.list.find((n) => n.id === window.DiagramNodes.activeId)));
+          if (typeof window.DiagramNodes.updateUIOverlay === 'function') {
+            window.DiagramNodes.updateUIOverlay(activeNode || null);
           }
         } else if ((this.getSelectedItems().length > 0 || (this.activeSelection.type === 'image' && this.activeSelection.id != null)) && typeof window.DiagramNodes.updateUIOverlay === 'function') {
           window.DiagramNodes.updateUIOverlay(null);
         }
       }
       if (window.DataFlows && window.DataFlows.activeId !== null) {
+        const isVis = !window.LayerManager || typeof window.LayerManager.getEffective !== 'function' ||
+          window.LayerManager.getEffective('flow', window.DataFlows.activeId)?.visible !== false;
         if (typeof window.DataFlows.updateUIOverlay === 'function') {
-          window.DataFlows.updateUIOverlay();
+          window.DataFlows.updateUIOverlay(isVis ? undefined : null);
         }
       }
       if (window.Glows && window.Glows.activeId !== null) {
-        const activeGlow = typeof window.Glows.getGlow === 'function'
+        const isVis = !window.LayerManager || typeof window.LayerManager.getEffective !== 'function' ||
+          window.LayerManager.getEffective('glow', window.Glows.activeId)?.visible !== false;
+        const activeGlow = isVis && (typeof window.Glows.getGlow === 'function'
           ? window.Glows.getGlow(window.Glows.activeId)
-          : (window.Glows.list && window.Glows.list.find((g) => g.id === window.Glows.activeId));
-        if (activeGlow && typeof window.Glows.updateUIOverlay === 'function') {
-          window.Glows.updateUIOverlay(activeGlow);
+          : (window.Glows.list && window.Glows.list.find((g) => g.id === window.Glows.activeId)));
+        if (typeof window.Glows.updateUIOverlay === 'function') {
+          window.Glows.updateUIOverlay(activeGlow || null);
         }
       }
       if (window.Ripples && window.Ripples.activeId !== null) {
-        const activeRipple = typeof window.Ripples.getRipple === 'function'
+        const isVis = !window.LayerManager || typeof window.LayerManager.getEffective !== 'function' ||
+          window.LayerManager.getEffective('ripple', window.Ripples.activeId)?.visible !== false;
+        const activeRipple = isVis && (typeof window.Ripples.getRipple === 'function'
           ? window.Ripples.getRipple(window.Ripples.activeId)
-          : (window.Ripples.list && window.Ripples.list.find((r) => r.id === window.Ripples.activeId));
-        if (activeRipple && typeof window.Ripples.updateUIOverlay === 'function') {
-          window.Ripples.updateUIOverlay(activeRipple);
+          : (window.Ripples.list && window.Ripples.list.find((r) => r.id === window.Ripples.activeId)));
+        if (typeof window.Ripples.updateUIOverlay === 'function') {
+          window.Ripples.updateUIOverlay(activeRipple || null);
         }
       }
       if (typeof window.syncImageToolsUI === 'function') {

@@ -362,3 +362,58 @@ func TestBackgroundCropLifecycle(t *testing.T) {
 		t.Errorf("Expected 2 crop versions in restored background, got %d", len(restoredBg.CropVersions))
 	}
 }
+
+func TestCropBackgroundVersionClashPrevention(t *testing.T) {
+	s := NewScene()
+	bg := &BackgroundConfig{
+		Src:           "data:image/jpeg;base64,sample",
+		NaturalWidth:  1920,
+		NaturalHeight: 1080,
+	}
+	s.SetBackground(bg)
+
+	// Add Crop 1
+	c1, err := s.CropBackground(BackgroundCrop{SourceX: 0, SourceY: 0, SourceWidth: 960, SourceHeight: 1080}, "Crop 1")
+	if err != nil {
+		t.Fatalf("CropBackground 1 failed: %v", err)
+	}
+	if c1.ActiveCropVersionID != "crop-1" {
+		t.Errorf("expected active version crop-1, got %s", c1.ActiveCropVersionID)
+	}
+
+	// Add Crop 2
+	c2, err := s.CropBackground(BackgroundCrop{SourceX: 480, SourceY: 0, SourceWidth: 960, SourceHeight: 1080}, "Crop 2")
+	if err != nil {
+		t.Fatalf("CropBackground 2 failed: %v", err)
+	}
+	if c2.ActiveCropVersionID != "crop-2" {
+		t.Errorf("expected active version crop-2, got %s", c2.ActiveCropVersionID)
+	}
+
+	// Delete Crop 1
+	cDel, err := s.DeleteBackgroundCropVersion("crop-1")
+	if err != nil {
+		t.Fatalf("DeleteBackgroundCropVersion crop-1 failed: %v", err)
+	}
+	if len(cDel.CropVersions) != 2 { // original + crop-2
+		t.Errorf("expected 2 crop versions remaining, got %d", len(cDel.CropVersions))
+	}
+
+	// Add another crop - must NOT clash with crop-2 or re-use crop-1 blindly
+	c3, err := s.CropBackground(BackgroundCrop{SourceX: 100, SourceY: 100, SourceWidth: 500, SourceHeight: 500}, "Crop 3")
+	if err != nil {
+		t.Fatalf("CropBackground 3 failed: %v", err)
+	}
+	if c3.ActiveCropVersionID != "crop-3" {
+		t.Errorf("expected active version crop-3 after crop-1 deletion, got %s", c3.ActiveCropVersionID)
+	}
+
+	// Verify all IDs are unique
+	seen := make(map[string]bool)
+	for _, v := range c3.CropVersions {
+		if seen[v.ID] {
+			t.Errorf("duplicate crop version ID found: %s", v.ID)
+		}
+		seen[v.ID] = true
+	}
+}

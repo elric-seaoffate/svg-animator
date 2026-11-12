@@ -288,3 +288,127 @@ func TestRemoveGroupMembers(t *testing.T) {
 		t.Errorf("n2 must remain in scene")
 	}
 }
+
+func TestBatch4GroupIntegrityAndLocking(t *testing.T) {
+	sc := NewScene()
+
+	n1 := sc.CreateNode(Node{Shape: "rect", X: 10, Y: 10, Width: 80, Height: 40}, nil, false)
+	n2 := sc.CreateNode(Node{Shape: "circle", X: 30, Y: 10, Width: 60, Height: 60}, nil, false)
+	img1, err := sc.CreateImage(Image{
+		Src:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+		Width:  100,
+		Height: 80,
+		X:      50,
+		Y:      50,
+	})
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+
+	// 1. Nested group rejection
+	grp1, err := sc.CreateGroup("SubGroup", []GroupMember{
+		{Type: SelectionNode, ID: n1.ID},
+		{Type: SelectionNode, ID: n2.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+
+	_, err = sc.CreateGroup("ParentGroup", []GroupMember{
+		{Type: SelectionGroup, ID: grp1.ID},
+		{Type: SelectionImage, ID: img1.ID},
+	})
+	if err == nil || err.Error() != "nested groups are not supported" {
+		t.Fatalf("expected nested group rejection, got %v", err)
+	}
+
+	// 2. RenameObject for groups
+	ok, err := sc.RenameObject(SelectionGroup, grp1.ID, "Renamed Group")
+	if !ok || err != nil {
+		t.Fatalf("RenameObject for group failed: %v", err)
+	}
+	renamedGrp, _ := sc.GetGroup(grp1.ID)
+	if renamedGrp.Name != "Renamed Group" {
+		t.Fatalf("expected group name 'Renamed Group', got %q", renamedGrp.Name)
+	}
+
+	// 3. SelectionGroup pruned on Ungroup
+	sc.SetSelection(SelectionGroup, grp1.ID)
+	if sc.GetSelection().Type != SelectionGroup {
+		t.Fatalf("expected SelectionGroup active")
+	}
+	_, err = sc.Ungroup(grp1.ID)
+	if err != nil {
+		t.Fatalf("Ungroup failed: %v", err)
+	}
+	if sc.GetSelection().Type == SelectionGroup {
+		t.Fatalf("SelectionGroup should be pruned on ungroup, got %+v", sc.GetSelection())
+	}
+
+	// 4. Group with Image member and DeleteGroup with deleteMembers=true
+	grpWithImg, err := sc.CreateGroup("Group With Image", []GroupMember{
+		{Type: SelectionNode, ID: n1.ID},
+		{Type: SelectionImage, ID: img1.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup with Image failed: %v", err)
+	}
+	sc.SetSelection(SelectionGroup, grpWithImg.ID)
+
+	err = sc.DeleteGroup(grpWithImg.ID, true)
+	if err != nil {
+		t.Fatalf("DeleteGroup failed: %v", err)
+	}
+	if _, exists := sc.images[img1.ID]; exists {
+		t.Fatalf("img1 must be deleted when DeleteGroup(deleteMembers=true) is called")
+	}
+	if _, exists := sc.nodes[n1.ID]; exists {
+		t.Fatalf("n1 must be deleted when DeleteGroup(deleteMembers=true) is called")
+	}
+	if sc.GetSelection().Type == SelectionGroup {
+		t.Fatalf("SelectionGroup must be pruned on DeleteGroup, got %+v", sc.GetSelection())
+	}
+
+	// 5. Lock enforcement in MoveGroup, Ungroup, DeleteGroup, RenameObject
+	n3 := sc.CreateNode(Node{Shape: "rect", X: 20, Y: 20, Width: 80, Height: 40}, nil, false)
+	n4 := sc.CreateNode(Node{Shape: "circle", X: 40, Y: 20, Width: 60, Height: 60}, nil, false)
+	lockedGrp, err := sc.CreateGroup("Locked Group", []GroupMember{
+		{Type: SelectionNode, ID: n3.ID},
+		{Type: SelectionNode, ID: n4.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+
+	// Lock the group
+	if err := sc.SetObjectLocked(SelectionGroup, lockedGrp.ID, true); err != nil {
+		t.Fatalf("SetObjectLocked on group failed: %v", err)
+	}
+
+	if err := sc.MoveGroup(lockedGrp.ID, 5, 5); err == nil {
+		t.Fatalf("expected error moving locked group")
+	}
+	if _, err := sc.Ungroup(lockedGrp.ID); err == nil {
+		t.Fatalf("expected error ungrouping locked group")
+	}
+	if err := sc.DeleteGroup(lockedGrp.ID, false); err == nil {
+		t.Fatalf("expected error deleting locked group")
+	}
+	if _, err := sc.RenameObject(SelectionGroup, lockedGrp.ID, "New Name"); err == nil {
+		t.Fatalf("expected error renaming locked group")
+	}
+
+	// Unlock group but lock one member
+	_ = sc.SetObjectLocked(SelectionGroup, lockedGrp.ID, false)
+	_ = sc.SetObjectLocked(SelectionNode, n3.ID, true)
+
+	if err := sc.MoveGroup(lockedGrp.ID, 5, 5); err == nil {
+		t.Fatalf("expected error moving group with locked member")
+	}
+	if err := sc.DeleteGroup(lockedGrp.ID, true); err == nil {
+		t.Fatalf("expected error deleting group with locked member when deleteMembers=true")
+	}
+	if _, err := sc.RenameObject(SelectionNode, n3.ID, "Locked Node"); err == nil {
+		t.Fatalf("expected error renaming locked node")
+	}
+}

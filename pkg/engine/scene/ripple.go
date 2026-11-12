@@ -177,6 +177,9 @@ func (s *Scene) FindRippleAt(xPct, yPct, canvasW, canvasH float64) *Ripple {
 	// Inspect in reverse scene order (topmost first)
 	for i := len(s.rippleIDs) - 1; i >= 0; i-- {
 		id := s.rippleIDs[i]
+		if !s.getEffectiveVisibilityLocked(SelectionRipple, id) {
+			continue
+		}
 		r := s.ripples[id]
 
 		rx := (r.X / 100.0) * canvasW

@@ -922,11 +922,16 @@ window.DataFlows = {
     return false;
   },
 
-  updateUIOverlay() {
-    const f = this.getFlow(this.activeId);
+  updateUIOverlay(flow = undefined) {
+    const f = flow !== undefined ? flow : this.getFlow(this.activeId);
     const container = document.getElementById('dynamicFlowReticles');
     const pathEl = document.getElementById('flowCurvePath');
-    if (!f || !container || !pathEl) return;
+    if (!container || !pathEl) return;
+    if (!f) {
+      container.innerHTML = '';
+      pathEl.style.display = 'none';
+      return;
+    }
 
     const dims = window.AppCoordinator
       ? window.AppCoordinator.getCanvasDimensions()

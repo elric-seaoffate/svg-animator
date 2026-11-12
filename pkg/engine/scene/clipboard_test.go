@@ -179,3 +179,135 @@ func TestFlowPartialExternalAttachment(t *testing.T) {
 		t.Errorf("expected ToNodeID to retain external node %s, got %s", externalNode.ID, pfl.ToNodeID)
 	}
 }
+
+func TestClipboardImageDeepCopyAndOffsets(t *testing.T) {
+	sc := NewScene()
+
+	img := Image{
+		ID:            "image-1",
+		Name:          "Hero Photo",
+		X:             10.0,
+		Y:             20.0,
+		Width:         200.0,
+		Height:        150.0,
+		NaturalWidth:  400.0,
+		NaturalHeight: 300.0,
+		Crop: &ImageCrop{
+			Enabled:      true,
+			OrigX:        10.0,
+			OrigY:        20.0,
+			OrigWidth:    200.0,
+			OrigHeight:   150.0,
+			SourceX:      20.0,
+			SourceY:      30.0,
+			SourceWidth:  100.0,
+			SourceHeight: 80.0,
+		},
+		Clip: &ImageClip{
+			Enabled: true,
+			X:       5.0,
+			Y:       5.0,
+			Width:   50.0,
+			Height:  50.0,
+		},
+		CropVersions: []CropVersion{
+			{
+				ID:           "v1",
+				Name:         "Version 1",
+				OrigX:        10.0,
+				OrigY:        20.0,
+				X:            20.0,
+				Y:            30.0,
+				Width:        100.0,
+				Height:       80.0,
+				SourceX:      20.0,
+				SourceY:      30.0,
+				SourceWidth:  100.0,
+				SourceHeight: 80.0,
+			},
+		},
+		Metadata: map[string]any{
+			"customTag": "test-val",
+		},
+	}
+
+	created, err := sc.CreateImage(img)
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+
+	payload, err := sc.CopySelection([]SelectionItem{{Type: SelectionImage, ID: created.ID}}, "")
+	if err != nil {
+		t.Fatalf("CopySelection failed: %v", err)
+	}
+	if len(payload.Images) != 1 {
+		t.Fatalf("expected 1 image in payload, got %d", len(payload.Images))
+	}
+
+	// Paste with offset (+5, +10)
+	newItems, _, err := sc.PastePayload(payload, 5.0, 10.0)
+	if err != nil {
+		t.Fatalf("PastePayload failed: %v", err)
+	}
+	if len(newItems) != 1 {
+		t.Fatalf("expected 1 pasted item, got %d", len(newItems))
+	}
+
+	pastedID := newItems[0].ID
+	if pastedID == created.ID {
+		t.Errorf("pasted image ID %s should not match original", pastedID)
+	}
+
+	pastedImg, exists := sc.GetImage(pastedID)
+	if !exists {
+		t.Fatalf("pasted image %s not found in scene", pastedID)
+	}
+
+	if pastedImg.X != 15.0 || pastedImg.Y != 30.0 {
+		t.Errorf("expected pasted coords (15, 30), got (%f, %f)", pastedImg.X, pastedImg.Y)
+	}
+
+	// Verify deep copy of Crop and offset OrigX, OrigY
+	if pastedImg.Crop == nil {
+		t.Fatalf("expected pasted image to have Crop")
+	}
+	if pastedImg.Crop == created.Crop {
+		t.Errorf("Crop reference was not deep-copied")
+	}
+	if pastedImg.Crop.OrigX != 15.0 || pastedImg.Crop.OrigY != 30.0 {
+		t.Errorf("expected Crop OrigX=15, OrigY=30, got (%f, %f)", pastedImg.Crop.OrigX, pastedImg.Crop.OrigY)
+	}
+
+	// Verify deep copy of Clip
+	if pastedImg.Clip == nil {
+		t.Fatalf("expected pasted image to have Clip")
+	}
+	if pastedImg.Clip == created.Clip {
+		t.Errorf("Clip reference was not deep-copied")
+	}
+	if pastedImg.Clip.Width != 50.0 || pastedImg.Clip.Height != 50.0 {
+		t.Errorf("expected Clip dims 50x50, got %fx%f", pastedImg.Clip.Width, pastedImg.Clip.Height)
+	}
+
+	// Verify CropVersions deep copy and offset
+	if len(pastedImg.CropVersions) != 1 {
+		t.Fatalf("expected 1 CropVersion, got %d", len(pastedImg.CropVersions))
+	}
+	if pastedImg.CropVersions[0].OrigX != 15.0 || pastedImg.CropVersions[0].OrigY != 30.0 {
+		t.Errorf("expected CropVersion OrigX=15, OrigY=30, got (%f, %f)", pastedImg.CropVersions[0].OrigX, pastedImg.CropVersions[0].OrigY)
+	}
+	if pastedImg.CropVersions[0].X != 25.0 || pastedImg.CropVersions[0].Y != 40.0 {
+		t.Errorf("expected CropVersion X=25, Y=40, got (%f, %f)", pastedImg.CropVersions[0].X, pastedImg.CropVersions[0].Y)
+	}
+
+	// Verify Metadata deep copy
+	if pastedImg.Metadata == nil || pastedImg.Metadata["customTag"] != "test-val" {
+		t.Errorf("expected Metadata['customTag'] == 'test-val'")
+	}
+	// Mutating pasted metadata should not affect original
+	pastedImg.Metadata["customTag"] = "modified"
+	origImg, _ := sc.GetImage(created.ID)
+	if origImg.Metadata["customTag"] != "test-val" {
+		t.Errorf("original metadata was mutated: got %v", origImg.Metadata["customTag"])
+	}
+}

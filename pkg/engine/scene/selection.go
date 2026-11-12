@@ -134,6 +134,9 @@ func (s *Scene) SetMultiSelection(items []SelectionItem, primary *SelectionItem)
 	validItems := make([]SelectionItem, 0, len(items))
 
 	for _, item := range items {
+		if item.Type == SelectionGroup {
+			continue // groups cannot be multi-selected items
+		}
 		key := string(item.Type) + ":" + string(item.ID)
 		if seen[key] {
 			continue
@@ -174,6 +177,9 @@ func (s *Scene) restoreSelectionLocked(sel SelectionState) {
 		seen := make(map[string]bool, len(sel.Items))
 		validItems := make([]SelectionItem, 0, len(sel.Items))
 		for _, item := range sel.Items {
+			if item.Type == SelectionGroup {
+				continue
+			}
 			key := string(item.Type) + ":" + string(item.ID)
 			if seen[key] || !s.objectExistsLocked(item.Type, item.ID) {
 				continue

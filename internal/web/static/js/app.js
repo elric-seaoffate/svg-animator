@@ -6671,9 +6671,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault();
         const allNodes = window.DiagramNodes ? window.DiagramNodes.getAllNodes() : [];
-        if (allNodes.length > 0 && window.AppCoordinator) {
-          const items = allNodes.map((n) => ({ type: 'node', id: n.id }));
-          window.AppCoordinator.setMultiSelection(items, allNodes[0].id);
+        const selectableNodes = allNodes.filter((n) => {
+          if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+            const eff = window.LayerManager.getEffective('node', n.id);
+            if (eff && (eff.locked || !eff.visible)) return false;
+          }
+          return true;
+        });
+        if (selectableNodes.length > 0 && window.AppCoordinator) {
+          const items = selectableNodes.map((n) => ({ type: 'node', id: n.id }));
+          window.AppCoordinator.setMultiSelection(items, selectableNodes[0].id);
         }
         return;
       }

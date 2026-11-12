@@ -128,3 +128,48 @@ func TestDistributeNodes(t *testing.T) {
 		t.Fatalf("expected error distributing fewer than 3 nodes")
 	}
 }
+
+func TestBatch4TransformLockEnforcement(t *testing.T) {
+	s := NewScene()
+
+	n1 := s.CreateNode(Node{Shape: "rounded", Width: 100, Height: 50, X: 10, Y: 50}, nil, false)
+	n2 := s.CreateNode(Node{Shape: "rounded", Width: 100, Height: 50, X: 30, Y: 50}, nil, false)
+	n3 := s.CreateNode(Node{Shape: "rounded", Width: 100, Height: 50, X: 70, Y: 50}, nil, false)
+
+	// Lock n2
+	if err := s.SetObjectLocked(SelectionNode, n2.ID, true); err != nil {
+		t.Fatalf("SetObjectLocked failed: %v", err)
+	}
+
+	// 1. MoveNodes should fail because n2 is locked
+	if _, err := s.MoveNodes([]StringID{n1.ID, n2.ID}, 5, 5); err == nil {
+		t.Fatalf("expected error moving locked node")
+	}
+
+	// 2. AlignNodes should fail because n2 is locked
+	if _, err := s.AlignNodes([]StringID{n1.ID, n2.ID}, "align-left", 1000, 1000); err == nil {
+		t.Fatalf("expected error aligning locked node")
+	}
+
+	// 3. DistributeNodes should fail because n2 is locked
+	if _, err := s.DistributeNodes([]StringID{n1.ID, n2.ID, n3.ID}, "distribute-horizontal", 1000, 1000); err == nil {
+		t.Fatalf("expected error distributing locked node")
+	}
+
+	// Unlock n2 but put n1 into a locked group
+	_ = s.SetObjectLocked(SelectionNode, n2.ID, false)
+	n4 := s.CreateNode(Node{Shape: "rounded", Width: 100, Height: 50, X: 80, Y: 50}, nil, false)
+	grp, err := s.CreateGroup("Locked Transform Group", []GroupMember{
+		{Type: SelectionNode, ID: n1.ID},
+		{Type: SelectionNode, ID: n4.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	_ = s.SetObjectLocked(SelectionGroup, grp.ID, true)
+
+	// MoveNodes with n1 should fail because its parent group is locked
+	if _, err := s.MoveNodes([]StringID{n1.ID, n2.ID}, 5, 5); err == nil {
+		t.Fatalf("expected error moving node in locked group")
+	}
+}

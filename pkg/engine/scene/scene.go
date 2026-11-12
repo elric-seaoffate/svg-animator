@@ -411,6 +411,9 @@ func (s *Scene) FindNodeAt(xPct, yPct, canvasW, canvasH float64) *Node {
 
 	for i := len(s.nodeIDs) - 1; i >= 0; i-- {
 		id := s.nodeIDs[i]
+		if !s.getEffectiveVisibilityLocked(SelectionNode, id) {
+			continue
+		}
 		n := s.nodes[id]
 		eff := s.GetNodeEffectiveProps(n)
 		cx := (n.X / 100.0) * canvasW
@@ -610,10 +613,14 @@ func (s *Scene) RemoveFlow(id StringID) bool {
 	return false
 }
 
-// RenameObject updates the human-readable display name of a Node, Flow, Glow, or Ripple.
+// RenameObject updates the human-readable display name of a Node, Flow, Glow, Ripple, Image, or Group.
 func (s *Scene) RenameObject(selType SelectionType, id StringID, name string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.getEffectiveLockedLocked(selType, id) {
+		return false, fmt.Errorf("cannot rename locked %s: %s", selType, id)
+	}
 
 	switch selType {
 	case SelectionNode:
@@ -663,6 +670,20 @@ func (s *Scene) RenameObject(selType SelectionType, id StringID, name string) (b
 		}
 		img.Name = name
 		s.images[id] = img
+		s.revision++
+		return true, nil
+
+	case SelectionGroup:
+		grp, ok := s.groups[id]
+		if !ok {
+			return false, errors.New("group not found: " + string(id))
+		}
+		displayName := name
+		if displayName == "" {
+			displayName = "Group " + string(id)
+		}
+		grp.Name = displayName
+		s.groups[id] = grp
 		s.revision++
 		return true, nil
 
@@ -1124,16 +1145,28 @@ func (s *Scene) CropBackground(crop BackgroundCrop, name string) (*BackgroundCon
 		s.background.CropVersions = append([]BackgroundCropVersion{orig}, s.background.CropVersions...)
 	}
 
-	cropCount := 0
+	existingCropIDs := make(map[string]bool)
+	maxNum := 0
 	for _, v := range s.background.CropVersions {
+		existingCropIDs[v.ID] = true
 		if strings.HasPrefix(v.ID, "crop-") {
-			cropCount++
+			if n, err := strconv.Atoi(strings.TrimPrefix(v.ID, "crop-")); err == nil && n > maxNum {
+				maxNum = n
+			}
 		}
 	}
-	verID := fmt.Sprintf("crop-%d", cropCount+1)
+	candidateNum := maxNum + 1
+	var verID string
+	for {
+		verID = fmt.Sprintf("crop-%d", candidateNum)
+		if !existingCropIDs[verID] {
+			break
+		}
+		candidateNum++
+	}
 	verName := strings.TrimSpace(name)
 	if verName == "" {
-		verName = fmt.Sprintf("Crop %d", cropCount+1)
+		verName = fmt.Sprintf("Crop %d", candidateNum)
 	}
 
 	newVersion := BackgroundCropVersion{

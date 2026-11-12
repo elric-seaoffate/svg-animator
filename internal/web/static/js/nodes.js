@@ -752,7 +752,13 @@ window.DiagramNodes = {
       return;
     }
 
-    const targetNode = node || (this.activeId !== null ? this.getNode(this.activeId) : null);
+    let targetNode = node !== undefined ? node : (this.activeId !== null ? this.getNode(this.activeId) : null);
+    if (targetNode && window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+      const effL = window.LayerManager.getEffective('node', targetNode.id);
+      if (effL && effL.visible === false) {
+        targetNode = null;
+      }
+    }
     const selectedIds = (window.AppCoordinator && typeof window.AppCoordinator.getSelectedNodeIds === 'function')
       ? window.AppCoordinator.getSelectedNodeIds()
       : (targetNode ? [targetNode.id] : []);

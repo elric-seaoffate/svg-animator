@@ -147,7 +147,10 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		}
 
 		var op float64
-		if !visible || (!active && f.HideOnDelay) {
+		if !s.GetEffectiveVisibility(scene.SelectionFlow, f.ID) {
+			visible = false
+			op = 0
+		} else if !visible || (!active && f.HideOnDelay) {
 			op = 0
 		} else if !active {
 			op = baseOp
@@ -193,7 +196,9 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 		}
 
 		var coreOp float64
-		if timeSec < g.Delay {
+		if !s.GetEffectiveVisibility(scene.SelectionGlow, g.ID) {
+			coreOp = 0
+		} else if timeSec < g.Delay {
 			coreOp = 0
 		} else if g.Playback == "static" {
 			coreOp = baseOp
@@ -248,9 +253,10 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 			}
 		}
 
+		glowVis := (active || timeSec >= g.Delay) && s.GetEffectiveVisibility(scene.SelectionGlow, g.ID)
 		res.Glows = append(res.Glows, GlowFrameUpdate{
 			ID:          string(g.ID),
-			Visible:     active || timeSec >= g.Delay,
+			Visible:     glowVis,
 			CoreOpacity: math.Round(coreOp*1000) / 1000,
 			RadarRings:  rings,
 		})
@@ -305,9 +311,13 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 			}
 		}
 
+		rippleVis := anyVisible && s.GetEffectiveVisibility(scene.SelectionRipple, r.ID)
+		if !s.GetEffectiveVisibility(scene.SelectionRipple, r.ID) {
+			firstOpacity = 0
+		}
 		res.Ripples = append(res.Ripples, RippleFrameUpdate{
 			ID:      string(r.ID),
-			Visible: anyVisible,
+			Visible: rippleVis,
 			Radius:  firstRadius,
 			Opacity: firstOpacity,
 			Waves:   waves,
@@ -377,7 +387,9 @@ func EvaluateSceneAtTime(s *scene.Scene, timeSec float64) FrameResult {
 			op = 1.0
 		}
 		var dy float64
-		if n.Animation == "pulse" {
+		if !s.GetEffectiveVisibility(scene.SelectionNode, n.ID) {
+			op = 0
+		} else if n.Animation == "pulse" {
 			op = 0.65 + 0.35*(math.Sin(timeSec*2.0*math.Pi/2.6)+1.0)/2.0
 		} else if n.Animation == "float" {
 			dy = -6.0 * (math.Sin(timeSec*2.0*math.Pi/3.2) + 1.0) / 2.0

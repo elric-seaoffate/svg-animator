@@ -142,6 +142,19 @@ window.Stage = {
   },
 
   _startMixedDrag(items, anchorPct, coords, e, potentialSingleType = null, potentialSingleId = null) {
+    const isAnyLocked = (items || []).some((it) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const eff = window.LayerManager.getEffective(it.type, it.id);
+        if (eff && eff.locked) return true;
+      }
+      return false;
+    });
+    if (isAnyLocked) {
+      this.isGroupDragging = false;
+      this.groupDragInitialPositions = null;
+      return;
+    }
+
     this.isGroupDragging = true;
     this.potentialSingleSelectType = potentialSingleType;
     this.potentialSingleSelectId = potentialSingleId;
@@ -920,9 +933,7 @@ window.Stage = {
                 g.y = Math.max(-50, Math.min(150, item.initY + deltaY));
                 const liveGlow = document.querySelector('#svgContainer [data-glow-id="' + g.id + '"]');
                 if (liveGlow) {
-                  const cx = (g.x / 100) * this.canvasWidth;
-                  const cy = (g.y / 100) * this.canvasHeight;
-                  liveGlow.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+                  liveGlow.setAttribute('transform', 'translate(' + deltaXPx.toFixed(2) + ', ' + deltaYPx.toFixed(2) + ')');
                 }
               }
             } else if (item.type === 'ripple') {
@@ -932,9 +943,7 @@ window.Stage = {
                 rp.y = Math.max(-50, Math.min(150, item.initY + deltaY));
                 const liveRipple = document.querySelector('#svgContainer [data-ripple-id="' + rp.id + '"]');
                 if (liveRipple) {
-                  const cx = (rp.x / 100) * this.canvasWidth;
-                  const cy = (rp.y / 100) * this.canvasHeight;
-                  liveRipple.setAttribute('transform', 'translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')');
+                  liveRipple.setAttribute('transform', 'translate(' + deltaXPx.toFixed(2) + ', ' + deltaYPx.toFixed(2) + ')');
                 }
               }
             } else if (item.type === 'image') {
@@ -944,26 +953,80 @@ window.Stage = {
                 img.y = Math.max(-50, Math.min(150, item.initY + deltaY));
                 const liveImg = document.querySelector('#svgContainer [data-image-id="' + img.id + '"]');
                 if (liveImg) {
-                  const cx = (img.x / 100) * this.canvasWidth;
-                  const cy = (img.y / 100) * this.canvasHeight;
-                  const w = img.width || 200;
-                  const h = img.height || 150;
-                  liveImg.setAttribute('x', (cx - w / 2).toFixed(2));
-                  liveImg.setAttribute('y', (cy - h / 2).toFixed(2));
+                  if (liveImg.tagName.toUpperCase() === 'G') {
+                    liveImg.setAttribute('transform', 'translate(' + deltaXPx.toFixed(2) + ', ' + deltaYPx.toFixed(2) + ')');
+                  } else {
+                    const cx = (img.x / 100) * this.canvasWidth;
+                    const cy = (img.y / 100) * this.canvasHeight;
+                    const w = img.width || 200;
+                    const h = img.height || 150;
+                    liveImg.setAttribute('x', (cx - w / 2).toFixed(2));
+                    liveImg.setAttribute('y', (cy - h / 2).toFixed(2));
+                  }
                 }
               }
             } else if (item.type === 'flow') {
               const f = window.DataFlows ? window.DataFlows.getFlow(item.id) : null;
-              if (f && Array.isArray(f.nodes) && item.initNodes && (!f.fromNodeId || !f.toNodeId)) {
+              if (f && Array.isArray(f.nodes) && item.initNodes) {
+                const movedNodeIds = new Set(
+                  this.groupDragInitialPositions.items.filter((it) => it.type === 'node').map((it) => String(it.id))
+                );
+                const fromMoves = !f.fromNodeId || movedNodeIds.has(String(f.fromNodeId));
+                const toMoves = !f.toNodeId || movedNodeIds.has(String(f.toNodeId));
+
                 f.nodes.forEach((pt, idx) => {
+                  const isFirst = idx === 0;
+                  const isLast = idx === f.nodes.length - 1;
+                  if (isFirst && !fromMoves) return;
+                  if (isLast && !toMoves) return;
                   if (item.initNodes[idx]) {
                     pt.x = Math.round((item.initNodes[idx].x + deltaX) * 1000) / 1000;
                     pt.y = Math.round((item.initNodes[idx].y + deltaY) * 1000) / 1000;
                   }
                 });
+
+                if (typeof window.DataFlows.generatePathString === 'function') {
+                  const newD = window.DataFlows.generatePathString(f.nodes, f.curvature || 0, this.canvasWidth, this.canvasHeight, f.route || f.routeMode || 'curve');
+                  const flowPaths = document.querySelectorAll('#svgContainer [data-flow-id="' + f.id + '"] path.flow-track-path');
+                  flowPaths.forEach((p) => p.setAttribute('d', newD));
+                }
               }
             }
           });
+
+          // Update attached external flows
+          const movedNodeIds = new Set(
+            this.groupDragInitialPositions.items.filter((it) => it.type === 'node').map((it) => String(it.id))
+          );
+          if (movedNodeIds.size > 0 && window.DataFlows && Array.isArray(window.DataFlows.list)) {
+            window.DataFlows.list.forEach((f) => {
+              if (this.groupDragInitialPositions.items.some((it) => it.type === 'flow' && String(it.id) === String(f.id))) {
+                return; // already handled
+              }
+              let changed = false;
+              if (f.fromNodeId && movedNodeIds.has(String(f.fromNodeId)) && f.nodes && f.nodes.length > 0) {
+                const n = window.DiagramNodes ? window.DiagramNodes.getNode(f.fromNodeId) : null;
+                if (n) {
+                  f.nodes[0].x = n.x;
+                  f.nodes[0].y = n.y;
+                  changed = true;
+                }
+              }
+              if (f.toNodeId && movedNodeIds.has(String(f.toNodeId)) && f.nodes && f.nodes.length > 0) {
+                const n = window.DiagramNodes ? window.DiagramNodes.getNode(f.toNodeId) : null;
+                if (n) {
+                  f.nodes[f.nodes.length - 1].x = n.x;
+                  f.nodes[f.nodes.length - 1].y = n.y;
+                  changed = true;
+                }
+              }
+              if (changed && typeof window.DataFlows.generatePathString === 'function') {
+                const newD = window.DataFlows.generatePathString(f.nodes, f.curvature || 0, this.canvasWidth, this.canvasHeight, f.route || f.routeMode || 'curve');
+                const flowPaths = document.querySelectorAll('#svgContainer [data-flow-id="' + f.id + '"] path.flow-track-path');
+                flowPaths.forEach((p) => p.setAttribute('d', newD));
+              }
+            });
+          }
           if (window.AppCoordinator) {
             window.AppCoordinator.updateActiveOverlays();
           }
@@ -1166,6 +1229,19 @@ window.Stage = {
 
             if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
               window.DiagramNodes.refreshAfterChange();
+            }
+            if (window.EngineBridge && typeof window.EngineBridge.getSnapshot === 'function') {
+              const snap = window.EngineBridge.getSnapshot();
+              if (snap && Array.isArray(snap.flows) && window.DataFlows) {
+                snap.flows.forEach((sf) => {
+                  const existing = window.DataFlows.getFlow(sf.id);
+                  if (existing) {
+                    existing.nodes = sf.nodes;
+                    existing.fromNodeId = sf.fromNodeId;
+                    existing.toNodeId = sf.toNodeId;
+                  }
+                });
+              }
             }
             if (window.AppCoordinator) {
               window.AppCoordinator.requestRender();
