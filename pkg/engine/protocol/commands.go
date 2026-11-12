@@ -402,6 +402,42 @@ type RippleDescribeRequest struct {
 	CanvasH float64        `json:"canvasH"`
 }
 
+// CanvasUpdatePayload defines typed pointer fields for safe partial updates to CanvasConfig.
+type CanvasUpdatePayload struct {
+	Width         *float64 `json:"width,omitempty"`
+	Height        *float64 `json:"height,omitempty"`
+	Duration      *float64 `json:"duration,omitempty"`
+	PlaybackMode  *string  `json:"loop,omitempty"`
+	Pattern       *string  `json:"pattern,omitempty"`
+	GridColor     *string  `json:"gridColor,omitempty"`
+	GridSize      *float64 `json:"gridSize,omitempty"`
+	BgColor       *string  `json:"bgColor,omitempty"`
+	Transparent   *bool    `json:"transparent,omitempty"`
+	BgTransparent *bool    `json:"bgTransparent,omitempty"`
+}
+
+// CanvasUpdateRequest is the payload for "Canvas.Update".
+type CanvasUpdateRequest struct {
+	Canvas *CanvasUpdatePayload `json:"canvas,omitempty"`
+}
+
+func (c *CanvasUpdateRequest) UnmarshalJSON(b []byte) error {
+	type rawCanvasReq struct {
+		Canvas *CanvasUpdatePayload `json:"canvas,omitempty"`
+	}
+	var raw rawCanvasReq
+	if err := json.Unmarshal(b, &raw); err == nil && raw.Canvas != nil {
+		c.Canvas = raw.Canvas
+		return nil
+	}
+	var payload CanvasUpdatePayload
+	if err := json.Unmarshal(b, &payload); err == nil {
+		c.Canvas = &payload
+		return nil
+	}
+	return nil
+}
+
 // CameraUpdatePayload defines typed pointer fields for safe partial updates to a Camera.
 type CameraUpdatePayload struct {
 	Motion        *string  `json:"motion,omitempty"`
@@ -2132,6 +2168,70 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		desc := activeScene.DescribeRipple(*ripple, req.CanvasW, req.CanvasH)
 		return json.Marshal(desc)
 
+	case "Canvas.Get":
+		return json.Marshal(map[string]any{
+			"success": true,
+			"canvas":  activeScene.Canvas(),
+		})
+
+	case "Canvas.Update":
+		var req CanvasUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding CanvasUpdateRequest: %w", err)
+		}
+		cfg := activeScene.Canvas()
+		if req.Canvas != nil {
+			p := req.Canvas
+			if p.Width != nil {
+				if *p.Width <= 0 {
+					return json.Marshal(map[string]any{"success": false, "error": "canvas width must be positive"})
+				}
+				cfg.Width = *p.Width
+			}
+			if p.Height != nil {
+				if *p.Height <= 0 {
+					return json.Marshal(map[string]any{"success": false, "error": "canvas height must be positive"})
+				}
+				cfg.Height = *p.Height
+			}
+			if p.Duration != nil {
+				if *p.Duration <= 0 {
+					return json.Marshal(map[string]any{"success": false, "error": "canvas duration must be positive"})
+				}
+				cfg.Duration = *p.Duration
+			}
+			if p.PlaybackMode != nil {
+				if *p.PlaybackMode != "loop" && *p.PlaybackMode != "pingpong" && *p.PlaybackMode != "once" {
+					return json.Marshal(map[string]any{"success": false, "error": fmt.Sprintf("invalid playback mode: %q", *p.PlaybackMode)})
+				}
+				cfg.PlaybackMode = *p.PlaybackMode
+			}
+			if p.Pattern != nil {
+				cfg.Pattern = *p.Pattern
+			}
+			if p.GridColor != nil {
+				cfg.GridColor = *p.GridColor
+			}
+			if p.GridSize != nil {
+				cfg.GridSize = *p.GridSize
+			}
+			if p.BgColor != nil {
+				cfg.BgColor = *p.BgColor
+			}
+			if p.Transparent != nil {
+				cfg.Transparent = *p.Transparent
+			}
+			if p.BgTransparent != nil {
+				cfg.BgTransparent = *p.BgTransparent
+			}
+		}
+		activeScene.SetCanvas(cfg)
+		return json.Marshal(map[string]any{
+			"success":  true,
+			"canvas":   cfg,
+			"revision": activeScene.Revision(),
+		})
+
 	case "Camera.Get":
 		return json.Marshal(activeScene.GetCamera())
 
@@ -3115,6 +3215,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		var req LayerEffectiveRequest
 		if err := json.Unmarshal(payloadJSON, &req); err != nil {
 			return nil, fmt.Errorf("decoding LayerEffectiveRequest: %w", err)
+		}
+		if req.Type != "node" && req.Type != "flow" && req.Type != "glow" && req.Type != "ripple" && req.Type != "image" && req.Type != "group" {
+			return json.Marshal(LayerEffectiveResponse{Visible: true, Locked: false})
 		}
 		vis := activeScene.GetEffectiveVisibility(req.Type, req.ID)
 		locked := activeScene.GetEffectiveLocked(req.Type, req.ID)

@@ -97,37 +97,8 @@ window.Glows = {
       return null;
     }
 
-    // 2. JavaScript fallback
-    this.counter++;
-    const newGlow = {
-      id: this.counter,
-      shape: initialProps.shape || 'circle',
-      color: initialProps.color || '#ff0044',
-      playback: initialProps.playback || 'pingpong',
-      hideOnDelay: initialProps.hideOnDelay !== undefined ? !!initialProps.hideOnDelay : true,
-      size: initialProps.size !== undefined ? initialProps.size : 25,
-      scale: initialProps.scale !== undefined ? initialProps.scale : 1.0,
-      blur: initialProps.blur !== undefined ? initialProps.blur : 50,
-      dur: initialProps.dur !== undefined ? initialProps.dur : 2.0,
-      delay: initialProps.delay !== undefined ? initialProps.delay : 0.0,
-      endDelay: initialProps.endDelay !== undefined ? initialProps.endDelay : 0.0,
-      opacity: initialProps.opacity !== undefined ? initialProps.opacity : 1.0,
-      thick: initialProps.thick !== undefined ? initialProps.thick : 2,
-      coreR: initialProps.coreR !== undefined ? initialProps.coreR : 5,
-      rings: initialProps.rings !== undefined ? initialProps.rings : 1,
-      x: initialProps.x !== undefined ? initialProps.x : 50,
-      y: initialProps.y !== undefined ? initialProps.y : 50
-    };
-    if (initialProps.customB64) newGlow.customB64 = initialProps.customB64;
-    if (initialProps.customMime) newGlow.customMime = initialProps.customMime;
-    if (initialProps.customW) newGlow.customW = initialProps.customW;
-    if (initialProps.customH) newGlow.customH = initialProps.customH;
-
-    this.list.push(newGlow);
-    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
-      window.LayerManager.addEntry('glow', newGlow.id);
-    }
-    return newGlow;
+    console.error('Glow.Create rejected: Go/WASM engine is unavailable');
+    return null;
   },
 
   updateGlow(id, patch) {
@@ -426,6 +397,10 @@ window.Glows = {
     }
 
     orderedList.forEach((glow) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const eff = window.LayerManager.getEffective('glow', glow.id);
+        if (eff && !eff.visible) return;
+      }
       elements += this.renderGlowElement(glow, width, height);
     });
 

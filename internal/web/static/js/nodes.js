@@ -122,60 +122,8 @@ window.DiagramNodes = {
       return null;
     }
 
-    // Mathematical JavaScript fallback
-    this.counter++;
-    const offset = ((this.counter - 1) % 6) * 6;
-    const newNode = {
-      id: this.counter,
-      shape: initialProps.shape || 'rounded',
-      text: initialProps.text !== undefined ? initialProps.text : ('Node ' + this.counter),
-      subtext: initialProps.subtext !== undefined ? initialProps.subtext : '',
-      x: initialProps.x !== undefined ? initialProps.x : (32 + offset),
-      y: initialProps.y !== undefined ? initialProps.y : (32 + offset),
-      width: initialProps.width || 170,
-      height: initialProps.height || 80,
-      fillColor: initialProps.fillColor || '#161b22',
-      fillOpacity: initialProps.fillOpacity !== undefined ? initialProps.fillOpacity : 0.92,
-      strokeColor: initialProps.strokeColor || '#58a6ff',
-      strokeWidth: initialProps.strokeWidth !== undefined ? initialProps.strokeWidth : 2,
-      strokeStyle: initialProps.strokeStyle || 'solid',
-      textColor: initialProps.textColor || '#e6edf3',
-      fontSize: initialProps.fontSize || 15,
-      anim: initialProps.anim || 'none'
-    };
-
-    if (shouldApplyPreset && window.NodePresets) {
-      window.NodePresets.applyToNodeObject(newNode);
-      const explicitProps = [
-        'shape', 'text', 'subtext', 'x', 'y',
-        'width', 'height', 'fillColor', 'fillOpacity',
-        'strokeColor', 'strokeWidth', 'strokeStyle',
-        'textColor', 'fontSize', 'anim'
-      ];
-      explicitProps.forEach((prop) => {
-        if (initialProps[prop] !== undefined) {
-          newNode[prop] = initialProps[prop];
-        }
-      });
-    }
-
-    if (shouldSnap) {
-      if (window.AppCoordinator && typeof window.AppCoordinator.snapPosition === 'function') {
-        const snapped = window.AppCoordinator.snapPosition(newNode.x, newNode.y);
-        newNode.x = snapped.x;
-        newNode.y = snapped.y;
-      } else if (window.Stage && typeof window.Stage.snapPctToGrid === 'function') {
-        const snapped = window.Stage.snapPctToGrid(newNode.x, newNode.y);
-        newNode.x = snapped.x;
-        newNode.y = snapped.y;
-      }
-    }
-
-    this.list.push(newNode);
-    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
-      window.LayerManager.addEntry('node', newNode.id);
-    }
-    return newNode;
+    console.error('Node.Create rejected: Go/WASM engine is unavailable');
+    return null;
   },
 
   updateNode(id, patch) {
@@ -334,10 +282,10 @@ window.DiagramNodes = {
     if (window.ShapeRegistry && typeof window.ShapeRegistry.get === 'function') {
       const shapeDef = window.ShapeRegistry.get(n.shape);
       if (shapeDef) {
-        if (typeof window.ShapeRegistry.renderShapeSVG === 'function') {
-          shapeSVG = window.ShapeRegistry.renderShapeSVG(shapeDef, eff, w, h, hw, hh, commonStyle, n);
-        } else if (typeof shapeDef.buildSVG === 'function') {
+        if (typeof shapeDef.buildSVG === 'function') {
           shapeSVG = shapeDef.buildSVG(eff, w, h, hw, hh, commonStyle, n);
+        } else if (typeof window.ShapeRegistry.renderShapeSVG === 'function') {
+          shapeSVG = window.ShapeRegistry.renderShapeSVG(shapeDef, eff, w, h, hw, hh, commonStyle, n);
         }
       }
     }
@@ -405,6 +353,10 @@ window.DiagramNodes = {
     }
 
     orderedList.forEach((n) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const eff = window.LayerManager.getEffective('node', n.id);
+        if (eff && !eff.visible) return;
+      }
       elements += this.renderNodeElement(n, canvasW, canvasH);
     });
 

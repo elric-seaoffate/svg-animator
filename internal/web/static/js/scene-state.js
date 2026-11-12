@@ -450,6 +450,10 @@
           if (includeRipples && window.Ripples && Array.isArray(window.Ripples.list)) {
             window.Ripples.list.forEach((r) => {
               if (!rendered.has(`ripple:${r.id}`)) {
+                if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+                  const eff = window.LayerManager.getEffective('ripple', r.id);
+                  if (eff && !eff.visible) return;
+                }
                 elements += window.Ripples.renderRippleElement(r, state) + '\n';
               }
             });
@@ -457,6 +461,10 @@
           if (includeGlows && window.Glows && Array.isArray(window.Glows.list)) {
             window.Glows.list.forEach((g) => {
               if (!rendered.has(`glow:${g.id}`)) {
+                if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+                  const eff = window.LayerManager.getEffective('glow', g.id);
+                  if (eff && !eff.visible) return;
+                }
                 elements += window.Glows.renderGlowElement(g, canvasW, canvasH) + '\n';
               }
             });
@@ -464,6 +472,10 @@
           if (includeFlows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
             window.DataFlows.list.forEach((f) => {
               if (!rendered.has(`flow:${f.id}`)) {
+                if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+                  const eff = window.LayerManager.getEffective('flow', f.id);
+                  if (eff && !eff.visible) return;
+                }
                 elements += window.DataFlows.renderFlowElement(f, canvasW, canvasH) + '\n';
               }
             });
@@ -471,6 +483,10 @@
           if (includeImages && window.ImageObjects && Array.isArray(window.ImageObjects.list)) {
             window.ImageObjects.list.forEach((img) => {
               if (!rendered.has(`image:${img.id}`)) {
+                if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+                  const eff = window.LayerManager.getEffective('image', img.id);
+                  if (eff && !eff.visible) return;
+                }
                 elements += window.ImageObjects.renderImageElement(img, canvasW, canvasH) + '\n';
               }
             });
@@ -478,6 +494,10 @@
           if (includeNodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
             window.DiagramNodes.list.forEach((n) => {
               if (!rendered.has(`node:${n.id}`)) {
+                if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+                  const eff = window.LayerManager.getEffective('node', n.id);
+                  if (eff && !eff.visible) return;
+                }
                 elements += window.DiagramNodes.renderNodeElement(n, canvasW, canvasH) + '\n';
               }
             });
@@ -498,13 +518,45 @@
       return svgString;
     },
 
+    commitCanvasStateToGo(canvasPatch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.updateCanvas === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.updateCanvas(canvasPatch);
+        return res;
+      }
+      return null;
+    },
+
+    commitCameraStateToGo(cameraPatch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.updateCamera === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.updateCamera(cameraPatch);
+        return res;
+      }
+      return null;
+    },
+
+    commitOpticsStateToGo(opticsPatch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.updateOptics === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.updateOptics(opticsPatch);
+        return res;
+      }
+      return null;
+    },
+
+    commitFrameStateToGo(framePatch = {}) {
+      if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.updateFrame === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.updateFrame(framePatch);
+        return res;
+      }
+      return null;
+    },
+
     getDefaultControls() {
       return {
         canvasPatternSelect: 'blueprint',
         canvasPresetSelect: 'custom',
         canvasWidthInput: 1280,
         canvasHeightInput: 720,
-        photoFitSelect: 'contain',
+        photoFitSelect: 'match',
         photoCropZoomSlider: 1,
         photoCropZoomNum: 1,
         photoCropXSlider: 0,

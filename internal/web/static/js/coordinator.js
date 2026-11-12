@@ -131,7 +131,7 @@
         const normalizedType = (id !== null && id !== undefined) ? type : null;
         const normalizedId = (id !== null && id !== undefined) ? id : null;
 
-        if (normalizedType && normalizedId !== null && options.source !== 'layers_list' && window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        if (normalizedType && normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image', 'group'].includes(normalizedType) && options.source !== 'layers_list' && window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
           const eff = window.LayerManager.getEffective(normalizedType, normalizedId);
           if (eff && (eff.locked || !eff.visible)) {
             return false;

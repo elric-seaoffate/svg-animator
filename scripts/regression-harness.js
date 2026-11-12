@@ -132,6 +132,17 @@ async function runHarness() {
 
   loadProductionScript('wasm_exec.js');
   loadProductionScript('engine-bridge.js');
+
+  // Instantiate Go WebAssembly engine at startup so Go authority is active throughout harness
+  const earlyWasmPath = path.join(__dirname, '..', 'internal', 'web', 'static', 'wasm', 'engine.wasm');
+  const earlyWasmBuffer = fs.readFileSync(earlyWasmPath);
+  const earlyGoWasm = new window.Go();
+  const earlyWasmModule = await WebAssembly.instantiate(earlyWasmBuffer, earlyGoWasm.importObject);
+  earlyGoWasm.run(earlyWasmModule.instance).catch(() => {});
+  window.EngineBridge._bridge = window.__svgAnimatorWasmBridge;
+  window.EngineBridge.status = 'ready';
+  window.EngineBridge._sceneSynced = true;
+
   loadProductionScript('stage.js');
   loadProductionScript('shape-registry.js');
   loadProductionScript('presets.js');
@@ -8861,6 +8872,101 @@ async function runHarness() {
   assert.strictEqual(revAfterRender, revBeforeRestore, 'Test 6: triggerRender must NOT advance scene revision or sync scene');
 
   console.log('[HARNESS] Scenario 71 PASS: Batch 8B Authority Remediation, Strict Contracts & Atomic Operations verified.');
+
+  // ===========================================================================
+  // Scenario 72: Batch 8C Go Authority, Shadow Engine Removal & Timeline Math
+  // ===========================================================================
+  console.log('\n[HARNESS] Testing Scenario 72: Batch 8C Go Authority, Shadow Engine Removal & Timeline Math...');
+
+  // Test 1: A8A-002 Go Timeline Authority & no fallback to JS math on error
+  console.log('[HARNESS] Scenario 72 Test 1: A8A-002 Go Timeline Authority...');
+  assert.strictEqual(window.EngineBridge.isReady(), true, 'WASM engine must be ready');
+  const tEval = window.EngineBridge.evaluateSceneAtTime(1.5);
+  assert.ok(tEval, 'Test 1: evaluateSceneAtTime must return evaluation result');
+  // Temporarily stub dispatch to simulate a Go dispatch failure while status is 'ready'
+  const origDispatch = window.EngineBridge.dispatch;
+  window.EngineBridge.dispatch = function(cmd, payload) {
+    if (cmd === 'Timeline.EvaluateSceneAtTime') {
+      return { success: false, error: 'simulated Go timeline error' };
+    }
+    return origDispatch.call(this, cmd, payload);
+  };
+  const failedEval = window.EngineBridge.evaluateSceneAtTime(1.5);
+  assert.strictEqual(failedEval.success, false, 'Test 1: evaluateSceneAtTime must report failure when Go errors');
+  assert.strictEqual(failedEval.error, 'simulated Go timeline error', 'Test 1: Error message must be preserved');
+  assert.strictEqual(failedEval.camera, undefined, 'Test 1: Must NOT return fallback JS camera calculation');
+  window.EngineBridge.dispatch = origDispatch;
+
+  // Test 2: A8A-003 Persistent JS Fallback Engine Elimination
+  console.log('[HARNESS] Scenario 72 Test 2: A8A-003 Elimination of Persistent JS Fallbacks...');
+  window.EngineBridge.status = 'fallback';
+  assert.strictEqual(window.EngineBridge.isReady(), false, 'Engine bridge set to fallback');
+  const noWasmNode = window.DiagramNodes.createNode({ text: 'NoWasmNode' });
+  assert.strictEqual(noWasmNode, null, 'Test 2: createNode must return null when Go is unavailable');
+  const noWasmFlow = window.DataFlows.createFlow({ label: 'NoWasmFlow' });
+  assert.strictEqual(noWasmFlow, null, 'Test 2: createFlow must return null when Go is unavailable');
+  const noWasmGlow = window.Glows.createGlow({ color: '#ff0000' });
+  assert.strictEqual(noWasmGlow, null, 'Test 2: createGlow must return null when Go is unavailable');
+  const noWasmRipple = window.Ripples.createRipple({ radius: 50 });
+  assert.strictEqual(noWasmRipple, null, 'Test 2: createRipple must return null when Go is unavailable');
+  const noWasmImg = window.ImageObjects.createImage({ name: 'NoWasmImg', data: 'data:img' });
+  assert.strictEqual(noWasmImg, null, 'Test 2: createImage must return null when Go is unavailable');
+  const noWasmGroup = window.ObjectGroups.createGroup('NoWasmGroup', [{ type: 'node', id: '1' }]);
+  assert.ok(!noWasmGroup || noWasmGroup.success === false, 'Test 2: createGroup must reject when Go is unavailable');
+  window.EngineBridge.status = 'ready';
+
+  // Test 3: A8A-006 Canvas, Camera, Optics, Frame Go Authority
+  console.log('[HARNESS] Scenario 72 Test 3: A8A-006 Canvas, Camera, Optics, Frame Go Authority...');
+  const canvasRes = window.EngineBridge.updateCanvas({ width: 1440, height: 960 });
+  assert.ok(canvasRes, 'Test 3: updateCanvas must succeed');
+  const canvasGot = window.EngineBridge.getCanvas();
+  assert.strictEqual(canvasGot.width, 1440, 'Test 3: Canvas width updated in Go');
+  assert.strictEqual(canvasGot.height, 960, 'Test 3: Canvas height updated in Go');
+
+  const camRes = window.EngineBridge.updateCamera({ enabled: true, zoom: 1.25 });
+  assert.ok(camRes, 'Test 3: updateCamera must succeed');
+  const optRes = window.EngineBridge.updateOptics({ vignette: true, blur: 1.5 });
+  assert.ok(optRes, 'Test 3: updateOptics must succeed');
+  const frmRes = window.EngineBridge.updateFrame({ enabled: true, borderWidth: 8 });
+  assert.ok(frmRes, 'Test 3: updateFrame must succeed');
+
+  // Test 4: A8A-007 Layer visibility in SVG rendering
+  console.log('[HARNESS] Scenario 72 Test 4: A8A-007 Layer visibility in SVG rendering...');
+  const s72Node = window.DiagramNodes.createNode({ text: 'HiddenUnlayeredNode', x: 200, y: 200 });
+  assert.ok(s72Node, 'Test 4: Node created in Go');
+  window.LayerManager.setVisibility('node', s72Node.id, false);
+  const s72FullSvg = window.buildFullSVG();
+  assert.ok(!s72FullSvg.includes('HiddenUnlayeredNode'), 'Test 4: Hidden node text must NOT appear in generated SVG');
+  window.LayerManager.setVisibility('node', s72Node.id, true);
+
+  // Test 5: A8A-008 Reconciled photo-fit default
+  console.log('[HARNESS] Scenario 72 Test 5: A8A-008 Canonical photoFitSelect default...');
+  const defaults = window.SceneState.getDefaultControls();
+  assert.strictEqual(defaults.photoFitSelect, 'match', 'Test 5: photoFitSelect default must be match');
+  const photoFitEl = window.document.getElementById('photoFitSelect');
+  if (photoFitEl) {
+    assert.strictEqual(photoFitEl.value, 'match', 'Test 5: DOM photoFitSelect value must be match');
+  }
+
+  // Test 6: A8A-011 Layer reorder Go Authority
+  console.log('[HARNESS] Scenario 72 Test 6: A8A-011 Layer reorder Go Authority...');
+  window.EngineBridge.status = 'fallback';
+  const reorderRes = window.LayerManager.bringToFront('node', s72Node.id);
+  assert.strictEqual(reorderRes.success, false, 'Test 6: bringToFront must fail when Go is unavailable');
+  assert.strictEqual(reorderRes.error, 'Go/WASM engine is unavailable');
+  const sendBackRes = window.LayerManager.sendToBack('node', s72Node.id);
+  assert.strictEqual(sendBackRes.success, false, 'Test 6: sendToBack must fail when Go is unavailable');
+  window.EngineBridge.status = 'ready';
+
+  // Test 7: A8A-012 Go-Owned ID allocation
+  console.log('[HARNESS] Scenario 72 Test 7: A8A-012 Go-Owned ID allocation...');
+  const idNode = window.DiagramNodes.createNode({ text: 'GoAllocatedNode' });
+  assert.ok(idNode && idNode.id !== undefined && idNode.id !== null, 'Test 7: Go must allocate valid node ID');
+  const goNodeRes = window.EngineBridge.dispatch('Node.Get', { id: String(idNode.id) });
+  assert.ok(goNodeRes && goNodeRes.id, 'Test 7: Go engine must have node registered with allocated ID');
+  assert.strictEqual(String(goNodeRes.id), String(idNode.id), 'Test 7: JS node ID must exactly match Go node ID');
+
+  console.log('[HARNESS] Scenario 72 PASS: Batch 8C Go Authority, Shadow Engine Removal & Timeline Math verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }

@@ -733,6 +733,83 @@ func TestDispatchRippleLifecycleAndOperations(t *testing.T) {
 	}
 }
 
+func TestDispatchCanvasCommands(t *testing.T) {
+	// 1. Canvas.Get initial
+	getBytes, err := Dispatch("Canvas.Get", nil)
+	if err != nil {
+		t.Fatalf("Canvas.Get failed: %v", err)
+	}
+	var getRes struct {
+		Success bool               `json:"success"`
+		Canvas  scene.CanvasConfig `json:"canvas"`
+	}
+	if err := json.Unmarshal(getBytes, &getRes); err != nil || !getRes.Success {
+		t.Fatalf("unmarshal Canvas.Get failed: %v", err)
+	}
+	if getRes.Canvas.Width <= 0 || getRes.Canvas.Height <= 0 {
+		t.Fatalf("invalid initial canvas: %+v", getRes.Canvas)
+	}
+
+	// 2. Canvas.Update partial
+	w := 1920.0
+	h := 1080.0
+	dur := 8.5
+	loop := "pingpong"
+	pat := "photo"
+	bgTrans := false
+	upReq, _ := json.Marshal(CanvasUpdateRequest{
+		Canvas: &CanvasUpdatePayload{
+			Width:         &w,
+			Height:        &h,
+			Duration:      &dur,
+			PlaybackMode:  &loop,
+			Pattern:       &pat,
+			BgTransparent: &bgTrans,
+		},
+	})
+	upBytes, err := Dispatch("Canvas.Update", upReq)
+	if err != nil {
+		t.Fatalf("Canvas.Update failed: %v", err)
+	}
+	var upRes struct {
+		Success  bool               `json:"success"`
+		Canvas   scene.CanvasConfig `json:"canvas"`
+		Revision int64              `json:"revision"`
+	}
+	if err := json.Unmarshal(upBytes, &upRes); err != nil || !upRes.Success {
+		t.Fatalf("unmarshal Canvas.Update failed: %v", err)
+	}
+	if upRes.Canvas.Width != 1920 || upRes.Canvas.Height != 1080 || upRes.Canvas.Duration != 8.5 || upRes.Canvas.PlaybackMode != "pingpong" {
+		t.Fatalf("Canvas.Update fields mismatch: %+v", upRes.Canvas)
+	}
+
+	// 3. Canvas.Update invalid dimensions rejected
+	badW := -100.0
+	badReq, _ := json.Marshal(CanvasUpdateRequest{
+		Canvas: &CanvasUpdatePayload{Width: &badW},
+	})
+	badBytes, _ := Dispatch("Canvas.Update", badReq)
+	var badRes struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	_ = json.Unmarshal(badBytes, &badRes)
+	if badRes.Success {
+		t.Fatalf("expected Canvas.Update to reject negative width")
+	}
+
+	// 4. Canvas.Update invalid loop mode rejected
+	badLoop := "infinite-chaos"
+	badReq2, _ := json.Marshal(CanvasUpdateRequest{
+		Canvas: &CanvasUpdatePayload{PlaybackMode: &badLoop},
+	})
+	badBytes2, _ := Dispatch("Canvas.Update", badReq2)
+	_ = json.Unmarshal(badBytes2, &badRes)
+	if badRes.Success {
+		t.Fatalf("expected Canvas.Update to reject invalid loop mode")
+	}
+}
+
 func TestDispatchCameraCommands(t *testing.T) {
 	// 1. Camera.Get initial
 	getBytes, err := Dispatch("Camera.Get", nil)

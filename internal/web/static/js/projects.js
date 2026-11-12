@@ -335,7 +335,7 @@ window.ProjectManager = {
 
     if (window.LayerManager) {
       if (typeof window.LayerManager.setLayers === 'function') {
-        window.LayerManager.setLayers(data.layers || []);
+        window.LayerManager.setLayers(data.layers || [], { skipBridge: true });
       } else {
         window.LayerManager.list = data.layers || [];
       }
@@ -792,7 +792,7 @@ window.ProjectManager = {
       else { window.ImageObjects.list = []; window.ImageObjects.counter = 0; }
     }
     if (window.LayerManager) {
-      if (typeof window.LayerManager.setLayers === 'function') window.LayerManager.setLayers([]);
+      if (typeof window.LayerManager.setLayers === 'function') window.LayerManager.setLayers([], { skipBridge: true });
       else { window.LayerManager.list = []; }
     }
     if (window.NodePresets) {

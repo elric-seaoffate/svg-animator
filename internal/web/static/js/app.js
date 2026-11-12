@@ -6781,12 +6781,53 @@ document.addEventListener('DOMContentLoaded', () => {
     '1056x1632': { name: 'Tabloid Portrait',    dpi300: '3300 × 5100 px' }
   };
 
+  function commitCurrentSceneConfigToGo() {
+    if (!window.EngineBridge || typeof window.EngineBridge.isReady !== 'function' || !window.EngineBridge.isReady()) return;
+    if (window.SceneState && typeof window.SceneState.buildRenderState === 'function') {
+      const renderState = window.SceneState.buildRenderState();
+      if (!renderState) return;
+
+      // 1. Canvas
+      if (renderState.image && typeof window.EngineBridge.updateCanvas === 'function') {
+        const c = renderState.image;
+        window.EngineBridge.updateCanvas({
+          width: c.width,
+          height: c.height,
+          duration: renderState.duration,
+          loop: renderState.loop,
+          pattern: c.pattern,
+          gridColor: c.gridColor,
+          gridSize: c.gridSize,
+          bgColor: renderState.camera ? renderState.camera.bgColor : undefined,
+          bgTransparent: renderState.camera ? renderState.camera.bgTransparent : undefined
+        });
+      }
+
+      // 2. Camera
+      if (renderState.camera && typeof window.EngineBridge.updateCamera === 'function') {
+        window.EngineBridge.updateCamera(renderState.camera);
+      }
+
+      // 3. Optics
+      if (renderState.optical && typeof window.EngineBridge.updateOptics === 'function') {
+        window.EngineBridge.updateOptics(renderState.optical);
+      }
+
+      // 4. Frame
+      if (renderState.overlays && typeof window.EngineBridge.updateFrame === 'function') {
+        window.EngineBridge.updateFrame(renderState.overlays);
+      }
+    }
+  }
+
   function recordImmediate() {
+    commitCurrentSceneConfigToGo();
     if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
     else if (window.HistoryManager) window.HistoryManager.recordImmediate();
   }
 
   function recordDebounced() {
+    commitCurrentSceneConfigToGo();
     if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
     else if (window.HistoryManager) window.HistoryManager.recordDebounced();
   }

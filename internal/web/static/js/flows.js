@@ -122,44 +122,8 @@ window.DataFlows = {
       return null;
     }
 
-    // 2. JavaScript fallback
-    this.counter++;
-    const defaultNodes = Array.isArray(initialProps.nodes) && initialProps.nodes.length >= 2
-      ? JSON.parse(JSON.stringify(initialProps.nodes))
-      : [{ x: 25, y: 50 }, { x: 75, y: 50 }];
-
-    const newFlow = {
-      id: this.counter,
-      nodes: defaultNodes,
-      type: initialProps.type || 'orb',
-      route: initialProps.route || 'curve',
-      lineStyle: initialProps.lineStyle || 'dashed',
-      arrow: initialProps.arrow || 'none',
-      lineWidth: initialProps.lineWidth !== undefined ? initialProps.lineWidth : 2.5,
-      label: initialProps.label !== undefined ? initialProps.label : '',
-      color: initialProps.color || '#00ffcc',
-      showLine: initialProps.showLine !== undefined ? !!initialProps.showLine : true,
-      curvature: initialProps.curvature !== undefined ? initialProps.curvature : 0,
-      opacity: initialProps.opacity !== undefined ? initialProps.opacity : 1.0,
-      glow: initialProps.glow !== undefined ? initialProps.glow : 20,
-      scale: initialProps.scale !== undefined ? initialProps.scale : 1.0,
-      speed: initialProps.speed !== undefined ? initialProps.speed : 2.0,
-      delay: initialProps.delay !== undefined ? initialProps.delay : 0.0,
-      endDelay: initialProps.endDelay !== undefined ? initialProps.endDelay : 0.0,
-      hideOnDelay: initialProps.hideOnDelay !== undefined ? !!initialProps.hideOnDelay : true,
-      customB64: initialProps.customB64 || null,
-      customMime: initialProps.customMime || null
-    };
-    if (initialProps.customW) newFlow.customW = initialProps.customW;
-    if (initialProps.customH) newFlow.customH = initialProps.customH;
-    if (initialProps.fromNodeId !== undefined) newFlow.fromNodeId = initialProps.fromNodeId;
-    if (initialProps.toNodeId !== undefined) newFlow.toNodeId = initialProps.toNodeId;
-
-    this.list.push(newFlow);
-    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
-      window.LayerManager.addEntry('flow', newFlow.id);
-    }
-    return newFlow;
+    console.error('Flow.Create rejected: Go/WASM engine is unavailable');
+    return null;
   },
 
   updateFlow(id, patch) {
@@ -575,6 +539,10 @@ window.DataFlows = {
     }
 
     orderedList.forEach((f) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const eff = window.LayerManager.getEffective('flow', f.id);
+        if (eff && !eff.visible) return;
+      }
       elements += this.renderFlowElement(f, width, height);
     });
 

@@ -402,7 +402,7 @@ window.HistoryManager = {
 
       if (window.LayerManager) {
         if (typeof window.LayerManager.setLayers === 'function') {
-          window.LayerManager.setLayers(data.layers || []);
+          window.LayerManager.setLayers(data.layers || [], { skipBridge: true });
         } else {
           window.LayerManager.list = data.layers || [];
         }

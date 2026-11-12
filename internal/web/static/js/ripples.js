@@ -88,28 +88,8 @@ window.Ripples = {
       return null;
     }
 
-    // 2. JavaScript fallback
-    this.counter++;
-    const newRipple = {
-      id: this.counter,
-      color: initialProps.color || '#ffffff',
-      opacity: initialProps.opacity !== undefined ? initialProps.opacity : 0.4,
-      innerR: initialProps.innerR !== undefined ? initialProps.innerR : 0,
-      outerR: initialProps.outerR !== undefined ? initialProps.outerR : 150,
-      rings: initialProps.rings !== undefined ? initialProps.rings : 3,
-      thick: initialProps.thick !== undefined ? initialProps.thick : 8,
-      refraction: initialProps.refraction !== undefined ? initialProps.refraction : 35,
-      dur: initialProps.dur !== undefined ? initialProps.dur : 3.0,
-      delay: initialProps.delay !== undefined ? initialProps.delay : 0.0,
-      endDelay: initialProps.endDelay !== undefined ? initialProps.endDelay : 1.0,
-      x: initialProps.x !== undefined ? initialProps.x : 50,
-      y: initialProps.y !== undefined ? initialProps.y : 50
-    };
-    this.list.push(newRipple);
-    if (typeof window !== 'undefined' && window.LayerManager && typeof window.LayerManager.addEntry === 'function') {
-      window.LayerManager.addEntry('ripple', newRipple.id);
-    }
-    return newRipple;
+    console.error('Ripple.Create rejected: Go/WASM engine is unavailable');
+    return null;
   },
 
   updateRipple(id, patch) {
@@ -354,6 +334,10 @@ window.Ripples = {
     }
 
     orderedList.forEach((rp) => {
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const eff = window.LayerManager.getEffective('ripple', rp.id);
+        if (eff && !eff.visible) return;
+      }
       elements += this.renderRippleElement(rp, state);
     });
 
