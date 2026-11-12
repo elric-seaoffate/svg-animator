@@ -224,10 +224,16 @@ window.ProjectManager = {
       window.ControlStateAdaptor.syncToDOM(window.SceneState.getDefaultControls());
     }
 
-    if (typeof window.setLoadedPhoto === 'function') {
-      window.setLoadedPhoto(data.loadedPhoto || null);
+    if (typeof window.hydrateLoadedPhoto === 'function') {
+      window.hydrateLoadedPhoto(data.loadedPhoto || null);
+    } else if (typeof window.setLoadedPhoto === 'function') {
+      window.setLoadedPhoto(data.loadedPhoto || null, { hydrateOnly: true });
     } else if (window.SceneState) {
-      window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
+      if (typeof window.SceneState.hydrateLoadedPhoto === 'function') {
+        window.SceneState.hydrateLoadedPhoto(data.loadedPhoto || null);
+      } else {
+        window.SceneState.setLoadedPhoto(data.loadedPhoto || null, { hydrateOnly: true });
+      }
     }
 
     if (data.loadedPhoto) {
@@ -336,7 +342,19 @@ window.ProjectManager = {
     }
 
     if (window.EngineBridge && typeof window.EngineBridge.syncScene === 'function' && window.EngineBridge.isReady()) {
-      window.EngineBridge.syncScene();
+      const projectSnapshot = {
+        nodes: Array.isArray(data.nodes) ? data.nodes : [],
+        flows: Array.isArray(data.flows) ? data.flows : [],
+        glows: Array.isArray(data.glows) ? data.glows : [],
+        ripples: Array.isArray(data.ripples) ? data.ripples : [],
+        groups: Array.isArray(data.groups) ? data.groups : [],
+        groupsCounter: Number(data.groupsCounter) || 0,
+        images: Array.isArray(data.images) ? data.images : [],
+        imagesCounter: Number(data.imagesCounter) || 0,
+        layers: Array.isArray(data.layers) ? data.layers : [],
+        background: data.loadedPhoto || null
+      };
+      window.EngineBridge.syncScene(projectSnapshot);
     }
 
     if (window.HistoryManager) {
@@ -731,10 +749,16 @@ window.ProjectManager = {
     }
 
     // 2. Reset loaded background photo
-    if (typeof window.setLoadedPhoto === 'function') {
-      window.setLoadedPhoto(null);
+    if (typeof window.hydrateLoadedPhoto === 'function') {
+      window.hydrateLoadedPhoto(null);
+    } else if (typeof window.setLoadedPhoto === 'function') {
+      window.setLoadedPhoto(null, { hydrateOnly: true });
     } else if (window.SceneState) {
-      window.SceneState.setLoadedPhoto(null);
+      if (typeof window.SceneState.hydrateLoadedPhoto === 'function') {
+        window.SceneState.hydrateLoadedPhoto(null);
+      } else {
+        window.SceneState.setLoadedPhoto(null, { hydrateOnly: true });
+      }
     }
 
     // 3. Reset all 95 tracked controls to defaults

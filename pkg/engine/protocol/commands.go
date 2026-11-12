@@ -902,6 +902,25 @@ type ImageResetClipResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// ImageBakeRequest payload for "Image.Bake".
+type ImageBakeRequest struct {
+	ImageID      scene.StringID `json:"imageId"`
+	Mode         string         `json:"mode"`
+	BakedData    string         `json:"bakedData"`
+	CanvasWidth  float64        `json:"canvasWidth"`
+	CanvasHeight float64        `json:"canvasHeight"`
+}
+
+// ImageBakeResponse response for "Image.Bake".
+type ImageBakeResponse struct {
+	Success      bool                    `json:"success"`
+	Error        string                  `json:"error,omitempty"`
+	Background   *scene.BackgroundConfig `json:"background,omitempty"`
+	Image        *scene.Image            `json:"image,omitempty"`
+	DeletedImage bool                    `json:"deletedImage"`
+	Revision     int64                   `json:"revision,omitempty"`
+}
+
 // BackgroundCropRequest payload for "Background.CropCreate", "Background.CropUpdate", "Background.Crop".
 type BackgroundCropRequest struct {
 	Name string               `json:"name,omitempty"`
@@ -2993,6 +3012,23 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			return json.Marshal(ImageResetClipResponse{Success: false, Error: err.Error()})
 		}
 		return json.Marshal(ImageResetClipResponse{Success: true, Image: img})
+
+	case "Image.Bake":
+		var req ImageBakeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ImageBakeRequest: %w", err)
+		}
+		res, err := activeScene.BakeImage(req.ImageID, req.Mode, req.BakedData, req.CanvasWidth, req.CanvasHeight)
+		if err != nil {
+			return json.Marshal(ImageBakeResponse{Success: false, Error: err.Error()})
+		}
+		return json.Marshal(ImageBakeResponse{
+			Success:      true,
+			Background:   res.Background,
+			Image:        res.Image,
+			DeletedImage: res.DeletedImage,
+			Revision:     res.Revision,
+		})
 
 	case "Layer.Get":
 		layers := activeScene.GetLayers()

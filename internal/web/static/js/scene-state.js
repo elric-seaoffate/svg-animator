@@ -134,7 +134,15 @@
       return this.loadedPhoto;
     },
 
-    setLoadedPhoto(photoObj) {
+    hydrateLoadedPhoto(photoObj) {
+      this.loadedPhoto = photoObj || null;
+      return this.loadedPhoto;
+    },
+
+    setLoadedPhoto(photoObj, options = {}) {
+      if (options && (options.hydrateOnly || options.skipBridge)) {
+        return this.hydrateLoadedPhoto(photoObj);
+      }
       this.loadedPhoto = photoObj || null;
       if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
         const p = this.loadedPhoto;

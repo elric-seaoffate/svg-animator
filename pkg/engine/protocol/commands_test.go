@@ -3080,3 +3080,88 @@ func TestBackgroundCropCommitProtocol(t *testing.T) {
 		t.Errorf("expected Crop nil after commit, got %+v", succRes.Background.Crop)
 	}
 }
+
+func TestDispatchImageBakeProtocol(t *testing.T) {
+	// 1. Non-existent image bake
+	failReq := []byte(`{"imageId": "img-none", "mode": "remove", "bakedData": "data:image/png;base64,DATA"}`)
+	respBytes, err := Dispatch("Image.Bake", failReq)
+	if err != nil {
+		t.Fatalf("Image.Bake dispatch failed: %v", err)
+	}
+	var failRes ImageBakeResponse
+	_ = json.Unmarshal(respBytes, &failRes)
+	if failRes.Success {
+		t.Errorf("expected failure for non-existent image, got success")
+	}
+
+	// 2. Create image
+	createReq := []byte(`{"src": "data:image/png;base64,TEST", "width": 200, "height": 150}`)
+	createResp, err := Dispatch("Image.Create", createReq)
+	if err != nil {
+		t.Fatalf("Image.Create failed: %v", err)
+	}
+	var createRes ImageCreateResponse
+	_ = json.Unmarshal(createResp, &createRes)
+	if !createRes.Success {
+		t.Fatalf("Image.Create failed: %s", createRes.Error)
+	}
+	imgID := createRes.Image.ID
+
+	// 3. Bake and keep
+	keepReq, _ := json.Marshal(ImageBakeRequest{
+		ImageID:      imgID,
+		Mode:         "keep",
+		BakedData:    "data:image/png;base64,BAKED_KEEP",
+		CanvasWidth:  1280,
+		CanvasHeight: 720,
+	})
+	keepResp, err := Dispatch("Image.Bake", keepReq)
+	if err != nil {
+		t.Fatalf("Image.Bake keep failed: %v", err)
+	}
+	var keepRes ImageBakeResponse
+	_ = json.Unmarshal(keepResp, &keepRes)
+	if !keepRes.Success {
+		t.Fatalf("Image.Bake keep returned error: %s", keepRes.Error)
+	}
+	if keepRes.DeletedImage {
+		t.Errorf("expected DeletedImage false, got true")
+	}
+	if keepRes.Background == nil || keepRes.Background.Src != "data:image/png;base64,BAKED_KEEP" {
+		t.Errorf("unexpected background after bake keep: %+v", keepRes.Background)
+	}
+
+	// 4. Create another image for Bake and Remove
+	createReq2 := []byte(`{"src": "data:image/png;base64,TEST2", "width": 300, "height": 200}`)
+	createResp2, err := Dispatch("Image.Create", createReq2)
+	if err != nil {
+		t.Fatalf("Image.Create 2 failed: %v", err)
+	}
+	var createRes2 ImageCreateResponse
+	_ = json.Unmarshal(createResp2, &createRes2)
+	imgID2 := createRes2.Image.ID
+
+	// 5. Bake and remove
+	removeReq, _ := json.Marshal(ImageBakeRequest{
+		ImageID:      imgID2,
+		Mode:         "remove",
+		BakedData:    "data:image/png;base64,BAKED_REMOVE",
+		CanvasWidth:  1920,
+		CanvasHeight: 1080,
+	})
+	removeResp, err := Dispatch("Image.Bake", removeReq)
+	if err != nil {
+		t.Fatalf("Image.Bake remove failed: %v", err)
+	}
+	var removeRes ImageBakeResponse
+	_ = json.Unmarshal(removeResp, &removeRes)
+	if !removeRes.Success {
+		t.Fatalf("Image.Bake remove returned error: %s", removeRes.Error)
+	}
+	if !removeRes.DeletedImage {
+		t.Errorf("expected DeletedImage true, got false")
+	}
+	if removeRes.Background == nil || removeRes.Background.Src != "data:image/png;base64,BAKED_REMOVE" {
+		t.Errorf("unexpected background after bake remove: %+v", removeRes.Background)
+	}
+}

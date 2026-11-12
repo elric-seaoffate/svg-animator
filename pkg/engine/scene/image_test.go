@@ -347,3 +347,103 @@ func TestCropVersionsLifecycleAndCommit(t *testing.T) {
 		t.Errorf("expected only 1 'original' version after discard, got %+v", committedDiscard.CropVersions)
 	}
 }
+
+func TestBakeImageAtomic(t *testing.T) {
+	sc := NewScene()
+
+	// 1. Rejection on non-existent image
+	if _, err := sc.BakeImage("non-existent", "remove", "data:image/png;base64,AAA", 1280, 720); err == nil {
+		t.Fatal("expected error baking non-existent image, got nil")
+	}
+
+	// Create test image
+	img1, err := sc.CreateImage(Image{
+		Src:    "data:image/png;base64,IMG1",
+		Width:  200,
+		Height: 150,
+	})
+	if err != nil {
+		t.Fatalf("CreateImage failed: %v", err)
+	}
+
+	// 2. Rejection on empty raster data
+	revBefore := sc.Revision()
+	if _, err := sc.BakeImage(img1.ID, "remove", "", 1280, 720); err == nil {
+		t.Fatal("expected error with empty baked data, got nil")
+	}
+	if sc.Revision() != revBefore {
+		t.Errorf("revision changed after rejected bake: before %d, after %d", revBefore, sc.Revision())
+	}
+	if sc.GetBackground() != nil {
+		t.Error("background set after rejected bake")
+	}
+
+	// 3. Rejection on locked image
+	_ = sc.SetObjectLocked(SelectionImage, img1.ID, true)
+	if _, err := sc.BakeImage(img1.ID, "remove", "data:image/png;base64,LOCKED", 1280, 720); err == nil {
+		t.Fatal("expected error baking locked image, got nil")
+	}
+	if sc.GetBackground() != nil {
+		t.Error("background set after locked bake attempt")
+	}
+	_ = sc.SetObjectLocked(SelectionImage, img1.ID, false)
+
+	// 4. Rejection on hidden image
+	_ = sc.SetObjectVisibility(SelectionImage, img1.ID, false)
+	if _, err := sc.BakeImage(img1.ID, "remove", "data:image/png;base64,HIDDEN", 1280, 720); err == nil {
+		t.Fatal("expected error baking hidden image, got nil")
+	}
+	if sc.GetBackground() != nil {
+		t.Error("background set after hidden bake attempt")
+	}
+	_ = sc.SetObjectVisibility(SelectionImage, img1.ID, true)
+
+	// 5. Successful Bake and Keep
+	resKeep, err := sc.BakeImage(img1.ID, "keep", "data:image/png;base64,BAKED_KEEP", 1280, 720)
+	if err != nil {
+		t.Fatalf("BakeImage keep failed: %v", err)
+	}
+	if resKeep.DeletedImage {
+		t.Error("expected DeletedImage to be false in keep mode")
+	}
+	if resKeep.Background == nil || resKeep.Background.Src != "data:image/png;base64,BAKED_KEEP" {
+		t.Fatalf("unexpected background after bake keep: %+v", resKeep.Background)
+	}
+	// Image should still exist, but be hidden
+	imgAfterKeep, exists := sc.GetImage(img1.ID)
+	if !exists {
+		t.Fatal("image was deleted in keep mode")
+	}
+	if imgAfterKeep.IsVisible() {
+		t.Error("image should be hidden after bake keep")
+	}
+
+	// Create second image for Bake and Remove
+	img2, err := sc.CreateImage(Image{
+		Src:    "data:image/png;base64,IMG2",
+		Width:  300,
+		Height: 200,
+	})
+	if err != nil {
+		t.Fatalf("CreateImage 2 failed: %v", err)
+	}
+
+	// 6. Successful Bake and Remove
+	resRemove, err := sc.BakeImage(img2.ID, "remove", "data:image/png;base64,BAKED_REMOVE", 1920, 1080)
+	if err != nil {
+		t.Fatalf("BakeImage remove failed: %v", err)
+	}
+	if !resRemove.DeletedImage {
+		t.Error("expected DeletedImage to be true in remove mode")
+	}
+	if resRemove.Background == nil || resRemove.Background.Src != "data:image/png;base64,BAKED_REMOVE" {
+		t.Fatalf("unexpected background after bake remove: %+v", resRemove.Background)
+	}
+	if resRemove.Background.NaturalWidth != 1920 || resRemove.Background.NaturalHeight != 1080 {
+		t.Errorf("unexpected canvas dimensions: %f x %f", resRemove.Background.NaturalWidth, resRemove.Background.NaturalHeight)
+	}
+	// Image should be completely deleted from scene
+	if _, exists := sc.GetImage(img2.ID); exists {
+		t.Error("image still exists in scene after bake remove")
+	}
+}

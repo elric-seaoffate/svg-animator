@@ -968,9 +968,96 @@ func (s *Scene) ResetImageClip(id StringID) (Image, error) {
 		return Image{}, fmt.Errorf("image not found: %s", id)
 	}
 
-
 	img.Clip = nil
 	s.images[id] = img
 	s.revision++
 	return img, nil
+}
+
+// BakeImageResult contains the outcome of an atomic BakeImage transaction.
+type BakeImageResult struct {
+	Background   *BackgroundConfig `json:"background"`
+	Image        *Image            `json:"image,omitempty"`
+	DeletedImage bool              `json:"deletedImage"`
+	Revision     int64             `json:"revision"`
+}
+
+// BakeImage bakes an Image object into the background atomically.
+// If mode == "remove", the image object is removed from the scene, groups, layers, and selection.
+// If mode == "keep", the image object's visibility is set to false.
+func (s *Scene) BakeImage(imageID StringID, mode string, bakedData string, canvasW, canvasH float64) (*BakeImageResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	img, exists := s.images[imageID]
+	if !exists {
+		return nil, fmt.Errorf("image not found: %s", imageID)
+	}
+
+	if s.getEffectiveLockedLocked(SelectionImage, imageID) {
+		return nil, fmt.Errorf("cannot bake locked image: %s", imageID)
+	}
+
+	if !s.getEffectiveVisibilityLocked(SelectionImage, imageID) || !img.IsVisible() {
+		return nil, fmt.Errorf("cannot bake hidden image: %s", imageID)
+	}
+
+	if bakedData == "" {
+		return nil, errors.New("baked raster data is required")
+	}
+
+	if mode != "remove" && mode != "keep" {
+		return nil, fmt.Errorf("invalid bake mode %q, expected 'remove' or 'keep'", mode)
+	}
+
+	if canvasW <= 0 {
+		canvasW = 1280
+	}
+	if canvasH <= 0 {
+		canvasH = 720
+	}
+
+	// 1. Commit new background
+	b := BackgroundConfig{
+		Filename:      "baked_background.png",
+		Mime:          "image/png",
+		Src:           bakedData,
+		Data:          bakedData,
+		NaturalWidth:  canvasW,
+		NaturalHeight: canvasH,
+		SourceWidth:   canvasW,
+		SourceHeight:  canvasH,
+		CropVersions: []BackgroundCropVersion{
+			{
+				ID:           "original",
+				Name:         "Original",
+				SourceX:      0,
+				SourceY:      0,
+				SourceWidth:  canvasW,
+				SourceHeight: canvasH,
+			},
+		},
+		ActiveCropVersionID: "original",
+	}
+	s.background = &b
+
+	var res BakeImageResult
+	res.Background = s.getBackgroundLocked()
+
+	// 2. Handle image object according to mode
+	if mode == "remove" {
+		s.removeImageLocked(imageID)
+		res.DeletedImage = true
+	} else {
+		// mode == "keep" -> set visible: false
+		_ = s.setObjectVisibilityLocked(SelectionImage, imageID, false)
+		updatedImg := s.images[imageID]
+		res.Image = &updatedImg
+		res.DeletedImage = false
+	}
+
+	s.revision++
+	res.Revision = s.revision
+
+	return &res, nil
 }

@@ -297,10 +297,16 @@ window.HistoryManager = {
     try {
       const data = JSON.parse(snapStr);
 
-      if (typeof window.setLoadedPhoto === 'function') {
-        window.setLoadedPhoto(data.loadedPhoto || null);
+      if (typeof window.hydrateLoadedPhoto === 'function') {
+        window.hydrateLoadedPhoto(data.loadedPhoto || null);
+      } else if (typeof window.setLoadedPhoto === 'function') {
+        window.setLoadedPhoto(data.loadedPhoto || null, { hydrateOnly: true });
       } else if (window.SceneState) {
-        window.SceneState.setLoadedPhoto(data.loadedPhoto || null);
+        if (typeof window.SceneState.hydrateLoadedPhoto === 'function') {
+          window.SceneState.hydrateLoadedPhoto(data.loadedPhoto || null);
+        } else {
+          window.SceneState.setLoadedPhoto(data.loadedPhoto || null, { hydrateOnly: true });
+        }
       }
 
       if (data.controls && window.ControlStateAdaptor) {

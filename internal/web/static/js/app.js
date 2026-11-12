@@ -4333,24 +4333,79 @@ function executeBakeImage(img, mode) {
       ctx.restore();
 
       const bakedDataUrl = bgCanvas.toDataURL('image/png');
-      const b64 = bakedDataUrl.replace(/^data:image\/png;base64,/, '');
 
-      const newPhoto = {
-        filename: 'baked_background.png',
-        mime: 'image/png',
-        b64: b64,
-        dataUrl: bakedDataUrl,
-        src: bakedDataUrl,
-        data: bakedDataUrl,
-        naturalWidth: canvasW,
-        naturalHeight: canvasH
-      };
+      let bakeSuccess = false;
+      let bakeError = null;
 
-      if (typeof window.setLoadedPhoto === 'function') {
-        window.setLoadedPhoto(newPhoto);
+      if (window.EngineBridge && typeof window.EngineBridge.bakeImage === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.bakeImage(img.id, mode, bakedDataUrl, canvasW, canvasH);
+        if (res && res.success) {
+          bakeSuccess = true;
+          const b64 = bakedDataUrl.replace(/^data:image\/png;base64,/, '');
+          const bakedPhoto = {
+            filename: (res.background && res.background.filename) || 'baked_background.png',
+            mime: (res.background && res.background.mime) || 'image/png',
+            b64: (res.background && res.background.b64) || b64,
+            dataUrl: (res.background && (res.background.src || res.background.data)) || bakedDataUrl,
+            src: (res.background && (res.background.src || res.background.data)) || bakedDataUrl,
+            data: (res.background && (res.background.data || res.background.src)) || bakedDataUrl,
+            naturalWidth: (res.background && res.background.naturalWidth) || canvasW,
+            naturalHeight: (res.background && res.background.naturalHeight) || canvasH,
+            crop: (res.background && res.background.crop) || null,
+            cropVersions: (res.background && res.background.cropVersions) || [{ id: 'original', name: 'Original', sourceX: 0, sourceY: 0, sourceWidth: canvasW, sourceHeight: canvasH }],
+            activeCropVersionId: (res.background && res.background.activeCropVersionId) || 'original'
+          };
+          if (typeof window.hydrateLoadedPhoto === 'function') {
+            window.hydrateLoadedPhoto(bakedPhoto);
+          } else if (typeof window.setLoadedPhoto === 'function') {
+            window.setLoadedPhoto(bakedPhoto, { hydrateOnly: true });
+          }
+          if (mode === 'keep') {
+            img.visible = false;
+            if (window.ImageObjects && typeof window.ImageObjects.updateImage === 'function') {
+              window.ImageObjects.updateImage(img.id, { visible: false });
+            }
+          }
+        } else {
+          bakeError = (res && res.error) || 'Failed to bake image in Go engine';
+        }
+      } else {
+        // Fallback for offline presentation without WASM
+        const b64 = bakedDataUrl.replace(/^data:image\/png;base64,/, '');
+        const newPhoto = {
+          filename: 'baked_background.png',
+          mime: 'image/png',
+          b64: b64,
+          dataUrl: bakedDataUrl,
+          src: bakedDataUrl,
+          data: bakedDataUrl,
+          naturalWidth: canvasW,
+          naturalHeight: canvasH
+        };
+        if (typeof window.hydrateLoadedPhoto === 'function') {
+          window.hydrateLoadedPhoto(newPhoto);
+        } else if (typeof window.setLoadedPhoto === 'function') {
+          window.setLoadedPhoto(newPhoto, { hydrateOnly: true });
+        }
+        if (mode === 'remove') {
+          if (window.ImageObjects) window.ImageObjects.deleteImage(img.id);
+          if (window.AppCoordinator) window.AppCoordinator.clearSelection();
+        } else {
+          if (window.LayerManager && typeof window.LayerManager.setVisibility === 'function') {
+            window.LayerManager.setVisibility('image', img.id, false);
+          }
+          if (window.ImageObjects) window.ImageObjects.updateImage(img.id, { visible: false });
+        }
+        bakeSuccess = true;
       }
-      if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
-        window.EngineBridge.setBackground(newPhoto);
+
+      window.closeBakeModal();
+
+      if (!bakeSuccess) {
+        if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+          window.AppCoordinator.showNotification(`Cannot bake image: ${bakeError || 'operation failed'}.`, 'error');
+        }
+        return;
       }
 
       const patSelect = document.getElementById('canvasPatternSelect');
@@ -4361,20 +4416,6 @@ function executeBakeImage(img, mode) {
       const hInput = document.getElementById('canvasHeightInput');
       if (wInput) wInput.value = canvasW;
       if (hInput) hInput.value = canvasH;
-
-      if (mode === 'remove') {
-        if (window.ImageObjects) window.ImageObjects.deleteImage(img.id);
-        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.deleteImage(img.id);
-        if (window.AppCoordinator) window.AppCoordinator.clearSelection();
-      } else {
-        if (window.LayerManager && typeof window.LayerManager.setVisibility === 'function') {
-          window.LayerManager.setVisibility('image', img.id, false);
-        }
-        if (window.ImageObjects) window.ImageObjects.updateImage(img.id, { visible: false });
-        if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(img.id, { visible: false });
-      }
-
-      window.closeBakeModal();
 
       if (window.HistoryManager) {
         window.HistoryManager.recordImmediate();
@@ -5627,10 +5668,24 @@ window.ImageToolsController = {
           discardVersions: !!discardVersions
         };
 
+        let commitSuccess = false;
+        let commitError = null;
+
         if (window.EngineBridge && typeof window.EngineBridge.commitCrop === 'function' && window.EngineBridge.isReady()) {
-          window.EngineBridge.commitCrop(img.id, commitOptions);
+          const cRes = window.EngineBridge.commitCrop(img.id, commitOptions);
+          if (cRes && cRes.success) {
+            commitSuccess = true;
+          } else {
+            commitError = (cRes && cRes.error) || 'Failed to commit crop in Go engine';
+          }
         } else if (window.ImageObjects && typeof window.ImageObjects.commitCrop === 'function') {
-          window.ImageObjects.commitCrop(img.id, commitOptions);
+          const cRes = window.ImageObjects.commitCrop(img.id, commitOptions);
+          commitSuccess = !!cRes;
+        }
+
+        if (!commitSuccess) {
+          if (window.AppCoordinator) window.AppCoordinator.showNotification(`Cannot commit crop: ${commitError || 'operation failed'}.`, 'error', 3500);
+          return;
         }
 
         if (window.HistoryManager) window.HistoryManager.recordImmediate();
@@ -5687,22 +5742,40 @@ window.ImageToolsController = {
 
         const newB64 = res.dataUrl.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
 
-        if (window.EngineBridge && typeof window.EngineBridge.commitBackgroundCrop === 'function') {
-          window.EngineBridge.commitBackgroundCrop({ newB64: res.dataUrl, discardVersions: true });
+        let bgCommitSuccess = false;
+        let bgCommitError = null;
+
+        if (window.EngineBridge && typeof window.EngineBridge.commitBackgroundCrop === 'function' && window.EngineBridge.isReady()) {
+          const bgRes = window.EngineBridge.commitBackgroundCrop({ newB64: res.dataUrl, discardVersions: true });
+          if (bgRes && bgRes.success) {
+            bgCommitSuccess = true;
+          } else {
+            bgCommitError = (bgRes && bgRes.error) || 'Failed to commit background crop in Go engine';
+          }
+        } else {
+          bgCommitSuccess = true;
         }
 
-        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
-          photo.b64 = newB64;
-          photo.src = res.dataUrl;
-          photo.dataUrl = res.dataUrl;
-          photo.dataURL = res.dataUrl;
-          photo.data = res.dataUrl;
-          photo.naturalWidth = res.sw;
-          photo.naturalHeight = res.sh;
-          photo.crop = null;
-          photo.cropVersions = [{ id: 'original', name: 'Original', sourceX: 0, sourceY: 0, sourceWidth: res.sw, sourceHeight: res.sh }];
-          photo.activeCropVersionId = 'original';
-          window.setLoadedPhoto(photo);
+        if (!bgCommitSuccess) {
+          if (window.AppCoordinator) window.AppCoordinator.showNotification(`Cannot commit background crop: ${bgCommitError || 'operation failed'}.`, 'error', 3500);
+          return;
+        }
+
+        photo.b64 = newB64;
+        photo.src = res.dataUrl;
+        photo.dataUrl = res.dataUrl;
+        photo.dataURL = res.dataUrl;
+        photo.data = res.dataUrl;
+        photo.naturalWidth = res.sw;
+        photo.naturalHeight = res.sh;
+        photo.crop = null;
+        photo.cropVersions = [{ id: 'original', name: 'Original', sourceX: 0, sourceY: 0, sourceWidth: res.sw, sourceHeight: res.sh }];
+        photo.activeCropVersionId = 'original';
+
+        if (typeof window.hydrateLoadedPhoto === 'function') {
+          window.hydrateLoadedPhoto(photo);
+        } else if (typeof window.setLoadedPhoto === 'function') {
+          window.setLoadedPhoto(photo, { hydrateOnly: true });
         }
 
         if (window.matchCanvasToPhoto && typeof window.matchCanvasToPhoto === 'function') {
@@ -6653,9 +6726,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return window.SceneState ? window.SceneState.getLoadedPhoto() : null;
   };
 
-  window.setLoadedPhoto = function(photoObj) {
-    const normalized = window.SceneState
-      ? window.SceneState.setLoadedPhoto(photoObj)
+  window.hydrateLoadedPhoto = function(photoObj) {
+    const normalized = window.SceneState && typeof window.SceneState.hydrateLoadedPhoto === 'function'
+      ? window.SceneState.hydrateLoadedPhoto(photoObj)
       : (photoObj || null);
     const dropLabel = document.getElementById('uploadDropLabel');
     const dropMeta = document.getElementById('uploadPhotoMeta');
@@ -6666,6 +6739,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dropLabel) dropLabel.innerText = 'Upload Background Photo';
       if (dropMeta) dropMeta.innerText = 'Drop JPEG, PNG, or WebP here';
     }
+    if (typeof window.syncImageToolsUI === 'function') {
+      window.syncImageToolsUI();
+    }
+    return normalized;
+  };
+
+  window.setLoadedPhoto = function(photoObj, options = {}) {
+    if (options && (options.hydrateOnly || options.skipBridge)) {
+      return window.hydrateLoadedPhoto(photoObj);
+    }
+    const normalized = window.hydrateLoadedPhoto(photoObj);
     if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
       window.EngineBridge.setBackground(normalized ? {
         filename: normalized.filename,
@@ -6679,9 +6763,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeCropVersionId: normalized.activeCropVersionId || 'original'
       } : null);
     }
-    if (typeof window.syncImageToolsUI === 'function') {
-      window.syncImageToolsUI();
-    }
+    return normalized;
   };
 
   const paperSpecs = (window.SceneState && window.SceneState.paperSpecs) || {
@@ -6829,8 +6911,10 @@ document.addEventListener('DOMContentLoaded', () => {
           else if (e.key === 'ArrowRight') dx = step;
           else if (e.key === 'ArrowUp') dy = -step;
           else if (e.key === 'ArrowDown') dy = step;
-          window.AppCoordinator.moveSelectedNodes(dx, dy);
-          window.AppCoordinator.recordHistoryDebounced();
+          const moved = window.AppCoordinator.moveSelectedNodes(dx, dy);
+          if (moved) {
+            window.AppCoordinator.recordHistoryDebounced();
+          }
         }
         return;
       }

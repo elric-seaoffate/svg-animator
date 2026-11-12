@@ -904,8 +904,9 @@
         }
         const res = this.dispatch('Selection.Set', payload);
         if (res && res.success) return res;
+        return res || { success: false, error: 'Failed to set selection in Go engine' };
       }
-      return null;
+      return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
     addToSelection(type, id) {
@@ -1633,6 +1634,46 @@
       return { success: false, error: 'Go/WASM engine is unavailable' };
     },
 
+    bakeImage(imageId, mode, bakedDataUrl, canvasW, canvasH) {
+      if (this.isReady()) {
+        const payload = {
+          imageId: String(imageId),
+          mode: String(mode || 'remove'),
+          bakedData: String(bakedDataUrl || ''),
+          canvasWidth: Number(canvasW) || 1280,
+          canvasHeight: Number(canvasH) || 720
+        };
+        const res = this.dispatch('Image.Bake', payload);
+        if (res && res.success) {
+          if (res.background) {
+            this._applyBackgroundUpdate(res.background);
+          }
+          if (res.deletedImage) {
+            if (window.ImageObjects) {
+              window.ImageObjects.list = window.ImageObjects.list.filter((i) => String(i.id) !== String(imageId));
+            }
+            if (window.ObjectGroups) window.ObjectGroups.pruneMember('image', imageId);
+            if (window.LayerManager) window.LayerManager.removeEntry('image', imageId);
+            if (window.AppCoordinator) window.AppCoordinator.clearSelection();
+          } else if (res.image) {
+            if (window.ImageObjects) {
+              const idx = window.ImageObjects.list.findIndex((i) => String(i.id) === String(imageId));
+              if (idx >= 0) {
+                Object.assign(window.ImageObjects.list[idx], res.image);
+                window.ImageObjects.list[idx].visible = false;
+              }
+            }
+            if (window.LayerManager && typeof window.LayerManager.setVisibility === 'function') {
+              window.LayerManager.setVisibility('image', imageId, false);
+            }
+          }
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to bake image in Go engine' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
     setBackground(bg) {
       if (this.isReady()) {
         const payload = { background: bg };
@@ -1740,20 +1781,34 @@
       if (!bg) return;
       let photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
       if (!photo && window.getLoadedPhoto) photo = window.getLoadedPhoto();
-      if (photo) {
-        photo.crop = bg.crop || null;
-        photo.cropVersions = Array.isArray(bg.cropVersions) ? bg.cropVersions : [];
-        photo.activeCropVersionId = bg.activeCropVersionId || 'original';
-        if (bg.naturalWidth) photo.naturalWidth = bg.naturalWidth;
-        if (bg.naturalHeight) photo.naturalHeight = bg.naturalHeight;
-        if (bg.b64) {
-          photo.b64 = bg.b64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
-          photo.src = bg.src || bg.data || ('data:' + (bg.mime || photo.mime || 'image/png') + ';base64,' + photo.b64);
-          photo.dataUrl = photo.src;
+      if (!photo) {
+        photo = {
+          filename: bg.filename || 'background.png',
+          mime: bg.mime || 'image/png',
+          naturalWidth: bg.naturalWidth || 1280,
+          naturalHeight: bg.naturalHeight || 720
+        };
+      }
+      photo.crop = bg.crop || null;
+      photo.cropVersions = Array.isArray(bg.cropVersions) ? bg.cropVersions : [];
+      photo.activeCropVersionId = bg.activeCropVersionId || 'original';
+      if (bg.naturalWidth) photo.naturalWidth = bg.naturalWidth;
+      if (bg.naturalHeight) photo.naturalHeight = bg.naturalHeight;
+      if (bg.b64) {
+        photo.b64 = bg.b64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+        photo.src = bg.src || bg.data || ('data:' + (bg.mime || photo.mime || 'image/png') + ';base64,' + photo.b64);
+        photo.dataUrl = photo.src;
+      } else if (bg.src || bg.data) {
+        photo.src = bg.src || bg.data;
+        photo.dataUrl = photo.src;
+        if (photo.src.startsWith('data:image/')) {
+          photo.b64 = photo.src.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
         }
-        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
-          window.setLoadedPhoto(photo);
-        }
+      }
+      if (window.hydrateLoadedPhoto && typeof window.hydrateLoadedPhoto === 'function') {
+        window.hydrateLoadedPhoto(photo);
+      } else if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+        window.setLoadedPhoto(photo, { hydrateOnly: true });
       }
       if (window.triggerRender) window.triggerRender();
     },

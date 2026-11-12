@@ -134,7 +134,7 @@
         if (normalizedType && normalizedId !== null && options.source !== 'layers_list' && window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
           const eff = window.LayerManager.getEffective(normalizedType, normalizedId);
           if (eff && (eff.locked || !eff.visible)) {
-            return;
+            return false;
           }
         }
 
@@ -176,59 +176,77 @@
           }
         }
 
-        // Single selection replacement
-        if (normalizedType !== 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
+        const targetId = id !== null && id !== undefined ? id : null;
+        let validatedType = normalizedType;
+        let validatedId = targetId;
+        let validatedItems = (normalizedType && normalizedId !== null)
+          ? [{ type: normalizedType, id: targetId }]
+          : [];
+
+        // Validate selection with authoritative Go engine before committing local state
+        if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+          if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(normalizedType)) {
+            const res = window.EngineBridge.setSelection(normalizedType, normalizedId, validatedItems);
+            if (!res || res.success === false) {
+              // Go rejected the selection (e.g. object not found, locked, or invalid) - preserve existing selection
+              return false;
+            }
+            if (res.type) validatedType = res.type;
+            if (res.id) {
+              validatedId = typeof targetId === 'number' ? Number(res.id) : res.id;
+            }
+            if (Array.isArray(res.items)) {
+              validatedItems = res.items.map((it) => ({
+                type: it.type,
+                id: (typeof targetId === 'number' && String(targetId) === String(it.id)) ? targetId : it.id
+              }));
+            }
+          } else if (normalizedId === null) {
+            window.EngineBridge.clearSelection();
+          }
+        }
+
+        // Single selection replacement on other modules
+        if (validatedType !== 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== null) {
           window.DiagramNodes.deselectNode();
         }
-        if (normalizedType !== 'flow' && window.DataFlows && window.DataFlows.activeId !== null) {
+        if (validatedType !== 'flow' && window.DataFlows && window.DataFlows.activeId !== null) {
           window.DataFlows.deselectFlow();
         }
-        if (normalizedType !== 'glow' && window.Glows && window.Glows.activeId !== null) {
+        if (validatedType !== 'glow' && window.Glows && window.Glows.activeId !== null) {
           window.Glows.deselectGlow();
         }
-        if (normalizedType !== 'ripple' && window.Ripples && window.Ripples.activeId !== null) {
+        if (validatedType !== 'ripple' && window.Ripples && window.Ripples.activeId !== null) {
           window.Ripples.deselectRipple();
         }
-        if (normalizedType !== 'camera' && !options.skipStageClear && window.Stage && window.Stage.activePlacement) {
+        if (validatedType !== 'camera' && !options.skipStageClear && window.Stage && window.Stage.activePlacement) {
           window.Stage.clearActive();
         }
 
         // Activate the target object on its owner module if not already active
-        if (!options.skipModuleSelect && normalizedId !== null) {
-          if (normalizedType === 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== normalizedId) {
-            window.DiagramNodes.selectNode(normalizedId, false);
-          } else if (normalizedType === 'flow' && window.DataFlows && window.DataFlows.activeId !== normalizedId) {
-            window.DataFlows.selectFlow(normalizedId);
-          } else if (normalizedType === 'glow' && window.Glows && window.Glows.activeId !== normalizedId) {
-            window.Glows.selectGlow(normalizedId);
-          } else if (normalizedType === 'ripple' && window.Ripples && window.Ripples.activeId !== normalizedId) {
-            window.Ripples.selectRipple(normalizedId);
-          } else if (normalizedType === 'image') {
+        if (!options.skipModuleSelect && validatedId !== null) {
+          if (validatedType === 'node' && window.DiagramNodes && window.DiagramNodes.activeId !== validatedId) {
+            window.DiagramNodes.selectNode(validatedId, false);
+          } else if (validatedType === 'flow' && window.DataFlows && window.DataFlows.activeId !== validatedId) {
+            window.DataFlows.selectFlow(validatedId);
+          } else if (validatedType === 'glow' && window.Glows && window.Glows.activeId !== validatedId) {
+            window.Glows.selectGlow(validatedId);
+          } else if (validatedType === 'ripple' && window.Ripples && window.Ripples.activeId !== validatedId) {
+            window.Ripples.selectRipple(validatedId);
+          } else if (validatedType === 'image') {
             if (typeof window.syncImageEditorUI === 'function') {
               window.syncImageEditorUI();
             }
-          } else if (normalizedType === 'camera' && window.Stage && window.Stage.activePlacement !== normalizedId) {
-            window.Stage.setActive(normalizedId);
+          } else if (validatedType === 'camera' && window.Stage && window.Stage.activePlacement !== validatedId) {
+            window.Stage.setActive(validatedId);
           }
         }
-
-        const items = (normalizedType && normalizedId !== null)
-          ? [{ type: normalizedType, id: normalizedId }]
-          : [];
 
         this.activeSelection = {
-          type: normalizedType,
-          id: normalizedId,
-          items: items
+          type: validatedType,
+          id: validatedId,
+          items: validatedItems
         };
-
-        if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-          if (normalizedId !== null && ['node', 'flow', 'glow', 'ripple', 'image'].includes(normalizedType)) {
-            window.EngineBridge.setSelection(normalizedType, normalizedId, items);
-          } else {
-            window.EngineBridge.clearSelection();
-          }
-        }
 
         if (options.openAccordionId && typeof window.openAccordionById === 'function') {
           window.openAccordionById(options.openAccordionId);
@@ -237,6 +255,7 @@
         this._refreshAllInstanceLists();
         this.updateActiveOverlays();
         this.emit('selection:changed', this.getActiveSelection());
+        return true;
       } finally {
         this._isCoordinatingSelection = false;
       }
@@ -248,6 +267,13 @@
       const existing = items.find((it) => it.type === type && String(it.id) === strId);
       if (!existing) {
         items.push({ type, id });
+      }
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.setSelection(type, id, items);
+        if (!res || res.success === false) {
+          return false;
+        }
       }
 
       this.activeSelection = {
@@ -266,13 +292,10 @@
         window.Ripples.selectRipple(id, { multi: true, skipCoordinator: true });
       }
 
-      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.setSelection(type, id, items);
-      }
-
       this._refreshAllInstanceLists();
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
+      return true;
     },
 
     _toggleObjectSelectionInternal(type, id, options = {}) {
@@ -280,71 +303,78 @@
       const strId = String(id);
       const idx = items.findIndex((it) => it.type === type && String(it.id) === strId);
 
+      let nextType = type;
+      let nextId = id;
+      let nextItems = items;
+
       if (idx >= 0) {
-        items.splice(idx, 1);
-        if (items.length === 0) {
+        nextItems = items.filter((it, i) => i !== idx);
+        if (nextItems.length === 0) {
           this._isCoordinatingSelection = false;
           this.clearSelection();
-          return;
+          return true;
         }
-        const last = items[items.length - 1];
-        this.activeSelection = {
-          type: last.type,
-          id: last.id,
-          items: items
-        };
-        if (last.type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
-          window.DiagramNodes.selectNode(last.id, false, { multi: true, skipCoordinator: true });
-        } else if (last.type === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
-          window.DataFlows.selectFlow(last.id, { multi: true, skipCoordinator: true });
-        } else if (last.type === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
-          window.Glows.selectGlow(last.id, { multi: true, skipCoordinator: true });
-        } else if (last.type === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
-          window.Ripples.selectRipple(last.id, { multi: true, skipCoordinator: true });
-        }
+        const last = nextItems[nextItems.length - 1];
+        nextType = last.type;
+        nextId = last.id;
       } else {
-        items.push({ type, id });
-        this.activeSelection = {
-          type: type,
-          id: id,
-          items: items
-        };
-        if (type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
-          window.DiagramNodes.selectNode(id, false, { multi: true, skipCoordinator: true });
-        } else if (type === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
-          window.DataFlows.selectFlow(id, { multi: true, skipCoordinator: true });
-        } else if (type === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
-          window.Glows.selectGlow(id, { multi: true, skipCoordinator: true });
-        } else if (type === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
-          window.Ripples.selectRipple(id, { multi: true, skipCoordinator: true });
-        }
+        nextItems = [...items, { type, id }];
+        nextType = type;
+        nextId = id;
       }
 
       if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.setSelection(this.activeSelection.type, this.activeSelection.id, items);
+        const res = window.EngineBridge.setSelection(nextType, nextId, nextItems);
+        if (!res || res.success === false) {
+          return false;
+        }
+      }
+
+      this.activeSelection = {
+        type: nextType,
+        id: nextId,
+        items: nextItems
+      };
+
+      if (nextType === 'node' && window.DiagramNodes && typeof window.DiagramNodes.selectNode === 'function') {
+        window.DiagramNodes.selectNode(nextId, false, { multi: true, skipCoordinator: true });
+      } else if (nextType === 'flow' && window.DataFlows && typeof window.DataFlows.selectFlow === 'function') {
+        window.DataFlows.selectFlow(nextId, { multi: true, skipCoordinator: true });
+      } else if (nextType === 'glow' && window.Glows && typeof window.Glows.selectGlow === 'function') {
+        window.Glows.selectGlow(nextId, { multi: true, skipCoordinator: true });
+      } else if (nextType === 'ripple' && window.Ripples && typeof window.Ripples.selectRipple === 'function') {
+        window.Ripples.selectRipple(nextId, { multi: true, skipCoordinator: true });
       }
 
       this._refreshAllInstanceLists();
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
+      return true;
     },
 
     _setMultiSelectionInternal(items, primaryId = null, options = {}) {
       if (!Array.isArray(items) || items.length === 0) {
         this._isCoordinatingSelection = false;
         this.clearSelection();
-        return;
+        return true;
       }
 
       const validItems = items.filter((it) => it && it.type && it.id != null);
       if (validItems.length === 0) {
         this._isCoordinatingSelection = false;
         this.clearSelection();
-        return;
+        return true;
       }
 
       let primary = validItems.find((it) => String(it.id) === String(primaryId));
       if (!primary) primary = validItems[validItems.length - 1];
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.setSelection(primary.type, primary.id, validItems);
+        if (!res || res.success === false) {
+          return false;
+        }
+      }
 
       this.activeSelection = {
         type: primary.type,
@@ -362,13 +392,10 @@
         window.Ripples.selectRipple(primary.id, { multi: true, skipCoordinator: true });
       }
 
-      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.setSelection(primary.type, primary.id, validItems);
-      }
-
       this._refreshAllInstanceLists();
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
+      return true;
     },
 
     _refreshAllInstanceLists() {
@@ -479,16 +506,20 @@
       }
 
       const members = Array.isArray(grp.members) ? [...grp.members] : [];
+
+      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
+        const res = window.EngineBridge.setSelection('group', String(groupId), members);
+        if (!res || res.success === false) {
+          return false;
+        }
+      }
+
       this.activeSelection = {
         type: 'group',
         id: String(groupId),
         items: members,
         name: grp.name || ('Group ' + grp.id)
       };
-
-      if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.setSelection('group', String(groupId), members);
-      }
 
       this.updateActiveOverlays();
       this.emit('selection:changed', this.getActiveSelection());
@@ -771,6 +802,12 @@
         } else if (window.ObjectGroups && typeof window.ObjectGroups.moveGroup === 'function') {
           res = window.ObjectGroups.moveGroup(this.activeSelection.id, deltaX, deltaY);
         }
+        if (res && res.success === false) {
+          return false;
+        }
+        if (!res && window.EngineBridge && window.EngineBridge.isReady()) {
+          return false;
+        }
         if (window.DiagramNodes && typeof window.DiagramNodes.refreshAfterChange === 'function') {
           window.DiagramNodes.refreshAfterChange();
         }
@@ -790,6 +827,11 @@
       let res = null;
       if (window.EngineBridge && typeof window.EngineBridge.moveNodesGroup === 'function') {
         res = window.EngineBridge.moveNodesGroup(unlockedIds, deltaX, deltaY);
+      }
+      if (window.EngineBridge && window.EngineBridge.isReady()) {
+        if (!res || res.success === false) {
+          return false;
+        }
       }
       if (res && res.nodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
         res.nodes.forEach((un) => {

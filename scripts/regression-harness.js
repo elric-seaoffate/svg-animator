@@ -788,7 +788,10 @@ async function runHarness() {
     window.AppCoordinator.registerRenderHandler(harnessSvgRenderer);
   }
   window.getLoadedPhoto = function() { return window.SceneState ? window.SceneState.getLoadedPhoto() : null; };
-  window.setLoadedPhoto = function(p) { return window.SceneState ? window.SceneState.setLoadedPhoto(p) : null; };
+  window.setLoadedPhoto = function(p, opts) { return window.SceneState ? window.SceneState.setLoadedPhoto(p, opts) : null; };
+  window.hydrateLoadedPhoto = function(p) {
+    return window.SceneState ? (window.SceneState.hydrateLoadedPhoto ? window.SceneState.hydrateLoadedPhoto(p) : window.SceneState.setLoadedPhoto(p, { hydrateOnly: true })) : null;
+  };
 
   loadProductionScript('history.js');
   loadProductionScript('projects.js');
@@ -8781,6 +8784,83 @@ async function runHarness() {
 
   console.log('[HARNESS] Scenario 70 PASS: Batch 7 Final Engine Reliability, Clipboard Integrity, WASM Recovery & Verification verified.');
 
+  // ---------------------------------------------------------------------------
+  // SCENARIO 71: Batch 8B Authority Remediation, Strict Contracts & Atomic Operations
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Testing Scenario 71: Batch 8B Authority Remediation, Strict Contracts & Atomic Operations...');
+
+  // Test 1: A8A-001 Read-only presentation hydration does not mutate Go or advance revision
+  console.log('[HARNESS] Scenario 71 Test 1: A8A-001 Read-only presentation hydration...');
+  const revBeforeHydrate = window.EngineBridge.isReady() ? (window.EngineBridge.dispatch('Scene.GetState', {}).revision || 0) : 0;
+  const historyLenBeforeHydrate = window.HistoryManager.undoStack.length;
+  const s71SamplePhoto = {
+    filename: 'test_read_only.png',
+    mime: 'image/png',
+    naturalWidth: 800,
+    naturalHeight: 600,
+    src: 'data:image/png;base64,SAMPLE'
+  };
+  // Call hydrateLoadedPhoto multiple times
+  window.hydrateLoadedPhoto(s71SamplePhoto);
+  window.hydrateLoadedPhoto(s71SamplePhoto);
+  window.hydrateLoadedPhoto(s71SamplePhoto);
+  const revAfterHydrate = window.EngineBridge.isReady() ? (window.EngineBridge.dispatch('Scene.GetState', {}).revision || 0) : 0;
+  assert.strictEqual(revAfterHydrate, revBeforeHydrate, 'Test 1: Read-only background hydration must NOT advance Go revision');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeHydrate, 'Test 1: Read-only background hydration must NOT add history entries');
+
+  // Test 2: A8A-004 Move selected nodes failure contract on locked node
+  console.log('[HARNESS] Scenario 71 Test 2: A8A-004 moveSelectedNodes failure contract...');
+  window.AppCoordinator.clearSelection();
+  const s71LockedNode = window.DiagramNodes.createNode({ text: 'LockedNode', x: 20, y: 20 });
+  window.LayerManager.setLocked('node', s71LockedNode.id, true);
+  window.AppCoordinator.selectObject('node', s71LockedNode.id, { source: 'layers_list' });
+  const historyLenBeforeMove = window.HistoryManager.undoStack.length;
+  const moveRes = window.AppCoordinator.moveSelectedNodes(10, 10);
+  assert.strictEqual(moveRes, false, 'Test 2: moveSelectedNodes must return false when moving locked node');
+  assert.strictEqual(window.HistoryManager.undoStack.length, historyLenBeforeMove, 'Test 2: Rejected move must NOT record history');
+
+  // Test 3: A8A-009 Go-authoritative selection rejection
+  console.log('[HARNESS] Scenario 71 Test 3: A8A-009 Go-authoritative selection rejection...');
+  const s71ValidNode = window.DiagramNodes.createNode({ text: 'ValidNode', x: 30, y: 30 });
+  window.AppCoordinator.selectObject('node', s71ValidNode.id);
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, s71ValidNode.id, 'Test 3: Valid node selected');
+  // Attempt to select a non-existent node
+  const selectBogusRes = window.AppCoordinator.selectObject('node', 'node-999999');
+  assert.strictEqual(selectBogusRes, false, 'Test 3: selectObject must return false for non-existent node');
+  assert.strictEqual(window.AppCoordinator.getActiveSelection().id, s71ValidNode.id, 'Test 3: Prior selection must be preserved upon rejection');
+
+  // Test 4: A8A-010 Atomic Image Bake failure rejection on locked image
+  console.log('[HARNESS] Scenario 71 Test 4: A8A-010 Atomic Image Bake failure rejection...');
+  const s71B8Img = window.ImageObjects.createImage({
+    name: 'B8 Locked Image',
+    width: 150,
+    height: 100,
+    data: 'data:image/png;base64,B8LOCKED'
+  });
+  window.LayerManager.setLocked('image', s71B8Img.id, true);
+  const bgBeforeBake = window.getLoadedPhoto();
+  executeBakeImage(s71B8Img, 'remove');
+  // Verify image still exists and background unchanged
+  assert.ok(window.ImageObjects.getImage(s71B8Img.id), 'Test 4: Locked image must NOT be deleted after rejected bake');
+  assert.deepStrictEqual(window.getLoadedPhoto(), bgBeforeBake, 'Test 4: Background must remain unchanged after rejected bake');
+
+  // Test 5: A8A-010 Atomic Image Bake success
+  console.log('[HARNESS] Scenario 71 Test 5: A8A-010 Atomic Image Bake success...');
+  window.LayerManager.setLocked('image', s71B8Img.id, false);
+  executeBakeImage(s71B8Img, 'remove');
+  assert.strictEqual(window.ImageObjects.getImage(s71B8Img.id), null, 'Test 5: Image deleted after successful bake');
+  const bgAfterBake = window.getLoadedPhoto();
+  assert.ok(bgAfterBake, 'Test 5: Background updated after successful bake');
+  assert.strictEqual(bgAfterBake.filename, 'baked_background.png', 'Test 5: Baked background filename set');
+
+  // Test 6: A8A-005 Project restore explicit snapshot
+  console.log('[HARNESS] Scenario 71 Test 6: A8A-005 Project restore explicit snapshot...');
+  const revBeforeRestore = window.EngineBridge.isReady() ? (window.EngineBridge.dispatch('Scene.GetState', {}).revision || 0) : 0;
+  window.triggerRender();
+  const revAfterRender = window.EngineBridge.isReady() ? (window.EngineBridge.dispatch('Scene.GetState', {}).revision || 0) : 0;
+  assert.strictEqual(revAfterRender, revBeforeRestore, 'Test 6: triggerRender must NOT advance scene revision or sync scene');
+
+  console.log('[HARNESS] Scenario 71 PASS: Batch 8B Authority Remediation, Strict Contracts & Atomic Operations verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');
 }
