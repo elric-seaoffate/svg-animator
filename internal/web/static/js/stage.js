@@ -801,8 +801,9 @@ window.Stage = {
         }
 
         if (this.isClippingImage && this.clipDragMode && this.clipDragStart && this.clipOrigBounds) {
-          const dx = (e.clientX - this.clipDragStart.clientX) / this.zoomScale;
-          const dy = (e.clientY - this.clipDragStart.clientY) / this.zoomScale;
+          const scale = this.getEffectiveScale();
+          const dx = (e.clientX - this.clipDragStart.clientX) / scale;
+          const dy = (e.clientY - this.clipDragStart.clientY) / scale;
           const init = this.clipDragStart.box;
           const ob = this.clipOrigBounds;
 

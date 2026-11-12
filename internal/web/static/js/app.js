@@ -4146,35 +4146,46 @@ function renderBackgroundToOffscreenCanvas(canvasW, canvasH, callback) {
     img.onload = () => {
       const fitSelect = document.getElementById('photoFitSelect');
       const fitMode = fitSelect ? fitSelect.value : 'match';
-      const natW = loadedPhoto.naturalWidth || img.width || canvasW;
-      const natH = loadedPhoto.naturalHeight || img.height || canvasH;
+      const crop = loadedPhoto.crop;
+      const hasCrop = crop && crop.enabled !== false && (
+        (crop.sourceWidth || crop.width) > 0 &&
+        (crop.sourceHeight || crop.height) > 0
+      );
+      const cropW = hasCrop ? (crop.sourceWidth || crop.width) : 0;
+      const cropH = hasCrop ? (crop.sourceHeight || crop.height) : 0;
+      const imgNatW = img.naturalWidth || loadedPhoto.naturalWidth || img.width || canvasW;
+      const imgNatH = img.naturalHeight || loadedPhoto.naturalHeight || img.height || canvasH;
+      const sx = hasCrop ? Math.max(0, Math.min(imgNatW - 1, Number(crop.sourceX || 0))) : 0;
+      const sy = hasCrop ? Math.max(0, Math.min(imgNatH - 1, Number(crop.sourceY || 0))) : 0;
+      const sw = hasCrop ? Math.max(1, Math.min(imgNatW - sx, Number(cropW))) : imgNatW;
+      const sh = hasCrop ? Math.max(1, Math.min(imgNatH - sy, Number(cropH))) : imgNatH;
 
       if (fitMode === 'contain') {
-        const scale = Math.min(canvasW / natW, canvasH / natH);
-        const rw = natW * scale;
-        const rh = natH * scale;
+        const scale = Math.min(canvasW / sw, canvasH / sh);
+        const rw = sw * scale;
+        const rh = sh * scale;
         const ox = (canvasW - rw) / 2;
         const oy = (canvasH - rh) / 2;
-        ctx.drawImage(img, ox, oy, rw, rh);
+        ctx.drawImage(img, sx, sy, sw, sh, ox, oy, rw, rh);
       } else if (fitMode === 'stretch') {
-        ctx.drawImage(img, 0, 0, canvasW, canvasH);
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
       } else if (fitMode === 'cover') {
         const zoomVal = parseInt(document.getElementById('photoCropZoomNum')?.value || '100', 10) / 100;
         const cropX = parseInt(document.getElementById('photoCropXNum')?.value || '50', 10) / 100;
         const cropY = parseInt(document.getElementById('photoCropYNum')?.value || '50', 10) / 100;
-        const baseScale = Math.max(canvasW / natW, canvasH / natH) * Math.max(1.0, zoomVal);
-        const rw = natW * baseScale;
-        const rh = natH * baseScale;
+        const baseScale = Math.max(canvasW / sw, canvasH / sh) * Math.max(1.0, zoomVal);
+        const rw = sw * baseScale;
+        const rh = sh * baseScale;
         const ox = -(Math.max(0, rw - canvasW) * cropX);
         const oy = -(Math.max(0, rh - canvasH) * cropY);
-        ctx.drawImage(img, ox, oy, rw, rh);
+        ctx.drawImage(img, sx, sy, sw, sh, ox, oy, rw, rh);
       } else { // match / default
-        const scale = Math.max(canvasW / natW, canvasH / natH);
-        const rw = natW * scale;
-        const rh = natH * scale;
+        const scale = Math.max(canvasW / sw, canvasH / sh);
+        const rw = sw * scale;
+        const rh = sh * scale;
         const ox = (canvasW - rw) / 2;
         const oy = (canvasH - rh) / 2;
-        ctx.drawImage(img, ox, oy, rw, rh);
+        ctx.drawImage(img, sx, sy, sw, sh, ox, oy, rw, rh);
       }
       callback(bgCanvas);
     };
@@ -4246,6 +4257,34 @@ window.closeBakeModal = function() {
 
 function executeBakeImage(img, mode) {
   if (!img) return;
+
+  const layerMeta = (window.LayerManager && typeof window.LayerManager.getEffective === 'function')
+    ? window.LayerManager.getEffective('image', img.id)
+    : { locked: false, visible: true };
+  if (layerMeta.locked) {
+    window.closeBakeModal();
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification(`Cannot bake locked image "${img.name || img.id}". Unlock it first.`, 'warning');
+    }
+    return;
+  }
+  if (layerMeta.visible === false || img.visible === false) {
+    window.closeBakeModal();
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification(`Cannot bake hidden image "${img.name || img.id}". Make it visible first.`, 'warning');
+    }
+    return;
+  }
+
+  const imgSrc = img.dataUrl || img.dataURL || img.src || img.data || img.assetRef || (img.b64 ? ('data:' + (img.mime || 'image/png') + ';base64,' + img.b64) : '') || '';
+  if (!imgSrc) {
+    window.closeBakeModal();
+    if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+      window.AppCoordinator.showNotification('Cannot bake image: missing image asset data.', 'error');
+    }
+    return;
+  }
+
   const canvasW = (window.Stage && window.Stage.canvasWidth) || 1280;
   const canvasH = (window.Stage && window.Stage.canvasHeight) || 720;
 
@@ -4255,7 +4294,9 @@ function executeBakeImage(img, mode) {
     if (!ctx) return;
 
     const imgEl = new Image();
-    imgEl.crossOrigin = 'anonymous';
+    if (!imgSrc.startsWith('data:')) {
+      imgEl.crossOrigin = 'anonymous';
+    }
     imgEl.onload = () => {
       ctx.save();
       const op = typeof img.opacity === 'number' ? img.opacity : 1.0;
@@ -4267,6 +4308,12 @@ function executeBakeImage(img, mode) {
       const dh = Number(img.height) || 150;
       const dx = cx - dw / 2;
       const dy = cy - dh / 2;
+
+      if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {
+        ctx.beginPath();
+        ctx.rect(dx + Number(img.clip.x || 0), dy + Number(img.clip.y || 0), Number(img.clip.width), Number(img.clip.height));
+        ctx.clip();
+      }
 
       if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
         ctx.drawImage(
@@ -4287,12 +4334,17 @@ function executeBakeImage(img, mode) {
         mime: 'image/png',
         b64: b64,
         dataUrl: bakedDataUrl,
+        src: bakedDataUrl,
+        data: bakedDataUrl,
         naturalWidth: canvasW,
         naturalHeight: canvasH
       };
 
       if (typeof window.setLoadedPhoto === 'function') {
         window.setLoadedPhoto(newPhoto);
+      }
+      if (window.EngineBridge && typeof window.EngineBridge.setBackground === 'function') {
+        window.EngineBridge.setBackground(newPhoto);
       }
 
       const patSelect = document.getElementById('canvasPatternSelect');
@@ -4309,6 +4361,9 @@ function executeBakeImage(img, mode) {
         if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.deleteImage(img.id);
         if (window.AppCoordinator) window.AppCoordinator.clearSelection();
       } else {
+        if (window.LayerManager && typeof window.LayerManager.setVisibility === 'function') {
+          window.LayerManager.setVisibility('image', img.id, false);
+        }
         if (window.ImageObjects) window.ImageObjects.updateImage(img.id, { visible: false });
         if (window.EngineBridge && window.EngineBridge.isReady()) window.EngineBridge.updateImage(img.id, { visible: false });
       }
@@ -4337,7 +4392,7 @@ function executeBakeImage(img, mode) {
         window.AppCoordinator.showNotification('Failed to load image asset for baking.', 'error');
       }
     };
-    imgEl.src = img.src || img.assetRef || '';
+    imgEl.src = imgSrc;
   });
 }
 
@@ -5509,26 +5564,29 @@ window.ImageToolsController = {
   },
 
   openCommitCropModal() {
+    const sel = window.AppCoordinator?.getActiveSelection();
+    const hasImageSelected = !!(sel && sel.type === 'image' && sel.id && window.ImageObjects && window.ImageObjects.getImage(sel.id));
+    if (hasImageSelected) {
+      const img = window.ImageObjects.getImage(sel.id);
+      const modal = document.getElementById('commitCropModal');
+      const nameEl = document.getElementById('commitCropModalImageName');
+      if (nameEl) nameEl.textContent = img.name || `Image ${img.id}`;
+      if (modal) modal.style.display = 'flex';
+      return;
+    }
     const photo = this._getBackgroundPhoto();
-    if (photo) {
+    if (photo && photo.crop && photo.crop.enabled) {
       const modal = document.getElementById('commitCropModal');
       const nameEl = document.getElementById('commitCropModalImageName');
       if (nameEl) nameEl.textContent = photo.filename || 'Canvas Background Photo';
       if (modal) modal.style.display = 'flex';
       return;
     }
-    const sel = window.AppCoordinator?.getActiveSelection();
-    if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) {
-      if (window.AppCoordinator) window.AppCoordinator.showNotification('Add a background image to commit crop.', 'warning', 2500);
+    if (photo) {
+      if (window.AppCoordinator) window.AppCoordinator.showNotification('Background has no active crop to commit.', 'warning', 2500);
       return;
     }
-    const img = window.ImageObjects.getImage(sel.id);
-    if (!img) return;
-
-    const modal = document.getElementById('commitCropModal');
-    const nameEl = document.getElementById('commitCropModalImageName');
-    if (nameEl) nameEl.textContent = img.name || `Image ${img.id}`;
-    if (modal) modal.style.display = 'flex';
+    if (window.AppCoordinator) window.AppCoordinator.showNotification('Select an image or add a cropped background to commit crop.', 'warning', 2500);
   },
 
   closeCommitCropModal() {
@@ -5537,75 +5595,129 @@ window.ImageToolsController = {
   },
 
   commitCurrentCrop(discardVersions = false) {
-    const photo = this._getBackgroundPhoto();
-    if (photo) {
-      this.closeCommitCropModal();
-      if (window.EngineBridge && typeof window.EngineBridge.commitBackgroundCrop === 'function') {
-        window.EngineBridge.commitBackgroundCrop({ discardVersions: !!discardVersions });
-      }
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
-      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-        window.AppCoordinator.requestRender();
-      } else if (typeof window.triggerAppRender === 'function') {
-        window.triggerAppRender();
-      }
-      if (window.AppCoordinator) {
-        window.AppCoordinator.showNotification('Background crop committed.', 'success', 2500);
-      }
-      this.syncUI();
-      return;
-    }
     const sel = window.AppCoordinator?.getActiveSelection();
-    if (!sel || sel.type !== 'image' || !sel.id || !window.ImageObjects) {
-      this.closeCommitCropModal();
-      return;
-    }
-    const img = window.ImageObjects.getImage(sel.id);
-    if (!img) {
-      this.closeCommitCropModal();
+    const isImageSelected = !!(sel && sel.type === 'image' && sel.id && window.ImageObjects && window.ImageObjects.getImage(sel.id));
+
+    if (isImageSelected) {
+      const img = window.ImageObjects.getImage(sel.id);
+      this._extractCroppedImageDataUrl(img, (res) => {
+        this.closeCommitCropModal();
+        if (!res || !res.dataUrl) {
+          if (window.AppCoordinator) window.AppCoordinator.showNotification('Failed to commit crop: could not extract pixels.', 'error', 3000);
+          return;
+        }
+
+        const commitOptions = {
+          src: res.dataUrl,
+          newSrc: res.dataUrl,
+          naturalWidth: res.sw,
+          naturalHeight: res.sh,
+          width: res.sw,
+          height: res.sh,
+          discardVersions: !!discardVersions
+        };
+
+        if (window.EngineBridge && typeof window.EngineBridge.commitCrop === 'function' && window.EngineBridge.isReady()) {
+          window.EngineBridge.commitCrop(img.id, commitOptions);
+        } else if (window.ImageObjects && typeof window.ImageObjects.commitCrop === 'function') {
+          window.ImageObjects.commitCrop(img.id, commitOptions);
+        }
+
+        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+          window.AppCoordinator.requestRender();
+        } else if (typeof window.triggerAppRender === 'function') {
+          window.triggerAppRender();
+        }
+        if (window.AppCoordinator) {
+          window.AppCoordinator.selectObject('image', img.id, { openAccordionId: 'acc-image-tools' });
+          window.AppCoordinator.updateActiveOverlays();
+          window.AppCoordinator.showNotification(
+            discardVersions ? 'Crop committed: previous versions discarded.' : 'Crop committed: base asset updated.',
+            'success',
+            3000
+          );
+        }
+        if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
+        this.syncUI();
+      });
       return;
     }
 
-    this._extractCroppedImageDataUrl(img, (res) => {
-      this.closeCommitCropModal();
-      if (!res || !res.dataUrl) {
-        if (window.AppCoordinator) window.AppCoordinator.showNotification('Failed to commit crop: could not extract pixels.', 'error', 3000);
+    const photo = this._getBackgroundPhoto();
+    if (photo) {
+      const crop = photo.crop;
+      const hasCrop = crop && crop.enabled !== false && (
+        (crop.sourceWidth || crop.width) > 0 &&
+        (crop.sourceHeight || crop.height) > 0
+      );
+      if (!hasCrop) {
+        this.closeCommitCropModal();
+        if (window.AppCoordinator) window.AppCoordinator.showNotification('Background has no active crop to commit.', 'warning', 2500);
+        return;
+      }
+      if (!discardVersions) {
+        this.closeCommitCropModal();
+        if (window.AppCoordinator) {
+          window.AppCoordinator.showNotification(
+            'Cannot commit background crop while preserving versions. Choose "Discard Previous Versions" to bake the crop, or use crop versions.',
+            'warning',
+            4000
+          );
+        }
         return;
       }
 
-      const commitOptions = {
-        newSrc: res.dataUrl,
-        naturalWidth: res.sw,
-        naturalHeight: res.sh,
-        width: res.sw,
-        height: res.sh,
-        discardVersions: !!discardVersions
-      };
+      this._extractCroppedImageDataUrl(photo, (res) => {
+        this.closeCommitCropModal();
+        if (!res || !res.dataUrl) {
+          if (window.AppCoordinator) window.AppCoordinator.showNotification('Failed to commit crop: could not extract pixels.', 'error', 3000);
+          return;
+        }
 
-      if (window.EngineBridge && typeof window.EngineBridge.commitCrop === 'function' && window.EngineBridge.isReady()) {
-        window.EngineBridge.commitCrop(img.id, commitOptions);
-      } else if (window.ImageObjects && typeof window.ImageObjects.commitCrop === 'function') {
-        window.ImageObjects.commitCrop(img.id, commitOptions);
-      }
+        const newB64 = res.dataUrl.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
 
-      if (window.HistoryManager) window.HistoryManager.recordImmediate();
-      if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
-        window.AppCoordinator.requestRender();
-      } else if (typeof window.triggerAppRender === 'function') {
-        window.triggerAppRender();
-      }
-      if (window.AppCoordinator) {
-        window.AppCoordinator.selectObject('image', img.id, { openAccordionId: 'acc-image-tools' });
-        window.AppCoordinator.updateActiveOverlays();
-        window.AppCoordinator.showNotification(
-          discardVersions ? 'Crop committed: previous versions discarded.' : 'Crop committed: base asset updated.',
-          'success',
-          3000
-        );
-      }
-      if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
-      this.syncUI();
-    });
+        if (window.EngineBridge && typeof window.EngineBridge.commitBackgroundCrop === 'function') {
+          window.EngineBridge.commitBackgroundCrop({ newB64: res.dataUrl, discardVersions: true });
+        }
+
+        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+          photo.b64 = newB64;
+          photo.src = res.dataUrl;
+          photo.dataUrl = res.dataUrl;
+          photo.dataURL = res.dataUrl;
+          photo.data = res.dataUrl;
+          photo.naturalWidth = res.sw;
+          photo.naturalHeight = res.sh;
+          photo.crop = null;
+          photo.cropVersions = [{ id: 'original', name: 'Original', sourceX: 0, sourceY: 0, sourceWidth: res.sw, sourceHeight: res.sh }];
+          photo.activeCropVersionId = 'original';
+          window.setLoadedPhoto(photo);
+        }
+
+        if (window.matchCanvasToPhoto && typeof window.matchCanvasToPhoto === 'function') {
+          const fitSelect = document.getElementById('photoFitSelect');
+          if (fitSelect && fitSelect.value === 'match') {
+            window.matchCanvasToPhoto();
+          }
+        }
+
+        if (window.HistoryManager) window.HistoryManager.recordImmediate();
+        if (window.AppCoordinator && typeof window.AppCoordinator.requestRender === 'function') {
+          window.AppCoordinator.requestRender();
+        } else if (typeof window.triggerAppRender === 'function') {
+          window.triggerAppRender();
+        }
+        if (window.AppCoordinator) {
+          window.AppCoordinator.showNotification('Background crop baked into new base image and previous versions discarded.', 'success', 2500);
+        }
+        this.syncUI();
+      });
+      return;
+    }
+
+    this.closeCommitCropModal();
+    if (window.AppCoordinator) window.AppCoordinator.showNotification('Select an image or add a background to commit crop.', 'warning', 2500);
   },
 
   _syncCropInputs(img) {
@@ -6315,7 +6427,8 @@ window.ImageToolsController = {
   },
 
   _getImageElement(img, cb) {
-    const src = img.src || img.data || img.assetRef || '';
+    if (!img) { cb(null); return; }
+    const src = img.dataUrl || img.dataURL || img.src || img.data || img.assetRef || (img.b64 ? ('data:' + (img.mime || 'image/png') + ';base64,' + img.b64) : '') || '';
     if (!src) { cb(null); return; }
     if (this._imageCache.has(src)) {
       const cached = this._imageCache.get(src);
@@ -6337,12 +6450,14 @@ window.ImageToolsController = {
   _extractCroppedImageDataUrl(img, cb) {
     this._getImageElement(img, (imgEl) => {
       if (!imgEl) { cb(null); return; }
-      let sx = 0, sy = 0, sw = imgEl.naturalWidth, sh = imgEl.naturalHeight;
+      const nw = Math.max(imgEl.naturalWidth || 0, img.naturalWidth || img.width || 0) || 800;
+      const nh = Math.max(imgEl.naturalHeight || 0, img.naturalHeight || img.height || 0) || 600;
+      let sx = 0, sy = 0, sw = nw, sh = nh;
       if (img.crop && img.crop.enabled && img.crop.sourceWidth > 0 && img.crop.sourceHeight > 0) {
-        sx = Math.max(0, Math.min(imgEl.naturalWidth - 1, img.crop.sourceX));
-        sy = Math.max(0, Math.min(imgEl.naturalHeight - 1, img.crop.sourceY));
-        sw = Math.max(1, Math.min(imgEl.naturalWidth - sx, img.crop.sourceWidth));
-        sh = Math.max(1, Math.min(imgEl.naturalHeight - sy, img.crop.sourceHeight));
+        sx = Math.max(0, Math.min(nw - 1, img.crop.sourceX));
+        sy = Math.max(0, Math.min(nh - 1, img.crop.sourceY));
+        sw = Math.max(1, Math.min(nw - sx, img.crop.sourceWidth));
+        sh = Math.max(1, Math.min(nh - sy, img.crop.sourceHeight));
       }
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(sw);

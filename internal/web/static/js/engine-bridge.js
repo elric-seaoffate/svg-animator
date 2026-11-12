@@ -1524,10 +1524,14 @@
       if (this.isReady()) {
         const payload = {
           id: String(id),
-          newSrc: options.newSrc || '',
-          newAssetRef: options.newAssetRef || '',
-          newFilename: options.newFilename || '',
-          newMime: options.newMime || '',
+          src: options.src || options.newSrc || '',
+          newSrc: options.newSrc || options.src || '',
+          assetRef: options.assetRef || options.newAssetRef || '',
+          newAssetRef: options.newAssetRef || options.assetRef || '',
+          filename: options.filename || options.newFilename || '',
+          newFilename: options.newFilename || options.filename || '',
+          mime: options.mime || options.newMime || '',
+          newMime: options.newMime || options.mime || '',
           naturalWidth: Number(options.naturalWidth || options.nw || 0),
           naturalHeight: Number(options.naturalHeight || options.nh || 0),
           width: Number(options.width || options.w || 0),
@@ -1715,13 +1719,22 @@
 
     _applyBackgroundUpdate(bg) {
       if (!bg) return;
-      const photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      let photo = window.SceneState ? window.SceneState.getLoadedPhoto() : null;
+      if (!photo && window.getLoadedPhoto) photo = window.getLoadedPhoto();
       if (photo) {
         photo.crop = bg.crop || null;
         photo.cropVersions = Array.isArray(bg.cropVersions) ? bg.cropVersions : [];
         photo.activeCropVersionId = bg.activeCropVersionId || 'original';
         if (bg.naturalWidth) photo.naturalWidth = bg.naturalWidth;
         if (bg.naturalHeight) photo.naturalHeight = bg.naturalHeight;
+        if (bg.b64) {
+          photo.b64 = bg.b64.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
+          photo.src = bg.src || bg.data || ('data:' + (bg.mime || photo.mime || 'image/png') + ';base64,' + photo.b64);
+          photo.dataUrl = photo.src;
+        }
+        if (window.setLoadedPhoto && typeof window.setLoadedPhoto === 'function') {
+          window.setLoadedPhoto(photo);
+        }
       }
       if (window.triggerRender) window.triggerRender();
     },
@@ -3670,10 +3683,14 @@
       if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady()) {
         const payload = {
           id: strId,
-          newSrc: options.newSrc || '',
-          newAssetRef: options.newAssetRef || '',
-          newFilename: options.newFilename || '',
-          newMime: options.newMime || '',
+          src: options.src || options.newSrc || '',
+          newSrc: options.newSrc || options.src || '',
+          assetRef: options.assetRef || options.newAssetRef || '',
+          newAssetRef: options.newAssetRef || options.assetRef || '',
+          filename: options.filename || options.newFilename || '',
+          newFilename: options.newFilename || options.filename || '',
+          mime: options.mime || options.newMime || '',
+          newMime: options.newMime || options.mime || '',
           naturalWidth: Number(options.naturalWidth || options.nw || 0),
           naturalHeight: Number(options.naturalHeight || options.nh || 0),
           width: Number(options.width || options.w || 0),

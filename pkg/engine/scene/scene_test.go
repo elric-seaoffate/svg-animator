@@ -417,3 +417,78 @@ func TestCropBackgroundVersionClashPrevention(t *testing.T) {
 		seen[v.ID] = true
 	}
 }
+
+func TestCommitBackgroundCrop(t *testing.T) {
+	s := NewScene()
+
+	// 1. Commit without background must fail
+	if _, err := s.CommitBackgroundCrop("data:image/png;base64,AAA", true); err == nil {
+		t.Errorf("expected error when committing crop without background, got nil")
+	}
+
+	// Set background
+	bg := &BackgroundConfig{
+		Filename:     "test.png",
+		Mime:         "image/png",
+		B64:          "original_b64",
+		Src:          "data:image/png;base64,original_b64",
+		NaturalWidth: 1920,
+		NaturalHeight: 1080,
+	}
+	s.SetBackground(bg)
+
+	// 2. Commit without active crop must fail
+	if _, err := s.CommitBackgroundCrop("data:image/png;base64,AAA", true); err == nil {
+		t.Errorf("expected error when committing without active crop, got nil")
+	}
+
+	// Apply crop
+	_, err := s.CropBackground(BackgroundCrop{
+		SourceX:      100,
+		SourceY:      200,
+		SourceWidth:  800,
+		SourceHeight: 600,
+	}, "Crop 1")
+	if err != nil {
+		t.Fatalf("CropBackground failed: %v", err)
+	}
+
+	// 3. Commit with discardVersions=false must fail with informative error
+	if _, err := s.CommitBackgroundCrop("data:image/png;base64,AAA", false); err == nil {
+		t.Errorf("expected error when committing with discardVersions=false, got nil")
+	}
+
+	// 4. Commit with empty newB64 must fail
+	if _, err := s.CommitBackgroundCrop("", true); err == nil {
+		t.Errorf("expected error when committing with empty newB64, got nil")
+	}
+
+	// 5. Commit with valid newB64 and discardVersions=true must succeed
+	croppedB64 := "data:image/png;base64,cropped_b64"
+	res, err := s.CommitBackgroundCrop(croppedB64, true)
+	if err != nil {
+		t.Fatalf("CommitBackgroundCrop failed: %v", err)
+	}
+
+	if res.B64 != croppedB64 || res.Src != croppedB64 || res.Data != croppedB64 {
+		t.Errorf("expected updated B64/Src/Data, got B64=%s", res.B64)
+	}
+	if res.NaturalWidth != 800 || res.NaturalHeight != 600 {
+		t.Errorf("expected NaturalWidth/Height 800x600, got %fx%f", res.NaturalWidth, res.NaturalHeight)
+	}
+	if res.SourceWidth != 800 || res.SourceHeight != 600 {
+		t.Errorf("expected SourceWidth/Height 800x600, got %fx%f", res.SourceWidth, res.SourceHeight)
+	}
+	if res.Crop != nil {
+		t.Errorf("expected Crop nil after commit, got %+v", res.Crop)
+	}
+	if res.ActiveCropVersionID != "original" {
+		t.Errorf("expected ActiveCropVersionID 'original', got %s", res.ActiveCropVersionID)
+	}
+	if len(res.CropVersions) != 1 || res.CropVersions[0].ID != "original" {
+		t.Fatalf("expected single 'original' crop version, got %+v", res.CropVersions)
+	}
+	if res.CropVersions[0].SourceWidth != 800 || res.CropVersions[0].SourceHeight != 600 {
+		t.Errorf("expected Original version 800x600, got %fx%f", res.CropVersions[0].SourceWidth, res.CropVersions[0].SourceHeight)
+	}
+}

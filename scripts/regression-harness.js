@@ -617,7 +617,9 @@ async function runHarness() {
           fill() {},
           createRadialGradient() { return { addColorStop() {} }; },
           save() {},
-          restore() {}
+          restore() {},
+          rect() {},
+          clip() {}
         };
       },
       toDataURL() {
@@ -8397,6 +8399,192 @@ async function runHarness() {
   }
 
   console.log('[HARNESS] Scenario 67 PASS: Batch 4 Group Integrity, Attached Flow Geometry, Layer Visibility & Lock Enforcement verified.');
+
+  // ---------------------------------------------------------------------------
+  // SCENARIO 68: Batch 5 Background Crop, Clip/Snip, Image Baking and Pixel Composition Integrity
+  // ---------------------------------------------------------------------------
+  console.log('\n[HARNESS] Testing Scenario 68: Batch 5 Background Crop, Clip/Snip, Image Baking and Pixel Composition Integrity...');
+
+  // Test 1: P1-010 Image Clip pointer scaling
+  console.log('[HARNESS] Scenario 68 Test 1: P1-010 Image Clip pointer scaling with getEffectiveScale()...');
+  if (window.Stage) {
+    const origZoom = window.Stage.zoomScale;
+    const origMode = window.Stage.zoomMode;
+    window.Stage.zoomMode = 'custom';
+    window.Stage.zoomScale = 1.2;
+    const effScale = window.Stage.getEffectiveScale();
+    assert.strictEqual(effScale, 1.2, 'Test 1: Effective scale is zoomScale in custom mode');
+
+    // Simulate pointer move during clipping
+    window.Stage.isClippingImage = true;
+    window.Stage.clipDragMode = 'move';
+    window.Stage.clipDragStart = { clientX: 200, clientY: 200, box: { x: 50, y: 50, w: 100, h: 80 } };
+    window.Stage.clipOrigBounds = { left: 0, top: 0, w: 400, h: 300 };
+
+    window.Stage.previewBox.dispatchEvent({ type: 'pointermove', clientX: 320, clientY: 260, pointerId: 1 }); // dx = 120px client -> 100px canvas at 1.2 scale
+    assert.strictEqual(Math.round(window.Stage.clipBox.x), 150, 'Test 1: clipBox.x matches canvas space delta (50 + 100)');
+    assert.strictEqual(Math.round(window.Stage.clipBox.y), 100, 'Test 1: clipBox.y matches canvas space delta (50 + 50)');
+
+    window.Stage.isClippingImage = false;
+    window.Stage.clipDragMode = null;
+    window.Stage.clipDragStart = null;
+    window.Stage.clipOrigBounds = null;
+    window.Stage.zoomScale = origZoom;
+    window.Stage.zoomMode = origMode;
+  }
+
+  // Test 2: P1-011 & P2-003 Image Object commit crop priority and field-key compatibility
+  console.log('[HARNESS] Scenario 68 Test 2: P1-011 & P2-003 Image Object commit priority over background and key compatibility...');
+  // Load background photo into scene
+  const s68BgPhoto = {
+    filename: 'test_bg.png',
+    mime: 'image/png',
+    b64: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    naturalWidth: 1920,
+    naturalHeight: 1080
+  };
+  window.setLoadedPhoto(s68BgPhoto);
+  window.EngineBridge.setBackground(s68BgPhoto);
+
+  // Create an image object and crop it
+  const s68Img = window.ImageObjects.createImage({
+    name: 'Selected Image For Crop',
+    width: 200,
+    height: 150,
+    naturalWidth: 400,
+    naturalHeight: 300,
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  });
+  window.ImageObjects.cropImage(s68Img.id, {
+    sourceX: 50,
+    sourceY: 50,
+    sourceWidth: 200,
+    sourceHeight: 150
+  }, { newW: 200, newH: 150 }, 'Subcrop');
+
+  // Select the Image Object
+  window.AppCoordinator.selectObject('image', s68Img.id);
+
+  // Verify openCommitCropModal targets the selected image, not background
+  window.ImageToolsController.openCommitCropModal();
+  const modalNameEl = document.getElementById('commitCropModalImageName');
+  assert.ok(modalNameEl && modalNameEl.textContent.includes(s68Img.name), 'Test 2: Modal targets selected image name');
+
+  // Commit crop on selected image with background present
+  window.ImageToolsController.commitCurrentCrop(true);
+  const committedImg = window.ImageObjects.getImage(s68Img.id);
+  assert.ok(committedImg, 'Test 2: Committed image exists');
+  assert.ok(!committedImg.crop, 'Test 2: Image crop is cleared after commit');
+  assert.ok(committedImg.src.startsWith('data:image/'), 'Test 2: Image has new raster data source');
+
+  // Verify background was NOT overwritten by the image commit
+  const curBgPhoto = window.getLoadedPhoto();
+  assert.strictEqual(curBgPhoto.filename, 'test_bg.png', 'Test 2: Background photo was not touched by image commit');
+
+  // Test 3: P1-011 Background Commit Crop
+  console.log('[HARNESS] Scenario 68 Test 3: P1-011 Background Commit Crop (preserve rejection & discard execution)...');
+  window.AppCoordinator.clearSelection();
+
+  // Crop the background
+  window.EngineBridge.cropBackground({
+    sourceX: 100,
+    sourceY: 100,
+    sourceWidth: 800,
+    sourceHeight: 600
+  }, 'Landscape Crop');
+  const bgWithCrop = window.getLoadedPhoto();
+  assert.ok(bgWithCrop.crop && bgWithCrop.crop.enabled, 'Test 3: Background crop is enabled');
+
+  // Attempt Commit & Preserve on Background -> must notify user and disallow
+  let notifyMsg = '';
+  const origNotifyFn = window.AppCoordinator.showNotification;
+  window.AppCoordinator.showNotification = (msg, type) => {
+    notifyMsg = msg;
+    return origNotifyFn ? origNotifyFn.call(window.AppCoordinator, msg, type) : null;
+  };
+
+  window.ImageToolsController.commitCurrentCrop(false);
+  assert.ok(notifyMsg.includes('Cannot commit background crop while preserving versions'), 'Test 3: Preserve versions rejected for background crop bake');
+
+  // Commit & Discard on Background -> extracts pixels and bakes new base background
+  window.ImageToolsController.commitCurrentCrop(true);
+  const bgAfterCommit = window.getLoadedPhoto();
+  assert.strictEqual(bgAfterCommit.crop, null, 'Test 3: Background crop cleared after commit');
+  assert.strictEqual(bgAfterCommit.naturalWidth, 800, 'Test 3: Natural width updated to 800');
+  assert.strictEqual(bgAfterCommit.naturalHeight, 600, 'Test 3: Natural height updated to 600');
+  assert.strictEqual(bgAfterCommit.activeCropVersionId, 'original', 'Test 3: Active version reset to original');
+
+  window.AppCoordinator.showNotification = origNotifyFn;
+
+  // Test 4: P1-012 renderBackgroundToOffscreenCanvas crop awareness
+  console.log('[HARNESS] Scenario 68 Test 4: P1-012 renderBackgroundToOffscreenCanvas crop-awareness...');
+  // Set up background with crop
+  const testPhotoForCanvas = {
+    filename: 'crop_canvas_test.png',
+    mime: 'image/png',
+    b64: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    naturalWidth: 1000,
+    naturalHeight: 1000,
+    crop: {
+      enabled: true,
+      sourceX: 200,
+      sourceY: 300,
+      sourceWidth: 400,
+      sourceHeight: 300
+    }
+  };
+  window.setLoadedPhoto(testPhotoForCanvas);
+  const patSelectEl = document.getElementById('canvasPatternSelect');
+  if (patSelectEl) patSelectEl.value = 'photo';
+
+  let renderedCanvas = null;
+  window.renderBackgroundToOffscreenCanvas(800, 600, (c) => {
+    renderedCanvas = c;
+  });
+  assert.ok(renderedCanvas, 'Test 4: renderBackgroundToOffscreenCanvas returned canvas');
+
+  // Test 5: P1-012 Bake Image integrity (locked, hidden, clip applied, LayerManager hidden in keep mode)
+  console.log('[HARNESS] Scenario 68 Test 5: P1-012 executeBakeImage integrity...');
+  const bakeImg = window.ImageObjects.createImage({
+    name: 'Bake Test Image',
+    width: 150,
+    height: 100,
+    x: 50,
+    y: 50,
+    data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEElEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    clip: { enabled: true, x: 10, y: 10, width: 80, height: 60 }
+  });
+
+  // Verify locked image cannot be baked
+  window.LayerManager.setLocked('image', bakeImg.id, true);
+  let bakeWarnMsg = '';
+  window.AppCoordinator.showNotification = (msg, type) => {
+    bakeWarnMsg = msg;
+    return origNotifyFn ? origNotifyFn.call(window.AppCoordinator, msg, type) : null;
+  };
+  executeBakeImage(bakeImg, 'keep');
+  assert.ok(bakeWarnMsg.includes('Cannot bake locked image'), 'Test 5: Locked image baking rejected');
+
+  // Unlock and hide image
+  window.LayerManager.setLocked('image', bakeImg.id, false);
+  window.LayerManager.setVisibility('image', bakeImg.id, false);
+  bakeWarnMsg = '';
+  executeBakeImage(bakeImg, 'keep');
+  assert.ok(bakeWarnMsg.includes('Cannot bake hidden image'), 'Test 5: Hidden image baking rejected');
+
+  // Make visible and bake in 'keep' mode
+  window.LayerManager.setVisibility('image', bakeImg.id, true);
+  executeBakeImage(bakeImg, 'keep');
+
+  const effLayer = window.LayerManager.getEffective('image', bakeImg.id);
+  assert.strictEqual(effLayer.visible, false, 'Test 5: Image visibility set to false in LayerManager in keep mode');
+  const goBg = window.EngineBridge.getBackground();
+  assert.ok(goBg && goBg.background, 'Test 5: Authoritative Go background received baked background');
+  assert.strictEqual(goBg.background.filename, 'baked_background.png', 'Test 5: Baked background filename in Go');
+
+  window.AppCoordinator.showNotification = origNotifyFn;
+
+  console.log('[HARNESS] Scenario 68 PASS: Batch 5 Background Crop, Clip/Snip, Image Baking and Pixel Composition Integrity verified.');
 
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14 & 15 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, and Go WASM Node, Flow, Glow, Ripple, Camera, Optics, Frame, State, History & Naming engines verified.');

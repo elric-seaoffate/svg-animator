@@ -1333,34 +1333,40 @@ func (s *Scene) CommitBackgroundCrop(newB64 string, discardVersions bool) (*Back
 		return nil, errors.New("no background image loaded in scene")
 	}
 
-	if newB64 != "" {
-		s.background.B64 = newB64
-		s.background.Src = newB64
-		s.background.Data = newB64
+	if s.background.Crop == nil || !s.background.Crop.Enabled || s.background.Crop.SourceWidth <= 0 || s.background.Crop.SourceHeight <= 0 {
+		return nil, errors.New("no active background crop to commit")
 	}
 
-	if s.background.Crop != nil && s.background.Crop.Enabled {
-		if discardVersions {
-			sw := s.background.Crop.SourceWidth
-			sh := s.background.Crop.SourceHeight
-			s.background.SourceWidth = sw
-			s.background.SourceHeight = sh
-			s.background.NaturalWidth = sw
-			s.background.NaturalHeight = sh
+	if !discardVersions {
+		return nil, errors.New("cannot commit background crop while preserving previous crop versions because crop versions reference the original uncropped source image")
+	}
 
-			s.background.Crop = nil
-			s.background.ActiveCropVersionID = "original"
-			s.background.CropVersions = []BackgroundCropVersion{
-				{
-					ID:           "original",
-					Name:         "Original",
-					SourceX:      0,
-					SourceY:      0,
-					SourceWidth:  sw,
-					SourceHeight: sh,
-				},
-			}
-		}
+	if newB64 == "" {
+		return nil, errors.New("cannot commit background crop without cropped raster data")
+	}
+
+	sw := s.background.Crop.SourceWidth
+	sh := s.background.Crop.SourceHeight
+
+	s.background.B64 = newB64
+	s.background.Src = newB64
+	s.background.Data = newB64
+	s.background.SourceWidth = sw
+	s.background.SourceHeight = sh
+	s.background.NaturalWidth = sw
+	s.background.NaturalHeight = sh
+
+	s.background.Crop = nil
+	s.background.ActiveCropVersionID = "original"
+	s.background.CropVersions = []BackgroundCropVersion{
+		{
+			ID:           "original",
+			Name:         "Original",
+			SourceX:      0,
+			SourceY:      0,
+			SourceWidth:  sw,
+			SourceHeight: sh,
+		},
 	}
 
 	s.revision++

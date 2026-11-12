@@ -2932,3 +2932,151 @@ func TestTimelineEvaluateReadOnlyIsolation(t *testing.T) {
 		t.Errorf("activeScene was overwritten by Timeline.EvaluateBatch")
 	}
 }
+
+func TestImageCommitCropKeyMismatchProtocol(t *testing.T) {
+	activeScene = scene.NewScene()
+
+	// Create an image object
+	imgReq := ImageCreateRequest{
+		Image: scene.Image{
+			ID:            "img-crop-1",
+			Name:          "Test Image",
+			Src:           "data:image/png;base64,initial_src",
+			NaturalWidth:  1000,
+			NaturalHeight: 800,
+			Width:         200,
+			Height:        160,
+			X:             50,
+			Y:             50,
+		},
+	}
+	payload, _ := json.Marshal(imgReq)
+	_, err := Dispatch("Image.Create", payload)
+	if err != nil {
+		t.Fatalf("Image.Create failed: %v", err)
+	}
+
+	// Crop the image first
+	cropReq := ImageCropRequest{
+		ID: "img-crop-1",
+		Crop: scene.ImageCrop{
+			Enabled:      true,
+			SourceX:      100,
+			SourceY:      100,
+			SourceWidth:  400,
+			SourceHeight: 300,
+		},
+	}
+	payload, _ = json.Marshal(cropReq)
+	_, err = Dispatch("Image.Crop", payload)
+	if err != nil {
+		t.Fatalf("Image.Crop failed: %v", err)
+	}
+
+	// Now CommitCrop using "newSrc" (P2-003 key mismatch verification)
+	commitPayload := []byte(`{
+		"id": "img-crop-1",
+		"newSrc": "data:image/png;base64,baked_crop_data",
+		"newAssetRef": "assets/baked_crop.png",
+		"newFilename": "baked_crop.png",
+		"newMime": "image/png",
+		"naturalWidth": 400,
+		"naturalHeight": 300,
+		"width": 200,
+		"height": 150,
+		"discardVersions": true
+	}`)
+	respBytes, err := Dispatch("Image.CommitCrop", commitPayload)
+	if err != nil {
+		t.Fatalf("Image.CommitCrop failed: %v", err)
+	}
+
+	var res ImageCommitCropResponse
+	if err := json.Unmarshal(respBytes, &res); err != nil {
+		t.Fatalf("unmarshaling ImageCommitCropResponse: %v", err)
+	}
+	if !res.Success {
+		t.Fatalf("Image.CommitCrop returned failure: %s", res.Error)
+	}
+	if res.Image.Src != "data:image/png;base64,baked_crop_data" {
+		t.Errorf("expected Src 'data:image/png;base64,baked_crop_data', got '%s'", res.Image.Src)
+	}
+	if res.Image.AssetRef != "assets/baked_crop.png" {
+		t.Errorf("expected AssetRef 'assets/baked_crop.png', got '%s'", res.Image.AssetRef)
+	}
+	if res.Image.NaturalWidth != 400 || res.Image.NaturalHeight != 300 {
+		t.Errorf("expected natural dimensions 400x300, got %fx%f", res.Image.NaturalWidth, res.Image.NaturalHeight)
+	}
+	if res.Image.Crop != nil {
+		t.Errorf("expected Crop nil after commit, got %+v", res.Image.Crop)
+	}
+}
+
+func TestBackgroundCropCommitProtocol(t *testing.T) {
+	activeScene = scene.NewScene()
+
+	// 1. Set background
+	bgReq := []byte(`{
+		"background": {
+			"filename": "bg.png",
+			"mime": "image/png",
+			"b64": "bg_original_b64",
+			"src": "data:image/png;base64,bg_original_b64",
+			"naturalWidth": 1920,
+			"naturalHeight": 1080
+		}
+	}`)
+	_, err := Dispatch("Background.Set", bgReq)
+	if err != nil {
+		t.Fatalf("Background.Set failed: %v", err)
+	}
+
+	// 2. Crop background
+	cropReq := []byte(`{
+		"name": "Wide Crop",
+		"crop": {
+			"enabled": true,
+			"sourceX": 100,
+			"sourceY": 200,
+			"sourceWidth": 1600,
+			"sourceHeight": 800
+		}
+	}`)
+	_, err = Dispatch("Background.Crop", cropReq)
+	if err != nil {
+		t.Fatalf("Background.Crop failed: %v", err)
+	}
+
+	// 3. Commit background crop with discardVersions=false must fail
+	failReq := []byte(`{"newB64": "data:image/png;base64,cropped_bg", "discardVersions": false}`)
+	respBytes, err := Dispatch("Background.CropCommit", failReq)
+	if err != nil {
+		t.Fatalf("Background.CropCommit failed unexpectedly: %v", err)
+	}
+	var failRes BackgroundCropResponse
+	_ = json.Unmarshal(respBytes, &failRes)
+	if failRes.Success {
+		t.Errorf("expected failure when discardVersions=false, got success")
+	}
+
+	// 4. Commit background crop with valid newB64 and discardVersions=true
+	succReq := []byte(`{"newB64": "data:image/png;base64,cropped_bg", "discardVersions": true}`)
+	respBytes, err = Dispatch("Background.CropCommit", succReq)
+	if err != nil {
+		t.Fatalf("Background.CropCommit failed: %v", err)
+	}
+	var succRes BackgroundCropResponse
+	_ = json.Unmarshal(respBytes, &succRes)
+	if !succRes.Success {
+		t.Fatalf("Background.CropCommit failed: %s", succRes.Error)
+	}
+	if succRes.Background.B64 != "data:image/png;base64,cropped_bg" {
+		t.Errorf("expected new B64, got %s", succRes.Background.B64)
+	}
+	if succRes.Background.NaturalWidth != 1600 || succRes.Background.NaturalHeight != 800 {
+		t.Errorf("expected 1600x800, got %fx%f", succRes.Background.NaturalWidth, succRes.Background.NaturalHeight)
+	}
+	if succRes.Background.Crop != nil {
+		t.Errorf("expected Crop nil after commit, got %+v", succRes.Background.Crop)
+	}
+}

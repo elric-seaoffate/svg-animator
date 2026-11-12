@@ -843,10 +843,14 @@ type ImageCropVersionDeleteResponse struct {
 type ImageCommitCropRequest struct {
 	ID              scene.StringID `json:"id"`
 	Src             string         `json:"src,omitempty"`
+	NewSrc          string         `json:"newSrc,omitempty"`
 	Data            string         `json:"data,omitempty"`
 	AssetRef        string         `json:"assetRef,omitempty"`
+	NewAssetRef     string         `json:"newAssetRef,omitempty"`
 	Filename        string         `json:"filename,omitempty"`
+	NewFilename     string         `json:"newFilename,omitempty"`
 	Mime            string         `json:"mime,omitempty"`
+	NewMime         string         `json:"newMime,omitempty"`
 	NaturalWidth    float64        `json:"naturalWidth,omitempty"`
 	NaturalHeight   float64        `json:"naturalHeight,omitempty"`
 	Width           float64        `json:"width,omitempty"`
@@ -2930,9 +2934,24 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		}
 		srcVal := req.Src
 		if srcVal == "" {
+			srcVal = req.NewSrc
+		}
+		if srcVal == "" {
 			srcVal = req.Data
 		}
-		img, err := activeScene.CommitCrop(req.ID, srcVal, req.AssetRef, req.Filename, req.Mime, req.NaturalWidth, req.NaturalHeight, req.Width, req.Height, req.DiscardVersions)
+		assetRefVal := req.AssetRef
+		if assetRefVal == "" {
+			assetRefVal = req.NewAssetRef
+		}
+		filenameVal := req.Filename
+		if filenameVal == "" {
+			filenameVal = req.NewFilename
+		}
+		mimeVal := req.Mime
+		if mimeVal == "" {
+			mimeVal = req.NewMime
+		}
+		img, err := activeScene.CommitCrop(req.ID, srcVal, assetRefVal, filenameVal, mimeVal, req.NaturalWidth, req.NaturalHeight, req.Width, req.Height, req.DiscardVersions)
 		if err != nil {
 			return json.Marshal(ImageCommitCropResponse{Success: false, Error: err.Error()})
 		}
