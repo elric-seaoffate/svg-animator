@@ -534,7 +534,7 @@ var ObjectPropertyCatalog = map[string][]EligibleProperty{
 }
 
 // SyncParameterNamesWithObjectNames ensures every parameter name matches the object-name/property convention:
-// <objectName>-<paramSuffix>.
+// <objectName>-<paramSuffix>. For group semantic mappings (len(Targets) > 0), preserves the semantic alias suffix.
 func (s *Scene) SyncParameterNamesWithObjectNames() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -544,6 +544,17 @@ func (s *Scene) SyncParameterNamesWithObjectNames() {
 		target := p.Target
 		objName, tType := s.getObjectNameForTargetLocked(target)
 		if objName != "" {
+			if tType == "group" && len(p.Targets) > 0 {
+				// Preserve semantic alias suffix (e.g. "meter-a-group-level" stays "meter-a-group-level")
+				aliasSuffix := ""
+				if idx := strings.Index(p.Name, "-group-"); idx >= 0 {
+					aliasSuffix = p.Name[idx+len("-group-"):]
+				}
+				if aliasSuffix != "" {
+					p.Name = GenerateParameterName(objName, aliasSuffix, "group")
+				}
+				continue
+			}
 			p.Name = GenerateParameterName(objName, p.Property, tType)
 		}
 	}

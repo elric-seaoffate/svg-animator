@@ -82,6 +82,9 @@ func TestReusableComponentsLifecycleAndDTCompatibility(t *testing.T) {
 	if childDef.Version != "1.0.0" || childDef.ContentHash == "" {
 		t.Fatalf("expected version 1.0.0 and non-empty ContentHash, got ver=%q hash=%q", childDef.Version, childDef.ContentHash)
 	}
+	if len(childDef.Parameters) != 1 || childDef.Parameters[0].Property != "value" || childDef.Parameters[0].Unit != "%" {
+		t.Fatalf("expected canonical property='value' and unit='%%' on group parameter, got %+v", childDef.Parameters)
+	}
 
 	// 2. Place two independent instances in a fresh scene
 	sc2 := NewScene()

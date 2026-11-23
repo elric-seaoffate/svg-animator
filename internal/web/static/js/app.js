@@ -5083,7 +5083,7 @@ window.renderWidgetParametersOverview = function(selectionPayload) {
                 ? window.AppCoordinator.getGroup(target)
                 : null;
               const existingMap = (grp && Array.isArray(grp.mappings))
-                ? grp.mappings.find((m) => m.alias === param.property)
+                ? grp.mappings.find((m) => m.alias === param.property || (param.name && param.name.endsWith('-group-' + m.alias)))
                 : null;
               if (existingMap) {
                 window.GroupMappingDialog.open(target, existingMap, document.getElementById('drawerWidgetStatusMsg'));

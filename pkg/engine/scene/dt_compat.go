@@ -36,6 +36,7 @@ type WidgetRuntimePropertySpec struct {
 // WidgetRuntimeManifest matches Digital Twin's strict DisallowUnknownFields capability descriptor (contractVersion: 1).
 type WidgetRuntimeManifest struct {
 	ContractVersion          int                                  `json:"contractVersion"`
+	RuntimeName              string                               `json:"runtimeName,omitempty"`
 	RuntimeVersion           string                               `json:"runtimeVersion"`
 	SourceCommit             string                               `json:"sourceCommit"`
 	RuntimeSha256            string                               `json:"runtimeSha256"`
@@ -43,8 +44,8 @@ type WidgetRuntimeManifest struct {
 	Properties               map[string]WidgetRuntimePropertySpec `json:"properties"`
 }
 
-// VerifiedRuntimeProperties returns the 41 verified visual properties supported by svg-widget.js
-// matching Digital Twin's baseline capability contract (840ae5d).
+// VerifiedRuntimeProperties returns the 41 verified visual properties supported by svg-widget.js,
+// aligned accurately with ObjectPropertyCatalog and actual svg-widget.js runtime behaviour.
 func VerifiedRuntimeProperties() map[string]WidgetRuntimePropertySpec {
 	return map[string]WidgetRuntimePropertySpec{
 		"armThickness":    {Types: []string{"number"}, Min: floatPtr(1), Max: floatPtr(20)},
@@ -52,23 +53,23 @@ func VerifiedRuntimeProperties() map[string]WidgetRuntimePropertySpec {
 		"borderColor":     {Types: []string{"color"}},
 		"burstCycles":     {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(100)},
 		"color":           {Types: []string{"color"}},
-		"dashLength":      {Types: []string{"number"}, Min: floatPtr(2), Max: floatPtr(200)},
-		"direction":       {Types: []string{"enum"}},
+		"dashLength":      {Types: []string{"number"}, Min: floatPtr(2), Max: floatPtr(400)},
+		"direction":       {Types: []string{"enum", "text"}},
 		"dotSize":         {Types: []string{"number"}, Min: floatPtr(1), Max: floatPtr(40)},
 		"duration":        {Types: []string{"number"}, Min: floatPtr(20), Max: floatPtr(1500)},
 		"fill":            {Types: []string{"color"}},
-		"gapLength":       {Types: []string{"number"}, Min: floatPtr(2), Max: floatPtr(200)},
+		"gapLength":       {Types: []string{"number"}, Min: floatPtr(2), Max: floatPtr(300)},
 		"intensity":       {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(1)},
-		"lineGapRatio":    {Types: []string{"enum"}},
+		"lineGapRatio":    {Types: []string{"text", "enum"}},
 		"maxValue":        {Types: []string{"number"}},
 		"minValue":        {Types: []string{"number"}},
 		"opacity":         {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(1)},
-		"operatingState":  {Types: []string{"enum"}},
-		"pauseSeconds":    {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(60)},
-		"pauseVisibility": {Types: []string{"enum"}},
+		"operatingState":  {Types: []string{"enum", "text"}},
+		"pauseSeconds":    {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(300)},
+		"pauseVisibility": {Types: []string{"enum", "text"}},
 		"period":          {Types: []string{"number", "speed"}, Min: floatPtr(0.2), Max: floatPtr(30)},
 		"play":            {Types: []string{"boolean"}},
-		"playbackMode":    {Types: []string{"enum"}},
+		"playbackMode":    {Types: []string{"enum", "text"}},
 		"playbackRate":    {Types: []string{"speed", "number"}, Min: floatPtr(0.1), Max: floatPtr(10)},
 		"repeat":          {Types: []string{"boolean"}},
 		"repeatInterval":  {Types: []string{"number"}, Min: floatPtr(0.2), Max: floatPtr(60)},
@@ -79,12 +80,12 @@ func VerifiedRuntimeProperties() map[string]WidgetRuntimePropertySpec {
 		"showGuide":       {Types: []string{"boolean"}},
 		"speed":           {Types: []string{"speed", "number"}, Min: floatPtr(0), Max: floatPtr(30)},
 		"startOffset":     {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(100)},
-		"state":           {Types: []string{"enum"}},
+		"state":           {Types: []string{"enum", "text"}},
 		"stroke":          {Types: []string{"color"}},
 		"strokeWidth":     {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(32)},
-		"text":            {Types: []string{"text", "number"}},
-		"textContent":     {Types: []string{"text", "number"}},
-		"trigger":         {Types: []string{"number", "boolean"}},
+		"text":            {Types: []string{"text", "number", "speed"}},
+		"textContent":     {Types: []string{"text", "number", "speed"}},
+		"trigger":         {Types: []string{"number", "boolean"}, Min: floatPtr(0), Max: floatPtr(1000000)},
 		"typeSpeed":       {Types: []string{"number", "speed"}, Min: floatPtr(1), Max: floatPtr(120)},
 		"value":           {Types: []string{"number"}},
 		"visibility":      {Types: []string{"boolean"}},
@@ -102,6 +103,7 @@ func BuildWidgetRuntimeManifest(svgWidgetJS []byte, runtimeVersion, sourceCommit
 	sum := sha256.Sum256(svgWidgetJS)
 	return WidgetRuntimeManifest{
 		ContractVersion:          1,
+		RuntimeName:              "svg-widget.js",
 		RuntimeVersion:           strings.TrimSpace(runtimeVersion),
 		SourceCommit:             strings.TrimSpace(sourceCommit),
 		RuntimeSha256:            hex.EncodeToString(sum[:]),
@@ -287,15 +289,15 @@ func ValidateWidgetPackageDTCompatibility(zipBytes []byte) DTCompatibilityReport
 				if len(p.Targets) > DTMaxTargetsPerParam {
 					addErr(fmt.Sprintf("parameter %q targets count (%d) exceeds DT limit (%d)", p.Name, len(p.Targets), DTMaxTargetsPerParam))
 				}
-				if len(p.Targets) > 0 {
-					for _, tb := range p.Targets {
-						if _, ok := runtimeProps[tb.Property]; !ok {
-							addErr(fmt.Sprintf("parameter %q target property %q is not in baseline widget-runtime-manifest.json", p.Name, tb.Property))
-						}
-					}
-				} else if p.Property != "" {
-					if _, ok := runtimeProps[p.Property]; !ok {
-						addErr(fmt.Sprintf("parameter %q property %q is not in baseline widget-runtime-manifest.json", p.Name, p.Property))
+				// Always validate top-level parameter property (DT validates both p.Property and every p.Targets[i].Property!)
+				if strings.TrimSpace(p.Property) == "" {
+					addErr(fmt.Sprintf("parameter %q has empty property", p.Name))
+				} else if _, ok := runtimeProps[p.Property]; !ok {
+					addErr(fmt.Sprintf("parameter %q property %q is not in baseline widget-runtime-manifest.json", p.Name, p.Property))
+				}
+				for _, tb := range p.Targets {
+					if _, ok := runtimeProps[tb.Property]; !ok {
+						addErr(fmt.Sprintf("parameter %q target property %q is not in baseline widget-runtime-manifest.json", p.Name, tb.Property))
 					}
 				}
 			}

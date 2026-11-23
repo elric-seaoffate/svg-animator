@@ -506,7 +506,7 @@ func (s *Scene) PastePayload(payload ClipboardPayload, offsetX float64, offsetY 
 			}
 		} else {
 			cloned.X = math.Round((cloned.X+offsetXPx)*100.0) / 100.0
-			cloned.Y = math.Round((cloned.Y+offsetYPx)*100.0) / 1000.0
+			cloned.Y = math.Round((cloned.Y+offsetYPx)*100.0) / 100.0
 		}
 		if cloned.Name != "" {
 			cloned.Name = s.EnsureUniqueObjectName(SelectionLite, cloned.Name+" Copy", newID)

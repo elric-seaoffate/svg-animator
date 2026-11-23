@@ -1,7 +1,8 @@
 {
   "contractVersion": 1,
+  "runtimeName": "svg-widget.js",
   "runtimeVersion": "1.2.1",
-  "sourceCommit": "186438ff7412572efaa264ce16df0134d7329cab",
+  "sourceCommit": "38f2159d3f63433a48191daf083a9ba76e8ee7e7",
   "runtimeSha256": "93297decab3e5636f693f00a5bd531f51d3ae3b83b86c29cb84e0eaa374ed9fb",
   "supportedManifestSchemas": [
     1
@@ -41,11 +42,12 @@
         "number"
       ],
       "min": 2,
-      "max": 200
+      "max": 400
     },
     "direction": {
       "types": [
-        "enum"
+        "enum",
+        "text"
       ]
     },
     "dotSize": {
@@ -72,7 +74,7 @@
         "number"
       ],
       "min": 2,
-      "max": 200
+      "max": 300
     },
     "intensity": {
       "types": [
@@ -83,6 +85,7 @@
     },
     "lineGapRatio": {
       "types": [
+        "text",
         "enum"
       ]
     },
@@ -105,7 +108,8 @@
     },
     "operatingState": {
       "types": [
-        "enum"
+        "enum",
+        "text"
       ]
     },
     "pauseSeconds": {
@@ -113,11 +117,12 @@
         "number"
       ],
       "min": 0,
-      "max": 60
+      "max": 300
     },
     "pauseVisibility": {
       "types": [
-        "enum"
+        "enum",
+        "text"
       ]
     },
     "period": {
@@ -135,7 +140,8 @@
     },
     "playbackMode": {
       "types": [
-        "enum"
+        "enum",
+        "text"
       ]
     },
     "playbackRate": {
@@ -207,7 +213,8 @@
     },
     "state": {
       "types": [
-        "enum"
+        "enum",
+        "text"
       ]
     },
     "stroke": {
@@ -225,20 +232,24 @@
     "text": {
       "types": [
         "text",
-        "number"
+        "number",
+        "speed"
       ]
     },
     "textContent": {
       "types": [
         "text",
-        "number"
+        "number",
+        "speed"
       ]
     },
     "trigger": {
       "types": [
         "number",
         "boolean"
-      ]
+      ],
+      "min": 0,
+      "max": 1000000
     },
     "typeSpeed": {
       "types": [

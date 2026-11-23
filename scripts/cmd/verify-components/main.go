@@ -153,15 +153,25 @@ func run() int {
 			window.alert = () => {};
 			window.ProjectManager.resetToNewProject();
 			window.EngineBridge.setWidgetParameters([]);
+			window.EngineBridge.updateCanvas({ width: 380, height: 170 });
+			const wEl = document.getElementById('canvasWidthInput');
+			const hEl = document.getElementById('canvasHeightInput');
+			if (wEl) wEl.value = '380';
+			if (hEl) hEl.value = '170';
+			if (window.SceneState) {
+				window.SceneState.setControl('canvasWidthInput', '380');
+				window.SceneState.setControl('canvasHeightInput', '170');
+			}
+			if (window.Stage) { window.Stage.canvasWidth = 380; window.Stage.canvasHeight = 170; }
 
 			const g1 = window.LiteEffects.createLiteEffect({
 				kind: 'gauge-lite', name: 'cell-gauge', variant: 'hbar',
-				x: 190, y: 110, width: 180, height: 22, color: '#38bdf8',
-				minValue: 0, maxValue: 100, value: 42
+				x: 136, y: 85, width: 210, height: 24, color: '#38bdf8',
+				minValue: 0, maxValue: 100, value: 42, unit: '%'
 			});
 			const t1 = window.LiteEffects.createLiteEffect({
 				kind: 'text-lite', name: 'cell-readout', variant: 'rounded',
-				labelText: '42%', x: 335, y: 110, width: 74, height: 26,
+				labelText: '42%', x: 305, y: 85, width: 76, height: 28,
 				color: '#f8fafc', play: false
 			});
 			const grpRes = window.EngineBridge.createGroup('meter-cell', [
@@ -171,7 +181,7 @@ func run() int {
 			const grp = grpRes.group || grpRes;
 			window.EngineBridge.setGroupMapping(grp.id, {
 				alias: 'level', label: 'Primary Level', type: 'number',
-				default: 42, min: 0, max: 100, step: 0.5,
+				default: 42, min: 0, max: 100, step: 0.5, unit: '%',
 				targets: [
 					{ memberType: 'lite', memberId: String(g1.id), property: 'value' },
 					{ memberType: 'lite', memberId: String(t1.id), property: 'text' }
@@ -215,13 +225,23 @@ func run() int {
 		try {
 			window.confirm = () => true;
 			window.alert = () => {};
+			window.EngineBridge.updateCanvas({ width: 380, height: 170 });
+			const wEl = document.getElementById('canvasWidthInput');
+			const hEl = document.getElementById('canvasHeightInput');
+			if (wEl) wEl.value = '380';
+			if (hEl) hEl.value = '170';
+			if (window.SceneState) {
+				window.SceneState.setControl('canvasWidthInput', '380');
+				window.SceneState.setControl('canvasHeightInput', '170');
+			}
+			if (window.Stage) { window.Stage.canvasWidth = 380; window.Stage.canvasHeight = 170; }
 			await window.ComponentLibrary.refreshList();
 			const cards = document.querySelectorAll('#compLibListContainer .comp-lib-card');
 			const foundCard = Array.from(cards).some(el => el.dataset.componentId === %q);
 
-			// Step 5: Place two independent instances
-			const i1 = await window.ComponentLibrary.insertComponent(%q, { instanceName: 'meter-a', offsetX: 0, offsetY: -8 });
-			const i2 = await window.ComponentLibrary.insertComponent(%q, { instanceName: 'meter-b', offsetX: 0, offsetY: 16, scaleX: 1.1, scaleY: 1.1 });
+			// Step 5: Place two independent instances on compact 380x170 canvas (upper row y=51, lower row y=119)
+			const i1 = await window.ComponentLibrary.insertComponent(%q, { instanceName: 'meter-a', offsetX: 0, offsetY: -20 });
+			const i2 = await window.ComponentLibrary.insertComponent(%q, { instanceName: 'meter-b', offsetX: 0, offsetY: 20 });
 
 			// Step 6: Mutate instance 1 independently and verify instance 2 is untouched
 			const m1Gauge = i1.group.members.find(m => m.type === 'lite');
@@ -358,9 +378,11 @@ func run() int {
 			const wA = window.SVGWidget.mount(hostA, svgMarkup, { instanceId: 'dt_unit_a', manifest: { schemaVersion: 1, parameters: params }, visibilityAware: false });
 			const wB = window.SVGWidget.mount(hostB, svgMarkup, { instanceId: 'dt_unit_b', manifest: { schemaVersion: 1, parameters: params }, visibilityAware: false });
 
-			const lvlParam = params.find(p => p.property === 'level');
-			if (!lvlParam) return JSON.stringify({ ok: false, error: 'level param not found' });
+			const lvlParam = params.find(p => p.name === 'meter-a-group-level');
+			const lvlParamB = params.find(p => p.name === 'meter-b-group-level');
+			if (!lvlParam || !lvlParamB) return JSON.stringify({ ok: false, error: 'meter-a/b-group-level params not found', params });
 
+			const vb = wA.svgElement.getAttribute('viewBox');
 			wA.setParameter(lvlParam.name, 88);
 			wB.setParameter(lvlParam.name, 14);
 			wA.pause();
@@ -368,15 +390,23 @@ func run() int {
 			const bPaused = wB.isPaused();
 			wA.resume();
 
-			const ok = wA.getParameters()[lvlParam.name] === 88 &&
+			const readoutATarget = lvlParam.targets.find(t => t.property === 'text').target;
+			const readoutAText = wA.svgElement.querySelector('[data-semantic-target="' + readoutATarget + '"] text')?.textContent || '';
+			const readoutBText = wB.svgElement.querySelector('[data-semantic-target="' + readoutATarget + '"] text')?.textContent || '';
+
+			const ok = vb === '0 0 380 170' &&
+				lvlParam.property === 'value' && lvlParam.unit === '%' &&
+				lvlParamB.property === 'value' && lvlParamB.unit === '%' &&
+				wA.getParameters()[lvlParam.name] === 88 &&
 				wB.getParameters()[lvlParam.name] === 14 &&
+				readoutAText === '88%' && readoutBText === '14%' &&
 				aPaused === true && bPaused === false;
 
 			wA.destroy();
 			wB.destroy();
 			hostA.remove();
 			hostB.remove();
-			return JSON.stringify({ ok, paramName: lvlParam.name, aVal: 88, bVal: 14, aPaused, bPaused });
+			return JSON.stringify({ ok, vb, propA: lvlParam.property, unitA: lvlParam.unit, readoutAText, readoutBText, aPaused, bPaused });
 		} catch (e) {
 			return JSON.stringify({ ok: false, error: e.message });
 		}

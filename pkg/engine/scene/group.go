@@ -34,6 +34,7 @@ type GroupPropertyMapping struct {
 	Min         *float64             `json:"min,omitempty"`
 	Max         *float64             `json:"max,omitempty"`
 	Step        *float64             `json:"step,omitempty"`
+	Unit        string               `json:"unit,omitempty"`
 	Options     []string             `json:"options,omitempty"`
 	Description string               `json:"description,omitempty"`
 	Targets     []GroupTargetBinding `json:"targets"` // 1 or more member property bindings
@@ -77,17 +78,40 @@ func (s *Scene) nextGroupID() StringID {
 	}
 }
 
-// FindGroupByMember returns the group containing the specified object instance, if any.
+// FindGroupByMember returns the innermost deterministic group containing the specified object instance, if any.
+// When nested component wrapper groups exist, leaf child groups take precedence over parent wrappers.
 func (s *Scene) FindGroupByMember(selType SelectionType, id StringID) (Group, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	parentIDs := make(map[StringID]bool)
 	for _, g := range s.groups {
+		if g.ParentGroupID != "" {
+			parentIDs[g.ParentGroupID] = true
+		}
+	}
+
+	var fallback Group
+	hasFallback := false
+	for _, gid := range s.groupIDs {
+		g, ok := s.groups[gid]
+		if !ok {
+			continue
+		}
 		for _, m := range g.Members {
 			if m.Type == selType && m.ID == id {
-				return g, true
+				if !parentIDs[g.ID] {
+					return g, true
+				}
+				if !hasFallback {
+					fallback = g
+					hasFallback = true
+				}
 			}
 		}
+	}
+	if hasFallback {
+		return fallback, true
 	}
 	return Group{}, false
 }
@@ -330,10 +354,11 @@ func (s *Scene) RenameGroup(groupID StringID, newName string) (Group, error) {
 	}
 	for i := range s.parameters {
 		p := &s.parameters[i]
-		if p.Target == targetID || p.Target == prefixedID || (oldName != "" && p.Target == oldName) {
+		if (p.Target == targetID || p.Target == prefixedID || (oldName != "" && p.Target == oldName)) && len(p.Targets) == 0 {
 			p.Name = GenerateParameterName(displayName, p.Property, "group")
 		}
 	}
+	s.syncGroupMappingsToWidgetParamsLocked(groupID)
 
 	s.revision++
 
@@ -1033,6 +1058,21 @@ func (s *Scene) validateGroupPropertyMappingLocked(grp Group, mapping GroupPrope
 	out.Label = label
 	out.Type = mType
 	out.Targets = normalizedTargets
+	out.Unit = strings.TrimSpace(mapping.Unit)
+	if out.Unit == "" && (mType == "number" || mType == "speed") {
+		for _, tb := range normalizedTargets {
+			if tb.MemberType == SelectionLite {
+				if le, ok := s.liteEffects[tb.MemberID]; ok && le.Kind == "gauge-lite" {
+					if strings.TrimSpace(le.Unit) != "" {
+						out.Unit = strings.TrimSpace(le.Unit)
+					} else {
+						out.Unit = "%"
+					}
+					break
+				}
+			}
+		}
+	}
 	if mType == "number" || mType == "speed" {
 		if out.Min == nil && hasSharedMin {
 			out.Min = floatPtr(sharedMin)
@@ -1128,16 +1168,38 @@ func (s *Scene) syncGroupMappingsToWidgetParamsLocked(groupID StringID) {
 		if desc == "" {
 			desc = fmt.Sprintf("%s on group %s (%d mapped target(s))", m.Label, grpName, len(wTargets))
 		}
+		// Resolve canonical runtime visual property from fan-out targets (e.g. "value", "color", "play")
+		// rather than emitting an arbitrary semantic alias like "level" or "cpu" as WidgetParameter.Property.
+		canonicalProp := m.Alias
+		if len(wTargets) > 0 && strings.TrimSpace(wTargets[0].Property) != "" {
+			canonicalProp = strings.TrimSpace(wTargets[0].Property)
+		}
+		unitVal := strings.TrimSpace(m.Unit)
+		if unitVal == "" && (m.Type == "number" || m.Type == "speed") {
+			for _, t := range m.Targets {
+				if t.MemberType == SelectionLite {
+					if le, ok := s.liteEffects[t.MemberID]; ok && le.Kind == "gauge-lite" {
+						if strings.TrimSpace(le.Unit) != "" {
+							unitVal = strings.TrimSpace(le.Unit)
+						} else {
+							unitVal = "%"
+						}
+						break
+					}
+				}
+			}
+		}
 		wp := WidgetParameter{
 			Name:        paramName,
 			Type:        m.Type,
 			Default:     m.Default,
 			Target:      string(grp.ID),
-			Property:    m.Alias,
+			Property:    canonicalProp,
 			Targets:     wTargets,
 			Min:         deepCopyFloatPtr(m.Min),
 			Max:         deepCopyFloatPtr(m.Max),
 			Step:        deepCopyFloatPtr(m.Step),
+			Unit:        unitVal,
 			Options:     append([]string(nil), m.Options...),
 			Description: desc,
 		}
