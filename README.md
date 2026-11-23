@@ -2,6 +2,8 @@
 
 SVG Animator Studio is a powerful, self-hosted web application and CLI tool built in **Go** with embedded frontend assets (`//go:embed`). It provides a 3-column professional IDE layout for designing interactive vector diagrams, animated network topologies, and dynamic photo effects, with zero external web dependencies once compiled.
 
+📖 **Full Documentation:** [SVG Animator User Guide](https://notes.seaoffate.net/books/svg-animator-user-guide)
+
 ---
 
 ## Choose Your Installation Method
@@ -65,9 +67,9 @@ If you are running Linux (such as Ubuntu or Debian) and want to use the pre-buil
      Modern Ubuntu distributions often package Chromium via **Snap**, which enforces strict containerized sandboxing that blocks raw frame writes to `/tmp`. You must use the official unconfined Google Chrome `.deb` package:
      ```bash
      sudo snap remove chromium
+     sudo apt remove -y chromium-browser
      wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-     sudo dpkg -i google-chrome-stable_current_amd64.deb
-     sudo apt-get install -f
+     sudo apt install -y ./google-chrome-stable_current_amd64.deb
      ```
 
 5. **Run the Studio:**
@@ -84,7 +86,7 @@ If you are running Linux (such as Ubuntu or Debian) and want to use the pre-buil
 If you prefer building the application yourself from the source code:
 
 #### Prerequisites
-* **Go (1.20+)** installed on your system.
+* **Go (1.26+)** installed on your system (matches `go.mod`).
 * **Google Chrome / Chromium** & **FFmpeg**.
 
 #### Building on Linux / macOS
@@ -95,9 +97,21 @@ GOOS=linux GOARCH=amd64 go build -o bin/svg-animator-linux ./cmd/svg-animator/ma
 ```
 
 #### Building on Windows (PowerShell / CMD)
+The easiest way on Windows is to run `build_and_run.bat`. To build manually:
+
+**PowerShell:**
+```powershell
+go mod tidy
+$env:GOOS="windows"; $env:GOARCH="amd64"; go build -o bin\svg-animator-windows.exe .\cmd\svg-animator\main.go
+.\bin\svg-animator-windows.exe -serve :8088
+```
+
+**Command Prompt (CMD):**
 ```cmd
 go mod tidy
-GOOS=windows GOARCH=amd64 go build -o bin/svg-animator-windows.exe .\cmd\svg-animator\main.go
+set GOOS=windows
+set GOARCH=amd64
+go build -o bin\svg-animator-windows.exe .\cmd\svg-animator\main.go
 .\bin\svg-animator-windows.exe -serve :8088
 ```
 
