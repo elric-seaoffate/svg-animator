@@ -726,8 +726,26 @@ func run() int {
 				inst.destroy();
 				host.remove();
 
-				const ok = initStoppedOk && groupPlayStartedOk && groupPlayStoppedOk && smilStoppedOk && smilStartedOk;
-				return JSON.stringify({ ok, initStoppedOk, groupPlayStartedOk, groupPlayStoppedOk, smilStoppedOk, smilStartedOk });
+				// Verify Widget.BuildPackage succeeds when a mapped group member ('lite-2') is authored with visible=false
+				window.LiteEffects.updateLiteEffect(menuTracer.id, { visible: false });
+				window.EngineBridge.renameGroup(menuGrp.id, 'textplus');
+				window.EngineBridge.setGroupMapping(menuGrp.id, {
+					alias: 'selected',
+					label: 'Selected',
+					type: 'boolean',
+					default: false,
+					targets: [
+						{ memberType: 'lite', memberId: String(menuTracer.id), property: 'visibility' },
+						{ memberType: 'lite', memberId: String(menuTracer.id), property: 'play' },
+						{ memberType: 'lite', memberId: String(menuText.id), property: 'play' }
+					]
+				});
+				const hiddenSvg = window.buildFullSVG(window.SceneState.buildRenderState());
+				const pkgHidden = window.EngineBridge.buildWidgetPackage('textplus', hiddenSvg, '// runtime js');
+				const hiddenBuildPkgOk = Boolean(pkgHidden && pkgHidden.success && pkgHidden.zipB64 && pkgHidden.zipB64.length > 0);
+
+				const ok = initStoppedOk && groupPlayStartedOk && groupPlayStoppedOk && smilStoppedOk && smilStartedOk && hiddenBuildPkgOk;
+				return JSON.stringify({ ok, initStoppedOk, groupPlayStartedOk, groupPlayStoppedOk, smilStoppedOk, smilStartedOk, hiddenBuildPkgOk });
 			} catch (e) {
 				return JSON.stringify({ ok: false, error: e.message });
 			}

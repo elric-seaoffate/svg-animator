@@ -1006,16 +1006,20 @@ window.LiteEffects = {
     return `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" shape-rendering="geometricPrecision" ${extraAttrs} />`;
   },
 
-  renderLiteElement(le) {
-    if (!le || le.visible === false) return '';
+  renderLiteElement(le, opts = {}) {
+    if (!le) return '';
+    const isHidden = le.visible === false;
+    if (isHidden && (!opts || !opts.includeHidden)) return '';
     const color = this.sanitizeColor(le.color, '#38bdf8');
     const opacity = le.opacity != null ? Math.max(0, Math.min(1, Number(le.opacity))) : 0.9;
     const sw = Number(le.strokeWidth) || 2.5;
     const { cx, cy, x, y, w, h, rx, ry, cr, rot } = this._resolveGeometry(le);
     const nameAttr = le.name ? ` data-semantic-name="${this.escapeXML(le.name)}"` : '';
     const playAttr = le.play === false ? ' data-lite-play="false" data-play-animation="false"' : '';
+    const visAttr = isHidden ? ' visibility="hidden" data-lite-visible="false"' : '';
+    const visStyle = isHidden ? 'visibility:hidden;' : '';
     const rotAttr = (rot && Math.abs(rot) > 0.001) ? ` transform="rotate(${Number(rot.toFixed(2))}, ${cx.toFixed(2)}, ${cy.toFixed(2)})"` : '';
-    const baseAttrs = `id="lite-${le.id}" class="diagram-lite-instance" data-lite-id="${le.id}" data-lite-kind="${this.escapeXML(le.kind)}" data-semantic-target="lite-${le.id}"${nameAttr}${playAttr}${rotAttr}`;
+    const baseAttrs = `id="lite-${le.id}" class="diagram-lite-instance" data-lite-id="${le.id}" data-lite-kind="${this.escapeXML(le.kind)}" data-semantic-target="lite-${le.id}"${nameAttr}${playAttr}${visAttr}${rotAttr}`;
 
     if (le.kind === 'perimeter-tracer') {
       const segs = Math.max(1, Math.min(16, Number(le.segments) || 2));
@@ -1081,7 +1085,7 @@ window.LiteEffects = {
           : `<g class="lite-editor-marker" data-editor-only="true"><rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="${cornerR}" ${editorGuideAttrs} /></g>`;
       }
 
-      return `<g ${baseAttrs} style="opacity:${opacity};" data-lite-segments="${segs}" data-lite-ratio="${this.escapeXML(le.lineGapRatio || '1:3')}">${hitMarkup}${guideMarkup}${shapeMarkup}</g>`;
+      return `<g ${baseAttrs} style="${visStyle}opacity:${opacity};" data-lite-segments="${segs}" data-lite-ratio="${this.escapeXML(le.lineGapRatio || '1:3')}">${hitMarkup}${guideMarkup}${shapeMarkup}</g>`;
     }
 
     if (le.kind === 'pulse') {
@@ -1098,7 +1102,7 @@ window.LiteEffects = {
       const payloadAttrs = `class="lite-payload sva-lite-pulse-anim" data-semantic-role="payload" data-pulse-min="${minScale}" data-pulse-max="${maxScale}" fill="${fillVal}" stroke="${strokeVal}" stroke-width="${isRing ? sw : 0}" style="${styleStr}" pointer-events="none"`;
       const hitMarkup = `<rect class="lite-hit-target" data-semantic-role="hit-target" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="transparent" pointer-events="all" style="cursor:pointer;" />`;
       const shapeMarkup = this._buildShapeGeometry(variant, cx, cy, w, h, payloadAttrs, armThickness);
-      return `<g ${baseAttrs} style="opacity:${opacity};">${hitMarkup}${shapeMarkup}</g>`;
+      return `<g ${baseAttrs} style="${visStyle}opacity:${opacity};">${hitMarkup}${shapeMarkup}</g>`;
     }
 
     if (le.kind === 'flash') {
@@ -1121,12 +1125,12 @@ window.LiteEffects = {
       const markerCross = `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="3" fill="${color}" fill-opacity="0.75" pointer-events="none" />`;
       const editorMarker = `<g class="lite-editor-marker" data-editor-only="true" pointer-events="none">${markerShape}${markerCross}</g>`;
       const shapeMarkup = this._buildShapeGeometry(variant, cx, cy, w, h, payloadAttrs, armThickness);
-      return `<g ${baseAttrs} style="opacity:${opacity};">${hitMarkup}${editorMarker}${shapeMarkup}</g>`;
+      return `<g ${baseAttrs} style="${visStyle}opacity:${opacity};">${hitMarkup}${editorMarker}${shapeMarkup}</g>`;
     }
 
     if (le.kind === 'flow-lite') {
       const flowBuilt = this.buildFlowLiteContent(le);
-      return `<g ${baseAttrs} ${flowBuilt.dataAttrs} style="opacity:${opacity};">${flowBuilt.innerMarkup}</g>`;
+      return `<g ${baseAttrs} ${flowBuilt.dataAttrs} style="${visStyle}opacity:${opacity};">${flowBuilt.innerMarkup}</g>`;
     }
 
     if (le.kind === 'radar-lite') {
@@ -1150,7 +1154,7 @@ window.LiteEffects = {
       const showDot = le.showGuide !== false;
       const guideVis = showDot ? 'visible' : 'hidden';
       const centerDot = `<circle class="lite-guide-track lite-radar-center" cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${dotR.toFixed(2)}" fill="${color}" visibility="${guideVis}" style="visibility:${guideVis};" pointer-events="none" />`;
-      return `<g ${baseAttrs} data-radar-variant="${this.escapeXML(variant)}" data-radar-rings="${ringCount}" data-radar-min="${minScale}" data-radar-max="${maxScale}" data-radar-period="${period}" style="opacity:${opacity};">${hitMarkup}${rings.join('')}${centerDot}</g>`;
+      return `<g ${baseAttrs} data-radar-variant="${this.escapeXML(variant)}" data-radar-rings="${ringCount}" data-radar-min="${minScale}" data-radar-max="${maxScale}" data-radar-period="${period}" style="${visStyle}opacity:${opacity};">${hitMarkup}${rings.join('')}${centerDot}</g>`;
     }
 
     if (le.kind === 'gauge-lite') {
@@ -1295,15 +1299,15 @@ window.LiteEffects = {
         return `data-gauge-t${idx}-enabled="${b && b.enabled ? 'true' : 'false'}" data-gauge-t${idx}-value="${bVal}" data-gauge-t${idx}-color="${bCol}"`;
       }).join(' ');
       const gaugeDataAttrs = `data-gauge-variant="${this.escapeXML(variant)}" data-gauge-value="${val}" data-gauge-min="${minV}" data-gauge-max="${maxV}" data-gauge-fraction="${frac.toFixed(4)}" data-gauge-base-color="${color}" data-gauge-active-color="${activeColor}" data-gauge-bg-color="${bgCol}" data-gauge-use-thresholds="${useThresh ? 'true' : 'false'}" data-gauge-warn-threshold="${warnT}" data-gauge-warn-color="${warnCol}" data-gauge-crit-threshold="${critT}" data-gauge-crit-color="${critCol}" ${threshAttrs} data-gauge-segments="${le.segments || 10}" data-gauge-direction="${dir}" data-gauge-unit="${this.escapeXML(unitStr)}" data-gauge-label="${this.escapeXML(labelStr)}" data-gauge-x="${x.toFixed(2)}" data-gauge-y="${y.toFixed(2)}" data-gauge-w="${w.toFixed(2)}" data-gauge-h="${h.toFixed(2)}" data-gauge-cx="${cx.toFixed(2)}" data-gauge-cy="${cy.toFixed(2)}" data-gauge-cr="${cr.toFixed(2)}" data-gauge-sw="${sw.toFixed(2)}"`;
-      return `<g ${baseAttrs} ${gaugeDataAttrs} style="opacity:${opacity};">${hitMarkup}${gaugeBody}${textMarkup}</g>`;
+      return `<g ${baseAttrs} ${gaugeDataAttrs} style="${visStyle}opacity:${opacity};">${hitMarkup}${gaugeBody}${textMarkup}</g>`;
     }
 
     if (le.kind === 'oscilloscope-lite') {
-      return this.renderOscilloscopeLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr);
+      return this.renderOscilloscopeLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr, visStyle);
     }
 
     if (le.kind === 'text-lite') {
-      return this.renderTextLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr);
+      return this.renderTextLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr, visStyle);
     }
 
     return '';
@@ -1450,7 +1454,7 @@ window.LiteEffects = {
     return wrapped.length > 0 ? wrapped : [''];
   },
 
-  renderTextLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr) {
+  renderTextLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr, visStyle = '') {
     const validVariants = ['none', 'rect', 'rounded', 'pill', 'curved'];
     const variant = validVariants.includes(le.variant) ? le.variant : 'rounded';
     const textStr = le.labelText !== undefined && le.labelText !== null ? String(le.labelText) : 'System Ready';
@@ -1698,7 +1702,7 @@ window.LiteEffects = {
 
     const defsMarkup = `<defs>${defsContent}</defs>${customKfStyle}`;
     const textDataAttrs = `data-text-variant="${this.escapeXML(variant)}" data-text-content="${this.escapeXML(textStr)}" data-text-font="${this.escapeXML(fontKey)}" data-text-font-size="${fontSize}" data-text-font-weight="${fontWeight}" data-text-letter-spacing="${letterSpacing}" data-text-align="${textAlign}" data-text-valign="${verticalAlign}" data-text-padding="${pad}" data-text-bg-color="${bgCol}" data-text-bg-opacity="${bgOp}" data-text-border-color="${borderCol}" data-text-border-width="${borderW}" data-text-curvature="${curv}" data-text-start-offset="${arcOffset}" data-text-anim="${textAnim}" data-text-playback-mode="${playbackMode}" data-text-scroll-speed="${scrollSpeed}" data-text-lines-per-sec="${linesPerSec}" data-text-line-spacing="${lineSpacing}" data-text-word-wrap="${wordWrap ? 'true' : 'false'}" data-text-line-count="${lineCount}" data-text-block-h="${blockH.toFixed(2)}" data-text-type-speed="${typeSpeed}" data-text-hold-delay="${holdDelay}" data-text-clear-dur="${clearDuration}" data-text-lock-on-off="${lockOnOff ? 'true' : 'false'}" data-text-type-mode="${typeMode}" data-text-type-repeat="${typeRepeat ? 'true' : 'false'}" data-text-cycle-dur="${cycleDur}" data-text-direction="${dir}" data-text-x="${x.toFixed(2)}" data-text-y="${y.toFixed(2)}" data-text-w="${w.toFixed(2)}" data-text-h="${h.toFixed(2)}" data-text-cx="${cx.toFixed(2)}" data-text-cy="${cy.toFixed(2)}" data-text-cr="${cornerR.toFixed(2)}"`;
-    return `<g ${baseAttrs} ${textDataAttrs} style="opacity:${opacity};">${defsMarkup}${hitMarkup}${boxMarkup}${textMarkup}</g>`;
+    return `<g ${baseAttrs} ${textDataAttrs} style="${visStyle}opacity:${opacity};">${defsMarkup}${hitMarkup}${boxMarkup}${textMarkup}</g>`;
   },
 
   parseOscilloscopeSamples(rawStr) {
@@ -1865,7 +1869,7 @@ window.LiteEffects = {
     return cmds.join(' ');
   },
 
-  renderOscilloscopeLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr) {
+  renderOscilloscopeLiteElement(le, baseAttrs, color, opacity, sw, x, y, w, h, cx, cy, cr, visStyle = '') {
     const validPresets = ['ecg', 'sine', 'square', 'triangle', 'sawtooth', 'polyline', 'bezier'];
     const variant = validPresets.includes(le.variant) ? le.variant : 'ecg';
     const mode = ['static', 'animated', 'sampled'].includes(le.playbackMode) ? le.playbackMode : 'animated';
@@ -1910,7 +1914,7 @@ window.LiteEffects = {
     const clippedWave = `<g class="lite-osc-viewport" clip-path="url(#${clipId})">${wavePath}</g>`;
 
     const oscDataAttrs = `data-osc-variant="${this.escapeXML(variant)}" data-osc-mode="${mode}" data-osc-cycles="${cycles}" data-osc-amplitude="${ampFrac}" data-osc-baseline="${basePct}" data-osc-speed="${dur}" data-osc-direction="${dir}" data-osc-bg-color="${bgCol}" data-osc-samples="${this.escapeXML(samplesStr)}" data-osc-x="${x.toFixed(2)}" data-osc-y="${y.toFixed(2)}" data-osc-w="${w.toFixed(2)}" data-osc-h="${h.toFixed(2)}" data-osc-sw="${sw.toFixed(2)}"`;
-    return `<g ${baseAttrs} ${oscDataAttrs} style="opacity:${opacity};">${clipDefs}${hitMarkup}${screenBg}${gridMarkup}${clippedWave}</g>`;
+    return `<g ${baseAttrs} ${oscDataAttrs} style="${visStyle}opacity:${opacity};">${clipDefs}${hitMarkup}${screenBg}${gridMarkup}${clippedWave}</g>`;
   },
 
   getLiteBurstScript() {

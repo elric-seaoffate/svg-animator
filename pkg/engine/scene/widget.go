@@ -914,6 +914,11 @@ func ResolveLiteEligibleProperty(kind string, le *LiteEffect, ep EligiblePropert
 		if le != nil && le.Play != nil {
 			out.Default = *le.Play
 		}
+	case "visibility":
+		out.Default = true
+		if le != nil && le.Visible != nil {
+			out.Default = *le.Visible
+		}
 	case "value":
 		out.Step = floatPtr(0.5)
 		minV := 0.0

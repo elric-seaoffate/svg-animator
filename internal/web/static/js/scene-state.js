@@ -390,11 +390,33 @@
       const activeGroups = (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.listGroups === 'function')
         ? (window.EngineBridge.listGroups() || [])
         : ((window.ObjectGroups && Array.isArray(window.ObjectGroups.list)) ? window.ObjectGroups.list : []);
-      if ((window.LayerManager && typeof window.LayerManager.getLayers === 'function') || activeGroups.length > 0) {
+      const widgetParams = (window.EngineBridge && typeof window.EngineBridge.getWidgetParameters === 'function')
+        ? (window.EngineBridge.getWidgetParameters() || [])
+        : [];
+      const widgetBoundTargets = new Set();
+      widgetParams.forEach((p) => {
+        if (!p) return;
+        const t = String(p.target || p.Target || '').trim();
+        if (t) widgetBoundTargets.add(t);
+        const tList = Array.isArray(p.targets) ? p.targets : (Array.isArray(p.Targets) ? p.Targets : []);
+        tList.forEach((tb) => {
+          if (!tb) return;
+          const mt = String(tb.target || tb.Target || '').trim();
+          if (mt) widgetBoundTargets.add(mt);
+          const mType = String(tb.memberType || tb.MemberType || '').trim();
+          const mId = String(tb.memberId || tb.MemberID || '').trim();
+          if (mType && mId) {
+            widgetBoundTargets.add(`${mType}-${mId}`);
+            widgetBoundTargets.add(`${mType}:${mId}`);
+          }
+        });
+      });
+
+      if ((window.LayerManager && typeof window.LayerManager.getLayers === 'function') || activeGroups.length > 0 || widgetBoundTargets.size > 0) {
         const layers = (window.LayerManager && typeof window.LayerManager.getLayers === 'function')
           ? (window.LayerManager.getLayers() || [])
           : [];
-        if ((Array.isArray(layers) && layers.length > 0) || activeGroups.length > 0) {
+        if ((Array.isArray(layers) && layers.length > 0) || activeGroups.length > 0 || widgetBoundTargets.size > 0) {
           const canvasW = (state && state.image && state.image.width) || 1280;
           const canvasH = (state && state.image && state.image.height) || 720;
 
@@ -441,8 +463,26 @@
             return null;
           };
 
-          const appendObjectMarkup = (type, id, markup) => {
+          const shouldEmitHiddenTarget = (type, id) => {
+            if (overrides && overrides.includeHiddenWidgetTargets) return true;
+            const grp = resolveMemberGroup(type, id);
+            if (grp && grp.id) return true;
+            const strId = String(id);
+            const canonical = strId.startsWith(`${type}-`) ? strId : `${type}-${strId}`;
+            return widgetBoundTargets.has(canonical) || widgetBoundTargets.has(strId) || widgetBoundTargets.has(`${type}:${strId}`);
+          };
+
+          const markMarkupHidden = (markup) => {
+            if (!markup || typeof markup !== 'string') return markup;
+            if (/\bvisibility="hidden"/.test(markup)) return markup;
+            return markup.replace(/^(\s*<[a-zA-Z0-9:-]+)(\s|>)/, (match, tagStart, sep) => {
+              return `${tagStart} visibility="hidden" data-widget-hidden="true" style="visibility:hidden;"${sep}`;
+            });
+          };
+
+          const appendObjectMarkup = (type, id, markup, isHiddenObj = false) => {
             if (!markup) return;
+            const finalMarkup = isHiddenObj ? markMarkupHidden(markup) : markup;
             const grp = resolveMemberGroup(type, id);
             const targetGrpId = (grp && grp.id) ? String(grp.id) : null;
             if (targetGrpId !== openGroupId) {
@@ -453,11 +493,15 @@
               if (targetGrpId !== null) {
                 const gidAttr = escAttr(targetGrpId);
                 const gNameAttr = escAttr(grp.name || targetGrpId);
-                elements += `<g id="${gidAttr}" class="scene-group" data-group-id="${gidAttr}" data-semantic-target="${gidAttr}" data-semantic-name="${gNameAttr}">\n`;
+                let grpHiddenAttr = '';
+                if (grp.visible === false || (window.LayerManager && typeof window.LayerManager.getEffective === 'function' && window.LayerManager.getEffective('group', targetGrpId)?.visible === false)) {
+                  grpHiddenAttr = ' visibility="hidden" style="visibility:hidden;"';
+                }
+                elements += `<g id="${gidAttr}" class="scene-group" data-group-id="${gidAttr}" data-semantic-target="${gidAttr}" data-semantic-name="${gNameAttr}"${grpHiddenAttr}>\n`;
                 openGroupId = targetGrpId;
               }
             }
-            elements += markup + '\n';
+            elements += finalMarkup + '\n';
           };
 
           layers.forEach((l) => {
@@ -465,26 +509,37 @@
             const key = `${l.type}:${l.id}`;
             rendered.add(key);
 
+            let isHidden = false;
             if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
               const eff = window.LayerManager.getEffective(l.type, l.id);
-              if (eff && !eff.visible) return;
+              if (eff && !eff.visible) {
+                if (!shouldEmitHiddenTarget(l.type, l.id)) return;
+                isHidden = true;
+              }
+            }
+            if (l.type === 'lite' && window.LiteEffects) {
+              const leCheck = window.LiteEffects.getLiteEffect(l.id);
+              if (leCheck && leCheck.visible === false) {
+                if (!shouldEmitHiddenTarget('lite', l.id)) return;
+                isHidden = true;
+              }
             }
 
             if (l.type === 'node' && includeNodes && window.DiagramNodes) {
               const n = window.DiagramNodes.getNode(l.id);
-              if (n) appendObjectMarkup('node', l.id, window.DiagramNodes.renderNodeElement(n, canvasW, canvasH));
+              if (n) appendObjectMarkup('node', l.id, window.DiagramNodes.renderNodeElement(n, canvasW, canvasH), isHidden);
             } else if (l.type === 'flow' && includeFlows && window.DataFlows) {
               const f = window.DataFlows.getFlow(l.id);
-              if (f) appendObjectMarkup('flow', l.id, window.DataFlows.renderFlowElement(f, canvasW, canvasH));
+              if (f) appendObjectMarkup('flow', l.id, window.DataFlows.renderFlowElement(f, canvasW, canvasH), isHidden);
             } else if (l.type === 'glow' && includeGlows && window.Glows) {
               const g = window.Glows.getGlow(l.id);
-              if (g) appendObjectMarkup('glow', l.id, window.Glows.renderGlowElement(g, canvasW, canvasH));
+              if (g) appendObjectMarkup('glow', l.id, window.Glows.renderGlowElement(g, canvasW, canvasH), isHidden);
             } else if (l.type === 'ripple' && includeRipples && window.Ripples) {
               const r = window.Ripples.getRipple(l.id);
-              if (r) appendObjectMarkup('ripple', l.id, window.Ripples.renderRippleElement(r, state));
+              if (r) appendObjectMarkup('ripple', l.id, window.Ripples.renderRippleElement(r, state), isHidden);
             } else if (l.type === 'lite' && window.LiteEffects) {
               const le = window.LiteEffects.getLiteEffect(l.id);
-              if (le) appendObjectMarkup('lite', l.id, window.LiteEffects.renderLiteElement(le));
+              if (le) appendObjectMarkup('lite', l.id, window.LiteEffects.renderLiteElement(le, { includeHidden: isHidden }), isHidden);
             } else if (l.type === 'image' && includeImages) {
               const img = (window.ImageObjects && typeof window.ImageObjects.getImage === 'function')
                 ? window.ImageObjects.getImage(l.id)
@@ -497,7 +552,7 @@
                   : (window.ImageManager && typeof window.ImageManager.renderImageElement === 'function')
                     ? window.ImageManager.renderImageElement.bind(window.ImageManager)
                     : null;
-                if (renderer) appendObjectMarkup('image', l.id, renderer(img, canvasW, canvasH));
+                if (renderer) appendObjectMarkup('image', l.id, renderer(img, canvasW, canvasH), isHidden);
               }
             }
           });
@@ -506,66 +561,88 @@
           if (includeRipples && window.Ripples && Array.isArray(window.Ripples.list)) {
             window.Ripples.list.forEach((r) => {
               if (!rendered.has(`ripple:${r.id}`)) {
+                let isHidden = false;
                 if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
                   const eff = window.LayerManager.getEffective('ripple', r.id);
-                  if (eff && !eff.visible) return;
+                  if (eff && !eff.visible) {
+                    if (!shouldEmitHiddenTarget('ripple', r.id)) return;
+                    isHidden = true;
+                  }
                 }
-                appendObjectMarkup('ripple', r.id, window.Ripples.renderRippleElement(r, state));
+                appendObjectMarkup('ripple', r.id, window.Ripples.renderRippleElement(r, state), isHidden);
               }
             });
           }
           if (includeGlows && window.Glows && Array.isArray(window.Glows.list)) {
             window.Glows.list.forEach((g) => {
               if (!rendered.has(`glow:${g.id}`)) {
+                let isHidden = false;
                 if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
                   const eff = window.LayerManager.getEffective('glow', g.id);
-                  if (eff && !eff.visible) return;
+                  if (eff && !eff.visible) {
+                    if (!shouldEmitHiddenTarget('glow', g.id)) return;
+                    isHidden = true;
+                  }
                 }
-                appendObjectMarkup('glow', g.id, window.Glows.renderGlowElement(g, canvasW, canvasH));
+                appendObjectMarkup('glow', g.id, window.Glows.renderGlowElement(g, canvasW, canvasH), isHidden);
               }
             });
           }
           if (includeFlows && window.DataFlows && Array.isArray(window.DataFlows.list)) {
             window.DataFlows.list.forEach((f) => {
               if (!rendered.has(`flow:${f.id}`)) {
+                let isHidden = false;
                 if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
                   const eff = window.LayerManager.getEffective('flow', f.id);
-                  if (eff && !eff.visible) return;
+                  if (eff && !eff.visible) {
+                    if (!shouldEmitHiddenTarget('flow', f.id)) return;
+                    isHidden = true;
+                  }
                 }
-                appendObjectMarkup('flow', f.id, window.DataFlows.renderFlowElement(f, canvasW, canvasH));
+                appendObjectMarkup('flow', f.id, window.DataFlows.renderFlowElement(f, canvasW, canvasH), isHidden);
               }
             });
           }
           if (includeImages && window.ImageObjects && Array.isArray(window.ImageObjects.list)) {
             window.ImageObjects.list.forEach((img) => {
               if (!rendered.has(`image:${img.id}`)) {
+                let isHidden = false;
                 if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
                   const eff = window.LayerManager.getEffective('image', img.id);
-                  if (eff && !eff.visible) return;
+                  if (eff && !eff.visible) {
+                    if (!shouldEmitHiddenTarget('image', img.id)) return;
+                    isHidden = true;
+                  }
                 }
-                appendObjectMarkup('image', img.id, window.ImageObjects.renderImageElement(img, canvasW, canvasH));
+                appendObjectMarkup('image', img.id, window.ImageObjects.renderImageElement(img, canvasW, canvasH), isHidden);
               }
             });
           }
           if (includeNodes && window.DiagramNodes && Array.isArray(window.DiagramNodes.list)) {
             window.DiagramNodes.list.forEach((n) => {
               if (!rendered.has(`node:${n.id}`)) {
+                let isHidden = false;
                 if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
                   const eff = window.LayerManager.getEffective('node', n.id);
-                  if (eff && !eff.visible) return;
+                  if (eff && !eff.visible) {
+                    if (!shouldEmitHiddenTarget('node', n.id)) return;
+                    isHidden = true;
+                  }
                 }
-                appendObjectMarkup('node', n.id, window.DiagramNodes.renderNodeElement(n, canvasW, canvasH));
+                appendObjectMarkup('node', n.id, window.DiagramNodes.renderNodeElement(n, canvasW, canvasH), isHidden);
               }
             });
           }
           if (window.LiteEffects && Array.isArray(window.LiteEffects.list)) {
             window.LiteEffects.list.forEach((le) => {
               if (!rendered.has(`lite:${le.id}`)) {
+                let isHidden = le.visible === false;
                 if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
                   const eff = window.LayerManager.getEffective('lite', le.id);
-                  if (eff && !eff.visible) return;
+                  if (eff && !eff.visible) isHidden = true;
                 }
-                appendObjectMarkup('lite', le.id, window.LiteEffects.renderLiteElement(le));
+                if (isHidden && !shouldEmitHiddenTarget('lite', le.id)) return;
+                appendObjectMarkup('lite', le.id, window.LiteEffects.renderLiteElement(le, { includeHidden: isHidden }), isHidden);
               }
             });
           }

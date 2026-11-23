@@ -12931,6 +12931,49 @@ async function runHarness() {
       assert.strictEqual(rippleEl.getAttribute('data-play-animation'), 'true', 'PLAY-24: Ripple data-play-animation="true"');
 
       instPlay.destroy();
+
+      // 4. Hidden member target ('lite-2' with visible=false) inside a group ('textplus') with semantic mapping ('textplus-group-selected')
+      window.LiteEffects.updateLiteEffect(menuTracer.id, { visible: false });
+      const renameRes = window.EngineBridge.renameGroup(menuGrp.id, 'textplus');
+      assert(renameRes && renameRes.success !== false, 'PLAY-25: Renamed group to textplus');
+      const mapHiddenRes = window.EngineBridge.setGroupMapping(menuGrp.id, {
+        alias: 'selected',
+        label: 'Selected',
+        type: 'boolean',
+        default: false,
+        targets: [
+          { memberType: 'lite', memberId: String(menuTracer.id), property: 'visibility' },
+          { memberType: 'lite', memberId: String(menuTracer.id), property: 'play' },
+          { memberType: 'lite', memberId: String(menuText.id), property: 'play' }
+        ]
+      });
+      assert(mapHiddenRes && mapHiddenRes.success, 'PLAY-26: Group semantic mapping bound to hidden member lite-1 visibility + play');
+
+      const hiddenMemberSvg = window.buildFullSVG(window.SceneState.buildRenderState());
+      assert(hiddenMemberSvg.includes(`data-semantic-target="lite-${menuTracer.id}"`), 'PLAY-27: Hidden group/widget member is emitted into SVG with visibility="hidden"');
+      assert(hiddenMemberSvg.includes('visibility="hidden"'), 'PLAY-28: Hidden group/widget member carries visibility="hidden"');
+
+      const pkgHiddenRes = window.EngineBridge.buildWidgetPackage('textplus', hiddenMemberSvg, '// runtime js');
+      assert(pkgHiddenRes && pkgHiddenRes.success && pkgHiddenRes.zipB64 && pkgHiddenRes.zipB64.length > 0, `PLAY-29: Widget.BuildPackage succeeds when a mapped group member is authored with visible=false (${pkgHiddenRes && pkgHiddenRes.error})`);
+
+      const hostHidden = mockDocPlay.createElement('div');
+      const instHidden = SVGWidgetModPlay.mount(hostHidden, hiddenMemberSvg, {
+        instanceId: 'textplus_test',
+        manifest: {
+          schemaVersion: 1,
+          parameters: window.EngineBridge.getWidgetParameters()
+        },
+        visibilityAware: false
+      });
+      const hiddenTracerEl = instHidden.svgElement.querySelector(`[data-semantic-target="lite-${menuTracer.id}"]`);
+      assert.strictEqual(hiddenTracerEl.getAttribute('visibility'), 'hidden', 'PLAY-30: Hidden member starts with visibility="hidden" on mount');
+      instHidden.setParameter('textplus-group-selected', true);
+      assert.strictEqual(hiddenTracerEl.getAttribute('visibility'), 'visible', 'PLAY-31: Setting textplus-group-selected=true makes hidden member visible');
+      assert.strictEqual(hiddenTracerEl.getAttribute('data-lite-play'), 'true', 'PLAY-32: Setting textplus-group-selected=true starts hidden member animation');
+      instHidden.setParameter('textplus-group-selected', false);
+      assert.strictEqual(hiddenTracerEl.getAttribute('visibility'), 'hidden', 'PLAY-33: Setting textplus-group-selected=false hides member again');
+      assert.strictEqual(hiddenTracerEl.getAttribute('data-lite-play'), 'false', 'PLAY-34: Setting textplus-group-selected=false stops member animation');
+      instHidden.destroy();
     } finally {
       global.document = origDocPlay;
     }

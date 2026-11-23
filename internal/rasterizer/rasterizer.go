@@ -162,7 +162,7 @@ func buildWebPPipeArgs(outPath string, fps int, loopMode string) []string {
 		"-f", "image2pipe",
 		"-c:v", "png",
 		"-framerate", fmt.Sprintf("%d", fps),
-		"-protocol_whitelist", "pipe",
+		"-protocol_whitelist", "pipe,fd",
 		"-i", "-",
 		"-vcodec", "libwebp",
 		"-lossless", "0",
@@ -184,7 +184,7 @@ func buildAPNGPipeArgs(outPath string, fps int, loopMode string) []string {
 		"-f", "image2pipe",
 		"-c:v", "png",
 		"-framerate", fmt.Sprintf("%d", fps),
-		"-protocol_whitelist", "pipe",
+		"-protocol_whitelist", "pipe,fd",
 		"-i", "-",
 		"-f", "apng",
 		"-pix_fmt", "rgba",
@@ -203,7 +203,7 @@ func buildMP4PipeArgs(outPath string, fps int, durationSecs float64, effectiveAu
 		"-f", "image2pipe",
 		"-c:v", "png",
 		"-framerate", fmt.Sprintf("%d", fps),
-		"-protocol_whitelist", "pipe",
+		"-protocol_whitelist", "pipe,fd",
 		"-i", "-",
 	}
 
