@@ -480,27 +480,59 @@
             });
           };
 
+          const groupById = new Map();
+          activeGroups.forEach((g) => {
+            if (g && g.id) groupById.set(String(g.id), g);
+          });
+          let openGroupStack = [];
+
+          const buildGroupOpenTag = (g) => {
+            const gidAttr = escAttr(String(g.id));
+            const gNameAttr = escAttr(g.name || g.id);
+            let grpHiddenAttr = '';
+            if (g.visible === false || (window.LayerManager && typeof window.LayerManager.getEffective === 'function' && window.LayerManager.getEffective('group', String(g.id))?.visible === false)) {
+              grpHiddenAttr = ' visibility="hidden" style="visibility:hidden;"';
+            }
+            const compAttr = g.componentId ? ` data-component-id="${escAttr(g.componentId)}"` : '';
+            const instAttr = g.instanceId ? ` data-component-instance="${escAttr(g.instanceId)}"` : '';
+            return `<g id="${gidAttr}" class="scene-group" data-group-id="${gidAttr}" data-semantic-target="${gidAttr}" data-semantic-name="${gNameAttr}"${compAttr}${instAttr}${grpHiddenAttr}>\n`;
+          };
+
+          const resolveGroupChain = (grp) => {
+            if (!grp || !grp.id) return [];
+            const chain = [];
+            const seen = new Set();
+            let cur = grp;
+            while (cur && cur.id && !seen.has(String(cur.id))) {
+              seen.add(String(cur.id));
+              chain.unshift(cur);
+              const pid = cur.parentGroupId ? String(cur.parentGroupId) : '';
+              cur = pid ? groupById.get(pid) : null;
+            }
+            return chain;
+          };
+
           const appendObjectMarkup = (type, id, markup, isHiddenObj = false) => {
             if (!markup) return;
             const finalMarkup = isHiddenObj ? markMarkupHidden(markup) : markup;
             const grp = resolveMemberGroup(type, id);
-            const targetGrpId = (grp && grp.id) ? String(grp.id) : null;
-            if (targetGrpId !== openGroupId) {
-              if (openGroupId !== null) {
-                elements += '</g>\n';
-                openGroupId = null;
-              }
-              if (targetGrpId !== null) {
-                const gidAttr = escAttr(targetGrpId);
-                const gNameAttr = escAttr(grp.name || targetGrpId);
-                let grpHiddenAttr = '';
-                if (grp.visible === false || (window.LayerManager && typeof window.LayerManager.getEffective === 'function' && window.LayerManager.getEffective('group', targetGrpId)?.visible === false)) {
-                  grpHiddenAttr = ' visibility="hidden" style="visibility:hidden;"';
-                }
-                elements += `<g id="${gidAttr}" class="scene-group" data-group-id="${gidAttr}" data-semantic-target="${gidAttr}" data-semantic-name="${gNameAttr}"${grpHiddenAttr}>\n`;
-                openGroupId = targetGrpId;
-              }
+            const targetChain = resolveGroupChain(grp);
+            const targetIds = targetChain.map((g) => String(g.id));
+
+            // Find common prefix between openGroupStack and targetIds
+            let common = 0;
+            while (common < openGroupStack.length && common < targetIds.length && openGroupStack[common] === targetIds[common]) {
+              common++;
             }
+            while (openGroupStack.length > common) {
+              elements += '</g>\n';
+              openGroupStack.pop();
+            }
+            for (let i = common; i < targetChain.length; i++) {
+              elements += buildGroupOpenTag(targetChain[i]);
+              openGroupStack.push(String(targetChain[i].id));
+            }
+            openGroupId = openGroupStack.length > 0 ? openGroupStack[openGroupStack.length - 1] : null;
             elements += finalMarkup + '\n';
           };
 
@@ -647,10 +679,11 @@
             });
           }
 
-          if (openGroupId !== null) {
+          while (openGroupStack.length > 0) {
             elements += '</g>\n';
-            openGroupId = null;
+            openGroupStack.pop();
           }
+          openGroupId = null;
 
           let svgString = window.Effects.build(state);
           const liteBurstScript = (window.LiteEffects && typeof window.LiteEffects.getLiteBurstScript === 'function')

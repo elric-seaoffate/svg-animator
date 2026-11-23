@@ -72,6 +72,34 @@ func InitDB(dbPath string) error {
 		data_b64 TEXT NOT NULL,
 		created_at TEXT NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS components (
+		component_id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		category TEXT NOT NULL DEFAULT 'general',
+		tags_json TEXT NOT NULL DEFAULT '[]',
+		latest_version TEXT NOT NULL DEFAULT '1.0.0',
+		thumbnail_svg TEXT NOT NULL DEFAULT '',
+		definition_json TEXT NOT NULL,
+		content_sha256 TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_components_updated_at ON components(updated_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_components_category ON components(category);
+
+	CREATE TABLE IF NOT EXISTS component_revisions (
+		component_id TEXT NOT NULL,
+		version TEXT NOT NULL,
+		definition_json TEXT NOT NULL,
+		changelog TEXT NOT NULL DEFAULT '',
+		content_sha256 TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		PRIMARY KEY (component_id, version),
+		FOREIGN KEY (component_id) REFERENCES components(component_id) ON DELETE CASCADE
+	);
 	`
 
 	if _, err := database.Exec(schemaSQL); err != nil {

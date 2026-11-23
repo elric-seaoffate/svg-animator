@@ -1609,6 +1609,85 @@
       return [];
     },
 
+    createComponent(items, groupId, options = {}) {
+      if (this.isReady()) {
+        const res = this.dispatch('Component.Create', {
+          items: Array.isArray(items) ? items : [],
+          groupId: groupId ? String(groupId) : '',
+          options: options || {}
+        });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to create component definition' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    importLibraryComponent(componentDef) {
+      if (this.isReady() && componentDef) {
+        const res = this.dispatch('Component.Import', { component: componentDef });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to import library component' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    instantiateComponent(componentId, instanceName = '', offsetX = 5.0, offsetY = 5.0, scaleX = 1.0, scaleY = 1.0) {
+      if (this.isReady() && componentId) {
+        const res = this.dispatch('Component.Instantiate', {
+          componentId: String(componentId),
+          instanceName: String(instanceName || ''),
+          offsetX: Number(offsetX) || 0,
+          offsetY: Number(offsetY) || 0,
+          scaleX: Number(scaleX) || 1.0,
+          scaleY: Number(scaleY) || 1.0
+        });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          if (Array.isArray(res.parameters)) {
+            this._widgetParameters = res.parameters;
+          }
+          return res;
+        }
+        return { success: false, error: (res && res.error) || 'Failed to instantiate component' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
+    checkComponentUpgrade(oldComponent, newComponent) {
+      if (this.isReady() && oldComponent && newComponent) {
+        return this.dispatch('Component.CheckUpgrade', {
+          oldComponent,
+          newComponent
+        });
+      }
+      return { compatible: false, breakingChanges: ['Go/WASM engine is unavailable'] };
+    },
+
+    applyComponentUpdate(groupId, newComponent, force = false) {
+      if (this.isReady() && groupId && newComponent) {
+        const res = this.dispatch('Component.ApplyUpdate', {
+          groupId: String(groupId),
+          newComponent,
+          force: Boolean(force)
+        });
+        if (res && res.success) {
+          if (res.snapshot) this.syncFromEngineSnapshot(res.snapshot);
+          if (Array.isArray(res.parameters)) {
+            this._widgetParameters = res.parameters;
+          }
+          return res;
+        }
+        return res || { success: false, error: 'Failed to apply component update' };
+      }
+      return { success: false, error: 'Go/WASM engine is unavailable' };
+    },
+
     getCompositesCounter() {
       if (this.isReady()) {
         const res = this.dispatch('Composite.List', {});

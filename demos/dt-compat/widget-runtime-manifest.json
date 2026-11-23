@@ -1,0 +1,273 @@
+{
+  "contractVersion": 1,
+  "runtimeName": "svg-widget.js",
+  "runtimeVersion": "1.2.1",
+  "sourceCommit": "38f2159d3f63433a48191daf083a9ba76e8ee7e7",
+  "runtimeSha256": "93297decab3e5636f693f00a5bd531f51d3ae3b83b86c29cb84e0eaa374ed9fb",
+  "supportedManifestSchemas": [
+    1
+  ],
+  "properties": {
+    "armThickness": {
+      "types": [
+        "number"
+      ],
+      "min": 1,
+      "max": 20
+    },
+    "bgColor": {
+      "types": [
+        "color"
+      ]
+    },
+    "borderColor": {
+      "types": [
+        "color"
+      ]
+    },
+    "burstCycles": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 100
+    },
+    "color": {
+      "types": [
+        "color"
+      ]
+    },
+    "dashLength": {
+      "types": [
+        "number"
+      ],
+      "min": 2,
+      "max": 400
+    },
+    "direction": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
+    "dotSize": {
+      "types": [
+        "number"
+      ],
+      "min": 1,
+      "max": 40
+    },
+    "duration": {
+      "types": [
+        "number"
+      ],
+      "min": 20,
+      "max": 1500
+    },
+    "fill": {
+      "types": [
+        "color"
+      ]
+    },
+    "gapLength": {
+      "types": [
+        "number"
+      ],
+      "min": 2,
+      "max": 300
+    },
+    "intensity": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 1
+    },
+    "lineGapRatio": {
+      "types": [
+        "text",
+        "enum"
+      ]
+    },
+    "maxValue": {
+      "types": [
+        "number"
+      ]
+    },
+    "minValue": {
+      "types": [
+        "number"
+      ]
+    },
+    "opacity": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 1
+    },
+    "operatingState": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
+    "pauseSeconds": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 300
+    },
+    "pauseVisibility": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
+    "period": {
+      "types": [
+        "number",
+        "speed"
+      ],
+      "min": 0.2,
+      "max": 30
+    },
+    "play": {
+      "types": [
+        "boolean"
+      ]
+    },
+    "playbackMode": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
+    "playbackRate": {
+      "types": [
+        "speed",
+        "number"
+      ],
+      "min": 0.1,
+      "max": 10
+    },
+    "repeat": {
+      "types": [
+        "boolean"
+      ]
+    },
+    "repeatInterval": {
+      "types": [
+        "number"
+      ],
+      "min": 0.2,
+      "max": 60
+    },
+    "samples": {
+      "types": [
+        "text"
+      ]
+    },
+    "scale": {
+      "types": [
+        "number"
+      ],
+      "min": 0.2,
+      "max": 3
+    },
+    "scrollSpeed": {
+      "types": [
+        "number",
+        "speed"
+      ],
+      "min": 10,
+      "max": 600
+    },
+    "segments": {
+      "types": [
+        "number"
+      ],
+      "min": 1,
+      "max": 32
+    },
+    "showGuide": {
+      "types": [
+        "boolean"
+      ]
+    },
+    "speed": {
+      "types": [
+        "speed",
+        "number"
+      ],
+      "min": 0,
+      "max": 30
+    },
+    "startOffset": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 100
+    },
+    "state": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
+    "stroke": {
+      "types": [
+        "color"
+      ]
+    },
+    "strokeWidth": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 32
+    },
+    "text": {
+      "types": [
+        "text",
+        "number",
+        "speed"
+      ]
+    },
+    "textContent": {
+      "types": [
+        "text",
+        "number",
+        "speed"
+      ]
+    },
+    "trigger": {
+      "types": [
+        "number",
+        "boolean"
+      ],
+      "min": 0,
+      "max": 1000000
+    },
+    "typeSpeed": {
+      "types": [
+        "number",
+        "speed"
+      ],
+      "min": 1,
+      "max": 120
+    },
+    "value": {
+      "types": [
+        "number"
+      ]
+    },
+    "visibility": {
+      "types": [
+        "boolean"
+      ]
+    }
+  }
+}

@@ -1051,6 +1051,176 @@
     }
   }
 
+  const TARGET_PROPERTY_CONSTRAINTS = {
+    color: { type: 'color' },
+    fill: { type: 'color' },
+    stroke: { type: 'color' },
+    bgColor: { type: 'color' },
+    borderColor: { type: 'color' },
+    visibility: { type: 'boolean' },
+    play: { type: 'boolean' },
+    showGuide: { type: 'boolean' },
+    repeat: { type: 'boolean' },
+    typeRepeat: { type: 'boolean' },
+    text: { type: 'text' },
+    textContent: { type: 'text' },
+    labelText: { type: 'text' },
+    unit: { type: 'text' },
+    lineGapRatio: { type: 'text' },
+    samples: { type: 'text', isSamples: true },
+    opacity: { type: 'number', min: 0, max: 1 },
+    bgOpacity: { type: 'number', min: 0, max: 1 },
+    value: { type: 'number' },
+    minValue: { type: 'number' },
+    maxValue: { type: 'number' },
+    speed: { type: 'number', min: 0, max: 30 },
+    playbackRate: { type: 'number', min: 0.1, max: 10 },
+    period: { type: 'number', min: 0.2, max: 30 },
+    scrollSpeed: { type: 'number', min: 10, max: 600 },
+    typeSpeed: { type: 'number', min: 1, max: 120 },
+    strokeWidth: { type: 'number', min: 0, max: 32 },
+    dashLength: { type: 'number', min: 2, max: 400 },
+    gapLength: { type: 'number', min: 2, max: 300 },
+    dotSize: { type: 'number', min: 1, max: 32 },
+    delay: { type: 'number', min: 0, max: 30 },
+    endDelay: { type: 'number', min: 0, max: 30 },
+    segments: { type: 'number', min: 1, max: 32 },
+    rings: { type: 'number', min: 1, max: 6 },
+    curvature: { type: 'number', min: -100, max: 100 },
+    startOffset: { type: 'number', min: 0, max: 100 },
+    burstCycles: { type: 'number', min: 0, max: 100 },
+    pauseSeconds: { type: 'number', min: 0, max: 300 },
+    scale: { type: 'number', min: 0.1, max: 3.0 },
+    minScale: { type: 'number', min: 0.05, max: 2.0 },
+    intensity: { type: 'number', min: 0, max: 1.0 },
+    armThickness: { type: 'number', min: 1, max: 20 },
+    trigger: { type: 'number', min: 0, max: 1000000 },
+    duration: { type: 'number', min: 20, max: 1000 },
+    repeatInterval: { type: 'number', min: 0.2, max: 60 },
+    fontSize: { type: 'number', min: 8, max: 120 },
+    letterSpacing: { type: 'number', min: -2, max: 20 },
+    padding: { type: 'number', min: 0, max: 60 },
+    linesPerSec: { type: 'number', min: 0.1, max: 20 },
+    lineSpacing: { type: 'number', min: 0.8, max: 3.0 },
+    holdDelay: { type: 'number', min: 0, max: 30 },
+    clearDuration: { type: 'number', min: 0, max: 30 },
+    direction: { type: 'enum', options: ['cw', 'ccw', 'forward', 'reverse'] },
+    playbackMode: { type: 'enum', options: ['loop', 'pingpong', 'once', 'static', 'animated', 'sampled'] },
+    pauseVisibility: { type: 'enum', options: ['hide', 'hold'] },
+    startMode: { type: 'enum', options: ['tunnel', 'abrupt'] },
+    endMode: { type: 'enum', options: ['tunnel', 'abrupt'] },
+    segmentStyle: { type: 'enum', options: ['solid', 'rounded', 'dashed', 'dots', 'fading-tail'] },
+    typeMode: { type: 'enum', options: ['once', 'hold', 'delete', 'delete-forward'] },
+    textAnim: { type: 'enum', options: ['none', 'ticker-h', 'ticker-v', 'stacked-v', 'typewriter', 'fade', 'flash', 'slide', 'blur-in', 'blur-out', 'scramble'] },
+    state: { type: 'enum', options: ['running', 'paused', 'stopped'] },
+    operatingState: { type: 'enum', options: ['running', 'paused', 'stopped'] }
+  };
+
+  function validateTargetActionAndValue(paramName, memberEl, targetName, propName, actionName, candidateVal) {
+    const act = (actionName && String(actionName).trim().toLowerCase()) || '';
+    if (act && act !== 'set') {
+      const validActions = ['play', 'pause', 'resume', 'stop_reset', 'enable', 'disable'];
+      if (!validActions.includes(act)) {
+        return { valid: false, error: `Unsupported animation action '${actionName}' on target '${targetName}' for parameter '${paramName}'.` };
+      }
+      if (act === 'pause' || act === 'resume') {
+        const isGroup = Boolean(memberEl.classList?.contains('scene-group')) ||
+                        Boolean(typeof memberEl.hasAttribute === 'function' && memberEl.hasAttribute('data-group-id'));
+        const isLite = Boolean(memberEl.classList?.contains('diagram-lite-instance')) ||
+                       Boolean(typeof memberEl.hasAttribute === 'function' && (memberEl.hasAttribute('data-lite-id') || memberEl.hasAttribute('data-lite-kind'))) ||
+                       Boolean(memberEl.querySelector?.('.lite-payload'));
+        if (!isGroup && !isLite) {
+          return {
+            valid: false,
+            error: `Animation action '${act}' is not supported on SMIL target '${targetName}' for parameter '${paramName}' (only CSS/JS Low-Load Effects and groups support mid-cycle pause/resume; use 'play' or 'stop_reset' for SMIL targets).`
+          };
+        }
+      }
+      return { valid: true, value: candidateVal };
+    }
+    const constraint = TARGET_PROPERTY_CONSTRAINTS[propName];
+    if (!constraint) {
+      return { valid: true, value: candidateVal };
+    }
+    const syntheticDef = {
+      name: `${paramName} -> ${targetName}.${propName}`,
+      type: constraint.type,
+      property: propName,
+      min: constraint.min,
+      max: constraint.max,
+      options: constraint.options
+    };
+    if (propName === 'value' && memberEl && typeof memberEl.getAttribute === 'function' && memberEl.getAttribute('data-lite-kind') === 'gauge-lite') {
+      const gMin = parseFloat(memberEl.getAttribute('data-gauge-min'));
+      const gMax = parseFloat(memberEl.getAttribute('data-gauge-max'));
+      if (Number.isFinite(gMin)) syntheticDef.min = gMin;
+      if (Number.isFinite(gMax) && (!Number.isFinite(gMin) || gMax > gMin)) syntheticDef.max = gMax;
+    }
+    return validateParameterValue(syntheticDef, candidateVal);
+  }
+
+  function applyLifecycleAction(el, svgEl, action, isInitialMount, instance) {
+    if (!el || typeof el.getAttribute !== 'function') return;
+    const act = String(action || '').trim().toLowerCase();
+    const isGroup = Boolean(el.classList?.contains('scene-group')) ||
+                    Boolean(typeof el.hasAttribute === 'function' && el.hasAttribute('data-group-id'));
+    if (isGroup && typeof el.querySelectorAll === 'function') {
+      if (act === 'enable') {
+        el.style.visibility = 'visible';
+        el.setAttribute('visibility', 'visible');
+      } else if (act === 'disable') {
+        el.style.visibility = 'hidden';
+        el.setAttribute('visibility', 'hidden');
+      }
+      const members = el.querySelectorAll('[data-lite-kind], [data-lite-id], [data-node-id], [data-flow-id], [data-glow-id], [data-ripple-id], .diagram-node-instance, .diagram-flow-instance, .diagram-glow-instance, .diagram-ripple-instance, .diagram-lite-instance');
+      members.forEach((m) => {
+        if (m.tagName && m.tagName.toLowerCase() === 'g') {
+          applyLifecycleAction(m, svgEl, act, isInitialMount, instance);
+        }
+      });
+      return;
+    }
+
+    if (act === 'play') {
+      applyPlayAnimationState(el, svgEl, true, isInitialMount, instance);
+      return;
+    }
+    if (act === 'stop_reset') {
+      applyPlayAnimationState(el, svgEl, false, isInitialMount, instance);
+      return;
+    }
+    if (act === 'enable') {
+      el.style.visibility = 'visible';
+      el.setAttribute('visibility', 'visible');
+      applyPlayAnimationState(el, svgEl, true, isInitialMount, instance);
+      return;
+    }
+    if (act === 'disable') {
+      applyPlayAnimationState(el, svgEl, false, isInitialMount, instance);
+      el.style.visibility = 'hidden';
+      el.setAttribute('visibility', 'hidden');
+      return;
+    }
+    if (act === 'pause' || act === 'resume') {
+      const isPause = act === 'pause';
+      el.setAttribute('data-animation-paused', isPause ? 'true' : 'false');
+      const liteKind = el.getAttribute('data-lite-kind') || '';
+      if (liteKind === 'text-lite') {
+        if (instance && typeof instance._pauseOrResumeTextLite === 'function') {
+          instance._pauseOrResumeTextLite(el, isPause);
+        }
+        return;
+      }
+      if (typeof el.querySelectorAll === 'function') {
+        el.querySelectorAll('.lite-payload, .lite-osc-wave').forEach((node) => {
+          if (node.style) {
+            node.style.animationPlayState = isPause ? 'paused' : 'running';
+          }
+        });
+      }
+    }
+  }
+
   function applyPlayAnimationState(el, svgEl, shouldPlay, isInitialMount, instance) {
     if (!el || typeof el.getAttribute !== 'function') return;
     const prevAttr = el.getAttribute('data-play-animation');
@@ -1459,7 +1629,11 @@
       case 'text':
       case 'textContent':
         if (el) {
-          const valStr = String(value === undefined || value === null ? '' : value);
+          let valStr = String(value === undefined || value === null ? '' : value);
+          const unitHint = (paramDef && typeof paramDef.unit === 'string' && paramDef.unit.trim() !== '') ? paramDef.unit.trim() : '';
+          if (unitHint && (typeof value === 'number' || (paramDef && (paramDef.type === 'number' || paramDef.type === 'speed'))) && !valStr.endsWith(unitHint)) {
+            valStr = valStr + unitHint;
+          }
           if (el.getAttribute && el.getAttribute('data-lite-kind') === 'text-lite') {
             if (instance && typeof instance._updateTextLiteContent === 'function') {
               instance._updateTextLiteContent(el, valStr, isInitialMount);
@@ -1916,6 +2090,27 @@
       case 'playbackMode': {
         if (el) {
           const raw = String(value).toLowerCase();
+          if (el.getAttribute('data-lite-kind') === 'oscilloscope-lite') {
+            const oscMode = (raw === 'static' || raw === 'sampled') ? raw : 'animated';
+            el.setAttribute('data-osc-mode', oscMode);
+            const waveEl = el.querySelector('.lite-osc-wave');
+            if (waveEl) {
+              if (oscMode === 'animated') {
+                if (waveEl.style && waveEl.hasAttribute('data-orig-inline-anim')) {
+                  waveEl.style.animationName = waveEl.getAttribute('data-orig-inline-anim') || '';
+                }
+              } else {
+                if (waveEl.style) {
+                  if (!waveEl.hasAttribute('data-orig-inline-anim') && waveEl.style.animationName && waveEl.style.animationName !== 'none') {
+                    waveEl.setAttribute('data-orig-inline-anim', waveEl.style.animationName);
+                  }
+                  waveEl.style.animationName = 'none';
+                }
+              }
+            }
+            updateOscilloscopeLiteDOM(el);
+            break;
+          }
           const mode = raw === 'pingpong' ? 'pingpong' : (raw === 'once' ? 'once' : 'loop');
           if (el.getAttribute('data-lite-kind') === 'text-lite') {
             el.setAttribute('data-text-playback-mode', mode);
@@ -2156,6 +2351,195 @@
         }
         break;
       }
+      case 'bgOpacity': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const op = Math.max(0, Math.min(1, parseFloat(value) !== undefined && !isNaN(parseFloat(value)) ? parseFloat(value) : 0.85));
+          el.setAttribute('data-text-bg-opacity', String(op));
+          const box = el.querySelector('.lite-text-box');
+          if (box) {
+            box.setAttribute('fill-opacity', String(op));
+            if (box.style) box.style.fillOpacity = String(op);
+          }
+        }
+        break;
+      }
+      case 'fontSize': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const fs = Math.max(8, Math.min(120, parseFloat(value) || 18));
+          el.setAttribute('data-text-font-size', String(fs));
+          const txtEl = el.querySelector('.lite-text-element') || el.querySelector('text');
+          if (txtEl) {
+            txtEl.setAttribute('font-size', String(fs));
+            if (txtEl.style) txtEl.style.fontSize = `${fs}px`;
+          }
+          const curStr = el.getAttribute('data-text-content') || (txtEl && txtEl.textContent) || '';
+          renderWidgetTextLiteLinesToDOM(el, curStr);
+          if (instance && typeof instance._reconfigureTextLiteTicker === 'function') {
+            instance._reconfigureTextLiteTicker(el);
+          }
+        }
+        break;
+      }
+      case 'letterSpacing': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const ls = Math.max(-2, Math.min(20, parseFloat(value) || 0));
+          el.setAttribute('data-text-letter-spacing', String(ls));
+          const txtEl = el.querySelector('.lite-text-element') || el.querySelector('text');
+          if (txtEl) {
+            txtEl.setAttribute('letter-spacing', String(ls));
+            if (txtEl.style) txtEl.style.letterSpacing = `${ls}px`;
+          }
+          const curStr = el.getAttribute('data-text-content') || (txtEl && txtEl.textContent) || '';
+          renderWidgetTextLiteLinesToDOM(el, curStr);
+          if (instance && typeof instance._reconfigureTextLiteTicker === 'function') {
+            instance._reconfigureTextLiteTicker(el);
+          }
+        }
+        break;
+      }
+      case 'padding': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const pad = Math.max(0, Math.min(60, parseFloat(value) !== undefined && !isNaN(parseFloat(value)) ? parseFloat(value) : 12));
+          el.setAttribute('data-text-padding', String(pad));
+          const curStr = el.getAttribute('data-text-content') || '';
+          renderWidgetTextLiteLinesToDOM(el, curStr);
+          if (instance && typeof instance._reconfigureTextLiteTicker === 'function') {
+            instance._reconfigureTextLiteTicker(el);
+          }
+        }
+        break;
+      }
+      case 'linesPerSec': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const lps = Math.max(0.1, Math.min(20, parseFloat(value) || 1.2));
+          el.setAttribute('data-text-lines-per-sec', String(lps));
+          if (instance && typeof instance._reconfigureTextLiteTicker === 'function') {
+            instance._reconfigureTextLiteTicker(el);
+          }
+        }
+        break;
+      }
+      case 'lineSpacing': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const lsp = Math.max(0.8, Math.min(3.0, parseFloat(value) || 1.25));
+          el.setAttribute('data-text-line-spacing', String(lsp));
+          const curStr = el.getAttribute('data-text-content') || '';
+          renderWidgetTextLiteLinesToDOM(el, curStr);
+          if (instance && typeof instance._reconfigureTextLiteTicker === 'function') {
+            instance._reconfigureTextLiteTicker(el);
+          }
+        }
+        break;
+      }
+      case 'holdDelay': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const hd = Math.max(0, Math.min(30, parseFloat(value) !== undefined && !isNaN(parseFloat(value)) ? parseFloat(value) : 1.5));
+          el.setAttribute('data-text-hold-delay', String(hd));
+        }
+        break;
+      }
+      case 'clearDuration': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const cd = Math.max(0, Math.min(30, parseFloat(value) !== undefined && !isNaN(parseFloat(value)) ? parseFloat(value) : 0.6));
+          el.setAttribute('data-text-clear-duration', String(cd));
+        }
+        break;
+      }
+      case 'typeMode': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const tm = String(value || 'hold');
+          el.setAttribute('data-text-type-mode', tm);
+        }
+        break;
+      }
+      case 'typeRepeat': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const tr = value !== false && value !== 'false' && value !== 0 && value !== '0';
+          el.setAttribute('data-text-type-repeat', tr ? 'true' : 'false');
+        }
+        break;
+      }
+      case 'textAnim': {
+        if (el && el.getAttribute('data-lite-kind') === 'text-lite') {
+          const ta = String(value || 'none');
+          el.setAttribute('data-text-anim', ta);
+        }
+        break;
+      }
+      case 'minScale': {
+        if (el) {
+          const ms = Math.max(0.05, Math.min(2.0, parseFloat(value) || 0.15));
+          el.setAttribute('data-min-scale', String(ms));
+          el.querySelectorAll('.lite-payload').forEach((node) => {
+            node.setAttribute('data-min-scale', String(ms));
+            if (node.style && typeof node.style.setProperty === 'function') {
+              node.style.setProperty('--sva-pulse-min', String(ms));
+              node.style.setProperty('--sva-radar-min', String(ms));
+            }
+          });
+        }
+        break;
+      }
+      case 'rings': {
+        if (el) {
+          const rc = Math.max(1, Math.min(6, parseInt(value, 10) || 3));
+          el.setAttribute('data-radar-rings', String(rc));
+        }
+        break;
+      }
+      case 'curvature': {
+        if (el) {
+          const cv = Math.max(-100, Math.min(100, parseFloat(value) || 0));
+          el.setAttribute('data-curvature', String(cv));
+          if (el.getAttribute('data-lite-kind') === 'text-lite') {
+            el.setAttribute('data-text-curvature', String(cv));
+          } else if (el.getAttribute('data-lite-kind') === 'flow-lite') {
+            el.setAttribute('data-flow-curvature', String(cv));
+          }
+        }
+        break;
+      }
+      case 'delay':
+      case 'endDelay':
+      case 'startMode':
+      case 'endMode': {
+        if (el && el.getAttribute('data-lite-kind') === 'flow-lite') {
+          if (property === 'delay') {
+            el.setAttribute('data-flow-delay', String(Math.max(0, Math.min(30, parseFloat(value) || 0))));
+          } else if (property === 'endDelay') {
+            el.setAttribute('data-flow-end-delay', String(Math.max(0, Math.min(30, parseFloat(value) || 0))));
+          } else if (property === 'startMode') {
+            el.setAttribute('data-flow-start-mode', String(value) === 'abrupt' ? 'abrupt' : 'tunnel');
+          } else if (property === 'endMode') {
+            el.setAttribute('data-flow-end-mode', String(value) === 'abrupt' ? 'abrupt' : 'tunnel');
+          }
+        }
+        break;
+      }
+      case 'segmentStyle': {
+        if (el) {
+          const ss = String(value || 'solid');
+          el.setAttribute('data-lite-segment-style', ss);
+          el.querySelectorAll('.lite-payload').forEach((node) => {
+            node.setAttribute('stroke-linecap', (ss === 'rounded' || ss === 'dots') ? 'round' : 'butt');
+          });
+        }
+        break;
+      }
+      case 'labelText':
+      case 'unit': {
+        if (el && el.getAttribute('data-lite-kind') === 'gauge-lite') {
+          if (property === 'labelText') {
+            el.setAttribute('data-gauge-label', String(value === undefined || value === null ? '' : value));
+            const lblNode = el.querySelector('.lite-gauge-label-text');
+            if (lblNode) lblNode.textContent = String(value === undefined || value === null ? '' : value);
+          } else {
+            el.setAttribute('data-gauge-unit', String(value === undefined || value === null ? '' : value));
+          }
+          updateGaugeLiteDOM(el);
+        }
+        break;
+      }
       default:
         if (el) {
           try { el.setAttribute(property, String(value)); } catch (e) {}
@@ -2176,6 +2560,9 @@
     version: '1.2.0',
 
     generateInstanceId,
+    resolveTargetElement,
+    applyPropertyToElement,
+    applyLifecycleAction,
 
     /**
      * Isolates an SVG string so all IDs, references, CSS, and animations
@@ -2723,6 +3110,35 @@
         }
       }
 
+      function pauseOrResumeTextLite(el, isPause) {
+        if (!el) return;
+        initTextLiteControllers();
+        const ctrl = textLiteControllers.get(el);
+        const txtEl = el.querySelector('.lite-text-element') || el.querySelector('text');
+        let anim = el.getAttribute('data-text-anim') || 'none';
+        if (anim === 'overtype') anim = 'typewriter';
+        if (isPause) {
+          if (ctrl) {
+            ctrl.isMidCyclePaused = true;
+            clearTextLiteTimer(ctrl);
+          }
+          if (txtEl && txtEl.style) {
+            txtEl.style.animationPlayState = 'paused';
+          }
+        } else {
+          if (ctrl) {
+            ctrl.isMidCyclePaused = false;
+            if (ctrl.isPlaying !== false && (anim === 'typewriter' || anim === 'scramble') && !ctrl.cycleCompleted && !ctrl.timerId) {
+              const rate = Math.max(1, Math.min(120, parseFloat(el.getAttribute('data-text-type-speed')) || 14));
+              startTextLiteStepCycle(el, ctrl);
+            }
+          }
+          if (txtEl && txtEl.style) {
+            txtEl.style.animationPlayState = 'running';
+          }
+        }
+      }
+
       function updateTextLiteContent(el, newStr, isInit) {
         if (!el) return;
         initTextLiteControllers();
@@ -2923,6 +3339,7 @@
             throw new Error('setParameters expects a key-value object of parameter names and values.');
           }
           const isInit = Boolean(opts && opts._initialMount);
+          const isForce = Boolean(opts && opts._force);
 
           // Phase 1: Full validation check (atomic)
           const validatedUpdates = [];
@@ -2943,19 +3360,54 @@
 
             const hasMultiTargets = Array.isArray(paramDef.targets) && paramDef.targets.length > 0;
             const resolvedTargets = [];
+            let hasConditionalOrActionBinding = false;
             if (hasMultiTargets) {
               for (const tb of paramDef.targets) {
                 const mTarget = tb && (tb.target || tb.Target);
-                const mProp = tb && (tb.property || tb.Property);
-                if (!mTarget || !mProp) {
-                  throw new Error(`Invalid empty target binding in group parameter '${key}'.`);
+                const mProp = tb && (tb.property || tb.Property || '');
+                const mWhen = (tb && (tb.when !== undefined ? tb.when : tb.When)) || '';
+                const mAction = (tb && (tb.action !== undefined ? tb.action : tb.Action)) || '';
+                const mHasExplicitVal = tb && (tb.value !== undefined || tb.Value !== undefined);
+                const mExplicitVal = tb && (tb.value !== undefined ? tb.value : tb.Value);
+
+                if (mWhen || (mAction && mAction !== 'set') || (mHasExplicitVal && mExplicitVal !== null)) {
+                  hasConditionalOrActionBinding = true;
+                }
+
+                if (!mTarget || (!mProp && !mAction)) {
+                  throw new Error(`Invalid empty target binding in parameter '${key}'.`);
                 }
                 const memberEl = resolveTargetElement(svgEl, details.idMap, mTarget);
                 if (!memberEl) {
-                  throw new Error(`Mapped target element '${mTarget}' not found in widget for group parameter '${key}'.`);
+                  throw new Error(`Mapped target element '${mTarget}' not found in widget for parameter '${key}'.`);
                 }
-                resolvedTargets.push({ el: memberEl, target: mTarget, property: mProp });
+
+                // Filter by When condition if present
+                const normWhen = String(mWhen).trim();
+                const isActiveBranch = !normWhen || normWhen.toLowerCase() === 'always' || normWhen === String(valRes.value);
+                if (!isActiveBranch) {
+                  continue;
+                }
+
+                const effTargetVal = (mHasExplicitVal && mExplicitVal !== null) ? mExplicitVal : valRes.value;
+                const actionValidation = validateTargetActionAndValue(key, memberEl, mTarget, mProp, mAction, effTargetVal);
+                if (!actionValidation.valid) {
+                  throw new Error(actionValidation.error);
+                }
+
+                resolvedTargets.push({
+                  el: memberEl,
+                  target: mTarget,
+                  property: mProp,
+                  action: mAction,
+                  value: actionValidation.value
+                });
               }
+            }
+
+            // Idempotent repeated-value guard for conditional/action Component Builder parameters
+            if (!isInit && !isForce && hasConditionalOrActionBinding && currentValues.hasOwnProperty(key) && currentValues[key] === valRes.value) {
+              continue;
             }
 
             const isGroupUpdate = hasMultiTargets || (typeof paramDef.target === 'string' && paramDef.target.startsWith('group-'));
@@ -2970,7 +3422,7 @@
           }
 
           // Phase 2: Atomic DOM and state application
-          // Precedence contract: Group-level updates apply first; direct member updates apply second within the same batch
+          // Precedence contract: Group-level and Component Builder multi-target updates apply first; direct member updates apply second within the same batch
           const orderedUpdates = [
             ...validatedUpdates.filter((u) => u.isGroupUpdate),
             ...validatedUpdates.filter((u) => !u.isGroupUpdate)
@@ -2982,23 +3434,30 @@
             changed[paramDef.name] = cleanVal;
             if (hasMultiTargets) {
               for (const rt of resolvedTargets) {
-                let targetVal = cleanVal;
-                if ((rt.property === 'text' || rt.property === 'textContent') && typeof cleanVal !== 'string') {
-                  targetVal = String(cleanVal);
+                const act = (rt.action && String(rt.action).trim().toLowerCase()) || '';
+                if (act && act !== 'set') {
+                  applyLifecycleAction(rt.el, svgEl, act, isInit, handle);
+                } else {
+                  let targetVal = rt.value !== undefined ? rt.value : cleanVal;
+                  if ((rt.property === 'text' || rt.property === 'textContent') && typeof targetVal !== 'string') {
+                    targetVal = String(targetVal);
+                  }
+                  const syntheticDef = Object.assign({}, paramDef, {
+                    target: rt.target,
+                    property: rt.property
+                  });
+                  applyPropertyToElement(rt.el, rt.property, targetVal, syntheticDef, handle, isInit);
                 }
-                const syntheticDef = Object.assign({}, paramDef, {
-                  target: rt.target,
-                  property: rt.property
-                });
-                applyPropertyToElement(rt.el, rt.property, targetVal, syntheticDef, handle, isInit);
               }
             } else {
               applyPropertyToElement(targetEl, paramDef.property, cleanVal, paramDef, handle, isInit);
             }
           }
 
-          handle._emit('change', { instanceId: handle.instanceId, parameters: changed });
-          handle._emit('parametersChanged', { instanceId: handle.instanceId, parameters: handle.getParameters() });
+          if (Object.keys(changed).length > 0 || isInit) {
+            handle._emit('change', { instanceId: handle.instanceId, parameters: changed });
+            handle._emit('parametersChanged', { instanceId: handle.instanceId, parameters: handle.getParameters() });
+          }
           return handle;
         },
 
@@ -3169,6 +3628,10 @@
 
         // Unmount & destruction
         unmount() {
+          while (hoverCleanups.length > 0) {
+            const fn = hoverCleanups.pop();
+            try { fn(); } catch (e) {}
+          }
           clearBurstTimers();
           clearAllTextLiteTimers();
           textLiteControllers.clear();
@@ -3210,6 +3673,10 @@
           setTextLitePlayState(el, shouldPlay, isInit, wasStopped);
         },
 
+        _pauseOrResumeTextLite(el, isPause) {
+          pauseOrResumeTextLite(el, isPause);
+        },
+
         _reconfigureTextLiteTicker(el) {
           const ctrl = textLiteControllers.get(el) || null;
           configureTextLiteTicker(el, ctrl);
@@ -3217,6 +3684,33 @@
       };
 
       // 8. Initialize Text Box Lite controllers & apply initial parameters if provided in options or manifest defaults
+      const hoverCleanups = [];
+      if (options.interactiveTriggers !== false && svgEl && typeof svgEl.addEventListener === 'function' && Array.isArray(manifest.parameters)) {
+        for (const p of manifest.parameters) {
+          const trig = (p && (p.eventTrigger || p.EventTrigger || '')).toLowerCase();
+          if (trig === 'hover' && p.type === 'boolean' && p.name) {
+            const onEnter = () => {
+              if (!handle.isDestroyed) {
+                try { handle.setParameter(p.name, true); } catch (e) {}
+              }
+            };
+            const onLeave = () => {
+              if (!handle.isDestroyed) {
+                try { handle.setParameter(p.name, false); } catch (e) {}
+              }
+            };
+            svgEl.addEventListener('mouseenter', onEnter);
+            svgEl.addEventListener('mouseleave', onLeave);
+            hoverCleanups.push(() => {
+              try {
+                svgEl.removeEventListener('mouseenter', onEnter);
+                svgEl.removeEventListener('mouseleave', onLeave);
+              } catch (e) {}
+            });
+          }
+        }
+      }
+
       initTextLiteControllers();
       if (svgEl && typeof svgEl.querySelectorAll === 'function') {
         svgEl.querySelectorAll('[data-lite-play="false"], [data-play-animation="false"]').forEach((el) => {

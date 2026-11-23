@@ -783,8 +783,9 @@ func BuildWidgetPackageZip(sc *Scene, widgetName, rawSVG, svgWidgetJS string) ([
 		params := sc.GetParameters()
 		if len(params) > 0 {
 			manifest = &WidgetManifest{
-				SchemaVersion: 1,
-				Parameters:    params,
+				SchemaVersion:     1,
+				MinRuntimeVersion: "1.2.0",
+				Parameters:        params,
 			}
 		}
 	}
@@ -796,22 +797,70 @@ func BuildWidgetPackageZip(sc *Scene, widgetName, rawSVG, svgWidgetJS string) ([
 			}
 		}
 	}
-
-	if manifest != nil {
-		if manifest.WidgetName == "" {
-			manifest.WidgetName = cleanBase
-		}
-		if manifest.PackageVersion == "" {
-			manifest.PackageVersion = "1.0.0"
-		}
-		if manifest.PackageId == "" {
-			paramJson, _ := json.Marshal(manifest.Parameters)
-			h := sha256.Sum256([]byte(cleanBase + "|" + rawSVG + "|" + string(paramJson)))
-			manifest.PackageId = fmt.Sprintf("%s-%x", cleanBase, h[:6])
+	if manifest == nil {
+		manifest = &WidgetManifest{
+			SchemaVersion:     1,
+			MinRuntimeVersion: "1.2.0",
+			Parameters:        []WidgetParameter{},
 		}
 	}
+	if sc != nil {
+		// Attach component metadata if the scene represents or contains a single root component
+		comps := sc.GetAllComposites()
+		if len(comps) > 0 {
+			var matched *CompositeDef
+			for i := range comps {
+				if strings.EqualFold(cleanWidgetSlug(comps[i].Name), cleanBase) {
+					matched = &comps[i]
+					break
+				}
+			}
+			if matched == nil && len(comps) == 1 {
+				matched = &comps[0]
+			}
+			if matched != nil {
+				if matched.ComponentID != "" {
+					manifest.ComponentID = matched.ComponentID
+				}
+				if matched.Version != "" {
+					manifest.PackageVersion = NormalizeSemVer(matched.Version)
+				}
+				if matched.Description != "" {
+					manifest.Description = matched.Description
+				}
+				if matched.Category != "" {
+					manifest.Category = matched.Category
+				}
+				if len(matched.Tags) > 0 {
+					manifest.Tags = append([]string(nil), matched.Tags...)
+				}
+			}
+		}
+	}
+	if manifest.Parameters == nil {
+		manifest.Parameters = []WidgetParameter{}
+	}
+	if manifest.WidgetName == "" {
+		manifest.WidgetName = cleanBase
+	}
+	if manifest.PackageVersion == "" {
+		manifest.PackageVersion = "1.0.0"
+	}
+	if manifest.MinRuntimeVersion == "" {
+		manifest.MinRuntimeVersion = "1.2.0"
+	}
+	// Keep packageId stable across revisions (slug or componentId) and store per-export digest in contentHash
+	if manifest.PackageId == "" {
+		manifest.PackageId = cleanBase
+	}
+	if manifest.ComponentID == "" {
+		manifest.ComponentID = "cmp-" + cleanBase
+	}
+	paramJson, _ := json.Marshal(manifest.Parameters)
+	h := sha256.Sum256([]byte(cleanBase + "|" + manifest.PackageVersion + "|" + rawSVG + "|" + string(paramJson)))
+	manifest.ContentHash = fmt.Sprintf("%x", h)
 
-	// 2. Isolate rawSVG so all internal IDs are namespaced and manifest is embedded
+	// 2b. Isolate rawSVG so all internal IDs are namespaced, executable scripts stripped, and manifest is embedded in exact sync
 	isolatedSVG := rawSVG
 	if strings.TrimSpace(rawSVG) != "" {
 		iso, _, err := IsolateSVGWidget(rawSVG, WidgetIsolationOptions{
@@ -835,30 +884,39 @@ func BuildWidgetPackageZip(sc *Scene, widgetName, rawSVG, svgWidgetJS string) ([
 	demoHTML := GenerateWidgetDemoHTML(widgetName, svgFilename, manifest, isolatedSVG)
 
 	manifestBytes := []byte("{}\n")
-	if manifest != nil {
-		if mb, err := json.MarshalIndent(manifest, "", "  "); err == nil {
-			manifestBytes = append(mb, '\n')
-		}
+	if mb, err := json.MarshalIndent(manifest, "", "  "); err == nil {
+		manifestBytes = append(mb, '\n')
 	}
 
-	// 4. Create in-memory ZIP
+	// Build a clean static preview.svg (strip embedded manifest script for lightweight thumbnail)
+	reManifestScript := regexp.MustCompile(`(?is)<script\b[^>]*sva-widget-manifest[^>]*>.*?</script>`)
+	previewSVG := strings.TrimSpace(reManifestScript.ReplaceAllString(isolatedSVG, ""))
+
+	// 5. Create deterministic in-memory ZIP (fixed timestamp & order for reproducible SHA-256 digests)
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
+	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	files := []struct {
 		Path    string
 		Content []byte
 	}{
 		{Path: path.Join(cleanBase, svgFilename), Content: []byte(isolatedSVG)},
-		{Path: path.Join(cleanBase, guideFilename), Content: []byte(guideMarkdown)},
 		{Path: path.Join(cleanBase, "widget-manifest.json"), Content: manifestBytes},
+		{Path: path.Join(cleanBase, "preview.svg"), Content: []byte(previewSVG)},
+		{Path: path.Join(cleanBase, guideFilename), Content: []byte(guideMarkdown)},
 		{Path: path.Join(cleanBase, "README.md"), Content: []byte(readmeMarkdown)},
 		{Path: path.Join(cleanBase, "demo.html"), Content: []byte(demoHTML)},
 		{Path: path.Join(cleanBase, "js", "svg-widget.js"), Content: []byte(svgWidgetJS)},
 	}
 
 	for _, f := range files {
-		w, err := zw.Create(f.Path)
+		hdr := &zip.FileHeader{
+			Name:     f.Path,
+			Method:   zip.Deflate,
+			Modified: fixedTime,
+		}
+		w, err := zw.CreateHeader(hdr)
 		if err != nil {
 			return nil, fmt.Errorf("creating zip entry %s: %w", f.Path, err)
 		}

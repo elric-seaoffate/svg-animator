@@ -417,34 +417,46 @@ type BackgroundConfig struct {
 }
 
 // WidgetTargetBinding represents a resolved member target and property driven by a semantic group parameter.
+// WidgetTargetBinding maps an exposed parameter (or conditional state branch) to a specific object property or animation action.
 type WidgetTargetBinding struct {
-	Target   string `json:"target"`   // Canonical member target ID (e.g. "lite-1", "node-2")
-	Property string `json:"property"` // Member property (e.g. "value", "text", "color")
+	Target   string `json:"target"`           // Canonical target ID (e.g. "lite-1", "node-2", "flow-1", "group-1")
+	Property string `json:"property"`         // Member/target property (e.g. "value", "text", "color", "bgColor", "fill", "visibility", "play")
+	When     string `json:"when,omitempty"`   // Optional state condition: "" / "always" (pass-through), "true", "false", or enum option string
+	Action   string `json:"action,omitempty"` // Optional operation: "" / "set" (default), "play", "pause", "resume", "stop_reset", "enable", "disable"
+	Value    any    `json:"value,omitempty"`  // Optional explicit target value when condition matches (nil = pass incoming parameter value)
 }
 
-// WidgetParameter defines an externally controllable runtime parameter for a widget.
+// WidgetParameter defines an externally controllable runtime parameter for a widget or component.
 type WidgetParameter struct {
-	Name        string                `json:"name"`
-	Type        string                `json:"type"` // "color", "number", "boolean", "text", "enum", "speed"
-	Default     any                   `json:"default"`
-	Target      string                `json:"target"`             // Semantic target ID (e.g. "node-1", "flow-1", "group-1")
-	Property    string                `json:"property"`           // "fill", "stroke", "visibility", "opacity", "text", "playbackRate", "state", or semantic group alias
-	Targets     []WidgetTargetBinding `json:"targets,omitempty"`  // Optional 1..N mapped member targets for group semantic properties (Stage 16E-M2)
-	Min         *float64              `json:"min,omitempty"`
-	Max         *float64              `json:"max,omitempty"`
-	Step        *float64              `json:"step,omitempty"`
-	Unit        string                `json:"unit,omitempty"`
-	Options     []string              `json:"options,omitempty"` // Permitted enum values
-	Description string                `json:"description,omitempty"`
+	Name         string                `json:"name"`
+	Label        string                `json:"label,omitempty"`
+	Type         string                `json:"type"` // "color", "number", "boolean", "text", "enum", "speed"
+	Default      any                   `json:"default"`
+	Target       string                `json:"target"`                 // Semantic target ID (e.g. "node-1", "flow-1", "group-1", or "root" for Component Builder)
+	Property     string                `json:"property"`               // "fill", "stroke", "visibility", "opacity", "text", "playbackRate", "state", "play", "value", etc.
+	Targets      []WidgetTargetBinding `json:"targets,omitempty"`      // Optional 1..N mapped targets / conditional actions (Stage 16E & Stage 16F)
+	EventTrigger string                `json:"eventTrigger,omitempty"` // Optional domestic trigger: "" or "hover" (mouseenter/mouseleave)
+	Min          *float64              `json:"min,omitempty"`
+	Max          *float64              `json:"max,omitempty"`
+	Step         *float64              `json:"step,omitempty"`
+	Unit         string                `json:"unit,omitempty"`
+	Options      []string              `json:"options,omitempty"` // Permitted enum values
+	Description  string                `json:"description,omitempty"`
 }
 
-// WidgetManifest describes the external parameter schema of an exported widget.
+// WidgetManifest describes the external parameter schema of an exported widget or reusable component.
 type WidgetManifest struct {
-	SchemaVersion  int               `json:"schemaVersion"`
-	PackageVersion string            `json:"packageVersion,omitempty"`
-	PackageId      string            `json:"packageId,omitempty"`
-	WidgetName     string            `json:"widgetName,omitempty"`
-	Parameters     []WidgetParameter `json:"parameters"`
+	SchemaVersion     int               `json:"schemaVersion"`
+	ComponentID       string            `json:"componentId,omitempty"`
+	PackageVersion    string            `json:"packageVersion,omitempty"`
+	PackageId         string            `json:"packageId,omitempty"`
+	WidgetName        string            `json:"widgetName,omitempty"`
+	Description       string            `json:"description,omitempty"`
+	Category          string            `json:"category,omitempty"`
+	Tags              []string          `json:"tags,omitempty"`
+	MinRuntimeVersion string            `json:"minRuntimeVersion,omitempty"`
+	ContentHash       string            `json:"contentHash,omitempty"`
+	Parameters        []WidgetParameter `json:"parameters"`
 }
 
 // GaugeThresholdBand represents one of the 4 independently configurable threshold bands on Gauge / Level Lite.

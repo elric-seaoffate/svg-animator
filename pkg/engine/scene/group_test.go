@@ -1403,4 +1403,125 @@ func TestStage16ESemanticMappingConstraintConsistency(t *testing.T) {
 	}
 }
 
+func TestStage16FComponentBuilderMultiActionParameters(t *testing.T) {
+	sc := NewScene()
+	leText := sc.CreateLiteEffect(LiteEffect{
+		Name:      "deploy-label",
+		Kind:      "text-lite",
+		LabelText: "DEPLOY NODE",
+		Color:     "#f8fafc",
+		BgColor:   "#0f172a",
+	})
+	leTracer := sc.CreateLiteEffect(LiteEffect{
+		Name:  "border-tracer",
+		Kind:  "perimeter-tracer",
+		Color: "#38bdf8",
+	})
+	nodeBadge := sc.CreateNode(Node{
+		Name:      "status-badge",
+		Shape:     "circle",
+		FillColor: "#334155",
+	}, nil, false)
+	flowConv := sc.CreateFlow(Flow{
+		Name:  "main-link",
+		Color: "#22c55e",
+	})
+
+	// 1. Verify Text Box Lite exposes both "color" (Text Colour) and "bgColor" (Box Background Colour) plus new 16F properties
+	textProps := sc.GetEligiblePropertiesForTarget("lite", string(leText.ID), "text-lite")
+	foundColor := false
+	foundBgColor := false
+	foundFontSize := false
+	for _, ep := range textProps {
+		if ep.Property == "color" && ep.Label == "Text Colour" {
+			foundColor = true
+		}
+		if ep.Property == "bgColor" && ep.Label == "Box Background Colour" {
+			foundBgColor = true
+		}
+		if ep.Property == "fontSize" {
+			foundFontSize = true
+		}
+	}
+	if !foundColor || !foundBgColor || !foundFontSize {
+		t.Fatalf("expected text-lite to expose Text Colour (color=%v), Box Background Colour (bgColor=%v), and fontSize (%v)", foundColor, foundBgColor, foundFontSize)
+	}
+
+	// 2. Add ungrouped MouseOver Boolean component property driving text colour, box fill, node fill, and animation lifecycle
+	mouseOverParam := WidgetParameter{
+		Name:         "MouseOver",
+		Label:        "Mouse Over State",
+		Type:         "boolean",
+		Target:       "root",
+		Property:     "color",
+		Default:      false,
+		EventTrigger: "hover",
+		Targets: []WidgetTargetBinding{
+			{Target: "lite-" + string(leText.ID), Property: "color", When: "true", Action: "set", Value: "#38bdf8"},
+			{Target: "lite-" + string(leText.ID), Property: "bgColor", When: "true", Action: "set", Value: "#1e3a8a"},
+			{Target: "node-" + string(nodeBadge.ID), Property: "fill", When: "true", Action: "set", Value: "#2563eb"},
+			{Target: "lite-" + string(leTracer.ID), Property: "play", When: "true", Action: "play"},
+			{Target: "lite-" + string(leText.ID), Property: "color", When: "false", Action: "set", Value: "#f8fafc"},
+			{Target: "lite-" + string(leText.ID), Property: "bgColor", When: "false", Action: "set", Value: "#0f172a"},
+			{Target: "node-" + string(nodeBadge.ID), Property: "fill", When: "false", Action: "set", Value: "#334155"},
+			{Target: "lite-" + string(leTracer.ID), Property: "play", When: "false", Action: "stop_reset"},
+		},
+	}
+	if err := sc.AddParameter(mouseOverParam); err != nil {
+		t.Fatalf("expected ungrouped MouseOver multi-action parameter to succeed, got: %v", err)
+	}
+
+	// 3. Reject mid-cycle pause/resume on conventional SMIL flow target
+	invalidSmilPause := WidgetParameter{
+		Name:     "InvalidSmilPause",
+		Type:     "boolean",
+		Target:   "root",
+		Property: "play",
+		Default:  false,
+		Targets: []WidgetTargetBinding{
+			{Target: "flow-" + string(flowConv.ID), Property: "play", When: "true", Action: "pause"},
+		},
+	}
+	if err := sc.AddParameter(invalidSmilPause); err == nil {
+		t.Fatalf("expected mid-cycle pause on SMIL flow target to be rejected")
+	}
+
+	// 4. Reject out-of-range action value in target binding
+	invalidRangeAction := WidgetParameter{
+		Name:     "InvalidFontSizeAction",
+		Type:     "boolean",
+		Target:   "root",
+		Property: "fontSize",
+		Default:  false,
+		Targets: []WidgetTargetBinding{
+			{Target: "lite-" + string(leText.ID), Property: "fontSize", When: "true", Action: "set", Value: 999.0},
+		},
+	}
+	if err := sc.AddParameter(invalidRangeAction); err == nil {
+		t.Fatalf("expected out-of-range fontSize=999 in target binding to be rejected")
+	}
+
+	// 5. Verify renaming an object preserves user-authored Component Builder parameter name ("MouseOver")
+	if _, err := sc.RenameObject("lite", leText.ID, "renamed-label"); err != nil {
+		t.Fatalf("RenameObject failed: %v", err)
+	}
+	params := sc.GetParameters()
+	if len(params) != 1 || params[0].Name != "MouseOver" {
+		t.Fatalf("expected MouseOver parameter name to be preserved after object rename, got %+v", params)
+	}
+
+	// 6. Verify deleting a targeted object prunes its bindings from MouseOver.Targets while keeping remaining bindings intact
+	if !sc.RemoveNode(nodeBadge.ID) {
+		t.Fatalf("RemoveNode failed")
+	}
+	paramsAfterDelete := sc.GetParameters()
+	if len(paramsAfterDelete) != 1 {
+		t.Fatalf("expected MouseOver parameter to remain with remaining targets after deleting nodeBadge")
+	}
+	if len(paramsAfterDelete[0].Targets) != 6 {
+		t.Fatalf("expected 6 remaining target bindings after pruning deleted nodeBadge (2 bindings removed), got %d", len(paramsAfterDelete[0].Targets))
+	}
+}
+
+
 

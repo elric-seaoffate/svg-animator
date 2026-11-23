@@ -62,6 +62,17 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 	reEditorOnly := regexp.MustCompile(`(?s)<g\b[^>]*\bdata-editor-only\s*=\s*["']true["'][^>]*>.*?</g>`)
 	rawSVG = reEditorOnly.ReplaceAllString(rawSVG, "")
 
+	// 0b. Strip executable <script> blocks (e.g. standalone file:// burst/text-lite helper scripts) so exported
+	// widget SVGs satisfy strict safe-SVG validation; preserve only <script type="application/json"> manifest blocks.
+	reAnyScript := regexp.MustCompile(`(?is)<script\b([^>]*)>.*?</script>`)
+	rawSVG = reAnyScript.ReplaceAllStringFunc(rawSVG, func(block string) string {
+		sub := reAnyScript.FindStringSubmatch(block)
+		if len(sub) >= 2 && strings.Contains(strings.ToLower(sub[1]), "application/json") && strings.Contains(sub[1], "sva-widget-manifest") {
+			return block
+		}
+		return ""
+	})
+
 	// 1. Scan and collect all declared IDs: id="VALUE" or id='VALUE'
 	idMap := make(map[string]string)
 	reDeclaredID := regexp.MustCompile(`\bid\s*=\s*["']([^"']+)["']`)
@@ -70,7 +81,11 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 		if len(m) >= 2 {
 			oldID := m[1]
 			if oldID != "" && idMap[oldID] == "" {
-				idMap[oldID] = prefix + oldID
+				if strings.HasPrefix(oldID, prefix) {
+					idMap[oldID] = oldID
+				} else {
+					idMap[oldID] = prefix + oldID
+				}
 			}
 		}
 	}
@@ -475,12 +490,16 @@ var ObjectPropertyCatalog = map[string][]EligibleProperty{
 		{Property: "speed", Type: "speed", Label: "Group Animation Speed", ParamSuffix: "speed", Description: "Animation playback speed multiplier for all animations inside the group (0.1 to 10.0)", Min: floatPtr(0.1), Max: floatPtr(10.0), Step: floatPtr(0.1), Default: 1.0, DefaultSource: "1.0", RuntimeSemantics: "scales descendant animation speed within the group"},
 	},
 	"lite": {
+		{Property: "color", Type: "color", Label: "Effect Colour", ParamSuffix: "color", Description: "Primary stroke, fill, or text colour of the low-load effect", Default: "#38bdf8", DefaultSource: "lite.color", RuntimeSemantics: "recolours lite effect payload and guide; hit-targets untouched"},
 		{Property: "play", Type: "boolean", Label: "Play Animation", ParamSuffix: "play", Description: "Start or stop the low-load effect animation (independent of playbackMode: once plays once when true, loop plays continuously while true)", Default: true, DefaultSource: "lite.play", RuntimeSemantics: "starts or stops low-load effect animation honouring playbackMode"},
-		{Property: "color", Type: "color", Label: "Effect Colour", ParamSuffix: "color", Description: "Primary stroke or fill colour of the low-load effect", Default: "#38bdf8", DefaultSource: "lite.color", RuntimeSemantics: "recolours lite effect payload and guide; hit-targets untouched"},
-		{Property: "bgColor", Type: "color", Label: "Track / Background Colour", ParamSuffix: "bgColor", Description: "Background track or unlit segment colour for Gauge Lite", Default: "#1e293b", DefaultSource: "lite.bgColor", RuntimeSemantics: "recolours gauge background track and unlit segments"},
+		{Property: "bgColor", Type: "color", Label: "Track / Background Colour", ParamSuffix: "bgColor", Description: "Background track, screen, or text box fill colour", Default: "#1e293b", DefaultSource: "lite.bgColor", RuntimeSemantics: "recolours gauge/oscilloscope/text background"},
+		{Property: "borderColor", Type: "color", Label: "Border Colour", ParamSuffix: "borderColor", Description: "Container border or guide path colour for Text Box Lite", Default: "#38bdf8", DefaultSource: "lite.borderColor", RuntimeSemantics: "recolours Text Box Lite container border and arc guide"},
+		{Property: "bgOpacity", Type: "number", Label: "Box Fill Opacity", ParamSuffix: "bgOpacity", Description: "Background container fill opacity for Text Box Lite (0.0 to 1.0)", Min: floatPtr(0), Max: floatPtr(1), Step: floatPtr(0.05), Default: 0.85, DefaultSource: "lite.bgOpacity", RuntimeSemantics: "sets Text Box Lite container fill-opacity"},
 		{Property: "value", Type: "number", Label: "Gauge Value", ParamSuffix: "value", Description: "Current numeric value for Gauge / Level Lite indicators", Step: floatPtr(0.5), Default: 65.0, DefaultSource: "lite.value", RuntimeSemantics: "updates static gauge fill geometry and threshold colour"},
 		{Property: "minValue", Type: "number", Label: "Gauge Min Value", ParamSuffix: "minValue", Description: "Minimum numeric domain bound for Gauge / Level Lite", Step: floatPtr(1), Default: 0.0, DefaultSource: "lite.minValue", RuntimeSemantics: "updates gauge minimum domain bound and recalculates fill"},
 		{Property: "maxValue", Type: "number", Label: "Gauge Max Value", ParamSuffix: "maxValue", Description: "Maximum numeric domain bound for Gauge / Level Lite", Step: floatPtr(1), Default: 100.0, DefaultSource: "lite.maxValue", RuntimeSemantics: "updates gauge maximum domain bound and recalculates fill"},
+		{Property: "labelText", Type: "text", Label: "Gauge Label Text", ParamSuffix: "labelText", Description: "Caption or label text displayed on Gauge / Level Lite", Default: "", DefaultSource: "lite.labelText", RuntimeSemantics: "updates Gauge Lite caption text"},
+		{Property: "unit", Type: "text", Label: "Unit Suffix", ParamSuffix: "unit", Description: "Unit suffix displayed on Gauge / Level Lite readout (e.g. %, °C, RPM)", Default: "%", DefaultSource: "lite.unit", RuntimeSemantics: "updates Gauge Lite unit suffix and readout"},
 		{Property: "opacity", Type: "number", Label: "Opacity", ParamSuffix: "opacity", Description: "Transparency of the low-load effect (0.0 to 1.0)", Min: floatPtr(0), Max: floatPtr(1), Step: floatPtr(0.05), Default: 0.9, DefaultSource: "lite.opacity", RuntimeSemantics: "sets lite effect overall opacity"},
 		{Property: "visibility", Type: "boolean", Label: "Visibility", ParamSuffix: "visibility", Description: "Toggle visibility of the low-load effect", Default: true, DefaultSource: "true", RuntimeSemantics: "toggles lite effect visibility"},
 		{Property: "speed", Type: "speed", Label: "Cycle Duration / Speed", ParamSuffix: "speed", Description: "Cycle duration in seconds (0.2 to 30.0 s) or playback speed multiplier (0.1 to 10.0)", Min: floatPtr(0.1), Max: floatPtr(30.0), Step: floatPtr(0.1), Default: 1.0, DefaultSource: "lite.speed", RuntimeSemantics: "updates cycle duration or scales CSS animation duration"},
@@ -488,15 +507,23 @@ var ObjectPropertyCatalog = map[string][]EligibleProperty{
 		{Property: "dashLength", Type: "number", Label: "Dash / Segment Length", ParamSuffix: "dashLength", Description: "Flow Lite dash or single segment length in px (2 to 400)", Min: floatPtr(2), Max: floatPtr(400), Step: floatPtr(1), Default: 18.0, DefaultSource: "lite.dashLength", RuntimeSemantics: "rebuilds Flow Lite segment dasharray and keyframes"},
 		{Property: "gapLength", Type: "number", Label: "Gap Spacing", ParamSuffix: "gapLength", Description: "Flow Lite clear gap between segments in px (2 to 300)", Min: floatPtr(2), Max: floatPtr(300), Step: floatPtr(1), Default: 14.0, DefaultSource: "lite.gapLength", RuntimeSemantics: "rebuilds Flow Lite segment period and staggering"},
 		{Property: "dotSize", Type: "number", Label: "Dot Diameter", ParamSuffix: "dotSize", Description: "Flow Lite dot diameter in px for dotted pattern (1 to 32)", Min: floatPtr(1), Max: floatPtr(32), Step: floatPtr(0.5), Default: 5.0, DefaultSource: "lite.dotSize", RuntimeSemantics: "updates Flow Lite dotted stroke-width and keyframes"},
+		{Property: "delay", Type: "number", Label: "Start Delay (s)", ParamSuffix: "delay", Description: "Flow Lite start delay in seconds before transit begins (0 to 60 s)", Min: floatPtr(0), Max: floatPtr(60), Step: floatPtr(0.1), Default: 0.0, DefaultSource: "lite.delay", RuntimeSemantics: "updates Flow Lite start delay"},
+		{Property: "endDelay", Type: "number", Label: "End Delay (s)", ParamSuffix: "endDelay", Description: "Flow Lite end delay in seconds after transit completes (0 to 60 s)", Min: floatPtr(0), Max: floatPtr(60), Step: floatPtr(0.1), Default: 0.0, DefaultSource: "lite.endDelay", RuntimeSemantics: "updates Flow Lite end delay"},
+		{Property: "startMode", Type: "enum", Label: "Start Behaviour", ParamSuffix: "startMode", Description: "Flow Lite start endpoint behaviour (tunnel or abrupt)", Options: []string{"tunnel", "abrupt"}, Default: "tunnel", DefaultSource: "lite.startMode", RuntimeSemantics: "switches Flow Lite start endpoint masking"},
+		{Property: "endMode", Type: "enum", Label: "End Behaviour", ParamSuffix: "endMode", Description: "Flow Lite end endpoint behaviour (tunnel or abrupt)", Options: []string{"tunnel", "abrupt"}, Default: "tunnel", DefaultSource: "lite.endMode", RuntimeSemantics: "switches Flow Lite end endpoint masking"},
+		{Property: "segmentStyle", Type: "enum", Label: "Segment / Cap Style", ParamSuffix: "segmentStyle", Description: "Perimeter Tracer segment cap style (solid, rounded, dashed)", Options: []string{"solid", "rounded", "dashed"}, Default: "rounded", DefaultSource: "lite.segmentStyle", RuntimeSemantics: "updates Perimeter Tracer stroke-linecap and sub-dashing"},
 		{Property: "segments", Type: "number", Label: "Segments", ParamSuffix: "segments", Description: "Number of segments or waveform cycles (1 to 32)", Min: floatPtr(1), Max: floatPtr(32), Step: floatPtr(1), Default: 2, DefaultSource: "lite.segments", RuntimeSemantics: "recomputes pathLength=1000 stroke-dasharray or waveform cycles"},
+		{Property: "rings", Type: "number", Label: "Ring Count", ParamSuffix: "rings", Description: "Number of staggered expanding radar rings (1 to 6)", Min: floatPtr(1), Max: floatPtr(6), Step: floatPtr(1), Default: 3, DefaultSource: "lite.rings", RuntimeSemantics: "updates Radar Ping Lite staggered ring count"},
 		{Property: "lineGapRatio", Type: "text", Label: "Line:Gap Ratio", ParamSuffix: "lineGapRatio", Description: "Repeating segment pattern ratio (e.g. 1:3)", Default: "1:3", DefaultSource: "lite.lineGapRatio", RuntimeSemantics: "recomputes pathLength=1000 stroke-dasharray"},
 		{Property: "direction", Type: "enum", Label: "Direction", ParamSuffix: "direction", Description: "Travel direction (cw, ccw, forward, reverse)", Options: []string{"cw", "ccw", "forward", "reverse"}, Default: "cw", DefaultSource: "lite.direction", RuntimeSemantics: "switches travel direction"},
 		{Property: "startOffset", Type: "number", Label: "Start Offset (%)", ParamSuffix: "startOffset", Description: "Perimeter phase offset, curved text arc offset, or oscilloscope baseline percentage (0 to 100%)", Min: floatPtr(0), Max: floatPtr(100), Step: floatPtr(1), Default: 0.0, DefaultSource: "lite.startOffset", RuntimeSemantics: "updates starting phase offset, textPath startOffset, or oscilloscope baseline"},
-		{Property: "playbackMode", Type: "enum", Label: "Motion Mode", ParamSuffix: "playbackMode", Description: "Playback mode (loop, pingpong, once)", Options: []string{"loop", "pingpong", "once"}, Default: "loop", DefaultSource: "lite.playbackMode", RuntimeSemantics: "switches playback iteration & direction"},
+		{Property: "curvature", Type: "number", Label: "Curvature", ParamSuffix: "curvature", Description: "Arc curvature for Text Box Lite or path curvature for Flow Lite (-100 to +100)", Min: floatPtr(-100), Max: floatPtr(100), Step: floatPtr(1), Default: 0.0, DefaultSource: "lite.curvature", RuntimeSemantics: "updates curved text arc path or flow curvature"},
+		{Property: "playbackMode", Type: "enum", Label: "Motion Mode", ParamSuffix: "playbackMode", Description: "Playback or operating mode (loop, pingpong, once, static, animated, sampled)", Options: []string{"loop", "pingpong", "once"}, Default: "loop", DefaultSource: "lite.playbackMode", RuntimeSemantics: "switches playback iteration, direction, or oscilloscope mode"},
 		{Property: "burstCycles", Type: "number", Label: "Cycles Per Burst", ParamSuffix: "burstCycles", Description: "Circuits per burst before pausing (0 = continuous)", Min: floatPtr(0), Max: floatPtr(100), Step: floatPtr(1), Default: 0, DefaultSource: "lite.burstCycles", RuntimeSemantics: "runs N circuits then pauses"},
 		{Property: "pauseSeconds", Type: "number", Label: "Pause Duration (s)", ParamSuffix: "pauseSeconds", Description: "Pause duration in seconds between bursts (0 to 300)", Min: floatPtr(0), Max: floatPtr(300), Step: floatPtr(0.5), Default: 0, DefaultSource: "lite.pauseSeconds", RuntimeSemantics: "sets pause interval between bursts"},
 		{Property: "pauseVisibility", Type: "enum", Label: "Pause Behaviour", ParamSuffix: "pauseVisibility", Description: "Visibility during burst pause (hide or hold)", Options: []string{"hide", "hold"}, Default: "hide", DefaultSource: "lite.pauseVisibility", RuntimeSemantics: "hides or holds tracer segments during pause"},
 		{Property: "showGuide", Type: "boolean", Label: "Guide / Centre Marker", ParamSuffix: "showGuide", Description: "Show or hide static boundary guide or radar centre marker", Default: true, DefaultSource: "lite.showGuide", RuntimeSemantics: "toggles .lite-guide-track visibility"},
+		{Property: "minScale", Type: "number", Label: "Min Scale", ParamSuffix: "minScale", Description: "Minimum pulse or radar inner start scale multiplier (0.05 to 2.0)", Min: floatPtr(0.05), Max: floatPtr(2.0), Step: floatPtr(0.05), Default: 0.85, DefaultSource: "lite.minScale", RuntimeSemantics: "updates CSS --sva-pulse-min / --sva-radar-min scale factor"},
 		{Property: "scale", Type: "number", Label: "Max Scale", ParamSuffix: "scale", Description: "Maximum pulse or radar expansion scale multiplier (0.2 to 3.0)", Min: floatPtr(0.2), Max: floatPtr(3.0), Step: floatPtr(0.05), Default: 1.15, DefaultSource: "lite.maxScale", RuntimeSemantics: "updates CSS --sva-pulse-max / --sva-radar-max scale factor"},
 		{Property: "period", Type: "number", Label: "Cycle Duration / Period (s)", ParamSuffix: "period", Description: "Cycle duration in seconds (0.2 to 30.0)", Min: floatPtr(0.2), Max: floatPtr(30.0), Step: floatPtr(0.1), Default: 1.8, DefaultSource: "lite.period", RuntimeSemantics: "updates cycle or pulse animation duration in seconds"},
 		{Property: "intensity", Type: "number", Label: "Intensity", ParamSuffix: "intensity", Description: "Peak pulse/flash/oscilloscope amplitude (0.0 to 1.0)", Min: floatPtr(0), Max: floatPtr(1), Step: floatPtr(0.05), Default: 0.85, DefaultSource: "lite.intensity", RuntimeSemantics: "updates --sva-pulse-amp / --sva-flash-int / oscilloscope amplitude"},
@@ -507,9 +534,18 @@ var ObjectPropertyCatalog = map[string][]EligibleProperty{
 		{Property: "repeatInterval", Type: "number", Label: "Repeat Interval (s)", ParamSuffix: "repeatInterval", Description: "Interval in seconds between repeated flashes (0.2 to 60)", Min: floatPtr(0.2), Max: floatPtr(60), Step: floatPtr(0.1), Default: 2.0, DefaultSource: "lite.repeatInterval", RuntimeSemantics: "sets interval between repeated flashes"},
 		{Property: "samples", Type: "text", Label: "Waveform Samples", ParamSuffix: "samples", Description: "Bounded numeric sample sequence (2 to 64 comma-separated values) for Oscilloscope Lite sampled mode", Default: "0, 0.4, 0.9, 0.3, -0.5, -0.9, -0.2, 0.6, 1.0, 0.2, -0.4, 0", DefaultSource: "lite.samples", RuntimeSemantics: "rebuilds Oscilloscope Lite sampled waveform path"},
 		{Property: "text", Type: "text", Label: "Text Content", ParamSuffix: "text", Description: "Displayed text content for Text Box Lite (immediate update on static text, cycle-boundary handover on animated text)", Default: "System Ready", DefaultSource: "lite.labelText", RuntimeSemantics: "updates Text Box Lite displayed or pending text"},
-		{Property: "borderColor", Type: "color", Label: "Border Colour", ParamSuffix: "borderColor", Description: "Container border or guide path colour for Text Box Lite", Default: "#38bdf8", DefaultSource: "lite.borderColor", RuntimeSemantics: "recolours Text Box Lite container border and arc guide"},
+		{Property: "fontSize", Type: "number", Label: "Font Size (px)", ParamSuffix: "fontSize", Description: "Font size in px for Text Box Lite (8 to 120 px)", Min: floatPtr(8), Max: floatPtr(120), Step: floatPtr(1), Default: 18.0, DefaultSource: "lite.fontSize", RuntimeSemantics: "updates Text Box Lite font-size and line layout"},
+		{Property: "letterSpacing", Type: "number", Label: "Letter Spacing (px)", ParamSuffix: "letterSpacing", Description: "Character tracking in px for Text Box Lite (-2 to 20 px)", Min: floatPtr(-2), Max: floatPtr(20), Step: floatPtr(0.5), Default: 0.0, DefaultSource: "lite.letterSpacing", RuntimeSemantics: "updates Text Box Lite letter-spacing"},
+		{Property: "padding", Type: "number", Label: "Interior Padding (px)", ParamSuffix: "padding", Description: "Interior container padding in px for Text Box Lite (0 to 60 px)", Min: floatPtr(0), Max: floatPtr(60), Step: floatPtr(1), Default: 12.0, DefaultSource: "lite.padding", RuntimeSemantics: "updates Text Box Lite text inset padding"},
 		{Property: "scrollSpeed", Type: "number", Label: "Ticker Scroll Speed (px/s)", ParamSuffix: "scrollSpeed", Description: "Linear scroll speed in SVG units/px per second for Text Box Lite tickers (10 to 600 px/s)", Min: floatPtr(10), Max: floatPtr(600), Step: floatPtr(5), Default: 90.0, DefaultSource: "lite.scrollSpeed", RuntimeSemantics: "updates Text Box Lite ticker scroll speed and recalculates duration"},
-		{Property: "typeSpeed", Type: "number", Label: "Typing Rate (chars/s)", ParamSuffix: "typeSpeed", Description: "Character reveal rate in grapheme clusters per second for Text Box Lite typewriter, scramble, and overtype effects (1 to 120 chars/s)", Min: floatPtr(1), Max: floatPtr(120), Step: floatPtr(1), Default: 14.0, DefaultSource: "lite.typeSpeed", RuntimeSemantics: "updates Text Box Lite character progression rate"},
+		{Property: "linesPerSec", Type: "number", Label: "Vertical Scroll Speed (lines/s)", ParamSuffix: "linesPerSec", Description: "Vertical multiline scroll rate in lines per second for Text Box Lite (0.1 to 20 lines/s)", Min: floatPtr(0.1), Max: floatPtr(20), Step: floatPtr(0.1), Default: 1.2, DefaultSource: "lite.linesPerSec", RuntimeSemantics: "updates Text Box Lite vertical scroll duration"},
+		{Property: "lineSpacing", Type: "number", Label: "Line Spacing (×)", ParamSuffix: "lineSpacing", Description: "Multiline vertical line spacing multiplier for Text Box Lite (0.8 to 3.0×)", Min: floatPtr(0.8), Max: floatPtr(3.0), Step: floatPtr(0.05), Default: 1.25, DefaultSource: "lite.lineSpacing", RuntimeSemantics: "updates Text Box Lite multiline tspan line advance"},
+		{Property: "typeSpeed", Type: "number", Label: "Typing Rate (chars/s)", ParamSuffix: "typeSpeed", Description: "Character reveal rate in grapheme clusters per second for Text Box Lite typewriter, scramble, and stacked-v effects (1 to 120 chars/s)", Min: floatPtr(1), Max: floatPtr(120), Step: floatPtr(1), Default: 14.0, DefaultSource: "lite.typeSpeed", RuntimeSemantics: "updates Text Box Lite character progression rate"},
+		{Property: "holdDelay", Type: "number", Label: "Hold / On Duration (s)", ParamSuffix: "holdDelay", Description: "Visible hold or blink on-hold duration in seconds for Text Box Lite (0 to 30 s)", Min: floatPtr(0), Max: floatPtr(30), Step: floatPtr(0.1), Default: 1.5, DefaultSource: "lite.holdDelay", RuntimeSemantics: "updates Text Box Lite hold duration"},
+		{Property: "clearDuration", Type: "number", Label: "Clear / Off Duration (s)", ParamSuffix: "clearDuration", Description: "Fade clear or blink off duration in seconds for Text Box Lite (0 to 30 s)", Min: floatPtr(0), Max: floatPtr(30), Step: floatPtr(0.1), Default: 0.6, DefaultSource: "lite.clearDuration", RuntimeSemantics: "updates Text Box Lite clear/off duration"},
+		{Property: "typeMode", Type: "enum", Label: "Typewriter Sequence", ParamSuffix: "typeMode", Description: "Typewriter reveal/delete sequence for Text Box Lite (once, hold, delete, delete-forward)", Options: []string{"once", "hold", "delete", "delete-forward"}, Default: "hold", DefaultSource: "lite.typeMode", RuntimeSemantics: "switches Text Box Lite typewriter sequence mode"},
+		{Property: "typeRepeat", Type: "boolean", Label: "Repeat Typewriter Sequence", ParamSuffix: "typeRepeat", Description: "Continuously repeat the typewriter sequence on Text Box Lite", Default: true, DefaultSource: "lite.typeRepeat", RuntimeSemantics: "toggles Text Box Lite typewriter sequence repetition"},
+		{Property: "textAnim", Type: "enum", Label: "Text Animation Effect", ParamSuffix: "textAnim", Description: "Active text animation effect on Text Box Lite", Options: []string{"none", "ticker-h", "ticker-v", "stacked-v", "typewriter", "fade", "flash", "slide", "blur-in", "blur-out", "scramble"}, Default: "none", DefaultSource: "lite.textAnim", RuntimeSemantics: "switches Text Box Lite active text animation mode"},
 	},
 	"root": {
 		{Property: "playbackRate", Type: "speed", Label: "Master Speed", ParamSuffix: "speed", Description: "Overall playback speed rate multiplier for the widget (0.1 to 5.0)", Min: floatPtr(0.1), Max: floatPtr(5.0), Step: floatPtr(0.1), Default: 1.0, DefaultSource: "1.0", RuntimeSemantics: "widget-wide master playback rate"},
@@ -519,7 +555,7 @@ var ObjectPropertyCatalog = map[string][]EligibleProperty{
 }
 
 // SyncParameterNamesWithObjectNames ensures every parameter name matches the object-name/property convention:
-// <objectName>-<paramSuffix>.
+// <objectName>-<paramSuffix>. For group semantic mappings (len(Targets) > 0), preserves the semantic alias suffix.
 func (s *Scene) SyncParameterNamesWithObjectNames() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -529,6 +565,23 @@ func (s *Scene) SyncParameterNamesWithObjectNames() {
 		target := p.Target
 		objName, tType := s.getObjectNameForTargetLocked(target)
 		if objName != "" {
+			if len(p.Targets) > 0 {
+				if tType == "root" {
+					// Component Builder multi-action property: preserve user-authored name (e.g. "MouseOver")
+					continue
+				}
+				if tType == "group" {
+					// Preserve semantic alias suffix (e.g. "meter-a-group-level" stays "meter-a-group-level")
+					aliasSuffix := ""
+					if idx := strings.Index(p.Name, "-group-"); idx >= 0 {
+						aliasSuffix = p.Name[idx+len("-group-"):]
+					}
+					if aliasSuffix != "" {
+						p.Name = GenerateParameterName(objName, aliasSuffix, "group")
+					}
+					continue
+				}
+			}
 			p.Name = GenerateParameterName(objName, p.Property, tType)
 		}
 	}
@@ -711,6 +764,111 @@ func ResolveLiteEligibleProperty(kind string, le *LiteEffect, ep EligiblePropert
 	}
 
 	switch ep.Property {
+	case "color":
+		switch kind {
+		case "text-lite":
+			out.Label = "Text Colour"
+			out.Description = "Primary text fill colour for Text Box Lite"
+		case "gauge-lite":
+			out.Label = "Gauge Fill Colour"
+			out.Description = "Active fill colour for Gauge / Level Lite"
+		case "oscilloscope-lite":
+			out.Label = "Waveform Trace Colour"
+			out.Description = "Waveform trace stroke colour for Oscilloscope Lite"
+		case "radar-lite":
+			out.Label = "Ping Ring Colour"
+			out.Description = "Expanding radar ring and centre dot colour"
+		}
+		if le != nil && strings.TrimSpace(le.Color) != "" {
+			out.Default = le.Color
+		}
+	case "bgColor":
+		switch kind {
+		case "text-lite":
+			out.Label = "Box Background Colour"
+			out.Description = "Container background fill colour for Text Box Lite"
+			out.Default = "#0f172a"
+		case "gauge-lite":
+			out.Label = "Track Background Colour"
+			out.Description = "Unfilled track or vessel background colour for Gauge Lite"
+			out.Default = "#1e293b"
+		case "oscilloscope-lite":
+			out.Label = "Screen Background Colour"
+			out.Description = "Oscilloscope screen background fill colour"
+			out.Default = "#0b1322"
+		}
+		if le != nil && strings.TrimSpace(le.BgColor) != "" {
+			out.Default = le.BgColor
+		}
+	case "borderColor":
+		out.Label = "Border Colour"
+		if le != nil && strings.TrimSpace(le.BorderColor) != "" {
+			out.Default = le.BorderColor
+		}
+	case "bgOpacity":
+		out.Label = "Box Fill Opacity"
+		out.Min = floatPtr(0)
+		out.Max = floatPtr(1)
+		out.Step = floatPtr(0.05)
+		out.Default = 0.85
+		if le != nil && le.BgOpacity != nil && *le.BgOpacity >= 0 && *le.BgOpacity <= 1 {
+			out.Default = *le.BgOpacity
+		}
+	case "showGuide":
+		switch kind {
+		case "radar-lite":
+			out.Label = "Centre Dot Visibility"
+		case "gauge-lite":
+			out.Label = "Show Numeric Readout"
+		case "oscilloscope-lite":
+			out.Label = "Show Graticule Grid"
+		case "text-lite":
+			out.Label = "Show Curved Arc Guide"
+		default:
+			out.Label = "Show Guide Track"
+		}
+		if le != nil && le.ShowGuide != nil {
+			out.Default = *le.ShowGuide
+		}
+	case "scale":
+		if kind == "radar-lite" {
+			out.Label = "Max Expansion Scale"
+			out.Min = floatPtr(0.2)
+			out.Max = floatPtr(3.0)
+			out.Default = 1.0
+		} else {
+			out.Label = "Max Pulse Scale"
+			out.Min = floatPtr(0.2)
+			out.Max = floatPtr(3.0)
+			out.Default = 1.15
+		}
+		if le != nil && le.MaxScale >= *out.Min && le.MaxScale <= *out.Max {
+			out.Default = le.MaxScale
+		}
+	case "minScale":
+		if kind == "radar-lite" {
+			out.Label = "Inner Start Scale"
+			out.Min = floatPtr(0.05)
+			out.Max = floatPtr(2.0)
+			out.Default = 0.15
+		} else {
+			out.Label = "Min Pulse Scale"
+			out.Min = floatPtr(0.2)
+			out.Max = floatPtr(2.0)
+			out.Default = 0.85
+		}
+		if le != nil && le.MinScale >= *out.Min && le.MinScale <= *out.Max {
+			out.Default = le.MinScale
+		}
+	case "rings":
+		out.Label = "Ring Count"
+		out.Min = floatPtr(1)
+		out.Max = floatPtr(6)
+		out.Step = floatPtr(1)
+		out.Default = 3
+		if le != nil && le.Rings >= 1 && le.Rings <= 6 {
+			out.Default = le.Rings
+		}
 	case "speed":
 		switch kind {
 		case "flow-lite":
@@ -907,8 +1065,20 @@ func ResolveLiteEligibleProperty(kind string, le *LiteEffect, ep EligiblePropert
 			out.Default = "cw"
 		}
 	case "playbackMode":
-		out.Options = []string{"loop", "pingpong", "once"}
-		out.Default = "loop"
+		if kind == "oscilloscope-lite" {
+			out.Label = "Operating Mode"
+			out.Options = []string{"static", "animated", "sampled"}
+			out.Default = "animated"
+			if le != nil && (le.PlaybackMode == "static" || le.PlaybackMode == "animated" || le.PlaybackMode == "sampled") {
+				out.Default = le.PlaybackMode
+			}
+		} else {
+			out.Options = []string{"loop", "pingpong", "once"}
+			out.Default = "loop"
+			if le != nil && (le.PlaybackMode == "loop" || le.PlaybackMode == "pingpong" || le.PlaybackMode == "once") {
+				out.Default = le.PlaybackMode
+			}
+		}
 	case "play":
 		out.Default = true
 		if le != nil && le.Play != nil {
@@ -935,6 +1105,136 @@ func ResolveLiteEligibleProperty(kind string, le *LiteEffect, ep EligiblePropert
 		out.Max = floatPtr(maxV)
 		if le != nil && le.Value != nil && !math.IsNaN(*le.Value) {
 			out.Default = *le.Value
+		}
+	case "fontSize":
+		out.Min = floatPtr(8)
+		out.Max = floatPtr(120)
+		out.Step = floatPtr(1)
+		out.Default = 18.0
+		if le != nil && le.FontSize >= 8 && le.FontSize <= 120 {
+			out.Default = le.FontSize
+		}
+	case "letterSpacing":
+		out.Min = floatPtr(-2)
+		out.Max = floatPtr(20)
+		out.Step = floatPtr(0.5)
+		out.Default = 0.0
+		if le != nil && le.LetterSpacing >= -2 && le.LetterSpacing <= 20 {
+			out.Default = le.LetterSpacing
+		}
+	case "padding":
+		out.Min = floatPtr(0)
+		out.Max = floatPtr(60)
+		out.Step = floatPtr(1)
+		out.Default = 12.0
+		if le != nil && le.Padding >= 0 && le.Padding <= 60 {
+			out.Default = le.Padding
+		}
+	case "curvature":
+		if kind == "flow-lite" {
+			out.Label = "Path Curvature (-100..100%)"
+		} else {
+			out.Label = "Arc Curvature (-100..100%)"
+		}
+		out.Min = floatPtr(-100)
+		out.Max = floatPtr(100)
+		out.Step = floatPtr(5)
+		out.Default = 0.0
+		if le != nil && le.Curvature >= -100 && le.Curvature <= 100 {
+			out.Default = le.Curvature
+		}
+	case "linesPerSec":
+		out.Min = floatPtr(0.1)
+		out.Max = floatPtr(20.0)
+		out.Step = floatPtr(0.1)
+		out.Default = 1.5
+		if le != nil && le.LinesPerSec >= 0.1 && le.LinesPerSec <= 20.0 {
+			out.Default = le.LinesPerSec
+		}
+	case "lineSpacing":
+		out.Min = floatPtr(0.8)
+		out.Max = floatPtr(3.0)
+		out.Step = floatPtr(0.05)
+		out.Default = 1.35
+		if le != nil && le.LineSpacing >= 0.8 && le.LineSpacing <= 3.0 {
+			out.Default = le.LineSpacing
+		}
+	case "holdDelay":
+		out.Min = floatPtr(0.0)
+		out.Max = floatPtr(30.0)
+		out.Step = floatPtr(0.1)
+		out.Default = 1.5
+		if le != nil && le.HoldDelay >= 0.0 && le.HoldDelay <= 30.0 {
+			out.Default = le.HoldDelay
+		}
+	case "clearDuration":
+		out.Min = floatPtr(0.0)
+		out.Max = floatPtr(30.0)
+		out.Step = floatPtr(0.1)
+		out.Default = 0.6
+		if le != nil && le.ClearDuration >= 0.0 && le.ClearDuration <= 30.0 {
+			out.Default = le.ClearDuration
+		}
+	case "typeMode":
+		out.Options = []string{"once", "hold", "delete", "delete-forward"}
+		out.Default = "hold"
+		if le != nil && le.TypeMode != "" {
+			out.Default = le.TypeMode
+		}
+	case "typeRepeat":
+		out.Default = true
+		if le != nil && le.TypeRepeat != nil {
+			out.Default = *le.TypeRepeat
+		}
+	case "textAnim":
+		out.Options = []string{"none", "ticker-h", "ticker-v", "stacked-v", "typewriter", "fade", "flash", "slide", "blur-in", "blur-out", "scramble"}
+		out.Default = "none"
+		if le != nil && le.TextAnim != "" {
+			out.Default = le.TextAnim
+		}
+	case "delay":
+		out.Min = floatPtr(0.0)
+		out.Max = floatPtr(30.0)
+		out.Step = floatPtr(0.1)
+		out.Default = 0.0
+		if le != nil && le.Delay >= 0.0 && le.Delay <= 30.0 {
+			out.Default = le.Delay
+		}
+	case "endDelay":
+		out.Min = floatPtr(0.0)
+		out.Max = floatPtr(30.0)
+		out.Step = floatPtr(0.1)
+		out.Default = 0.0
+		if le != nil && le.EndDelay >= 0.0 && le.EndDelay <= 30.0 {
+			out.Default = le.EndDelay
+		}
+	case "startMode":
+		out.Options = []string{"tunnel", "abrupt"}
+		out.Default = "tunnel"
+		if le != nil && (le.StartMode == "tunnel" || le.StartMode == "abrupt") {
+			out.Default = le.StartMode
+		}
+	case "endMode":
+		out.Options = []string{"tunnel", "abrupt"}
+		out.Default = "tunnel"
+		if le != nil && (le.EndMode == "tunnel" || le.EndMode == "abrupt") {
+			out.Default = le.EndMode
+		}
+	case "segmentStyle":
+		out.Options = []string{"solid", "rounded", "dashed", "dots", "fading-tail"}
+		out.Default = "solid"
+		if le != nil && le.SegmentStyle != "" {
+			out.Default = le.SegmentStyle
+		}
+	case "labelText":
+		out.Default = ""
+		if le != nil && le.LabelText != "" {
+			out.Default = le.LabelText
+		}
+	case "unit":
+		out.Default = "%"
+		if le != nil && le.Unit != "" {
+			out.Default = le.Unit
 		}
 	}
 	return out, true
@@ -1074,22 +1374,62 @@ func ValidateWidgetParameter(p WidgetParameter) error {
 	// Check property eligibility against ObjectPropertyCatalog if target type is recognized
 	targetType := InferTargetType(target)
 	if len(p.Targets) > 0 {
-		if targetType != "group" {
-			return fmt.Errorf("multi-target bindings (Targets) are only supported on group parameters (got target %q of type %q)", target, targetType)
+		if targetType != "group" && targetType != "root" {
+			return fmt.Errorf("multi-target bindings (Targets) are only supported on group or root component parameters (got target %q of type %q)", target, targetType)
 		}
 		if !reGroupAlias.MatchString(prop) {
-			return fmt.Errorf("invalid group semantic property alias %q", prop)
+			return fmt.Errorf("invalid multi-target property identifier %q", prop)
 		}
+		allowedOptsSet := make(map[string]bool, len(p.Options))
+		for _, o := range p.Options {
+			allowedOptsSet[strings.TrimSpace(o)] = true
+		}
+
 		for _, tb := range p.Targets {
 			mTarget := strings.TrimSpace(tb.Target)
 			mProp := strings.TrimSpace(tb.Property)
+			mWhen := strings.TrimSpace(tb.When)
+			mAct := strings.TrimSpace(strings.ToLower(tb.Action))
 			if mTarget == "" || mProp == "" {
-				return fmt.Errorf("group parameter %q contains an empty target or property binding", name)
+				return fmt.Errorf("parameter %q contains an empty target or property binding", name)
 			}
 			mType := InferTargetType(mTarget)
-			if mType == "" || mType == "root" || mType == "group" {
-				return fmt.Errorf("group parameter %q cannot map to non-member target %q", name, mTarget)
+			if mType == "" || mType == "root" || (targetType == "group" && mType == "group") {
+				return fmt.Errorf("parameter %q cannot map to invalid target %q", name, mTarget)
 			}
+
+			// Validate condition branch (When)
+			if mWhen != "" && !strings.EqualFold(mWhen, "always") {
+				if p.Type == "boolean" {
+					if mWhen != "true" && mWhen != "false" {
+						return fmt.Errorf("boolean parameter %q binding condition %q must be \"true\", \"false\", or \"always\"", name, mWhen)
+					}
+				} else if p.Type == "enum" {
+					if !allowedOptsSet[mWhen] {
+						return fmt.Errorf("enum parameter %q binding condition %q is not in declared options (%v)", name, mWhen, p.Options)
+					}
+				}
+			}
+
+			// Validate animation action (Action)
+			switch mAct {
+			case "", "set":
+				// normal property assignment
+			case "play", "stop_reset", "enable", "disable":
+				if mProp != "play" && mProp != "visibility" {
+					return fmt.Errorf("animation action %q on %q requires property \"play\" (got %q)", mAct, mTarget, mProp)
+				}
+			case "pause", "resume":
+				if mProp != "play" {
+					return fmt.Errorf("animation action %q on %q requires property \"play\" (got %q)", mAct, mTarget, mProp)
+				}
+				if mType != "lite" && mType != "group" {
+					return fmt.Errorf("animation action %q is not supported on SMIL target %q (%s); use play, stop_reset, enable, or disable", mAct, mTarget, mType)
+				}
+			default:
+				return fmt.Errorf("unsupported action %q on target %q", tb.Action, mTarget)
+			}
+
 			allowed := GetEligibleProperties(mType)
 			var found *EligibleProperty
 			for i := range allowed {
@@ -1103,13 +1443,64 @@ func ValidateWidgetParameter(p WidgetParameter) error {
 				}
 			}
 			if found == nil {
-				return fmt.Errorf("group parameter %q maps to unsupported property %q on %q (%s)", name, mProp, mTarget, mType)
+				return fmt.Errorf("parameter %q maps to unsupported property %q on %q (%s)", name, mProp, mTarget, mType)
 			}
-			compatible := (p.Type == found.Type) ||
-				((p.Type == "number" || p.Type == "speed") && (found.Type == "number" || found.Type == "speed")) ||
-				((p.Type == "number" || p.Type == "speed") && found.Type == "text")
-			if !compatible {
-				return fmt.Errorf("group parameter %q of type %q is incompatible with mapped property %q (type %q) on %q", name, p.Type, mProp, found.Type, mTarget)
+
+			// If an explicit action value is provided (or an animation lifecycle action is used), validate the value against the target property's domain
+			if mAct != "" && mAct != "set" {
+				continue
+			}
+			if tb.Value != nil {
+				switch found.Type {
+				case "color":
+					colStr := strings.TrimSpace(fmt.Sprintf("%v", tb.Value))
+					if colStr == "" || !reHexOrCSSColor.MatchString(colStr) {
+						return fmt.Errorf("parameter %q action value %q for %s.%s is not a valid colour", name, colStr, mTarget, mProp)
+					}
+				case "boolean":
+					switch v := tb.Value.(type) {
+					case bool:
+					case string:
+						if v != "true" && v != "false" && v != "1" && v != "0" {
+							return fmt.Errorf("parameter %q action value %q for %s.%s must be a boolean", name, v, mTarget, mProp)
+						}
+					default:
+						return fmt.Errorf("parameter %q action value %v for %s.%s must be a boolean", name, tb.Value, mTarget, mProp)
+					}
+				case "number", "speed":
+					numVal := toFloat64(tb.Value, math.NaN())
+					if math.IsNaN(numVal) {
+						return fmt.Errorf("parameter %q action value %v for %s.%s must be a finite number", name, tb.Value, mTarget, mProp)
+					}
+					if found.Min != nil && numVal < *found.Min {
+						return fmt.Errorf("parameter %q action value (%v) is below minimum (%v) for %s.%s", name, numVal, *found.Min, mTarget, mProp)
+					}
+					if found.Max != nil && numVal > *found.Max {
+						return fmt.Errorf("parameter %q action value (%v) exceeds maximum (%v) for %s.%s", name, numVal, *found.Max, mTarget, mProp)
+					}
+				case "enum":
+					if len(found.Options) > 0 && mProp != "playbackMode" && mProp != "direction" {
+						vStr := strings.TrimSpace(fmt.Sprintf("%v", tb.Value))
+						okOpt := false
+						for _, o := range found.Options {
+							if o == vStr {
+								okOpt = true
+								break
+							}
+						}
+						if !okOpt {
+							return fmt.Errorf("parameter %q action value %q is not a valid option for %s.%s (%v)", name, vStr, mTarget, mProp, found.Options)
+						}
+					}
+				}
+			} else {
+				// Pass-through binding: parameter type must be compatible with target property type
+				compatible := (p.Type == found.Type) ||
+					((p.Type == "number" || p.Type == "speed") && (found.Type == "number" || found.Type == "speed")) ||
+					((p.Type == "number" || p.Type == "speed") && found.Type == "text")
+				if !compatible {
+					return fmt.Errorf("group parameter %q of type %q is incompatible with mapped property %q (type %q) on %q", name, p.Type, mProp, found.Type, mTarget)
+				}
 			}
 		}
 	} else if targetType != "" {

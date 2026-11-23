@@ -280,6 +280,14 @@ func StartServerWithConfig(cfg ServerConfig) error {
 	mux.HandleFunc("/api/projects/save", handleProjectSave)
 	mux.HandleFunc("/api/projects/delete", handleProjectDelete)
 
+	// Reusable Component Library Endpoints
+	mux.HandleFunc("/api/components", handleComponentsList)
+	mux.HandleFunc("/api/components/get", handleComponentGet)
+	mux.HandleFunc("/api/components/save", handleComponentSave)
+	mux.HandleFunc("/api/components/delete", handleComponentDelete)
+	mux.HandleFunc("/api/components/revisions", handleComponentRevisions)
+	mux.HandleFunc("/api/components/usage", handleComponentUsage)
+
 	displayAddr := cfg.BindAddr
 	if strings.HasPrefix(displayAddr, ":") {
 		displayAddr = "0.0.0.0" + displayAddr

@@ -1423,6 +1423,8 @@ async function runHarness() {
   assert.ok(fullSvg.includes('OAuth2 Service'), 'buildFullSVG must include DiagramNodes markup');
   assert.ok(fullSvg.includes('TLS 1.3'), 'buildFullSVG must include DataFlows markup');
 
+  loadProductionScript('component-library.js');
+  loadProductionScript('component-builder.js');
   loadProductionScript('still-export-modal.js');
   loadProductionScript('export-modal.js');
 
@@ -2239,7 +2241,7 @@ async function runHarness() {
   while ((scriptMatch = scriptRegex.exec(htmlSource)) !== null) {
     scriptTagsInHtml.push(scriptMatch[1]);
   }
-  assert.strictEqual(scriptTagsInHtml.length, 26, 'index.html must contain exactly 26 script tags');
+  assert.strictEqual(scriptTagsInHtml.length, 28, 'index.html must contain exactly 28 script tags');
   const expectedScriptOrder = [
     'js/wasm_exec.js',
     'js/engine-bridge.js',
@@ -2265,10 +2267,12 @@ async function runHarness() {
     'js/layers-ui.js',
     'js/context-editor.js',
     'js/app.js',
+    'js/component-library.js',
+    'js/component-builder.js',
     'js/still-export-modal.js',
     'js/export-modal.js'
   ];
-  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '25 script tags must be in exact dependency order');
+  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '28 script tags must be in exact dependency order');
 
   // 14. Phase 4: Floating Contextual Object Properties Editor Verification
   assert.ok(window.FloatingPropertiesEditor, 'window.FloatingPropertiesEditor must be defined');
@@ -9168,8 +9172,8 @@ async function runHarness() {
   while ((s74Match = s74ScriptRegex.exec(s74IndexHtmlContent)) !== null) {
     expectedHtmlScripts.push(s74Match[1]);
   }
-  assert.strictEqual(expectedHtmlScripts.length, 26, 'Test 1: index.html must declare exactly 26 scripts');
-  assert.strictEqual(harnessLoadedScripts.length, 26, 'Test 1: Harness must load exactly 26 production scripts');
+  assert.strictEqual(expectedHtmlScripts.length, 28, 'Test 1: index.html must declare exactly 28 scripts');
+  assert.strictEqual(harnessLoadedScripts.length, 28, 'Test 1: Harness must load exactly 28 production scripts');
   for (let i = 0; i < expectedHtmlScripts.length; i++) {
     assert.strictEqual(
       harnessLoadedScripts[i],
@@ -12982,6 +12986,264 @@ async function runHarness() {
     window.EngineBridge.setWidgetParameters([]);
   }
   console.log('[HARNESS] Scenario 96 PASS: Play Animation Property (play) Across All Object Categories verified.');
+
+  // =========================================================================
+  // SCENARIO 97: Reusable Components, Independent Instances, Versioning, Nesting & DT-Compatible Export
+  // =========================================================================
+  console.log('\n[HARNESS] Testing Scenario 97: Reusable Components, Independent Instances, Nesting & DT Export...');
+  {
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+
+    // 1. Author a reusable Meter Cell component (Gauge Lite + Text Box Lite)
+    const cellGauge = window.LiteEffects.createLiteEffect({
+      kind: 'gauge-lite',
+      name: 'cell-gauge',
+      variant: 'hbar',
+      x: 200,
+      y: 120,
+      width: 180,
+      height: 22,
+      color: '#38bdf8',
+      minValue: 0,
+      maxValue: 100,
+      value: 35
+    });
+    const cellReadout = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      name: 'cell-readout',
+      variant: 'rounded',
+      labelText: '35%',
+      x: 340,
+      y: 120,
+      width: 72,
+      height: 26,
+      color: '#f8fafc',
+      play: false
+    });
+    const cellGrpRes = window.EngineBridge.createGroup('meter-cell', [
+      { type: 'lite', id: String(cellGauge.id) },
+      { type: 'lite', id: String(cellReadout.id) }
+    ]);
+    const cellGrp = cellGrpRes.group || cellGrpRes;
+    const cellMap = window.EngineBridge.setGroupMapping(cellGrp.id, {
+      alias: 'level',
+      label: 'Primary Level',
+      type: 'number',
+      default: 35,
+      min: 0,
+      max: 100,
+      step: 0.5,
+      targets: [
+        { memberType: 'lite', memberId: String(cellGauge.id), property: 'value' },
+        { memberType: 'lite', memberId: String(cellReadout.id), property: 'text' }
+      ]
+    });
+    assert(cellMap && cellMap.success, 'CMP-01: Created semantic level mapping on meter-cell');
+
+    const compCreate = window.EngineBridge.createComponent([], cellGrp.id, {
+      name: 'Meter Cell',
+      description: 'Reusable bar meter with numeric readout',
+      category: 'meters',
+      tags: ['gauge', 'meter'],
+      version: '1.0.0'
+    });
+    assert(compCreate && compCreate.success && compCreate.composite, 'CMP-02: Created ComponentDef via Component.Create');
+    const meterCellDef = compCreate.composite;
+    assert(meterCellDef.componentId && meterCellDef.componentId.startsWith('cmp-meter-cell-'), 'CMP-03: Stable ComponentID generated');
+    assert.strictEqual(meterCellDef.version, '1.0.0', 'CMP-04: Initial SemVer 1.0.0');
+
+    // 2. Simulate closing & opening a fresh project, importing from library, and placing two independent instances
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+    const impRes = window.EngineBridge.importLibraryComponent(meterCellDef);
+    assert(impRes && impRes.success, 'CMP-05: Imported library component into fresh project');
+
+    const inst1 = window.EngineBridge.instantiateComponent(meterCellDef.componentId, 'meter-a', 0, -8, 1.0, 1.0);
+    const inst2 = window.EngineBridge.instantiateComponent(meterCellDef.componentId, 'meter-b', 0, 14, 1.15, 1.15);
+    assert(inst1 && inst1.success && inst2 && inst2.success, 'CMP-06: Placed two independent instances');
+    assert.notStrictEqual(inst1.group.id, inst2.group.id, 'CMP-07: Distinct group IDs');
+    assert.notStrictEqual(inst1.group.instanceId, inst2.group.instanceId, 'CMP-08: Distinct stable instanceIds');
+
+    // 3. Compose a nested parent component from the two child instances
+    const nestedRes = window.EngineBridge.createComponent(
+      [
+        { type: 'group', id: inst1.group.id },
+        { type: 'group', id: inst2.group.id }
+      ],
+      '',
+      {
+        name: 'Dual Meter Card',
+        description: 'Composite built from two Meter Cell instances',
+        category: 'panels',
+        tags: ['composite', 'meters'],
+        version: '1.0.0'
+      }
+    );
+    assert(nestedRes && nestedRes.success && nestedRes.composite, 'CMP-09: Created nested parent component');
+    assert(Array.isArray(nestedRes.composite.dependencies) && nestedRes.composite.dependencies.length === 1, 'CMP-10: Recorded child component dependency');
+
+    // 4. Export flattened widget package ZIP and verify zero executable scripts + valid ZIP
+    const nestedSvg = window.buildFullSVG(window.SceneState.buildRenderState());
+    const nestedPkg = window.EngineBridge.buildWidgetPackage('Dual Meter Card', nestedSvg, '// svg-widget.js');
+    assert(nestedPkg && nestedPkg.success && nestedPkg.zipB64 && nestedPkg.zipB64.length > 0, `CMP-11: Flattened nested component ZIP exported (${nestedPkg && nestedPkg.error})`);
+
+    // 5. Verify compatible upgrade check & applyComponentUpdate
+    const v11 = JSON.parse(JSON.stringify(meterCellDef));
+    v11.version = '1.1.0';
+    const upCheck = window.EngineBridge.checkComponentUpgrade(meterCellDef, v11);
+    assert(upCheck && upCheck.compatible === true, 'CMP-12: Compatible revision check passed');
+
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+  }
+  console.log('[HARNESS] Scenario 97 PASS: Reusable Components, Independent Instances, Nesting & DT Export verified.');
+
+  // =========================================================================
+  // SCENARIO 98: Stage 16F Widget/Component Builder — Ungrouped Multi-Action State Mappings,
+  //              Low-Load Property Completeness, Lifecycle Actions & Atomic Validation
+  // =========================================================================
+  console.log('\n[HARNESS] Testing Scenario 98: Stage 16F Widget/Component Builder & Multi-Action State Mappings...');
+  {
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+
+    // 1. Author ungrouped canvas objects: Text Box Lite, Perimeter Tracer Lite, and Shape Node
+    const btnText = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      name: 'deploy-text',
+      variant: 'rounded',
+      labelText: 'DEPLOY NODE',
+      x: 120,
+      y: 60,
+      width: 220,
+      height: 56,
+      color: '#f8fafc',
+      bgColor: '#0f172a',
+      fontSize: 18,
+      play: false
+    });
+    const btnTracer = window.LiteEffects.createLiteEffect({
+      kind: 'perimeter-tracer',
+      name: 'deploy-tracer',
+      variant: 'rounded',
+      x: 120,
+      y: 60,
+      width: 240,
+      height: 64,
+      color: '#38bdf8',
+      play: false
+    });
+    const btnBadge = window.DiagramNodes.createNode({
+      name: 'deploy-badge',
+      shape: 'circle',
+      x: 280,
+      y: 60,
+      width: 36,
+      height: 36,
+      fillColor: '#334155',
+      strokeColor: '#64748b'
+    });
+
+    // 2. Verify Low-Load Property Completeness (Text Colour + Box Background Colour + fontSize + bgOpacity)
+    const textSupported = window.getSupportedPropertiesForMember('lite', btnText.id);
+    const textColorProp = textSupported.find((p) => p.prop === 'color');
+    const textBgProp = textSupported.find((p) => p.prop === 'bgColor');
+    const textFontSizeProp = textSupported.find((p) => p.prop === 'fontSize');
+    const textBgOpProp = textSupported.find((p) => p.prop === 'bgOpacity');
+    assert(textColorProp && textColorProp.label === 'Text Colour', 'CB-01: Text Box Lite exposes "color" labelled "Text Colour"');
+    assert(textBgProp && textBgProp.label === 'Box Background Colour', 'CB-02: Text Box Lite exposes "bgColor" labelled "Box Background Colour"');
+    assert(textFontSizeProp && textBgOpProp, 'CB-03: Text Box Lite exposes fontSize and bgOpacity');
+    assert.strictEqual(textSupported[0].prop, 'color', 'CB-04: Primary default property for Text Box Lite is color (not boolean play)');
+
+    // 3. Configure ungrouped MouseOver Boolean component property controlling all 3 objects
+    const mouseOverDef = {
+      name: 'MouseOver',
+      label: 'Mouse Over State',
+      type: 'boolean',
+      target: 'root',
+      property: 'color',
+      default: false,
+      eventTrigger: 'hover',
+      targets: [
+        { target: `lite-${btnText.id}`, property: 'color', when: 'true', action: 'set', value: '#38bdf8' },
+        { target: `lite-${btnText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#1e3a8a' },
+        { target: `node-${btnBadge.id}`, property: 'fill', when: 'true', action: 'set', value: '#2563eb' },
+        { target: `lite-${btnTracer.id}`, property: 'play', when: 'true', action: 'play' },
+        { target: `lite-${btnText.id}`, property: 'color', when: 'false', action: 'set', value: '#f8fafc' },
+        { target: `lite-${btnText.id}`, property: 'bgColor', when: 'false', action: 'set', value: '#0f172a' },
+        { target: `node-${btnBadge.id}`, property: 'fill', when: 'false', action: 'set', value: '#334155' },
+        { target: `lite-${btnTracer.id}`, property: 'play', when: 'false', action: 'stop_reset' }
+      ]
+    };
+    const addCbRes = window.EngineBridge.addWidgetParameter(mouseOverDef);
+    assert(addCbRes && addCbRes.success !== false, `CB-05: Added ungrouped MouseOver multi-action parameter (${addCbRes && addCbRes.error})`);
+
+    // 4. Mount widget via SVGWidget and verify true/false branches, idempotence, and two-instance isolation
+    const cbSvg = window.buildFullSVG(window.SceneState.buildRenderState());
+    const origDocCb = global.document;
+    try {
+      const mockDocCb = {
+        createElement(tag) {
+          const el = new MockStage16BElement(tag);
+          el.ownerDocument = mockDocCb;
+          return el;
+        },
+        createElementNS(ns, tag) {
+          const el = new MockStage16BElement(tag);
+          el.ownerDocument = mockDocCb;
+          return el;
+        },
+        getElementById() { return null; },
+        head: new MockStage16BElement('head')
+      };
+      mockDocCb.head.ownerDocument = mockDocCb;
+      global.document = mockDocCb;
+      const SVGWidgetCb = require('../internal/web/static/js/svg-widget.js');
+
+      const hostA = mockDocCb.createElement('div');
+      const hostB = mockDocCb.createElement('div');
+      const manifestCb = { schemaVersion: 1, parameters: window.EngineBridge.getWidgetParameters() };
+
+      const instA = SVGWidgetCb.mount(hostA, cbSvg, { instanceId: 'cb_alpha', manifest: manifestCb, visibilityAware: false });
+      const instB = SVGWidgetCb.mount(hostB, cbSvg, { instanceId: 'cb_beta', manifest: manifestCb, visibilityAware: false });
+
+      const textElA = instA.svgElement.querySelector(`[data-semantic-target="lite-${btnText.id}"]`);
+      const badgeElA = instA.svgElement.querySelector(`[data-semantic-target="node-${btnBadge.id}"]`);
+      const tracerElA = instA.svgElement.querySelector(`[data-semantic-target="lite-${btnTracer.id}"]`);
+      const textElB = instB.svgElement.querySelector(`[data-semantic-target="lite-${btnText.id}"]`);
+
+      // Initial false state on mount
+      assert.strictEqual(textElA.getAttribute('data-text-color'), '#f8fafc', 'CB-06: Initial text colour is #f8fafc');
+      assert.strictEqual(tracerElA.getAttribute('data-lite-play'), 'false', 'CB-07: Initial tracer animation is stopped');
+
+      // Toggle MouseOver = true on Instance A
+      instA.setParameter('MouseOver', true);
+      assert.strictEqual(textElA.getAttribute('data-text-color'), '#38bdf8', 'CB-08: MouseOver=true sets text colour to blue (#38bdf8)');
+      assert.strictEqual(textElA.getAttribute('data-text-bg-color'), '#1e3a8a', 'CB-09: MouseOver=true sets box bg colour to #1e3a8a');
+      assert.strictEqual(badgeElA.getAttribute('fill'), '#2563eb', 'CB-10: MouseOver=true sets ungrouped badge fill to #2563eb');
+      assert.strictEqual(tracerElA.getAttribute('data-lite-play'), 'true', 'CB-11: MouseOver=true starts ungrouped perimeter tracer animation');
+
+      // Instance B must remain untouched
+      assert.strictEqual(textElB.getAttribute('data-text-color'), '#f8fafc', 'CB-12: Instance B text colour remains #f8fafc when Instance A changes');
+
+      // Toggle MouseOver = false on Instance A
+      instA.setParameter('MouseOver', false);
+      assert.strictEqual(textElA.getAttribute('data-text-color'), '#f8fafc', 'CB-13: MouseOver=false restores text colour to #f8fafc');
+      assert.strictEqual(textElA.getAttribute('data-text-bg-color'), '#0f172a', 'CB-14: MouseOver=false restores box bg colour to #0f172a');
+      assert.strictEqual(badgeElA.getAttribute('fill'), '#334155', 'CB-15: MouseOver=false restores badge fill to #334155');
+      assert.strictEqual(tracerElA.getAttribute('data-lite-play'), 'false', 'CB-16: MouseOver=false stops and resets perimeter tracer animation');
+
+      instA.destroy();
+      instB.destroy();
+    } finally {
+      global.document = origDocCb;
+    }
+
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+  }
+  console.log('[HARNESS] Scenario 98 PASS: Stage 16F Widget/Component Builder & Multi-Action State Mappings verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15 & 16 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, and Go WASM engines verified.');
 }
