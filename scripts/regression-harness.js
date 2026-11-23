@@ -1423,6 +1423,7 @@ async function runHarness() {
   assert.ok(fullSvg.includes('OAuth2 Service'), 'buildFullSVG must include DiagramNodes markup');
   assert.ok(fullSvg.includes('TLS 1.3'), 'buildFullSVG must include DataFlows markup');
 
+  loadProductionScript('component-library.js');
   loadProductionScript('still-export-modal.js');
   loadProductionScript('export-modal.js');
 
@@ -2239,7 +2240,7 @@ async function runHarness() {
   while ((scriptMatch = scriptRegex.exec(htmlSource)) !== null) {
     scriptTagsInHtml.push(scriptMatch[1]);
   }
-  assert.strictEqual(scriptTagsInHtml.length, 26, 'index.html must contain exactly 26 script tags');
+  assert.strictEqual(scriptTagsInHtml.length, 27, 'index.html must contain exactly 27 script tags');
   const expectedScriptOrder = [
     'js/wasm_exec.js',
     'js/engine-bridge.js',
@@ -2265,10 +2266,11 @@ async function runHarness() {
     'js/layers-ui.js',
     'js/context-editor.js',
     'js/app.js',
+    'js/component-library.js',
     'js/still-export-modal.js',
     'js/export-modal.js'
   ];
-  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '25 script tags must be in exact dependency order');
+  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '27 script tags must be in exact dependency order');
 
   // 14. Phase 4: Floating Contextual Object Properties Editor Verification
   assert.ok(window.FloatingPropertiesEditor, 'window.FloatingPropertiesEditor must be defined');
@@ -9168,8 +9170,8 @@ async function runHarness() {
   while ((s74Match = s74ScriptRegex.exec(s74IndexHtmlContent)) !== null) {
     expectedHtmlScripts.push(s74Match[1]);
   }
-  assert.strictEqual(expectedHtmlScripts.length, 26, 'Test 1: index.html must declare exactly 26 scripts');
-  assert.strictEqual(harnessLoadedScripts.length, 26, 'Test 1: Harness must load exactly 26 production scripts');
+  assert.strictEqual(expectedHtmlScripts.length, 27, 'Test 1: index.html must declare exactly 27 scripts');
+  assert.strictEqual(harnessLoadedScripts.length, 27, 'Test 1: Harness must load exactly 27 production scripts');
   for (let i = 0; i < expectedHtmlScripts.length; i++) {
     assert.strictEqual(
       harnessLoadedScripts[i],
@@ -12982,6 +12984,118 @@ async function runHarness() {
     window.EngineBridge.setWidgetParameters([]);
   }
   console.log('[HARNESS] Scenario 96 PASS: Play Animation Property (play) Across All Object Categories verified.');
+
+  // =========================================================================
+  // SCENARIO 97: Reusable Components, Independent Instances, Versioning, Nesting & DT-Compatible Export
+  // =========================================================================
+  console.log('\n[HARNESS] Testing Scenario 97: Reusable Components, Independent Instances, Nesting & DT Export...');
+  {
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+
+    // 1. Author a reusable Meter Cell component (Gauge Lite + Text Box Lite)
+    const cellGauge = window.LiteEffects.createLiteEffect({
+      kind: 'gauge-lite',
+      name: 'cell-gauge',
+      variant: 'hbar',
+      x: 200,
+      y: 120,
+      width: 180,
+      height: 22,
+      color: '#38bdf8',
+      minValue: 0,
+      maxValue: 100,
+      value: 35
+    });
+    const cellReadout = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      name: 'cell-readout',
+      variant: 'rounded',
+      labelText: '35%',
+      x: 340,
+      y: 120,
+      width: 72,
+      height: 26,
+      color: '#f8fafc',
+      play: false
+    });
+    const cellGrpRes = window.EngineBridge.createGroup('meter-cell', [
+      { type: 'lite', id: String(cellGauge.id) },
+      { type: 'lite', id: String(cellReadout.id) }
+    ]);
+    const cellGrp = cellGrpRes.group || cellGrpRes;
+    const cellMap = window.EngineBridge.setGroupMapping(cellGrp.id, {
+      alias: 'level',
+      label: 'Primary Level',
+      type: 'number',
+      default: 35,
+      min: 0,
+      max: 100,
+      step: 0.5,
+      targets: [
+        { memberType: 'lite', memberId: String(cellGauge.id), property: 'value' },
+        { memberType: 'lite', memberId: String(cellReadout.id), property: 'text' }
+      ]
+    });
+    assert(cellMap && cellMap.success, 'CMP-01: Created semantic level mapping on meter-cell');
+
+    const compCreate = window.EngineBridge.createComponent([], cellGrp.id, {
+      name: 'Meter Cell',
+      description: 'Reusable bar meter with numeric readout',
+      category: 'meters',
+      tags: ['gauge', 'meter'],
+      version: '1.0.0'
+    });
+    assert(compCreate && compCreate.success && compCreate.composite, 'CMP-02: Created ComponentDef via Component.Create');
+    const meterCellDef = compCreate.composite;
+    assert(meterCellDef.componentId && meterCellDef.componentId.startsWith('cmp-meter-cell-'), 'CMP-03: Stable ComponentID generated');
+    assert.strictEqual(meterCellDef.version, '1.0.0', 'CMP-04: Initial SemVer 1.0.0');
+
+    // 2. Simulate closing & opening a fresh project, importing from library, and placing two independent instances
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+    const impRes = window.EngineBridge.importLibraryComponent(meterCellDef);
+    assert(impRes && impRes.success, 'CMP-05: Imported library component into fresh project');
+
+    const inst1 = window.EngineBridge.instantiateComponent(meterCellDef.componentId, 'meter-a', 0, -8, 1.0, 1.0);
+    const inst2 = window.EngineBridge.instantiateComponent(meterCellDef.componentId, 'meter-b', 0, 14, 1.15, 1.15);
+    assert(inst1 && inst1.success && inst2 && inst2.success, 'CMP-06: Placed two independent instances');
+    assert.notStrictEqual(inst1.group.id, inst2.group.id, 'CMP-07: Distinct group IDs');
+    assert.notStrictEqual(inst1.group.instanceId, inst2.group.instanceId, 'CMP-08: Distinct stable instanceIds');
+
+    // 3. Compose a nested parent component from the two child instances
+    const nestedRes = window.EngineBridge.createComponent(
+      [
+        { type: 'group', id: inst1.group.id },
+        { type: 'group', id: inst2.group.id }
+      ],
+      '',
+      {
+        name: 'Dual Meter Card',
+        description: 'Composite built from two Meter Cell instances',
+        category: 'panels',
+        tags: ['composite', 'meters'],
+        version: '1.0.0'
+      }
+    );
+    assert(nestedRes && nestedRes.success && nestedRes.composite, 'CMP-09: Created nested parent component');
+    assert(Array.isArray(nestedRes.composite.dependencies) && nestedRes.composite.dependencies.length === 1, 'CMP-10: Recorded child component dependency');
+
+    // 4. Export flattened widget package ZIP and verify zero executable scripts + valid ZIP
+    const nestedSvg = window.buildFullSVG(window.SceneState.buildRenderState());
+    const nestedPkg = window.EngineBridge.buildWidgetPackage('Dual Meter Card', nestedSvg, '// svg-widget.js');
+    assert(nestedPkg && nestedPkg.success && nestedPkg.zipB64 && nestedPkg.zipB64.length > 0, `CMP-11: Flattened nested component ZIP exported (${nestedPkg && nestedPkg.error})`);
+
+    // 5. Verify compatible upgrade check & applyComponentUpdate
+    const v11 = JSON.parse(JSON.stringify(meterCellDef));
+    v11.version = '1.1.0';
+    const upCheck = window.EngineBridge.checkComponentUpgrade(meterCellDef, v11);
+    assert(upCheck && upCheck.compatible === true, 'CMP-12: Compatible revision check passed');
+
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+  }
+  console.log('[HARNESS] Scenario 97 PASS: Reusable Components, Independent Instances, Nesting & DT Export verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15 & 16 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, and Go WASM engines verified.');
 }

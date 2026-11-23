@@ -844,6 +844,51 @@ type CompositeListResponse struct {
 	CompositesCounter int64                `json:"compositesCounter"`
 }
 
+// ComponentCreateRequest payload for "Component.Create".
+type ComponentCreateRequest struct {
+	Items   []scene.SelectionItem        `json:"items,omitempty"`
+	GroupID scene.StringID               `json:"groupId,omitempty"`
+	Options scene.ComponentCreateOptions `json:"options"`
+}
+
+// ComponentImportRequest payload for "Component.Import".
+type ComponentImportRequest struct {
+	Component scene.CompositeDef `json:"component"`
+}
+
+// ComponentInstantiateRequest payload for "Component.Instantiate".
+type ComponentInstantiateRequest struct {
+	ComponentID  string  `json:"componentId"`
+	InstanceName string  `json:"instanceName,omitempty"`
+	OffsetX      float64 `json:"offsetX"`
+	OffsetY      float64 `json:"offsetY"`
+	ScaleX       float64 `json:"scaleX,omitempty"`
+	ScaleY       float64 `json:"scaleY,omitempty"`
+}
+
+// ComponentCheckUpgradeRequest payload for "Component.CheckUpgrade".
+type ComponentCheckUpgradeRequest struct {
+	OldComponent scene.CompositeDef `json:"oldComponent"`
+	NewComponent scene.CompositeDef `json:"newComponent"`
+}
+
+// ComponentApplyUpdateRequest payload for "Component.ApplyUpdate".
+type ComponentApplyUpdateRequest struct {
+	GroupID      scene.StringID     `json:"groupId"`
+	NewComponent scene.CompositeDef `json:"newComponent"`
+	Force        bool               `json:"force,omitempty"`
+}
+
+// ComponentApplyUpdateResponse response for "Component.ApplyUpdate".
+type ComponentApplyUpdateResponse struct {
+	Success    bool                         `json:"success"`
+	Group      scene.Group                  `json:"group,omitempty"`
+	Report     scene.ComponentUpgradeReport `json:"report"`
+	Parameters []scene.WidgetParameter      `json:"parameters,omitempty"`
+	Snapshot   *scene.Snapshot              `json:"snapshot,omitempty"`
+	Error      string                       `json:"error,omitempty"`
+}
+
 // ImageCreateRequest payload for "Image.Create".
 type ImageCreateRequest struct {
 	Image scene.Image `json:"image"`
@@ -3214,6 +3259,86 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			Composites:        comps,
 			Count:             len(comps),
 			CompositesCounter: activeScene.CompositesCounter(),
+		})
+
+	case "Component.Create":
+		var req ComponentCreateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ComponentCreateRequest: %w", err)
+		}
+		comp, err := activeScene.CreateComponentFromSelection(req.Items, req.GroupID, req.Options)
+		if err != nil {
+			return json.Marshal(CompositeCreateResponse{Success: false, Error: err.Error()})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(CompositeCreateResponse{
+			Success:   true,
+			Composite: comp,
+			Snapshot:  &snap,
+		})
+
+	case "Component.Import":
+		var req ComponentImportRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ComponentImportRequest: %w", err)
+		}
+		comp, err := activeScene.ImportLibraryComponent(req.Component)
+		if err != nil {
+			return json.Marshal(CompositeCreateResponse{Success: false, Error: err.Error()})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(CompositeCreateResponse{
+			Success:   true,
+			Composite: comp,
+			Snapshot:  &snap,
+		})
+
+	case "Component.Instantiate":
+		var req ComponentInstantiateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ComponentInstantiateRequest: %w", err)
+		}
+		grp, newItems, err := activeScene.InstantiateComponent(req.ComponentID, req.InstanceName, req.OffsetX, req.OffsetY, req.ScaleX, req.ScaleY)
+		if err != nil {
+			return json.Marshal(CompositeInstantiateResponse{Success: false, Error: err.Error()})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(CompositeInstantiateResponse{
+			Success:    true,
+			Group:      grp,
+			NewItems:   newItems,
+			Parameters: activeScene.GetParameters(),
+			Snapshot:   &snap,
+		})
+
+	case "Component.CheckUpgrade":
+		var req ComponentCheckUpgradeRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ComponentCheckUpgradeRequest: %w", err)
+		}
+		report := scene.CheckComponentUpgradeCompatibility(req.OldComponent, req.NewComponent)
+		return json.Marshal(report)
+
+	case "Component.ApplyUpdate":
+		var req ComponentApplyUpdateRequest
+		if err := json.Unmarshal(payloadJSON, &req); err != nil {
+			return nil, fmt.Errorf("decoding ComponentApplyUpdateRequest: %w", err)
+		}
+		grp, report, err := activeScene.ApplyComponentUpdateToInstance(req.GroupID, req.NewComponent, req.Force)
+		if err != nil {
+			return json.Marshal(ComponentApplyUpdateResponse{
+				Success: false,
+				Report:  report,
+				Error:   err.Error(),
+			})
+		}
+		snap := activeScene.GetSnapshot()
+		return json.Marshal(ComponentApplyUpdateResponse{
+			Success:    true,
+			Group:      grp,
+			Report:     report,
+			Parameters: activeScene.GetParameters(),
+			Snapshot:   &snap,
 		})
 
 	case "Scene.Copy":

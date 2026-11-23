@@ -62,6 +62,17 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 	reEditorOnly := regexp.MustCompile(`(?s)<g\b[^>]*\bdata-editor-only\s*=\s*["']true["'][^>]*>.*?</g>`)
 	rawSVG = reEditorOnly.ReplaceAllString(rawSVG, "")
 
+	// 0b. Strip executable <script> blocks (e.g. standalone file:// burst/text-lite helper scripts) so exported
+	// widget SVGs satisfy strict safe-SVG validation; preserve only <script type="application/json"> manifest blocks.
+	reAnyScript := regexp.MustCompile(`(?is)<script\b([^>]*)>.*?</script>`)
+	rawSVG = reAnyScript.ReplaceAllStringFunc(rawSVG, func(block string) string {
+		sub := reAnyScript.FindStringSubmatch(block)
+		if len(sub) >= 2 && strings.Contains(strings.ToLower(sub[1]), "application/json") && strings.Contains(sub[1], "sva-widget-manifest") {
+			return block
+		}
+		return ""
+	})
+
 	// 1. Scan and collect all declared IDs: id="VALUE" or id='VALUE'
 	idMap := make(map[string]string)
 	reDeclaredID := regexp.MustCompile(`\bid\s*=\s*["']([^"']+)["']`)
@@ -70,7 +81,11 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 		if len(m) >= 2 {
 			oldID := m[1]
 			if oldID != "" && idMap[oldID] == "" {
-				idMap[oldID] = prefix + oldID
+				if strings.HasPrefix(oldID, prefix) {
+					idMap[oldID] = oldID
+				} else {
+					idMap[oldID] = prefix + oldID
+				}
 			}
 		}
 	}

@@ -41,14 +41,18 @@ type GroupPropertyMapping struct {
 
 // Group represents a persistent named visual object group entity.
 type Group struct {
-	ID          StringID               `json:"id"`
-	Name        string                 `json:"name,omitempty"`        // User-editable display name
-	CompositeID StringID               `json:"compositeId,omitempty"` // Optional composite template provenance (Stage 16E-M3)
-	Members     []GroupMember          `json:"members"`
-	Mappings    []GroupPropertyMapping `json:"mappings,omitempty"`
-	Visible     *bool                  `json:"visible,omitempty"`
-	Locked      bool                   `json:"locked,omitempty"`
-	Metadata    map[string]any         `json:"metadata,omitempty"` // Forward-compatible extension metadata
+	ID               StringID               `json:"id"`
+	Name             string                 `json:"name,omitempty"`             // User-editable display name
+	CompositeID      StringID               `json:"compositeId,omitempty"`      // Optional project-local composite template provenance (Stage 16E-M3)
+	ComponentID      string                 `json:"componentId,omitempty"`      // Stable logical reusable Component Definition ID
+	ComponentVersion string                 `json:"componentVersion,omitempty"` // Pinned SemVer revision of the Component Definition
+	InstanceID       string                 `json:"instanceId,omitempty"`       // Stable per-instance identity distinct from Group.ID
+	ParentGroupID    StringID               `json:"parentGroupId,omitempty"`    // Optional parent group/component ID for nested composition
+	Members          []GroupMember          `json:"members"`
+	Mappings         []GroupPropertyMapping `json:"mappings,omitempty"`
+	Visible          *bool                  `json:"visible,omitempty"`
+	Locked           bool                   `json:"locked,omitempty"`
+	Metadata         map[string]any         `json:"metadata,omitempty"` // Forward-compatible extension metadata
 }
 
 func (grp Group) IsVisible() bool {

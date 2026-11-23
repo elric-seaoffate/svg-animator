@@ -1459,7 +1459,11 @@
       case 'text':
       case 'textContent':
         if (el) {
-          const valStr = String(value === undefined || value === null ? '' : value);
+          let valStr = String(value === undefined || value === null ? '' : value);
+          const unitHint = (paramDef && typeof paramDef.unit === 'string' && paramDef.unit.trim() !== '') ? paramDef.unit.trim() : '';
+          if (unitHint && (typeof value === 'number' || (paramDef && (paramDef.type === 'number' || paramDef.type === 'speed'))) && !valStr.endsWith(unitHint)) {
+            valStr = valStr + unitHint;
+          }
           if (el.getAttribute && el.getAttribute('data-lite-kind') === 'text-lite') {
             if (instance && typeof instance._updateTextLiteContent === 'function') {
               instance._updateTextLiteContent(el, valStr, isInitialMount);

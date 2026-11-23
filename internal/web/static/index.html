@@ -3714,6 +3714,7 @@
             <button type="button" class="btn-floating-action" id="fctx-btnUngroup" style="background: var(--bg-surface-secondary, #21262d); color: #58a6ff; border: 1px solid var(--border-color, #30363d);" title="Disband this group, keeping all member objects on the canvas (Ctrl+Shift+G)">🔓 Ungroup (Keep Objects)</button>
             <button type="button" class="btn-floating-action" id="fctx-btnDuplicateGroup" style="background: var(--bg-surface-secondary, #21262d); color: #e6edf3; border: 1px solid var(--border-color, #30363d);" title="Duplicate group and members (Ctrl+D)">📋 Duplicate</button>
             <button type="button" class="btn-floating-action" id="fctx-btnSaveComposite" style="background: rgba(35, 134, 54, 0.25); color: #7ee787; border: 1px solid #238636;" title="Save this group and its semantic mappings as a reusable Composite Template">🧩 Save as Composite Template</button>
+            <button type="button" class="btn-floating-action" id="fctx-btnSaveComponent" style="background: rgba(31, 111, 235, 0.22); color: #79c0ff; border: 1px solid #1f6feb;" title="Save this selection/group into the persistent Global Component Library">💾 Save as Component</button>
             <button type="button" class="btn-floating-action btn-del" id="fctx-btnDeleteGroup" title="Delete group and all its member objects from the canvas">&times; Delete Group &amp; Members</button>
           </div>
           <div class="floating-prop-row">
@@ -4001,6 +4002,33 @@
         </div>
         <div class="accordion-body">
           <div class="widget-params-overview-wrap">
+            <!-- SECTION 0: PERSISTENT COMPONENT LIBRARY (REUSABLE BUILDING BLOCKS) -->
+            <div id="widgetMakerComponentLibrary" style="margin-bottom: 0.75rem; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 4px;">
+                <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #79c0ff; letter-spacing: 0.04em;">🧩 Component Library (<strong id="compLibCountBadge">0</strong>)</span>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenSaveComponentModal" style="font-size: 0.67rem; padding: 2px 6px; background: #238636; border-color: #3fb950; color: #fff;" title="Save currently selected object, multi-selection, or group as a reusable component">+ Save as Component</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshCompLib" style="font-size: 0.67rem; padding: 2px 5px;" title="Refresh Component Library">↻</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+                <input type="text" id="compLibSearchInput" placeholder="Search components..." style="flex: 1; font-size: 0.72rem; padding: 3px 6px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #e6edf3;">
+                <select id="compLibCategoryFilter" style="font-size: 0.71rem; padding: 3px 5px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #e6edf3;">
+                  <option value="all">All</option>
+                  <option value="general">General</option>
+                  <option value="meters">Meters</option>
+                  <option value="indicators">Indicators</option>
+                  <option value="controls">Controls</option>
+                  <option value="panels">Panels</option>
+                  <option value="mechanical">Mechanical</option>
+                  <option value="decorative">Decorative</option>
+                </select>
+              </div>
+              <div id="compLibListContainer" style="display: flex; flex-direction: column; gap: 5px; max-height: 190px; overflow-y: auto;">
+                <div style="font-size: 0.72rem; color: #8b949e; text-align: center; padding: 6px 0;">Loading Component Library...</div>
+              </div>
+            </div>
+
             <!-- SECTION 1: SELECTED OBJECT CONTROLS -->
             <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #58a6ff; letter-spacing: 0.04em; margin-bottom: 4px;">
               🎯 Selected Object Controls
@@ -4789,6 +4817,79 @@
     </div>
   </div>
 
+  <!-- Save as Component Modal (Global Component Library) -->
+  <div id="saveComponentModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72); z-index: 2100; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="background: #0d1117; border: 1px solid #30363d; border-radius: 10px; width: min(560px, 95vw); max-height: 90vh; overflow-y: auto; padding: 1rem 1.15rem; box-shadow: 0 12px 36px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 0.7rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #21262d; padding-bottom: 0.5rem;">
+        <h3 style="margin: 0; font-size: 0.92rem; color: #79c0ff;">💾 Save as Reusable Component</h3>
+        <button type="button" id="btnSaveCompModalClose" style="background: transparent; border: none; color: #8b949e; font-size: 1.1rem; cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+        <label style="font-size: 0.72rem; color: #8b949e;">Save Target
+          <select id="saveCompExistingSelect" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.76rem;"></select>
+        </label>
+
+        <div style="display: grid; grid-template-columns: 1fr 140px; gap: 0.5rem;">
+          <label style="font-size: 0.72rem; color: #8b949e;">Component Name
+            <input type="text" id="saveCompNameInput" placeholder="e.g. Status Window" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.78rem;">
+          </label>
+          <label style="font-size: 0.72rem; color: #8b949e;">Category
+            <select id="saveCompCategorySelect" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.76rem;">
+              <option value="general">General</option>
+              <option value="meters">Meters</option>
+              <option value="indicators">Indicators</option>
+              <option value="controls">Controls</option>
+              <option value="panels">Panels</option>
+              <option value="mechanical">Mechanical</option>
+              <option value="decorative">Decorative</option>
+            </select>
+          </label>
+        </div>
+
+        <label style="font-size: 0.72rem; color: #8b949e;">Description
+          <input type="text" id="saveCompDescInput" placeholder="Brief description of what this reusable component shows" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.76rem;">
+        </label>
+
+        <div style="display: grid; grid-template-columns: 1fr 110px; gap: 0.5rem;">
+          <label style="font-size: 0.72rem; color: #8b949e;">Tags (comma-separated)
+            <input type="text" id="saveCompTagsInput" placeholder="gauge, status, animated" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.76rem;">
+          </label>
+          <label style="font-size: 0.72rem; color: #8b949e;">Version
+            <input type="text" id="saveCompVersionInput" value="1.0.0" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.76rem;">
+          </label>
+        </div>
+
+        <div id="saveCompRevisionRow" style="display: none; gap: 0.5rem; align-items: flex-end;">
+          <label style="font-size: 0.72rem; color: #8b949e; width: 140px;">Version Bump
+            <select id="saveCompBumpSelect" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.75rem;">
+              <option value="patch">Patch (visual fix)</option>
+              <option value="minor" selected>Minor (compatible)</option>
+              <option value="major">Major (breaking)</option>
+            </select>
+          </label>
+          <label style="font-size: 0.72rem; color: #8b949e; flex: 1;">Revision Notes
+            <input type="text" id="saveCompChangelogInput" placeholder="What changed in this revision?" style="width: 100%; margin-top: 3px; padding: 5px 8px; background: #161b22; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.75rem;">
+          </label>
+        </div>
+
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px;">
+          <div style="font-size: 0.71rem; font-weight: 700; color: #8b949e; text-transform: uppercase; margin-bottom: 5px;">Exposed Visual Parameters</div>
+          <div id="saveCompParamsChecklist" style="display: flex; flex-direction: column; gap: 4px; max-height: 110px; overflow-y: auto;"></div>
+        </div>
+
+        <div id="saveCompPreviewBox" style="background: #090d13; border: 1px solid #21262d; border-radius: 6px; padding: 8px; min-height: 70px; display: flex; align-items: center; justify-content: center;"></div>
+      </div>
+
+      <div id="saveCompModalStatus" style="font-size: 0.73rem; min-height: 16px;"></div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #21262d; padding-top: 0.55rem;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnSaveCompModalCancel">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveCompModalConfirm" style="background: #238636; border-color: #3fb950; color: #fff; font-weight: 600;">💾 Save to Library</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Studio Non-Blocking Notification / Toast Container -->
   <div id="studioNotificationContainer" class="studio-notification-container" aria-live="polite"></div>
 
@@ -4817,6 +4918,7 @@
   <script src="js/layers-ui.js?v=6.0"></script>
   <script src="js/context-editor.js?v=6.0"></script>
   <script src="js/app.js?v=6.0"></script>
+  <script src="js/component-library.js?v=6.0"></script>
   <script src="js/still-export-modal.js?v=6.0"></script>
   <script src="js/export-modal.js?v=6.0"></script>
 </body>

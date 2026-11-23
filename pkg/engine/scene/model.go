@@ -438,13 +438,19 @@ type WidgetParameter struct {
 	Description string                `json:"description,omitempty"`
 }
 
-// WidgetManifest describes the external parameter schema of an exported widget.
+// WidgetManifest describes the external parameter schema of an exported widget or reusable component.
 type WidgetManifest struct {
-	SchemaVersion  int               `json:"schemaVersion"`
-	PackageVersion string            `json:"packageVersion,omitempty"`
-	PackageId      string            `json:"packageId,omitempty"`
-	WidgetName     string            `json:"widgetName,omitempty"`
-	Parameters     []WidgetParameter `json:"parameters"`
+	SchemaVersion     int               `json:"schemaVersion"`
+	ComponentID       string            `json:"componentId,omitempty"`
+	PackageVersion    string            `json:"packageVersion,omitempty"`
+	PackageId         string            `json:"packageId,omitempty"`
+	WidgetName        string            `json:"widgetName,omitempty"`
+	Description       string            `json:"description,omitempty"`
+	Category          string            `json:"category,omitempty"`
+	Tags              []string          `json:"tags,omitempty"`
+	MinRuntimeVersion string            `json:"minRuntimeVersion,omitempty"`
+	ContentHash       string            `json:"contentHash,omitempty"`
+	Parameters        []WidgetParameter `json:"parameters"`
 }
 
 // GaugeThresholdBand represents one of the 4 independently configurable threshold bands on Gauge / Level Lite.

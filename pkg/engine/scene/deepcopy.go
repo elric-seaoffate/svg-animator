@@ -263,6 +263,28 @@ func DeepCopyCompositeDef(c CompositeDef) CompositeDef {
 			cp.Mappings[i] = DeepCopyGroupPropertyMapping(m)
 		}
 	}
+	if c.Tags != nil {
+		cp.Tags = append([]string(nil), c.Tags...)
+	}
+	if c.Parameters != nil {
+		cp.Parameters = make([]WidgetParameter, len(c.Parameters))
+		for i, p := range c.Parameters {
+			pCopy := p
+			pCopy.Min = deepCopyFloatPtr(p.Min)
+			pCopy.Max = deepCopyFloatPtr(p.Max)
+			pCopy.Step = deepCopyFloatPtr(p.Step)
+			if p.Options != nil {
+				pCopy.Options = append([]string(nil), p.Options...)
+			}
+			if p.Targets != nil {
+				pCopy.Targets = append([]WidgetTargetBinding(nil), p.Targets...)
+			}
+			cp.Parameters[i] = pCopy
+		}
+	}
+	if c.Dependencies != nil {
+		cp.Dependencies = append([]ComponentDepRef(nil), c.Dependencies...)
+	}
 	return cp
 }
 

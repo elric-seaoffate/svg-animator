@@ -263,12 +263,12 @@ func TestWidgetPackageOfflineDirectFileOperation(t *testing.T) {
 		t.Errorf("decoded SVG lost text content")
 	}
 
-	// 3. Verify zero-parameter fallback note
+	// 3. Verify zero-parameter decorative component manifest (schemaVersion: 1, parameters: [])
 	if !strings.Contains(demoHTML, `Standard Playback Mode`) {
 		t.Errorf("expected demo.html to indicate standard playback mode when parameters are empty")
 	}
-	if strings.TrimSpace(manifestJSON) != "{}" {
-		t.Errorf("expected manifest to be {} for unexposed widget, got: %s", manifestJSON)
+	if !strings.Contains(manifestJSON, `"schemaVersion": 1`) || !strings.Contains(manifestJSON, `"parameters": []`) {
+		t.Errorf("expected valid schemaVersion:1 decorative manifest with empty parameters[], got: %s", manifestJSON)
 	}
 }
 

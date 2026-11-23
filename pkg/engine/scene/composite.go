@@ -9,17 +9,33 @@ import (
 	"strings"
 )
 
-// CompositeDef represents a reusable composite object template authored from a group.
+// ComponentDepRef records a direct dependency on a nested child reusable component.
+type ComponentDepRef struct {
+	ComponentID string `json:"componentId"`
+	Version     string `json:"version,omitempty"`
+}
+
+// CompositeDef represents a reusable composite/component definition authored from a group or selection.
 type CompositeDef struct {
-	ID          StringID               `json:"id"`          // e.g. "comp-1"
-	Name        string                 `json:"name"`        // e.g. "cpuwindow"
-	Description string                 `json:"description,omitempty"`
-	WidthPct    float64                `json:"widthPct"`
-	HeightPct   float64                `json:"heightPct"`
-	CenterXPct  float64                `json:"centerXPct"`
-	CenterYPct  float64                `json:"centerYPct"`
-	Payload     ClipboardPayload       `json:"payload"`            // Canonical member objects & group snapshot
-	Mappings    []GroupPropertyMapping `json:"mappings,omitempty"` // Canonical semantic property mappings
+	ID           StringID               `json:"id"`                    // Project-local ID (e.g. "comp-1")
+	ComponentID  string                 `json:"componentId,omitempty"` // Stable logical library identity (e.g. "cmp-gauge-a1b2c3d4")
+	Version      string                 `json:"version,omitempty"`     // Semantic version (e.g. "1.0.0")
+	Name         string                 `json:"name"`                  // e.g. "cpuwindow"
+	Description  string                 `json:"description,omitempty"`
+	Category     string                 `json:"category,omitempty"`
+	Tags         []string               `json:"tags,omitempty"`
+	ThumbnailSVG string                 `json:"thumbnailSvg,omitempty"`
+	ContentHash  string                 `json:"contentHash,omitempty"`
+	CreatedAt    string                 `json:"createdAt,omitempty"`
+	UpdatedAt    string                 `json:"updatedAt,omitempty"`
+	WidthPct     float64                `json:"widthPct"`
+	HeightPct    float64                `json:"heightPct"`
+	CenterXPct   float64                `json:"centerXPct"`
+	CenterYPct   float64                `json:"centerYPct"`
+	Payload      ClipboardPayload       `json:"payload"`                // Canonical member objects & group snapshot
+	Mappings     []GroupPropertyMapping `json:"mappings,omitempty"`     // Canonical semantic property mappings
+	Parameters   []WidgetParameter      `json:"parameters,omitempty"`   // Explicitly exposed visual parameters
+	Dependencies []ComponentDepRef      `json:"dependencies,omitempty"` // Direct nested child component dependencies
 }
 
 var reTrailingInstanceNumber = regexp.MustCompile(`^(.*?)[-_ ]*(\d+)$`)
