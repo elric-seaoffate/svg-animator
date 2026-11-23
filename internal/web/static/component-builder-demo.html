@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SVG Animator Studio — Stage 16F: Widget / Component Builder &amp; Multi-Action State Mappings Showcase</title>
+  <script src="/js/svg-widget.js"></script>
+  <style>
+    :root {
+      --bg: #060a12;
+      --card: #0c1322;
+      --card-inner: #080d18;
+      --border: #1e293b;
+      --border-hi: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px 26px 56px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 22px;
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      color: #e2e8f0;
+    }
+    header p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .badge-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--accent);
+    }
+    .badge.green {
+      background: rgba(34, 197, 94, 0.12);
+      border-color: rgba(34, 197, 94, 0.35);
+      color: var(--green);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 20px;
+    }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
+    }
+    section h2 {
+      margin: 0 0 4px;
+      font-size: 15.5px;
+      color: var(--accent);
+    }
+    section p.sub {
+      margin: 0 0 12px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .stage-wrap {
+      background: #04070e;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      padding: 8px;
+    }
+    .stage-wrap svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .ctrl-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px 12px;
+    }
+    .btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 6px 13px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn.active {
+      background: #2563eb;
+      border-color: #60a5fa;
+      color: #ffffff;
+    }
+    .readout {
+      font-family: ui-monospace, monospace;
+      font-size: 11.5px;
+      color: #7ee787;
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.28);
+      padding: 4px 8px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>⚡ Stage 16F — Widget / Component Builder &amp; Multi-Action State Mappings</h1>
+      <p>Single exposed component properties controlling multiple independent canvas objects and animation lifecycles — <strong>zero grouping required</strong>.</p>
+    </div>
+    <div class="badge-row">
+      <span class="badge green">✓ Ungrouped Multi-Action Mappings</span>
+      <span class="badge">✓ 62 Verified Low-Load &amp; Object Properties</span>
+      <span class="badge">✓ Atomic Two-Phase Validation</span>
+      <span class="badge green">✓ Digital Twin 11B-2 Compatible</span>
+    </div>
+  </header>
+
+  <div class="grid-2">
+    <!-- DEMO 1: Primary Required Acceptance Example — MouseOver Button (No Group Required) -->
+    <section id="sec-demo-1">
+      <h2>1. Primary Example — Ungrouped <code>MouseOver</code> Button Component</h2>
+      <p class="sub">Exposes a single Boolean property <code>MouseOver</code> (with opt-in <code>eventTrigger: "hover"</code>). When <code>true</code>: sets Text Box Lite text colour to blue (<code>#38bdf8</code>) &amp; box fill to navy (<code>#1e3a8a</code>), changes the independent indicator shape fill to electric blue (<code>#2563eb</code>), and starts the Perimeter Tracer animation. When <code>false</code>: restores normal colours and stops/resets the animation.</p>
+      <div class="stage-wrap" id="mount-demo-1"></div>
+      <div class="ctrl-bar">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button type="button" class="btn" id="btn-d1-true">Set MouseOver = true</button>
+          <button type="button" class="btn active" id="btn-d1-false">Set MouseOver = false</button>
+          <span style="font-size:11.5px; color:#94a3b8;">(Or hover mouse over the SVG widget above)</span>
+        </div>
+        <span class="readout" id="readout-d1">MouseOver: false</span>
+      </div>
+    </section>
+
+    <!-- DEMO 2: Boolean Controlling Inverse Visibility of Two Independent Graphics -->
+    <section id="sec-demo-2">
+      <h2>2. Boolean Controlling Inverse Visibility of Two Graphics</h2>
+      <p class="sub">Exposes <code>ShowAlternateGraphic</code> (`boolean`). When <code>true</code>: hides Graphic A (`node-1`) and reveals Graphic B (`node-2`) + starts its pulse animation. When <code>false</code>: shows Graphic A and hides Graphic B — in one atomic property update.</p>
+      <div class="stage-wrap" id="mount-demo-2"></div>
+      <div class="ctrl-bar">
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn" id="btn-d2-true">ShowAlternateGraphic = true (Graphic B)</button>
+          <button type="button" class="btn active" id="btn-d2-false">ShowAlternateGraphic = false (Graphic A)</button>
+        </div>
+        <span class="readout" id="readout-d2">ShowAlternateGraphic: false</span>
+      </div>
+    </section>
+
+    <!-- DEMO 3: Boolean Activating Two Unrelated Objects & Lifecycle Controls -->
+    <section id="sec-demo-3">
+      <h2>3. Boolean Activating Two Unrelated Objects &amp; Animation Lifecycles</h2>
+      <p class="sub">Exposes <code>LinkActive</code> (`boolean`) driving an ungrouped Flow Lite path (`lite-1`), a Radar Ping beacon (`lite-2`), and a status Text Box Lite (`lite-3`) with mid-cycle Pause/Resume controls.</p>
+      <div class="stage-wrap" id="mount-demo-3"></div>
+      <div class="ctrl-bar">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn" id="btn-d3-true">LinkActive = true</button>
+          <button type="button" class="btn active" id="btn-d3-false">LinkActive = false</button>
+          <button type="button" class="btn" id="btn-d3-pause">StreamPaused = true (Pause Mid-Cycle)</button>
+          <button type="button" class="btn" id="btn-d3-resume">StreamPaused = false (Resume)</button>
+        </div>
+        <span class="readout" id="readout-d3">LinkActive: false</span>
+      </div>
+    </section>
+
+    <!-- DEMO 4: Number Property Updating Multiple Compatible Values -->
+    <section id="sec-demo-4">
+      <h2>4. Number Property Updating Multiple Independent Objects</h2>
+      <p class="sub">Exposes <code>ThermalLoad</code> (`number`, `0..100`, unit `%`) simultaneously driving a Ring Gauge (`lite-1.value`), a Horizontal Bar Gauge (`lite-2.value`), and a Text Box Lite readout (`lite-3.text`) without any group wrapper.</p>
+      <div class="stage-wrap" id="mount-demo-4"></div>
+      <div class="ctrl-bar">
+        <div style="display:flex; gap:10px; align-items:center; flex:1;">
+          <label for="slider-d4" style="font-size:12px; font-weight:600;">ThermalLoad:</label>
+          <input type="range" id="slider-d4" min="0" max="100" step="1" value="42" style="flex:1;" />
+        </div>
+        <span class="readout" id="readout-d4">ThermalLoad: 42%</span>
+      </div>
+    </section>
+
+    <!-- DEMO 5: Choice / Enum Property Selecting Multi-Object Visual States -->
+    <section id="sec-demo-5">
+      <h2>5. Choice / Enum Property Selecting Multi-Object Visual States</h2>
+      <p class="sub">Exposes <code>OperatingMode</code> (`enum`: `normal`, `warning`, `critical`). Each state branch coordinates text content, text colour, box background colour, radar beacon colour, and radar animation playback across independent objects.</p>
+      <div class="stage-wrap" id="mount-demo-5"></div>
+      <div class="ctrl-bar">
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn active" id="btn-d5-normal" data-mode="normal">normal</button>
+          <button type="button" class="btn" id="btn-d5-warning" data-mode="warning">warning</button>
+          <button type="button" class="btn" id="btn-d5-critical" data-mode="critical">critical</button>
+        </div>
+        <span class="readout" id="readout-d5">OperatingMode: normal</span>
+      </div>
+    </section>
+
+    <!-- DEMO 6: Two Mounted Instances Responding Independently -->
+    <section id="sec-demo-6">
+      <h2>6. Multi-Instance Isolation — Two Mounted Instances Responding Independently</h2>
+      <p class="sub">Mounts two instances of the ungrouped <code>MouseOver</code> button component side-by-side (`instance-alpha` and `instance-beta`). Toggling `MouseOver` on Instance Alpha never leaks into Instance Beta.</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px; font-weight:600;">Instance Alpha</div>
+          <div class="stage-wrap" id="mount-demo-6a"></div>
+          <div class="ctrl-bar">
+            <button type="button" class="btn" id="btn-d6a-toggle">Toggle Alpha MouseOver</button>
+            <span class="readout" id="readout-d6a">Alpha: false</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px; font-weight:600;">Instance Beta</div>
+          <div class="stage-wrap" id="mount-demo-6b"></div>
+          <div class="ctrl-bar">
+            <button type="button" class="btn" id="btn-d6b-toggle">Toggle Beta MouseOver</button>
+            <span class="readout" id="readout-d6b">Beta: false</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Shared SVG template for Demo 1 & Demo 6: Ungrouped MouseOver Button Widget
+    // Contains:
+    // - lite-1 (Text Box Lite): label "DEPLOY NODE", authored color #f8fafc, bgColor #0f172a
+    // - node-1 (Indicator Badge Shape): authored fill #334155, stroke #64748b
+    // - lite-2 (Perimeter Tracer Lite): authored play="false", color #38bdf8
+    const mouseOverButtonSVG = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+        <style>
+          @keyframes sva-lite-trace-cw {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: -1000; }
+          }
+          .sva-lite-trace-cw {
+            animation-name: sva-lite-trace-cw;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+          }
+        </style>
+        <rect width="360" height="100" rx="12" fill="#070b14" stroke="#1e293b" stroke-width="1.5"/>
+
+        <!-- Ungrouped Object 1: Text Box Lite (lite-1) -->
+        <g id="lite-1" class="diagram-lite-instance" data-lite-id="1" data-lite-kind="text-lite" data-semantic-target="lite-1"
+           data-text-content="DEPLOY NODE" data-text-color="#f8fafc" data-text-bg-color="#0f172a" data-text-bg-opacity="0.9"
+           data-text-border-color="#334155" data-text-border-width="1.5" data-text-font-size="18" data-text-padding="12"
+           data-text-x="20" data-text-y="20" data-text-w="240" data-text-h="60" data-text-cx="140" data-text-cy="50">
+          <rect class="lite-text-box" x="20" y="20" width="240" height="60" rx="10" fill="#0f172a" fill-opacity="0.9" stroke="#334155" stroke-width="1.5"/>
+          <text class="lite-text-element" x="140" y="56" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700" font-family="Inter, sans-serif">DEPLOY NODE</text>
+        </g>
+
+        <!-- Ungrouped Object 2: Independent Status Indicator Shape (node-1) -->
+        <g id="node-1" class="diagram-node-instance" data-node-id="1" data-semantic-target="node-1">
+          <circle cx="310" cy="50" r="22" fill="#334155" stroke="#64748b" stroke-width="2"/>
+        </g>
+
+        <!-- Ungrouped Object 3: Perimeter Tracer Low-Load Animation (lite-2), authored stopped (play=false) -->
+        <g id="lite-2" class="diagram-lite-instance" data-lite-id="2" data-lite-kind="perimeter-tracer" data-semantic-target="lite-2" data-lite-play="false">
+          <rect class="lite-payload sva-lite-trace-cw" x="18" y="18" width="324" height="64" rx="11" fill="none" stroke="#38bdf8" stroke-width="3"
+                pathLength="1000" stroke-dasharray="180 320" style="animation-duration: 2.2s; animation-Name: sva-lite-trace-cw;"/>
+        </g>
+
+        <script type="application/json" id="sva-widget-manifest">{
+          "schemaVersion": 1,
+          "widgetName": "MouseOver Action Button",
+          "parameters": [
+            {
+              "name": "MouseOver",
+              "label": "Mouse Over State",
+              "type": "boolean",
+              "target": "root",
+              "property": "color",
+              "default": false,
+              "eventTrigger": "hover",
+              "targets": [
+                { "target": "lite-1", "property": "color", "when": "true", "action": "set", "value": "#38bdf8" },
+                { "target": "lite-1", "property": "bgColor", "when": "true", "action": "set", "value": "#1e3a8a" },
+                { "target": "node-1", "property": "fill", "when": "true", "action": "set", "value": "#2563eb" },
+                { "target": "lite-2", "property": "play", "when": "true", "action": "play" },
+                { "target": "lite-1", "property": "color", "when": "false", "action": "set", "value": "#f8fafc" },
+                { "target": "lite-1", "property": "bgColor", "when": "false", "action": "set", "value": "#0f172a" },
+                { "target": "node-1", "property": "fill", "when": "false", "action": "set", "value": "#334155" },
+                { "target": "lite-2", "property": "play", "when": "false", "action": "stop_reset" }
+              ]
+            }
+          ]
+        }<\/script>
+      </svg>
+    `;
+
+    // Demo 2 SVG: Boolean Inverse Visibility
+    const demo2SVG = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+        <rect width="360" height="100" rx="12" fill="#070b14" stroke="#1e293b" stroke-width="1.5"/>
+        <g id="node-1" class="diagram-node-instance" data-node-id="1" data-semantic-target="node-1" visibility="visible">
+          <rect x="30" y="22" width="130" height="56" rx="8" fill="#0f766e" stroke="#2dd4bf" stroke-width="2"/>
+          <text x="95" y="55" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="700">GRAPHIC A (IDLE)</text>
+        </g>
+        <g id="node-2" class="diagram-node-instance" data-node-id="2" data-semantic-target="node-2" visibility="hidden" style="visibility:hidden;">
+          <rect x="200" y="22" width="130" height="56" rx="8" fill="#7c2d12" stroke="#fb923c" stroke-width="2"/>
+          <text x="265" y="55" text-anchor="middle" fill="#fff7ed" font-size="14" font-weight="700">GRAPHIC B (ACTIVE)</text>
+        </g>
+        <script type="application/json" id="sva-widget-manifest">{
+          "schemaVersion": 1,
+          "parameters": [
+            {
+              "name": "ShowAlternateGraphic",
+              "type": "boolean",
+              "target": "root",
+              "property": "visibility",
+              "default": false,
+              "targets": [
+                { "target": "node-1", "property": "visibility", "when": "true", "action": "set", "value": false },
+                { "target": "node-2", "property": "visibility", "when": "true", "action": "set", "value": true },
+                { "target": "node-1", "property": "visibility", "when": "false", "action": "set", "value": true },
+                { "target": "node-2", "property": "visibility", "when": "false", "action": "set", "value": false }
+              ]
+            }
+          ]
+        }<\/script>
+      </svg>
+    `;
+
+    // Demo 3 SVG: Boolean Activating Two Unrelated Animated Objects + Pause/Resume
+    const demo3SVG = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+        <style>
+          @keyframes sva-flow-dash { from { stroke-dashoffset: 48; } to { stroke-dashoffset: 0; } }
+          @keyframes sva-radar-ping { 0% { transform: scale(0.2); opacity: 0.95; } 100% { transform: scale(1.25); opacity: 0; } }
+          .lite-flow-seg { animation: sva-flow-dash 1.2s linear infinite; }
+          .lite-radar-ring { animation: sva-radar-ping 1.6s ease-out infinite; transform-origin: 295px 50px; }
+        </style>
+        <rect width="360" height="100" rx="12" fill="#070b14" stroke="#1e293b" stroke-width="1.5"/>
+        <g id="lite-1" class="diagram-lite-instance" data-lite-id="1" data-lite-kind="flow-lite" data-semantic-target="lite-1" data-lite-play="false">
+          <path class="lite-payload lite-flow-seg" d="M 28 50 L 240 50" fill="none" stroke="#475569" stroke-width="5" stroke-dasharray="16 8" style="animation-name: sva-flow-dash;"/>
+        </g>
+        <g id="lite-2" class="diagram-lite-instance" data-lite-id="2" data-lite-kind="radar-lite" data-semantic-target="lite-2" data-lite-play="false">
+          <circle class="lite-payload lite-radar-ring" cx="295" cy="50" r="26" fill="none" stroke="#22c55e" stroke-width="2.5" style="animation-name: sva-radar-ping;"/>
+          <circle cx="295" cy="50" r="6" fill="#22c55e"/>
+        </g>
+        <script type="application/json" id="sva-widget-manifest">{
+          "schemaVersion": 1,
+          "parameters": [
+            {
+              "name": "LinkActive",
+              "type": "boolean",
+              "target": "root",
+              "property": "play",
+              "default": false,
+              "targets": [
+                { "target": "lite-1", "property": "color", "when": "true", "action": "set", "value": "#22c55e" },
+                { "target": "lite-1", "property": "play", "when": "true", "action": "play" },
+                { "target": "lite-2", "property": "play", "when": "true", "action": "play" },
+                { "target": "lite-1", "property": "color", "when": "false", "action": "set", "value": "#475569" },
+                { "target": "lite-1", "property": "play", "when": "false", "action": "stop_reset" },
+                { "target": "lite-2", "property": "play", "when": "false", "action": "stop_reset" }
+              ]
+            },
+            {
+              "name": "StreamPaused",
+              "type": "boolean",
+              "target": "root",
+              "property": "play",
+              "default": false,
+              "targets": [
+                { "target": "lite-1", "property": "play", "when": "true", "action": "pause" },
+                { "target": "lite-2", "property": "play", "when": "true", "action": "pause" },
+                { "target": "lite-1", "property": "play", "when": "false", "action": "resume" },
+                { "target": "lite-2", "property": "play", "when": "false", "action": "resume" }
+              ]
+            }
+          ]
+        }<\/script>
+      </svg>
+    `;
+
+    // Demo 4 SVG: Number Property Fan-Out Without Grouping
+    const demo4SVG = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+        <rect width="360" height="100" rx="12" fill="#070b14" stroke="#1e293b" stroke-width="1.5"/>
+        <!-- Ungrouped HBar Gauge (lite-1) -->
+        <g id="lite-1" class="diagram-lite-instance" data-lite-id="1" data-lite-kind="gauge-lite" data-semantic-target="lite-1"
+           data-gauge-variant="hbar" data-gauge-min="0" data-gauge-max="100" data-gauge-value="42"
+           data-gauge-x="22" data-gauge-y="32" data-gauge-w="190" data-gauge-h="36" data-gauge-cr="6"
+           data-gauge-base-color="#38bdf8" data-gauge-bg-color="#1e293b" data-gauge-unit="%">
+          <rect class="lite-gauge-track" x="22" y="32" width="190" height="36" rx="6" fill="#1e293b"/>
+          <rect class="lite-gauge-hbar" x="22" y="32" width="79.8" height="36" rx="6" fill="#38bdf8"/>
+        </g>
+        <!-- Ungrouped Text Box Lite Readout (lite-2) -->
+        <g id="lite-2" class="diagram-lite-instance" data-lite-id="2" data-lite-kind="text-lite" data-semantic-target="lite-2"
+           data-text-content="42%" data-text-color="#f8fafc" data-text-bg-color="#0f172a" data-text-font-size="20"
+           data-text-x="230" data-text-y="26" data-text-w="108" data-text-h="48" data-text-cx="284" data-text-cy="50">
+          <rect class="lite-text-box" x="230" y="26" width="108" height="48" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+          <text class="lite-text-element" x="284" y="57" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">42%</text>
+        </g>
+        <script type="application/json" id="sva-widget-manifest">{
+          "schemaVersion": 1,
+          "parameters": [
+            {
+              "name": "ThermalLoad",
+              "type": "number",
+              "target": "root",
+              "property": "value",
+              "default": 42,
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "targets": [
+                { "target": "lite-1", "property": "value", "when": "always", "action": "set" },
+                { "target": "lite-2", "property": "text", "when": "always", "action": "set" }
+              ]
+            }
+          ]
+        }<\/script>
+      </svg>
+    `;
+
+    // Demo 5 SVG: Choice / Enum Property Selecting Multi-Object Visual States
+    const demo5SVG = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+        <rect width="360" height="100" rx="12" fill="#070b14" stroke="#1e293b" stroke-width="1.5"/>
+        <g id="lite-1" class="diagram-lite-instance" data-lite-id="1" data-lite-kind="text-lite" data-semantic-target="lite-1"
+           data-text-content="SYSTEM NOMINAL" data-text-color="#22c55e" data-text-bg-color="#052e16" data-text-font-size="17"
+           data-text-x="20" data-text-y="22" data-text-w="235" data-text-h="56" data-text-cx="137.5" data-text-cy="50">
+          <rect class="lite-text-box" x="20" y="22" width="235" height="56" rx="8" fill="#052e16" stroke="#22c55e" stroke-width="1.5"/>
+          <text class="lite-text-element" x="137.5" y="56" text-anchor="middle" fill="#22c55e" font-size="17" font-weight="700">SYSTEM NOMINAL</text>
+        </g>
+        <g id="node-1" class="diagram-node-instance" data-node-id="1" data-semantic-target="node-1">
+          <circle cx="305" cy="50" r="22" fill="#22c55e" stroke="#14532d" stroke-width="2"/>
+        </g>
+        <script type="application/json" id="sva-widget-manifest">{
+          "schemaVersion": 1,
+          "parameters": [
+            {
+              "name": "OperatingMode",
+              "type": "enum",
+              "target": "root",
+              "property": "state",
+              "default": "normal",
+              "options": ["normal", "warning", "critical"],
+              "targets": [
+                { "target": "lite-1", "property": "text", "when": "normal", "action": "set", "value": "SYSTEM NOMINAL" },
+                { "target": "lite-1", "property": "color", "when": "normal", "action": "set", "value": "#22c55e" },
+                { "target": "lite-1", "property": "bgColor", "when": "normal", "action": "set", "value": "#052e16" },
+                { "target": "node-1", "property": "fill", "when": "normal", "action": "set", "value": "#22c55e" },
+
+                { "target": "lite-1", "property": "text", "when": "warning", "action": "set", "value": "HIGH LATENCY" },
+                { "target": "lite-1", "property": "color", "when": "warning", "action": "set", "value": "#f59e0b" },
+                { "target": "lite-1", "property": "bgColor", "when": "warning", "action": "set", "value": "#451a03" },
+                { "target": "node-1", "property": "fill", "when": "warning", "action": "set", "value": "#f59e0b" },
+
+                { "target": "lite-1", "property": "text", "when": "critical", "action": "set", "value": "NODE FAULT" },
+                { "target": "lite-1", "property": "color", "when": "critical", "action": "set", "value": "#ef4444" },
+                { "target": "lite-1", "property": "bgColor", "when": "critical", "action": "set", "value": "#450a0a" },
+                { "target": "node-1", "property": "fill", "when": "critical", "action": "set", "value": "#ef4444" }
+              ]
+            }
+          ]
+        }<\/script>
+      </svg>
+    `;
+
+    window.demoInstances = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Mount Demo 1
+      const w1 = SVGWidget.mount('#mount-demo-1', mouseOverButtonSVG, { instanceId: 'demo1' });
+      window.demoInstances.d1 = w1;
+      const syncD1UI = (val) => {
+        document.getElementById('readout-d1').textContent = `MouseOver: ${val}`;
+        document.getElementById('btn-d1-true').classList.toggle('active', val === true);
+        document.getElementById('btn-d1-false').classList.toggle('active', val === false);
+      };
+      w1.on('change', (ev) => {
+        if (ev.parameters && ev.parameters.MouseOver !== undefined) syncD1UI(ev.parameters.MouseOver);
+      });
+      document.getElementById('btn-d1-true').addEventListener('click', () => w1.setParameter('MouseOver', true));
+      document.getElementById('btn-d1-false').addEventListener('click', () => w1.setParameter('MouseOver', false));
+
+      // Mount Demo 2
+      const w2 = SVGWidget.mount('#mount-demo-2', demo2SVG, { instanceId: 'demo2' });
+      window.demoInstances.d2 = w2;
+      document.getElementById('btn-d2-true').addEventListener('click', () => {
+        w2.setParameter('ShowAlternateGraphic', true);
+        document.getElementById('readout-d2').textContent = 'ShowAlternateGraphic: true';
+        document.getElementById('btn-d2-true').classList.add('active');
+        document.getElementById('btn-d2-false').classList.remove('active');
+      });
+      document.getElementById('btn-d2-false').addEventListener('click', () => {
+        w2.setParameter('ShowAlternateGraphic', false);
+        document.getElementById('readout-d2').textContent = 'ShowAlternateGraphic: false';
+        document.getElementById('btn-d2-false').classList.add('active');
+        document.getElementById('btn-d2-true').classList.remove('active');
+      });
+
+      // Mount Demo 3
+      const w3 = SVGWidget.mount('#mount-demo-3', demo3SVG, { instanceId: 'demo3' });
+      window.demoInstances.d3 = w3;
+      document.getElementById('btn-d3-true').addEventListener('click', () => {
+        w3.setParameter('LinkActive', true);
+        document.getElementById('readout-d3').textContent = 'LinkActive: true';
+        document.getElementById('btn-d3-true').classList.add('active');
+        document.getElementById('btn-d3-false').classList.remove('active');
+      });
+      document.getElementById('btn-d3-false').addEventListener('click', () => {
+        w3.setParameter('LinkActive', false);
+        document.getElementById('readout-d3').textContent = 'LinkActive: false';
+        document.getElementById('btn-d3-false').classList.add('active');
+        document.getElementById('btn-d3-true').classList.remove('active');
+      });
+      document.getElementById('btn-d3-pause').addEventListener('click', () => {
+        w3.setParameter('StreamPaused', true);
+        document.getElementById('readout-d3').textContent = 'StreamPaused: true';
+      });
+      document.getElementById('btn-d3-resume').addEventListener('click', () => {
+        w3.setParameter('StreamPaused', false);
+        document.getElementById('readout-d3').textContent = 'StreamPaused: false';
+      });
+
+      // Mount Demo 4
+      const w4 = SVGWidget.mount('#mount-demo-4', demo4SVG, { instanceId: 'demo4' });
+      window.demoInstances.d4 = w4;
+      document.getElementById('slider-d4').addEventListener('input', (e) => {
+        const v = Number(e.target.value);
+        w4.setParameter('ThermalLoad', v);
+        document.getElementById('readout-d4').textContent = `ThermalLoad: ${v}%`;
+      });
+
+      // Mount Demo 5
+      const w5 = SVGWidget.mount('#mount-demo-5', demo5SVG, { instanceId: 'demo5' });
+      window.demoInstances.d5 = w5;
+      ['normal', 'warning', 'critical'].forEach((m) => {
+        document.getElementById(`btn-d5-${m}`).addEventListener('click', () => {
+          w5.setParameter('OperatingMode', m);
+          document.getElementById('readout-d5').textContent = `OperatingMode: ${m}`;
+          ['normal', 'warning', 'critical'].forEach((k) => {
+            document.getElementById(`btn-d5-${k}`).classList.toggle('active', k === m);
+          });
+        });
+      });
+
+      // Mount Demo 6 (Two Independent Instances)
+      const w6a = SVGWidget.mount('#mount-demo-6a', mouseOverButtonSVG, { instanceId: 'alpha', interactiveTriggers: false });
+      const w6b = SVGWidget.mount('#mount-demo-6b', mouseOverButtonSVG, { instanceId: 'beta', interactiveTriggers: false });
+      window.demoInstances.d6a = w6a;
+      window.demoInstances.d6b = w6b;
+      document.getElementById('btn-d6a-toggle').addEventListener('click', () => {
+        const next = !w6a.getParameter('MouseOver');
+        w6a.setParameter('MouseOver', next);
+        document.getElementById('readout-d6a').textContent = `Alpha: ${next}`;
+      });
+      document.getElementById('btn-d6b-toggle').addEventListener('click', () => {
+        const next = !w6b.getParameter('MouseOver');
+        w6b.setParameter('MouseOver', next);
+        document.getElementById('readout-d6b').textContent = `Beta: ${next}`;
+      });
+    });
+  </script>
+</body>
+</html>

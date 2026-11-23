@@ -752,28 +752,34 @@ func isLiteEffectPropertySupportedByKind(kind, prop string) bool {
 		return true
 	}
 	switch prop {
-	case "text", "borderColor", "scrollSpeed", "typeSpeed":
+	case "text", "borderColor", "scrollSpeed", "typeSpeed", "bgOpacity", "fontSize", "letterSpacing", "padding", "linesPerSec", "lineSpacing", "holdDelay", "clearDuration", "typeMode", "typeRepeat", "textAnim":
 		return kind == "text-lite"
-	case "lineGapRatio", "burstCycles", "pauseSeconds", "pauseVisibility":
+	case "curvature":
+		return kind == "text-lite" || kind == "flow-lite"
+	case "lineGapRatio", "burstCycles", "pauseSeconds", "pauseVisibility", "segmentStyle":
 		return kind == "perimeter-tracer"
 	case "segments":
 		return kind == "perimeter-tracer" || kind == "gauge-lite" || kind == "oscilloscope-lite"
-	case "strokeWidth", "showGuide":
+	case "strokeWidth":
+		return kind == "perimeter-tracer" || kind == "pulse" || kind == "flow-lite" || kind == "radar-lite" || kind == "gauge-lite" || kind == "oscilloscope-lite" || kind == "text-lite"
+	case "showGuide":
 		return kind == "perimeter-tracer" || kind == "flow-lite" || kind == "radar-lite" || kind == "gauge-lite" || kind == "oscilloscope-lite" || kind == "text-lite"
 	case "startOffset":
 		return kind == "perimeter-tracer" || kind == "oscilloscope-lite" || kind == "text-lite"
-	case "value", "minValue", "maxValue":
+	case "value", "minValue", "maxValue", "labelText", "unit":
 		return kind == "gauge-lite"
 	case "bgColor":
 		return kind == "gauge-lite" || kind == "oscilloscope-lite" || kind == "text-lite"
 	case "direction":
 		return kind == "perimeter-tracer" || kind == "flow-lite" || kind == "gauge-lite" || kind == "oscilloscope-lite" || kind == "text-lite"
 	case "playbackMode":
-		return kind == "perimeter-tracer" || kind == "flow-lite" || kind == "text-lite"
-	case "dashLength", "gapLength", "dotSize":
+		return kind == "perimeter-tracer" || kind == "flow-lite" || kind == "oscilloscope-lite" || kind == "text-lite"
+	case "dashLength", "gapLength", "dotSize", "delay", "endDelay", "startMode", "endMode":
 		return kind == "flow-lite"
-	case "scale":
+	case "scale", "minScale":
 		return kind == "pulse" || kind == "radar-lite"
+	case "rings":
+		return kind == "radar-lite"
 	case "period":
 		return kind == "pulse" || kind == "radar-lite" || kind == "flow-lite" || kind == "perimeter-tracer" || kind == "oscilloscope-lite"
 	case "trigger", "duration", "repeat", "repeatInterval":

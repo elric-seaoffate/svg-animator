@@ -1105,9 +1105,11 @@ func (s *Scene) AddParameter(p WidgetParameter) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	isMultiTarget := len(p.Targets) > 0
+
 	for i, existing := range s.parameters {
-		sameTargetProp := (existing.Target == p.Target && existing.Property == p.Property)
 		sameName := (existing.Name == p.Name)
+		sameTargetProp := (!isMultiTarget && len(existing.Targets) == 0 && existing.Target == p.Target && existing.Property == p.Property)
 
 		if sameTargetProp {
 			if sameName {
@@ -1119,15 +1121,17 @@ func (s *Scene) AddParameter(p WidgetParameter) error {
 				}
 				return nil
 			}
-			// Collision: different name, but identical target and property
+			// Collision: different name, but identical single target and property
 			return fmt.Errorf("property %q on target %q is already bound to parameter %q", p.Property, p.Target, existing.Name)
 		}
 
 		if sameName {
-			// Updating target/property of existing parameter
-			for j, other := range s.parameters {
-				if j != i && other.Target == p.Target && other.Property == p.Property {
-					return fmt.Errorf("property %q on target %q is already bound to parameter %q", p.Property, p.Target, other.Name)
+			// Updating existing parameter by name
+			if !isMultiTarget {
+				for j, other := range s.parameters {
+					if j != i && len(other.Targets) == 0 && other.Target == p.Target && other.Property == p.Property {
+						return fmt.Errorf("property %q on target %q is already bound to parameter %q", p.Property, p.Target, other.Name)
+					}
 				}
 			}
 			s.parameters[i] = p
@@ -1195,6 +1199,9 @@ func (s *Scene) DetectParameterConflicts() []ParameterConflict {
 
 	groups := make(map[string][]WidgetParameter)
 	for _, p := range s.parameters {
+		if len(p.Targets) > 0 {
+			continue
+		}
 		key := p.Target + "::" + p.Property
 		groups[key] = append(groups[key], p)
 	}
@@ -1275,16 +1282,31 @@ func (s *Scene) RemoveParameter(name string) bool {
 	return false
 }
 
-// pruneParametersForTargetLocked removes any widget parameters bound to the given target identifier.
+// pruneParametersForTargetLocked removes any widget parameters bound to the given target identifier,
+// and prunes deleted targets from multi-target Component Builder / group parameters.
 func (s *Scene) pruneParametersForTargetLocked(targetID string) {
 	if len(s.parameters) == 0 || targetID == "" {
 		return
 	}
+	isPrefixed := strings.Contains(targetID, "-")
 	var kept []WidgetParameter
 	for _, p := range s.parameters {
-		if p.Target != targetID {
-			kept = append(kept, p)
+		if p.Target == targetID {
+			continue
 		}
+		if isPrefixed && len(p.Targets) > 0 {
+			var keptTargets []WidgetTargetBinding
+			for _, tb := range p.Targets {
+				if tb.Target != targetID {
+					keptTargets = append(keptTargets, tb)
+				}
+			}
+			if len(keptTargets) == 0 {
+				continue
+			}
+			p.Targets = keptTargets
+		}
+		kept = append(kept, p)
 	}
 	s.parameters = kept
 }

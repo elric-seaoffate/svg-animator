@@ -2668,11 +2668,14 @@ function getDrawerWidgetPropDefs(type, targetId = '', liteKind = '') {
       { prop: 'speed', label: 'Group Animation Speed (0.1..10x)', type: 'speed', min: 0.1, max: 10, step: 0.1, default: 1.0, desc: 'Playback speed multiplier for all animations inside this group (0.1 to 10.0)' }
     ],
     lite: [
+      { prop: 'color', label: 'Effect / Text Colour', type: 'color', desc: 'Primary text, stroke, or fill colour of the low-load effect' },
+      { prop: 'bgColor', label: 'Box / Track Background Colour', type: 'color', desc: 'Background track, screen, or text box fill colour' },
+      { prop: 'borderColor', label: 'Border Colour', type: 'color', desc: 'Container border or arc guide colour for Text Box Lite' },
+      { prop: 'bgOpacity', label: 'Box Fill Opacity (0..1)', type: 'number', min: 0, max: 1, step: 0.05, desc: 'Background box fill opacity for Text Box Lite (0.0 to 1.0)' },
       { prop: 'play', label: 'Play Animation', type: 'boolean', desc: 'Start or stop the low-load effect animation (independent of playbackMode: once plays once when true, loop plays continuously while true)' },
       { prop: 'text', label: 'Text Content', type: 'text', desc: 'Displayed text content for Text Box Lite (immediate update on static text, cycle-boundary handover on animated text)' },
-      { prop: 'color', label: 'Effect Colour', type: 'color', desc: 'Primary stroke, fill, or text colour of the low-load effect' },
-      { prop: 'bgColor', label: 'Track / Background Colour', type: 'color', desc: 'Background track, screen, or text box fill colour' },
-      { prop: 'borderColor', label: 'Border Colour', type: 'color', desc: 'Container border or arc guide colour for Text Box Lite' },
+      { prop: 'labelText', label: 'Gauge Label Text', type: 'text', desc: 'Displayed label text for Gauge / Level Lite' },
+      { prop: 'unit', label: 'Unit Suffix', type: 'text', desc: 'Displayed unit suffix for Gauge / Level Lite (e.g. %, RPM, °C)' },
       { prop: 'value', label: 'Gauge Value', type: 'number', step: 0.5, desc: 'Current numeric value for Gauge / Level Lite indicators' },
       { prop: 'minValue', label: 'Gauge Min Value', type: 'number', step: 1, desc: 'Minimum numeric domain bound for Gauge / Level Lite' },
       { prop: 'maxValue', label: 'Gauge Max Value', type: 'number', step: 1, desc: 'Maximum numeric domain bound for Gauge / Level Lite' },
@@ -2685,8 +2688,15 @@ function getDrawerWidgetPropDefs(type, targetId = '', liteKind = '') {
       { prop: 'dashLength', label: 'Dash / Segment Length', type: 'number', min: 2, max: 400, step: 1, desc: 'Flow Lite dash or single segment length in px (2 to 400)' },
       { prop: 'gapLength', label: 'Gap Spacing', type: 'number', min: 2, max: 300, step: 1, desc: 'Flow Lite clear gap between segments in px (2 to 300)' },
       { prop: 'dotSize', label: 'Dot Diameter', type: 'number', min: 1, max: 32, step: 0.5, desc: 'Flow Lite dot diameter in px for dotted pattern (1 to 32)' },
+      { prop: 'delay', label: 'Start Delay (s)', type: 'number', min: 0, max: 30, step: 0.1, desc: 'Flow Lite start delay in seconds (0 to 30)' },
+      { prop: 'endDelay', label: 'End Delay (s)', type: 'number', min: 0, max: 30, step: 0.1, desc: 'Flow Lite end delay in seconds (0 to 30)' },
+      { prop: 'startMode', label: 'Start Endpoint Mode', type: 'enum', options: ['tunnel', 'abrupt'], desc: 'Flow Lite start endpoint transition mode' },
+      { prop: 'endMode', label: 'End Endpoint Mode', type: 'enum', options: ['tunnel', 'abrupt'], desc: 'Flow Lite end endpoint transition mode' },
       { prop: 'segments', label: 'Segments', type: 'number', min: 1, max: 32, step: 1, desc: 'Number of segments or waveform cycles' },
       { prop: 'lineGapRatio', label: 'Line:Gap Ratio', type: 'text', desc: 'Repeating segment pattern ratio (e.g. 1:3)' },
+      { prop: 'segmentStyle', label: 'Segment Style', type: 'enum', options: ['solid', 'rounded', 'dashed', 'dots', 'fading-tail'], desc: 'Perimeter Tracer segment visual style' },
+      { prop: 'rings', label: 'Ring Count', type: 'number', min: 1, max: 6, step: 1, desc: 'Number of staggered expanding radar rings (1 to 6)' },
+      { prop: 'curvature', label: 'Curvature (-100..100%)', type: 'number', min: -100, max: 100, step: 5, desc: 'Arc or path curvature percentage (-100 to +100)' },
       { prop: 'direction', label: 'Direction', type: 'enum', options: ['cw', 'ccw', 'forward', 'reverse'], desc: 'Travel direction' },
       { prop: 'startOffset', label: 'Start Offset (%)', type: 'number', min: 0, max: 100, step: 1, desc: 'Perimeter starting phase offset, arc offset, or oscilloscope baseline' },
       { prop: 'playbackMode', label: 'Motion Mode', type: 'enum', options: ['loop', 'pingpong', 'once'], desc: 'Playback mode (loop, pingpong, once)' },
@@ -2695,6 +2705,7 @@ function getDrawerWidgetPropDefs(type, targetId = '', liteKind = '') {
       { prop: 'pauseVisibility', label: 'Pause Behaviour', type: 'enum', options: ['hide', 'hold'], desc: 'Visibility during burst pause (hide or hold)' },
       { prop: 'showGuide', label: 'Guide Visibility', type: 'boolean', desc: 'Show or hide static perimeter boundary guide or radar centre dot' },
       { prop: 'scale', label: 'Max Scale', type: 'number', min: 0.2, max: 3.0, step: 0.05, desc: 'Maximum pulse/radar expansion scale multiplier (0.2 to 3.0)' },
+      { prop: 'minScale', label: 'Min / Start Scale', type: 'number', min: 0.05, max: 2.0, step: 0.05, desc: 'Minimum pulse or inner radar start scale multiplier' },
       { prop: 'period', label: 'Cycle Duration / Period (s)', type: 'number', min: 0.2, max: 30, step: 0.1, desc: 'Cycle duration in seconds (0.2 to 30.0)' },
       { prop: 'intensity', label: 'Intensity / Amplitude', type: 'number', min: 0, max: 1, step: 0.05, desc: 'Peak pulse/flash/oscilloscope amplitude' },
       { prop: 'armThickness', label: 'Arm Thickness', type: 'number', min: 1, max: 20, step: 0.5, desc: 'Independent cross/star arm thickness in SVG units (1 to 20)' },
@@ -2702,7 +2713,17 @@ function getDrawerWidgetPropDefs(type, targetId = '', liteKind = '') {
       { prop: 'trigger', label: 'Flash Trigger', type: 'number', min: 0, max: 1000000, step: 1, desc: 'Incrementing or changing this value triggers a single-shot Flash Lite pulse' },
       { prop: 'duration', label: 'Flash Duration (ms)', type: 'number', min: 20, max: 1000, step: 10, desc: 'Flash duration in milliseconds (20 to 1000 ms)' },
       { prop: 'repeat', label: 'Flash Repeat', type: 'boolean', desc: 'Repeat flash periodically instead of single-shot' },
-      { prop: 'repeatInterval', label: 'Repeat Interval (s)', type: 'number', min: 0.2, max: 60, step: 0.1, desc: 'Interval in seconds between repeated flashes (0.2 to 60)' }
+      { prop: 'repeatInterval', label: 'Repeat Interval (s)', type: 'number', min: 0.2, max: 60, step: 0.1, desc: 'Interval in seconds between repeated flashes (0.2 to 60)' },
+      { prop: 'fontSize', label: 'Font Size (px)', type: 'number', min: 8, max: 120, step: 1, desc: 'Text Box Lite font size in px (8 to 120)' },
+      { prop: 'letterSpacing', label: 'Letter Spacing (px)', type: 'number', min: -2, max: 20, step: 0.5, desc: 'Text Box Lite letter spacing in px (-2 to 20)' },
+      { prop: 'padding', label: 'Interior Padding (px)', type: 'number', min: 0, max: 60, step: 1, desc: 'Text Box Lite interior padding in px (0 to 60)' },
+      { prop: 'linesPerSec', label: 'Vertical Scroll Rate (lines/s)', type: 'number', min: 0.1, max: 20, step: 0.1, desc: 'Text Box Lite vertical scroll rate in lines/s (0.1 to 20)' },
+      { prop: 'lineSpacing', label: 'Line Spacing (x)', type: 'number', min: 0.8, max: 3.0, step: 0.05, desc: 'Text Box Lite line spacing multiplier (0.8 to 3.0)' },
+      { prop: 'holdDelay', label: 'Hold Duration (s)', type: 'number', min: 0, max: 30, step: 0.1, desc: 'Text Box Lite visible hold duration in seconds (0 to 30)' },
+      { prop: 'clearDuration', label: 'Clear / Off Duration (s)', type: 'number', min: 0, max: 30, step: 0.1, desc: 'Text Box Lite clear or blink off duration in seconds (0 to 30)' },
+      { prop: 'typeMode', label: 'Typewriter Sequence', type: 'enum', options: ['once', 'hold', 'delete', 'delete-forward'], desc: 'Text Box Lite typewriter sequence mode' },
+      { prop: 'typeRepeat', label: 'Repeat Sequence', type: 'boolean', desc: 'Repeat complete Text Box Lite typewriter sequence' },
+      { prop: 'textAnim', label: 'Text Animation Style', type: 'enum', options: ['none', 'ticker-h', 'ticker-v', 'stacked-v', 'typewriter', 'fade', 'flash', 'slide', 'blur-in', 'blur-out', 'scramble'], desc: 'Text Box Lite active animation style' }
     ],
     root: [
       { prop: 'playbackRate', label: 'Master Speed', type: 'speed', min: 0.1, max: 5.0, step: 0.1, desc: 'Master playback rate multiplier for the entire widget' },
@@ -2828,12 +2849,35 @@ function getObjectPropValue(type, id, prop) {
         case 'duration': return Math.round((Number(le.dur) || 0.10) * 1000);
         case 'repeat': return Boolean(le.repeat);
         case 'repeatInterval': return le.repeatInterval !== undefined ? le.repeatInterval : 2.0;
+        case 'bgOpacity': return le.bgOpacity !== undefined ? le.bgOpacity : 0.85;
+        case 'fontSize': return le.fontSize !== undefined ? le.fontSize : 18;
+        case 'letterSpacing': return le.letterSpacing !== undefined ? le.letterSpacing : 0;
+        case 'padding': return le.padding !== undefined ? le.padding : 12;
+        case 'curvature': return le.curvature !== undefined ? le.curvature : 0;
+        case 'linesPerSec': return le.linesPerSec !== undefined ? le.linesPerSec : 1.5;
+        case 'lineSpacing': return le.lineSpacing !== undefined ? le.lineSpacing : 1.35;
+        case 'holdDelay': return le.holdDelay !== undefined ? le.holdDelay : 1.5;
+        case 'clearDuration': return le.clearDuration !== undefined ? le.clearDuration : 0.6;
+        case 'typeMode': return le.typeMode || 'hold';
+        case 'typeRepeat': return le.typeRepeat !== false;
+        case 'textAnim': return le.textAnim || 'none';
+        case 'rings': return le.rings !== undefined ? le.rings : 3;
+        case 'minScale': return le.minScale !== undefined ? le.minScale : (le.kind === 'radar-lite' ? 0.15 : 0.85);
+        case 'delay': return le.delay !== undefined ? le.delay : 0;
+        case 'endDelay': return le.endDelay !== undefined ? le.endDelay : 0;
+        case 'startMode': return le.startMode || 'tunnel';
+        case 'endMode': return le.endMode || 'tunnel';
+        case 'segmentStyle': return le.segmentStyle || 'solid';
+        case 'labelText': return le.labelText || '';
+        case 'unit': return le.unit !== undefined ? le.unit : '%';
       }
     }
   }
   return '';
 }
 
+window.getSupportedPropertiesForMember = getSupportedPropertiesForMember;
+window.getObjectPropValue = getObjectPropValue;
 window.renderWidgetPropertyCards = function(containerEl, sel, statusMsgEl) {
   if (!containerEl || !sel || !sel.type || sel.id === null) return;
   containerEl.innerHTML = '';
@@ -3116,19 +3160,24 @@ function getSupportedPropertiesForMember(mType, mId) {
   let propDefs = getDrawerWidgetPropDefs(mType, mId, liteKind) || [];
   if (mType === 'lite' && liteKind) {
     propDefs = propDefs.filter((p) => {
-      if (['text', 'borderColor', 'scrollSpeed', 'typeSpeed'].includes(p.prop)) return liteKind === 'text-lite';
-      if (['lineGapRatio', 'burstCycles', 'pauseSeconds', 'pauseVisibility'].includes(p.prop)) return liteKind === 'perimeter-tracer';
+      if (['text', 'borderColor', 'bgOpacity', 'scrollSpeed', 'typeSpeed', 'fontSize', 'letterSpacing', 'padding', 'linesPerSec', 'lineSpacing', 'holdDelay', 'clearDuration', 'typeMode', 'typeRepeat', 'textAnim'].includes(p.prop)) return liteKind === 'text-lite';
+      if (['lineGapRatio', 'segmentStyle', 'burstCycles', 'pauseSeconds', 'pauseVisibility'].includes(p.prop)) return liteKind === 'perimeter-tracer';
       if (p.prop === 'segments') return liteKind === 'perimeter-tracer' || liteKind === 'gauge-lite' || liteKind === 'oscilloscope-lite';
-      if (['strokeWidth', 'showGuide'].includes(p.prop)) {
+      if (p.prop === 'strokeWidth') {
+        return liteKind === 'perimeter-tracer' || liteKind === 'pulse' || liteKind === 'flow-lite' || liteKind === 'radar-lite' || liteKind === 'gauge-lite' || liteKind === 'oscilloscope-lite' || liteKind === 'text-lite';
+      }
+      if (p.prop === 'showGuide') {
         return liteKind === 'perimeter-tracer' || liteKind === 'flow-lite' || liteKind === 'radar-lite' || liteKind === 'gauge-lite' || liteKind === 'oscilloscope-lite' || liteKind === 'text-lite';
       }
       if (p.prop === 'startOffset') return liteKind === 'perimeter-tracer' || liteKind === 'oscilloscope-lite' || liteKind === 'text-lite';
-      if (['value', 'minValue', 'maxValue'].includes(p.prop)) return liteKind === 'gauge-lite';
+      if (['value', 'minValue', 'maxValue', 'labelText', 'unit'].includes(p.prop)) return liteKind === 'gauge-lite';
       if (p.prop === 'bgColor') return liteKind === 'gauge-lite' || liteKind === 'oscilloscope-lite' || liteKind === 'text-lite';
       if (p.prop === 'direction') return liteKind === 'perimeter-tracer' || liteKind === 'flow-lite' || liteKind === 'gauge-lite' || liteKind === 'oscilloscope-lite' || liteKind === 'text-lite';
-      if (p.prop === 'playbackMode') return liteKind === 'perimeter-tracer' || liteKind === 'flow-lite' || liteKind === 'text-lite';
-      if (['dashLength', 'gapLength', 'dotSize'].includes(p.prop)) return liteKind === 'flow-lite';
-      if (p.prop === 'scale') return liteKind === 'pulse' || liteKind === 'radar-lite';
+      if (p.prop === 'playbackMode') return liteKind === 'perimeter-tracer' || liteKind === 'flow-lite' || liteKind === 'oscilloscope-lite' || liteKind === 'text-lite';
+      if (['dashLength', 'gapLength', 'dotSize', 'delay', 'endDelay', 'startMode', 'endMode'].includes(p.prop)) return liteKind === 'flow-lite';
+      if (p.prop === 'curvature') return liteKind === 'flow-lite' || liteKind === 'text-lite';
+      if (p.prop === 'rings') return liteKind === 'radar-lite';
+      if (p.prop === 'scale' || p.prop === 'minScale') return liteKind === 'pulse' || liteKind === 'radar-lite';
       if (p.prop === 'period') return liteKind === 'pulse' || liteKind === 'radar-lite' || liteKind === 'flow-lite' || liteKind === 'perimeter-tracer' || liteKind === 'oscilloscope-lite';
       if (['trigger', 'duration', 'repeat', 'repeatInterval'].includes(p.prop)) return liteKind === 'flash';
       if (p.prop === 'intensity') return liteKind === 'pulse' || liteKind === 'flash' || liteKind === 'oscilloscope-lite';
@@ -3138,7 +3187,35 @@ function getSupportedPropertiesForMember(mType, mId) {
       return true;
     }).map((p) => {
       const copy = Object.assign({}, p);
-      if (p.prop === 'speed') {
+      if (p.prop === 'color') {
+        if (liteKind === 'text-lite') {
+          copy.label = 'Text Colour';
+          copy.desc = 'Primary text colour for Text Box Lite';
+        } else if (liteKind === 'radar-lite') {
+          copy.label = 'Ping Ring Colour';
+        } else if (liteKind === 'gauge-lite') {
+          copy.label = 'Gauge Fill Colour';
+        } else if (liteKind === 'oscilloscope-lite') {
+          copy.label = 'Waveform Trace Colour';
+        } else if (liteKind === 'flow-lite') {
+          copy.label = 'Flow Colour';
+        } else if (liteKind === 'perimeter-tracer') {
+          copy.label = 'Tracer Colour';
+        } else if (liteKind === 'pulse') {
+          copy.label = 'Pulse Colour';
+        } else if (liteKind === 'flash') {
+          copy.label = 'Flash Colour';
+        }
+      } else if (p.prop === 'bgColor') {
+        if (liteKind === 'text-lite') {
+          copy.label = 'Box Background Colour';
+          copy.desc = 'Container background fill colour for Text Box Lite';
+        } else if (liteKind === 'gauge-lite') {
+          copy.label = 'Track Background Colour';
+        } else if (liteKind === 'oscilloscope-lite') {
+          copy.label = 'Screen Background Colour';
+        }
+      } else if (p.prop === 'speed') {
         if (liteKind === 'flow-lite' || liteKind === 'oscilloscope-lite' || liteKind === 'perimeter-tracer') {
           copy.label = liteKind === 'perimeter-tracer' ? 'Cycle Duration / Speed (s)' : 'Cycle Duration (s)';
           copy.min = 0.2;
@@ -3223,7 +3300,16 @@ function getSupportedPropertiesForMember(mType, mId) {
           ? ['forward', 'reverse']
           : ['cw', 'ccw'];
       } else if (p.prop === 'playbackMode') {
-        copy.options = ['loop', 'pingpong', 'once'];
+        copy.options = liteKind === 'oscilloscope-lite'
+          ? ['static', 'animated', 'sampled']
+          : ['loop', 'pingpong', 'once'];
+      } else if (p.prop === 'minScale') {
+        copy.step = 0.05;
+        copy.min = liteKind === 'radar-lite' ? 0.05 : 0.2;
+        copy.max = 2.0;
+        copy.label = liteKind === 'radar-lite' ? 'Inner Start Scale' : 'Min Pulse Scale';
+      } else if (p.prop === 'curvature') {
+        copy.label = liteKind === 'flow-lite' ? 'Path Curvature (-100..100%)' : 'Arc Curvature (-100..100%)';
       } else if (p.prop === 'value' && liteKind === 'gauge-lite') {
         copy.step = 0.5;
         copy.min = (le && le.minValue !== undefined && Number.isFinite(Number(le.minValue))) ? Number(le.minValue) : 0;
@@ -3957,7 +4043,7 @@ window.GroupMappingDialog = {
     const populateProps = (preserveCurrent, updateDomainFromPrimary = false) => {
       const [mType, mId] = (memSel.value || '').split(':');
       const rowIndex = this.targetRows.indexOf(rowRef);
-      const isPrimaryTypeDriver = (rowIndex === 0 && this.targetRows.length <= 1 && !this.isPersisted);
+      const isPrimaryTypeDriver = (rowIndex === 0 && this.targetRows.length <= 1);
       const mKindType = (typeSel && typeSel.value) ? typeSel.value : 'number';
       const supportedProps = getSupportedPropertiesForMember(mType, mId);
       const prevVal = preserveCurrent ? propSel.value : initialProperty;
@@ -4805,6 +4891,9 @@ window.renderWidgetParametersOverview = function(selectionPayload) {
   if (!window._drawerWidgetEventsBound && typeof window.initDrawerWidgetEvents === 'function') {
     window.initDrawerWidgetEvents();
   }
+  if (window.ComponentBuilder && typeof window.ComponentBuilder.renderSection === 'function') {
+    window.ComponentBuilder.renderSection();
+  }
 
   const listEl = document.getElementById('widgetParamsList');
   const countEl = document.getElementById('widgetParamCount');
@@ -5070,6 +5159,11 @@ window.renderWidgetParametersOverview = function(selectionPayload) {
     editBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const target = param.target || '';
+      const isComponentBuilderParam = (!target || target === 'root' || target === 'global') && Array.isArray(param.targets) && param.targets.length > 0;
+      if (isComponentBuilderParam && window.ComponentBuilder && typeof window.ComponentBuilder.open === 'function') {
+        window.ComponentBuilder.open(param);
+        return;
+      }
       if (target && target !== 'root' && target !== 'global') {
         const parts = target.split('-');
         if (parts.length >= 2) {
@@ -5187,12 +5281,27 @@ window.renderWidgetParametersOverview = function(selectionPayload) {
       if (Array.isArray(param.targets) && param.targets.length > 0) {
         param.targets.forEach((tb) => {
           const mTarget = tb.target || tb.Target;
-          const mProp = tb.property || tb.Property;
+          const mProp = tb.property || tb.Property || '';
+          const mWhen = (tb.when !== undefined ? tb.when : tb.When) || '';
+          const mAction = (tb.action !== undefined ? tb.action : tb.Action) || '';
+          const mHasVal = tb.value !== undefined || tb.Value !== undefined;
+          const mVal = tb.value !== undefined ? tb.value : tb.Value;
+          const normWhen = String(mWhen).trim();
+          if (normWhen && normWhen.toLowerCase() !== 'always' && normWhen !== String(val)) {
+            return;
+          }
           const memberEl = (window.SVGWidget && typeof window.SVGWidget.resolveTargetElement === 'function')
             ? window.SVGWidget.resolveTargetElement(svgEl, null, mTarget)
             : svgEl.querySelector(`[data-semantic-target="${mTarget}"], [id="${mTarget}"]`);
-          if (memberEl && window.SVGWidget && typeof window.SVGWidget.applyPropertyToElement === 'function') {
-            const targetVal = ((mProp === 'text' || mProp === 'textContent') && typeof val !== 'string') ? String(val) : val;
+          if (!memberEl || !window.SVGWidget) return;
+          const act = String(mAction).trim().toLowerCase();
+          if (act && act !== 'set' && typeof window.SVGWidget.applyLifecycleAction === 'function') {
+            window.SVGWidget.applyLifecycleAction(memberEl, svgEl, act, false, null);
+            return;
+          }
+          if (typeof window.SVGWidget.applyPropertyToElement === 'function') {
+            const effVal = (mHasVal && mVal !== null) ? mVal : val;
+            const targetVal = ((mProp === 'text' || mProp === 'textContent') && typeof effVal !== 'string') ? String(effVal) : effVal;
             window.SVGWidget.applyPropertyToElement(memberEl, mProp, targetVal, Object.assign({}, param, { target: mTarget, property: mProp }), null);
           }
         });

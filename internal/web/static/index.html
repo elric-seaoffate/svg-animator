@@ -4029,6 +4029,20 @@
               </div>
             </div>
 
+            <!-- SECTION 0B: COMPONENT BUILDER — MULTI-ACTION COMPONENT PROPERTIES (STAGE 16F, NO GROUP REQUIRED) -->
+            <div id="componentBuilderSection" style="margin-bottom: 0.75rem; background: #161b22; border: 1px solid #3fb950; border-radius: 6px; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 4px;">
+                <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #7ee787; letter-spacing: 0.04em;">⚡ Component Builder (<strong id="cbParamCountBadge">0</strong>)</span>
+                <button type="button" class="btn btn-primary btn-sm" id="btnOpenComponentBuilderModal" style="font-size: 0.68rem; padding: 3px 8px; background: #238636; border-color: #3fb950; color: #fff; font-weight: 600;" title="Create an exposed component property that drives multiple independent objects and animations without grouping">+ New Component Property</button>
+              </div>
+              <div style="font-size: 0.70rem; color: #8b949e; margin-bottom: 6px;">
+                Expose arbitrary named properties (e.g. <code>MouseOver</code>) that control multiple independent objects and animations across the canvas — <strong>no group required</strong>.
+              </div>
+              <div id="componentBuilderParamsList" style="display: flex; flex-direction: column; gap: 5px; max-height: 220px; overflow-y: auto;">
+                <div style="font-size: 0.72rem; color: #8b949e; text-align: center; padding: 6px 0; font-style: italic;">No multi-action component properties configured yet.</div>
+              </div>
+            </div>
+
             <!-- SECTION 1: SELECTED OBJECT CONTROLS -->
             <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #58a6ff; letter-spacing: 0.04em; margin-bottom: 4px;">
               🎯 Selected Object Controls
@@ -4890,6 +4904,120 @@
     </div>
   </div>
 
+  <!-- COMPONENT BUILDER MODAL (STAGE 16F — MULTI-ACTION STATE MAPPINGS WITHOUT GROUPING) -->
+  <div id="componentBuilderModal" class="modal-overlay" style="display: none; z-index: 2150;">
+    <div class="modal-content" style="width: 960px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 24px 52px rgba(0,0,0,0.82);">
+      <div class="modal-header" style="padding: 0.85rem 1.2rem; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; background: #161b22; border-radius: 10px 10px 0 0;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <h3 id="cbModalTitle" style="margin: 0; font-size: 1.02rem; color: #7ee787; display: flex; align-items: center; gap: 0.45rem;">⚡ Component Builder — Multi-Action Property Editor</h3>
+          <span style="font-size: 0.73rem; color: #8b949e;">Create arbitrary named properties (e.g. <code>MouseOver</code>) that drive multiple unrelated canvas objects and animations — <strong>no grouping required</strong>.</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" id="btnCbModalNewProp" style="background: #21262d; border: 1px solid #3fb950; color: #7ee787; font-size: 0.74rem; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 600;">+ New Property</button>
+          <button type="button" class="floating-editor-close-btn" id="btnCbModalClose" title="Close Component Builder">&times;</button>
+        </div>
+      </div>
+
+      <div class="modal-body" style="padding: 1rem 1.2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.8rem; color: #c9d1d9;">
+        <!-- 1. Identity & Type Configuration -->
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.65rem;">
+          <div style="display: grid; grid-template-columns: 1.2fr 1.2fr 0.9fr 1fr; gap: 0.75rem;">
+            <div>
+              <label for="cbModalNameInput" style="display: block; font-size: 0.73rem; font-weight: 600; color: #c9d1d9; margin-bottom: 4px;">Exposed Property Name <span style="color:#f85149;">*</span></label>
+              <input type="text" id="cbModalNameInput" placeholder="e.g. MouseOver, AlertState" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; color: #7ee787; border-radius: 5px; font-size: 0.8rem; font-family: ui-monospace, monospace; font-weight: 600;">
+            </div>
+            <div>
+              <label for="cbModalLabelInput" style="display: block; font-size: 0.73rem; font-weight: 600; color: #c9d1d9; margin-bottom: 4px;">Display Label</label>
+              <input type="text" id="cbModalLabelInput" placeholder="e.g. Mouse Over State" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; font-size: 0.78rem;">
+            </div>
+            <div>
+              <label for="cbModalTypeSelect" style="display: block; font-size: 0.73rem; font-weight: 600; color: #c9d1d9; margin-bottom: 4px;">Property Type</label>
+              <select id="cbModalTypeSelect" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #388bfd; color: #79c0ff; border-radius: 5px; font-size: 0.78rem; font-weight: 600;">
+                <option value="boolean">Boolean (True / False)</option>
+                <option value="enum">Choice / Enum (States)</option>
+                <option value="number">Number (Range)</option>
+                <option value="color">Colour (Hex)</option>
+                <option value="text">Text (String)</option>
+              </select>
+            </div>
+            <div>
+              <label for="cbModalDefaultInput" style="display: block; font-size: 0.73rem; font-weight: 600; color: #c9d1d9; margin-bottom: 4px;">Default Value <span style="color:#f85149;">*</span></label>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <select id="cbModalDefaultBoolSelect" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; font-size: 0.78rem;">
+                  <option value="false">false (Inactive / Normal)</option>
+                  <option value="true">true (Active)</option>
+                </select>
+                <input type="color" id="cbModalDefaultColorPicker" value="#38bdf8" style="display: none; width: 34px; height: 30px; padding: 0; border: 1px solid #30363d; background: transparent; border-radius: 4px; cursor: pointer;">
+                <input type="text" id="cbModalDefaultInput" value="false" style="display: none; flex: 1; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; font-size: 0.78rem;">
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 0.75rem; align-items: center;">
+            <div>
+              <label for="cbModalDescInput" style="display: block; font-size: 0.72rem; font-weight: 600; color: #8b949e; margin-bottom: 3px;">Description</label>
+              <input type="text" id="cbModalDescInput" placeholder="Describe what this exposed property controls across the widget..." style="width: 100%; padding: 5px 8px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; font-size: 0.76rem;">
+            </div>
+            <div id="cbModalHoverTriggerWrap" style="padding-top: 14px;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #79c0ff; cursor: pointer; background: rgba(56,139,253,0.1); border: 1px solid rgba(56,139,253,0.35); padding: 5px 9px; border-radius: 5px;">
+                <input type="checkbox" id="cbModalHoverTriggerChk" style="accent-color: #388bfd;">
+                <span>🖱️ Also trigger automatically on mouse hover (<code>mouseenter</code>/<code>mouseleave</code>)</span>
+              </label>
+            </div>
+            <div id="cbModalNumericConstraintsWrap" style="display: none; grid-template-columns: 1fr 1fr 0.8fr; gap: 6px;">
+              <div>
+                <label style="display: block; font-size: 0.68rem; color: #8b949e;">Min</label>
+                <input type="number" id="cbModalMinInput" value="0" step="any" style="width: 100%; padding: 5px 6px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; font-size: 0.76rem;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.68rem; color: #8b949e;">Max</label>
+                <input type="number" id="cbModalMaxInput" value="100" step="any" style="width: 100%; padding: 5px 6px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; font-size: 0.76rem;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.68rem; color: #8b949e;">Unit</label>
+                <input type="text" id="cbModalUnitInput" placeholder="e.g. %" style="width: 100%; padding: 5px 6px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; font-size: 0.76rem;">
+              </div>
+            </div>
+            <div id="cbModalEnumOptionsWrap" style="display: none;">
+              <label style="display: block; font-size: 0.70rem; color: #8b949e; margin-bottom: 2px;">Allowed Choices (comma-separated)</label>
+              <input type="text" id="cbModalOptionsInput" value="normal, warning, critical" placeholder="e.g. normal, hover, active" style="width: 100%; padding: 5px 8px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; font-size: 0.76rem;">
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. State Branch Tabs & Multi-Action Mapping Table -->
+        <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.65rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div id="cbModalBranchTabs" style="display: flex; gap: 6px; align-items: center;"></div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" id="btnCbAutoFillFalseBranch" style="background: rgba(56,139,253,0.14); border: 1px solid #388bfd; color: #79c0ff; font-size: 0.73rem; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 600;" title="Automatically populate When FALSE actions to restore the current canvas default values and stop/reset animations">✨ Auto-Fill False Actions from Canvas Defaults</button>
+              <button type="button" id="btnCbAddActionRow" style="background: #238636; border: 1px solid #3fb950; color: #fff; font-size: 0.74rem; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-weight: 600;">+ Add Target Action</button>
+            </div>
+          </div>
+
+          <div id="cbModalBranchHelpText" style="font-size: 0.72rem; color: #8b949e;">
+            Actions execute deterministically in top-to-bottom order whenever this state branch becomes active. Any canvas object can be targeted without grouping.
+          </div>
+
+          <!-- Action Rows Container -->
+          <div id="cbModalActionsList" style="display: flex; flex-direction: column; gap: 7px; min-height: 90px; max-height: 290px; overflow-y: auto; padding-right: 2px;"></div>
+        </div>
+
+        <!-- 3. Validation, Live Preview Test & Save Row -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.7rem 0.9rem;">
+          <div id="cbModalValidationBox" style="flex: 1; font-size: 0.76rem; color: #8b949e;">
+            Configure property name and add one or more target actions to save.
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCbModalTestTrue" style="padding: 6px 11px; font-size: 0.74rem; color: #79c0ff; border-color: #388bfd;" title="Preview When TRUE / active actions live on the Studio canvas">▶ Test on Canvas</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCbModalCancel" style="padding: 7px 13px; font-size: 0.76rem;">Cancel</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnCbModalSave" style="padding: 7px 16px; font-size: 0.78rem; background: #238636; border-color: #3fb950; color: #fff; font-weight: 600;">💾 Save Component Property</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Studio Non-Blocking Notification / Toast Container -->
   <div id="studioNotificationContainer" class="studio-notification-container" aria-live="polite"></div>
 
@@ -4919,6 +5047,7 @@
   <script src="js/context-editor.js?v=6.0"></script>
   <script src="js/app.js?v=6.0"></script>
   <script src="js/component-library.js?v=6.0"></script>
+  <script src="js/component-builder.js?v=6.0"></script>
   <script src="js/still-export-modal.js?v=6.0"></script>
   <script src="js/export-modal.js?v=6.0"></script>
 </body>

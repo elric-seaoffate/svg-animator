@@ -2,8 +2,8 @@
   "contractVersion": 1,
   "runtimeName": "svg-widget.js",
   "runtimeVersion": "1.2.1",
-  "sourceCommit": "38f2159d3f63433a48191daf083a9ba76e8ee7e7",
-  "runtimeSha256": "93297decab3e5636f693f00a5bd531f51d3ae3b83b86c29cb84e0eaa374ed9fb",
+  "sourceCommit": "4337eb3fdc60118276a68c4c10c07f4ff0f293bc",
+  "runtimeSha256": "3bc59925a7aa4c36aec54d953079a7fd1b4d9d1045757abddca84102a6d00d06",
   "supportedManifestSchemas": [
     1
   ],
@@ -20,6 +20,13 @@
         "color"
       ]
     },
+    "bgOpacity": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 1
+    },
     "borderColor": {
       "types": [
         "color"
@@ -32,10 +39,24 @@
       "min": 0,
       "max": 100
     },
+    "clearDuration": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 30
+    },
     "color": {
       "types": [
         "color"
       ]
+    },
+    "curvature": {
+      "types": [
+        "number"
+      ],
+      "min": -100,
+      "max": 100
     },
     "dashLength": {
       "types": [
@@ -43,6 +64,13 @@
       ],
       "min": 2,
       "max": 400
+    },
+    "delay": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 60
     },
     "direction": {
       "types": [
@@ -64,10 +92,30 @@
       "min": 20,
       "max": 1500
     },
+    "endDelay": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 60
+    },
+    "endMode": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
     "fill": {
       "types": [
         "color"
       ]
+    },
+    "fontSize": {
+      "types": [
+        "number"
+      ],
+      "min": 8,
+      "max": 120
     },
     "gapLength": {
       "types": [
@@ -76,6 +124,13 @@
       "min": 2,
       "max": 300
     },
+    "holdDelay": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 30
+    },
     "intensity": {
       "types": [
         "number"
@@ -83,16 +138,51 @@
       "min": 0,
       "max": 1
     },
+    "labelText": {
+      "types": [
+        "text",
+        "number"
+      ]
+    },
+    "letterSpacing": {
+      "types": [
+        "number"
+      ],
+      "min": -2,
+      "max": 20
+    },
     "lineGapRatio": {
       "types": [
         "text",
         "enum"
       ]
     },
+    "lineSpacing": {
+      "types": [
+        "number"
+      ],
+      "min": 0.8,
+      "max": 3
+    },
+    "linesPerSec": {
+      "types": [
+        "number",
+        "speed"
+      ],
+      "min": 0.1,
+      "max": 20
+    },
     "maxValue": {
       "types": [
         "number"
       ]
+    },
+    "minScale": {
+      "types": [
+        "number"
+      ],
+      "min": 0.05,
+      "max": 2
     },
     "minValue": {
       "types": [
@@ -111,6 +201,13 @@
         "enum",
         "text"
       ]
+    },
+    "padding": {
+      "types": [
+        "number"
+      ],
+      "min": 0,
+      "max": 60
     },
     "pauseSeconds": {
       "types": [
@@ -164,6 +261,13 @@
       "min": 0.2,
       "max": 60
     },
+    "rings": {
+      "types": [
+        "number"
+      ],
+      "min": 1,
+      "max": 6
+    },
     "samples": {
       "types": [
         "text"
@@ -184,6 +288,12 @@
       "min": 10,
       "max": 600
     },
+    "segmentStyle": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
     "segments": {
       "types": [
         "number"
@@ -203,6 +313,12 @@
       ],
       "min": 0,
       "max": 30
+    },
+    "startMode": {
+      "types": [
+        "enum",
+        "text"
+      ]
     },
     "startOffset": {
       "types": [
@@ -236,6 +352,12 @@
         "speed"
       ]
     },
+    "textAnim": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
     "textContent": {
       "types": [
         "text",
@@ -251,6 +373,17 @@
       "min": 0,
       "max": 1000000
     },
+    "typeMode": {
+      "types": [
+        "enum",
+        "text"
+      ]
+    },
+    "typeRepeat": {
+      "types": [
+        "boolean"
+      ]
+    },
     "typeSpeed": {
       "types": [
         "number",
@@ -258,6 +391,11 @@
       ],
       "min": 1,
       "max": 120
+    },
+    "unit": {
+      "types": [
+        "text"
+      ]
     },
     "value": {
       "types": [
