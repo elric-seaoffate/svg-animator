@@ -137,21 +137,198 @@
       padding: 4px 8px;
       border-radius: 5px;
     }
+    .event-banner {
+      background: var(--card);
+      border: 1px solid #2563eb;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 22px;
+    }
+    .event-banner h2 {
+      margin: 0 0 4px;
+      font-size: 16.5px;
+      color: #60a5fa;
+    }
+    .event-banner p.sub {
+      margin: 0 0 14px;
+      font-size: 12.8px;
+      color: var(--muted);
+    }
+    .event-grid-6 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .event-card {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .event-card h3 {
+      margin: 0;
+      font-size: 13.5px;
+      color: #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .event-card p {
+      margin: 0;
+      font-size: 11.8px;
+      color: var(--muted);
+    }
+    .event-chip {
+      font-family: ui-monospace, monospace;
+      font-size: 10.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.14);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .event-stage {
+      background: #04070e;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.15s ease;
+    }
+    .event-stage:focus {
+      border-color: #38bdf8;
+      outline: none;
+    }
+    .event-stage svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .code-snippet {
+      font-family: ui-monospace, monospace;
+      font-size: 10.8px;
+      background: #050811;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+      padding: 6px 8px;
+      color: #93c5fd;
+      overflow-x: auto;
+      white-space: pre;
+    }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>⚡ Stage 16F — Widget / Component Builder &amp; Multi-Action State Mappings</h1>
-      <p>Single exposed component properties controlling multiple independent canvas objects and animation lifecycles — <strong>zero grouping required</strong>.</p>
+      <h1>⚡ Stage 16F — Widget / Component Builder &amp; Browser Event Integration Showcase</h1>
+      <p>Single exposed component properties controlling multiple independent canvas objects and animation lifecycles — driven by <strong>common browser events</strong> or host JavaScript with <strong>zero grouping required</strong>.</p>
     </div>
     <div class="badge-row">
+      <span class="badge green">✓ Common Browser Events (Hover / Click / Press / Focus / Wheel / Pointer)</span>
       <span class="badge green">✓ Ungrouped Multi-Action Mappings</span>
-      <span class="badge">✓ 62 Verified Low-Load &amp; Object Properties</span>
-      <span class="badge">✓ Atomic Two-Phase Validation</span>
+      <span class="badge">✓ 62 Verified Properties</span>
       <span class="badge green">✓ Digital Twin 11B-2 Compatible</span>
     </div>
   </header>
+
+  <!-- COMMON BROWSER EVENTS INTERACTIVE PLAYGROUND -->
+  <div class="event-banner" id="sec-browser-events">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+      <div>
+        <h2>🖱️ Common Browser Events Playground — Real-World DOM Event Wiring</h2>
+        <p class="sub" style="margin-bottom:0;">Interact directly with the 6 live SVG widgets below using your mouse, trackpad, or keyboard. Each card demonstrates one of the most common browser events used with SVG Animator components.</p>
+      </div>
+      <span class="readout" id="global-event-feed">Last Browser Event: Ready — interact with any widget below</span>
+    </div>
+
+    <div class="event-grid-6">
+      <!-- Event 1: Mouse Hover (mouseenter / mouseleave) -->
+      <div class="event-card" id="card-evt-hover">
+        <h3><span>1. Mouse Hover</span> <span class="event-chip">mouseenter / mouseleave</span></h3>
+        <p>Move your pointer into and out of the button. Built-in <code>eventTrigger: "hover"</code> sets <code>MouseOver = true/false</code> automatically.</p>
+        <div class="event-stage" id="mount-evt-hover"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="readout" id="readout-evt-hover">MouseOver: false</span>
+          <span style="font-size:11px; color:#64748b;">Hover over SVG</span>
+        </div>
+        <div class="code-snippet">el.addEventListener('mouseenter', () =&gt; w.setParameter('MouseOver', true));
+el.addEventListener('mouseleave', () =&gt; w.setParameter('MouseOver', false));</div>
+      </div>
+
+      <!-- Event 2: Click Toggle (click) -->
+      <div class="event-card" id="card-evt-click">
+        <h3><span>2. Click Toggle</span> <span class="event-chip">click</span></h3>
+        <p>Click anywhere on the widget to latch <code>ArmedState</code> on/off (`eventTrigger: "click"`). Toggles text, colours, and perimeter tracer.</p>
+        <div class="event-stage" id="mount-evt-click"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="readout" id="readout-evt-click">ArmedState: false</span>
+          <span style="font-size:11px; color:#64748b;">Click SVG to toggle</span>
+        </div>
+        <div class="code-snippet">el.addEventListener('click', () =&gt; {
+  w.setParameter('ArmedState', !w.getParameter('ArmedState'));
+});</div>
+      </div>
+
+      <!-- Event 3: Momentary Press & Hold (pointerdown / pointerup) -->
+      <div class="event-card" id="card-evt-press">
+        <h3><span>3. Press &amp; Hold</span> <span class="event-chip">pointerdown / pointerup</span></h3>
+        <p>Press and hold the mouse button on the widget (`eventTrigger: "press"`). Activates while held; releases cleanly on `pointerup`.</p>
+        <div class="event-stage" id="mount-evt-press"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="readout" id="readout-evt-press">PTTActive: false</span>
+          <span style="font-size:11px; color:#64748b;">Hold mouse button down</span>
+        </div>
+        <div class="code-snippet">el.addEventListener('pointerdown', () =&gt; w.setParameter('PTTActive', true));
+el.addEventListener('pointerup', () =&gt; w.setParameter('PTTActive', false));</div>
+      </div>
+
+      <!-- Event 4: Keyboard Focus & Keydown (focus / blur / Space / Enter) -->
+      <div class="event-card" id="card-evt-focus">
+        <h3><span>4. Keyboard Focus &amp; Key</span> <span class="event-chip">focus / blur / keydown</span></h3>
+        <p>Click or <strong>Tab</strong> into this widget (`eventTrigger: "focus"`), or press <strong>Space / Enter</strong> while focused to toggle state.</p>
+        <div class="event-stage" id="mount-evt-focus" tabindex="0"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="readout" id="readout-evt-focus">Focused: false</span>
+          <span style="font-size:11px; color:#64748b;">Click/Tab + Space/Enter</span>
+        </div>
+        <div class="code-snippet">el.addEventListener('focus', () =&gt; w.setParameter('Focused', true));
+el.addEventListener('blur', () =&gt; w.setParameter('Focused', false));</div>
+      </div>
+
+      <!-- Event 5: Double-Click Cycle (dblclick / contextmenu) -->
+      <div class="event-card" id="card-evt-dblclick">
+        <h3><span>5. Double-Click Mode</span> <span class="event-chip">dblclick</span></h3>
+        <p><strong>Double-click</strong> the widget to cycle <code>OperatingMode</code> (`normal` → `warning` → `critical`), or right-click to reset to `normal`.</p>
+        <div class="event-stage" id="mount-evt-dblclick"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="readout" id="readout-evt-dblclick">OperatingMode: normal</span>
+          <span style="font-size:11px; color:#64748b;">Double-click SVG</span>
+        </div>
+        <div class="code-snippet">el.addEventListener('dblclick', () =&gt; {
+  w.setParameter('OperatingMode', nextMode());
+});</div>
+      </div>
+
+      <!-- Event 6: Mouse Wheel & Pointer Move Scrubbing (wheel / pointermove) -->
+      <div class="event-card" id="card-evt-wheel">
+        <h3><span>6. Wheel &amp; Pointer Scrub</span> <span class="event-chip">wheel / pointermove</span></h3>
+        <p>Scroll your <strong>mouse wheel</strong> over the gauge (or drag horizontally across the bar) to drive <code>ThermalLoad</code> (`0..100%`).</p>
+        <div class="event-stage" id="mount-evt-wheel"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="readout" id="readout-evt-wheel">ThermalLoad: 42%</span>
+          <span style="font-size:11px; color:#64748b;">Scroll wheel or drag on SVG</span>
+        </div>
+        <div class="code-snippet">el.addEventListener('wheel', (e) =&gt; {
+  e.preventDefault();
+  w.setParameter('ThermalLoad', clamp(cur - Math.sign(e.deltaY)*5));
+});</div>
+      </div>
+    </div>
+  </div>
 
   <div class="grid-2">
     <!-- DEMO 1: Primary Required Acceptance Example — MouseOver Button (No Group Required) -->
@@ -588,6 +765,175 @@
         w6b.setParameter('MouseOver', next);
         document.getElementById('readout-d6b').textContent = `Beta: ${next}`;
       });
+
+      // =======================================================================
+      // COMMON BROWSER EVENTS PLAYGROUND (6 Interactive Event Cards)
+      // =======================================================================
+      const feedEl = document.getElementById('global-event-feed');
+      const logEventFeed = (msg) => {
+        if (feedEl) feedEl.textContent = `Last Browser Event: ${msg}`;
+      };
+
+      const makeActionButtonSVG = (paramName, defaultText, activeText, triggerType) => `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 100" width="360" height="100">
+          <style>
+            @keyframes sva-lite-trace-cw {
+              from { stroke-dashoffset: 0; }
+              to { stroke-dashoffset: -1000; }
+            }
+            .sva-lite-trace-cw {
+              animation-name: sva-lite-trace-cw;
+              animation-timing-function: linear;
+              animation-iteration-count: infinite;
+            }
+          </style>
+          <rect width="360" height="100" rx="12" fill="#070b14" stroke="#1e293b" stroke-width="1.5"/>
+          <g id="lite-1" class="diagram-lite-instance" data-lite-id="1" data-lite-kind="text-lite" data-semantic-target="lite-1"
+             data-text-content="${defaultText}" data-text-color="#f8fafc" data-text-bg-color="#0f172a" data-text-bg-opacity="0.9"
+             data-text-border-color="#334155" data-text-border-width="1.5" data-text-font-size="16" data-text-padding="10"
+             data-text-x="20" data-text-y="20" data-text-w="240" data-text-h="60" data-text-cx="140" data-text-cy="50">
+            <rect class="lite-text-box" x="20" y="20" width="240" height="60" rx="10" fill="#0f172a" fill-opacity="0.9" stroke="#334155" stroke-width="1.5"/>
+            <text class="lite-text-element" x="140" y="55" text-anchor="middle" fill="#f8fafc" font-size="16" font-weight="700" font-family="Inter, sans-serif">${defaultText}</text>
+          </g>
+          <g id="node-1" class="diagram-node-instance" data-node-id="1" data-semantic-target="node-1">
+            <circle cx="310" cy="50" r="22" fill="#334155" stroke="#64748b" stroke-width="2"/>
+          </g>
+          <g id="lite-2" class="diagram-lite-instance" data-lite-id="2" data-lite-kind="perimeter-tracer" data-semantic-target="lite-2" data-lite-play="false">
+            <rect class="lite-payload sva-lite-trace-cw" x="18" y="18" width="324" height="64" rx="11" fill="none" stroke="#38bdf8" stroke-width="3"
+                  pathLength="1000" stroke-dasharray="180 320" style="animation-duration: 1.8s; animation-name: sva-lite-trace-cw;"/>
+          </g>
+          <script type="application/json" id="sva-widget-manifest">{
+            "schemaVersion": 1,
+            "parameters": [
+              {
+                "name": "${paramName}",
+                "type": "boolean",
+                "target": "root",
+                "property": "color",
+                "default": false,
+                "eventTrigger": "${triggerType}",
+                "targets": [
+                  { "target": "lite-1", "property": "text", "when": "true", "action": "set", "value": "${activeText}" },
+                  { "target": "lite-1", "property": "color", "when": "true", "action": "set", "value": "#38bdf8" },
+                  { "target": "lite-1", "property": "bgColor", "when": "true", "action": "set", "value": "#1e3a8a" },
+                  { "target": "node-1", "property": "fill", "when": "true", "action": "set", "value": "#22c55e" },
+                  { "target": "lite-2", "property": "play", "when": "true", "action": "play" },
+                  { "target": "lite-1", "property": "text", "when": "false", "action": "set", "value": "${defaultText}" },
+                  { "target": "lite-1", "property": "color", "when": "false", "action": "set", "value": "#f8fafc" },
+                  { "target": "lite-1", "property": "bgColor", "when": "false", "action": "set", "value": "#0f172a" },
+                  { "target": "node-1", "property": "fill", "when": "false", "action": "set", "value": "#334155" },
+                  { "target": "lite-2", "property": "play", "when": "false", "action": "stop_reset" }
+                ]
+              }
+            ]
+          }<\/script>
+        </svg>
+      `;
+
+      // 1. Hover Event Card (mouseenter / mouseleave via built-in eventTrigger: "hover")
+      const wEvtHover = SVGWidget.mount('#mount-evt-hover', makeActionButtonSVG('MouseOver', 'HOVER OVER ME', 'HOVER ACTIVE', 'hover'), { instanceId: 'evt_hover' });
+      window.demoInstances.evtHover = wEvtHover;
+      wEvtHover.on('change', (ev) => {
+        if (ev.parameters && ev.parameters.MouseOver !== undefined) {
+          const v = ev.parameters.MouseOver;
+          document.getElementById('readout-evt-hover').textContent = `MouseOver: ${v}`;
+          logEventFeed(`${v ? 'mouseenter' : 'mouseleave'} -> MouseOver = ${v}`);
+        }
+      });
+
+      // 2. Click Toggle Event Card (click via built-in eventTrigger: "click")
+      const wEvtClick = SVGWidget.mount('#mount-evt-click', makeActionButtonSVG('ArmedState', 'CLICK TO ARM', 'SYSTEM ARMED', 'click'), { instanceId: 'evt_click' });
+      window.demoInstances.evtClick = wEvtClick;
+      wEvtClick.on('change', (ev) => {
+        if (ev.parameters && ev.parameters.ArmedState !== undefined) {
+          const v = ev.parameters.ArmedState;
+          document.getElementById('readout-evt-click').textContent = `ArmedState: ${v}`;
+          logEventFeed(`click -> ArmedState = ${v}`);
+        }
+      });
+
+      // 3. Press & Hold Event Card (pointerdown / pointerup via built-in eventTrigger: "press")
+      const wEvtPress = SVGWidget.mount('#mount-evt-press', makeActionButtonSVG('PTTActive', 'HOLD TO TRANSMIT', 'TRANSMITTING...', 'press'), { instanceId: 'evt_press' });
+      window.demoInstances.evtPress = wEvtPress;
+      wEvtPress.on('change', (ev) => {
+        if (ev.parameters && ev.parameters.PTTActive !== undefined) {
+          const v = ev.parameters.PTTActive;
+          document.getElementById('readout-evt-press').textContent = `PTTActive: ${v}`;
+          logEventFeed(`${v ? 'pointerdown' : 'pointerup'} -> PTTActive = ${v}`);
+        }
+      });
+
+      // 4. Keyboard Focus & Keydown Card (focus / blur / keydown Space or Enter)
+      const wEvtFocus = SVGWidget.mount('#mount-evt-focus', makeActionButtonSVG('Focused', 'TAB / CLICK FOCUS', 'FOCUSED (SPACE/ENTER)', 'focus'), { instanceId: 'evt_focus' });
+      window.demoInstances.evtFocus = wEvtFocus;
+      const focusHost = document.getElementById('mount-evt-focus');
+      focusHost.addEventListener('focus', () => wEvtFocus.setParameter('Focused', true));
+      focusHost.addEventListener('blur', () => wEvtFocus.setParameter('Focused', false));
+      focusHost.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          const next = !wEvtFocus.getParameter('Focused');
+          wEvtFocus.setParameter('Focused', next);
+          logEventFeed(`keydown(${e.key === ' ' ? 'Space' : 'Enter'}) -> Focused = ${next}`);
+        }
+      });
+      wEvtFocus.on('change', (ev) => {
+        if (ev.parameters && ev.parameters.Focused !== undefined) {
+          const v = ev.parameters.Focused;
+          document.getElementById('readout-evt-focus').textContent = `Focused: ${v}`;
+          logEventFeed(`${v ? 'focus' : 'blur'} -> Focused = ${v}`);
+        }
+      });
+
+      // 5. Double-Click & Contextmenu Mode Card (dblclick / contextmenu)
+      const wEvtDbl = SVGWidget.mount('#mount-evt-dblclick', demo5SVG, { instanceId: 'evt_dbl' });
+      window.demoInstances.evtDbl = wEvtDbl;
+      const dblHost = document.getElementById('mount-evt-dblclick');
+      const modes = ['normal', 'warning', 'critical'];
+      dblHost.addEventListener('dblclick', () => {
+        const cur = wEvtDbl.getParameter('OperatingMode') || 'normal';
+        const next = modes[(modes.indexOf(cur) + 1) % modes.length];
+        wEvtDbl.setParameter('OperatingMode', next);
+        document.getElementById('readout-evt-dblclick').textContent = `OperatingMode: ${next}`;
+        logEventFeed(`dblclick -> OperatingMode = "${next}"`);
+      });
+      dblHost.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        wEvtDbl.setParameter('OperatingMode', 'normal');
+        document.getElementById('readout-evt-dblclick').textContent = 'OperatingMode: normal';
+        logEventFeed('contextmenu -> OperatingMode reset to "normal"');
+      });
+
+      // 6. Mouse Wheel & Pointer Move Scrubbing Card (wheel / pointermove)
+      const wEvtWheel = SVGWidget.mount('#mount-evt-wheel', demo4SVG, { instanceId: 'evt_wheel' });
+      window.demoInstances.evtWheel = wEvtWheel;
+      const wheelHost = document.getElementById('mount-evt-wheel');
+      wheelHost.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const cur = Number(wEvtWheel.getParameter('ThermalLoad')) || 0;
+        const delta = e.deltaY < 0 ? 5 : -5;
+        const next = Math.max(0, Math.min(100, cur + delta));
+        wEvtWheel.setParameter('ThermalLoad', next);
+        document.getElementById('readout-evt-wheel').textContent = `ThermalLoad: ${next}%`;
+        logEventFeed(`wheel(deltaY=${Math.round(e.deltaY)}) -> ThermalLoad = ${next}%`);
+      }, { passive: false });
+      let isScrubbing = false;
+      const scrubFromPointer = (e) => {
+        const rect = wheelHost.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
+        const next = Math.round(ratio * 100);
+        wEvtWheel.setParameter('ThermalLoad', next);
+        document.getElementById('readout-evt-wheel').textContent = `ThermalLoad: ${next}%`;
+        logEventFeed(`pointermove -> ThermalLoad = ${next}%`);
+      };
+      wheelHost.addEventListener('pointerdown', (e) => {
+        isScrubbing = true;
+        scrubFromPointer(e);
+      });
+      wheelHost.addEventListener('pointermove', (e) => {
+        if (isScrubbing || e.shiftKey) scrubFromPointer(e);
+      });
+      window.addEventListener('pointerup', () => { isScrubbing = false; });
     });
   </script>
 </body>

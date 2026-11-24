@@ -3683,12 +3683,15 @@
         }
       };
 
-      // 8. Initialize Text Box Lite controllers & apply initial parameters if provided in options or manifest defaults
+      // 8. Initialize Domestic Browser Event Triggers & Text Box Lite controllers
       const hoverCleanups = [];
       if (options.interactiveTriggers !== false && svgEl && typeof svgEl.addEventListener === 'function' && Array.isArray(manifest.parameters)) {
+        let needsFocusableRoot = false;
         for (const p of manifest.parameters) {
-          const trig = (p && (p.eventTrigger || p.EventTrigger || '')).toLowerCase();
-          if (trig === 'hover' && p.type === 'boolean' && p.name) {
+          const trig = (p && (p.eventTrigger || p.EventTrigger || '')).toLowerCase().trim();
+          if (!trig || trig === 'none' || p.type !== 'boolean' || !p.name) continue;
+
+          if (trig === 'hover') {
             const onEnter = () => {
               if (!handle.isDestroyed) {
                 try { handle.setParameter(p.name, true); } catch (e) {}
@@ -3707,7 +3710,91 @@
                 svgEl.removeEventListener('mouseleave', onLeave);
               } catch (e) {}
             });
+          } else if (trig === 'click' || trig === 'click-toggle') {
+            svgEl.style.cursor = 'pointer';
+            const onClick = () => {
+              if (!handle.isDestroyed) {
+                try {
+                  const cur = Boolean(handle.getParameter(p.name));
+                  handle.setParameter(p.name, !cur);
+                } catch (e) {}
+              }
+            };
+            svgEl.addEventListener('click', onClick);
+            hoverCleanups.push(() => {
+              try { svgEl.removeEventListener('click', onClick); } catch (e) {}
+            });
+          } else if (trig === 'press' || trig === 'mousedown' || trig === 'pointerdown') {
+            svgEl.style.cursor = 'pointer';
+            const onDown = () => {
+              if (!handle.isDestroyed) {
+                try { handle.setParameter(p.name, true); } catch (e) {}
+              }
+            };
+            const onUp = () => {
+              if (!handle.isDestroyed && handle.getParameter(p.name) === true) {
+                try { handle.setParameter(p.name, false); } catch (e) {}
+              }
+            };
+            svgEl.addEventListener('pointerdown', onDown);
+            svgEl.addEventListener('pointerup', onUp);
+            svgEl.addEventListener('pointerleave', onUp);
+            svgEl.addEventListener('pointercancel', onUp);
+            svgEl.addEventListener('mousedown', onDown);
+            svgEl.addEventListener('mouseup', onUp);
+            hoverCleanups.push(() => {
+              try {
+                svgEl.removeEventListener('pointerdown', onDown);
+                svgEl.removeEventListener('pointerup', onUp);
+                svgEl.removeEventListener('pointerleave', onUp);
+                svgEl.removeEventListener('pointercancel', onUp);
+                svgEl.removeEventListener('mousedown', onDown);
+                svgEl.removeEventListener('mouseup', onUp);
+              } catch (e) {}
+            });
+          } else if (trig === 'focus') {
+            needsFocusableRoot = true;
+            const onFocus = () => {
+              if (!handle.isDestroyed) {
+                try { handle.setParameter(p.name, true); } catch (e) {}
+              }
+            };
+            const onBlur = () => {
+              if (!handle.isDestroyed) {
+                try { handle.setParameter(p.name, false); } catch (e) {}
+              }
+            };
+            svgEl.addEventListener('focus', onFocus);
+            svgEl.addEventListener('blur', onBlur);
+            svgEl.addEventListener('focusin', onFocus);
+            svgEl.addEventListener('focusout', onBlur);
+            hoverCleanups.push(() => {
+              try {
+                svgEl.removeEventListener('focus', onFocus);
+                svgEl.removeEventListener('blur', onBlur);
+                svgEl.removeEventListener('focusin', onFocus);
+                svgEl.removeEventListener('focusout', onBlur);
+              } catch (e) {}
+            });
+          } else if (trig === 'dblclick') {
+            svgEl.style.cursor = 'pointer';
+            const onDblClick = () => {
+              if (!handle.isDestroyed) {
+                try {
+                  const cur = Boolean(handle.getParameter(p.name));
+                  handle.setParameter(p.name, !cur);
+                } catch (e) {}
+              }
+            };
+            svgEl.addEventListener('dblclick', onDblClick);
+            hoverCleanups.push(() => {
+              try { svgEl.removeEventListener('dblclick', onDblClick); } catch (e) {}
+            });
           }
+        }
+        if (needsFocusableRoot && typeof svgEl.hasAttribute === 'function' && !svgEl.hasAttribute('tabindex')) {
+          svgEl.setAttribute('tabindex', '0');
+          if (svgEl.style) svgEl.style.outline = 'none';
         }
       }
 

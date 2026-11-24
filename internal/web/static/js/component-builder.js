@@ -313,8 +313,9 @@
         const hdr = document.createElement('div');
         hdr.style.cssText = 'display: flex; justify-content: space-between; align-items: center; gap: 6px;';
 
-        const hoverBadge = (param.eventTrigger === 'hover')
-          ? '<span style="font-size:0.65rem; background:rgba(56,139,253,0.16); color:#79c0ff; padding:1px 4px; border-radius:3px;" title="Automatically triggers on mouse hover">🖱️ hover</span>'
+        const trigVal = (param.eventTrigger || '').trim();
+        const hoverBadge = trigVal
+          ? `<span style="font-size:0.65rem; background:rgba(56,139,253,0.16); color:#79c0ff; padding:1px 4px; border-radius:3px;" title="Automatically triggers on browser event: ${trigVal}">🖱️ ${trigVal}</span>`
           : '';
         hdr.innerHTML = `
           <div style="display:flex; align-items:center; gap:5px; min-width:0; flex:1; flex-wrap:wrap;">
@@ -470,6 +471,7 @@
       const defIn = document.getElementById('cbModalDefaultInput');
       const descIn = document.getElementById('cbModalDescInput');
       const hoverChk = document.getElementById('cbModalHoverTriggerChk');
+      const trigSel = document.getElementById('cbModalEventTriggerSelect');
       const minIn = document.getElementById('cbModalMinInput');
       const maxIn = document.getElementById('cbModalMaxInput');
       const unitIn = document.getElementById('cbModalUnitInput');
@@ -487,6 +489,7 @@
         if (typeSel) typeSel.value = pType;
         if (descIn) descIn.value = existingParam.description || '';
         if (hoverChk) hoverChk.checked = (existingParam.eventTrigger === 'hover');
+        if (trigSel) trigSel.value = existingParam.eventTrigger || '';
         if (minIn) minIn.value = existingParam.min !== undefined ? existingParam.min : 0;
         if (maxIn) maxIn.value = existingParam.max !== undefined ? existingParam.max : 100;
         if (unitIn) unitIn.value = existingParam.unit || '';
@@ -539,6 +542,7 @@
         if (defIn) defIn.value = 'false';
         if (descIn) descIn.value = 'Controls multiple object colours and animations from one exposed property';
         if (hoverChk) hoverChk.checked = false;
+        if (trigSel) trigSel.value = '';
         if (minIn) minIn.value = '0';
         if (maxIn) maxIn.value = '100';
         if (unitIn) unitIn.value = '';
@@ -1103,6 +1107,7 @@
       const defIn = document.getElementById('cbModalDefaultInput');
       const descIn = document.getElementById('cbModalDescInput');
       const hoverChk = document.getElementById('cbModalHoverTriggerChk');
+      const trigSel = document.getElementById('cbModalEventTriggerSelect');
       const minIn = document.getElementById('cbModalMinInput');
       const maxIn = document.getElementById('cbModalMaxInput');
       const unitIn = document.getElementById('cbModalUnitInput');
@@ -1181,8 +1186,11 @@
         targets,
         description
       };
-      if (type === 'boolean' && hoverChk && hoverChk.checked) {
-        payload.eventTrigger = 'hover';
+      if (type === 'boolean') {
+        const chosenTrig = (trigSel && trigSel.value) ? trigSel.value.trim() : ((hoverChk && hoverChk.checked) ? 'hover' : '');
+        if (chosenTrig) {
+          payload.eventTrigger = chosenTrig;
+        }
       }
       if (type === 'number') {
         const minV = parseFloat(minIn ? minIn.value : '0');

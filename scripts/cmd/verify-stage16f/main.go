@@ -248,9 +248,33 @@ func run() int {
 		const d6bColor = inst.d6b.svgElement.querySelector('[data-semantic-target="lite-1"]').getAttribute('data-text-color');
 		const demo6Ok = (d6aColor === '#38bdf8' && d6bColor === '#f8fafc');
 
+		// Browser Events Playground checks: Hover, Click Toggle, Press & Hold, Focus/Blur, Double-Click, Wheel Scrub
+		inst.evtHover.svgElement.dispatchEvent(new MouseEvent('mouseenter'));
+		const hoverOn = inst.evtHover.getParameter('MouseOver') === true;
+		inst.evtHover.svgElement.dispatchEvent(new MouseEvent('mouseleave'));
+		const hoverOff = inst.evtHover.getParameter('MouseOver') === false;
+
+		inst.evtClick.svgElement.dispatchEvent(new MouseEvent('click'));
+		const clickOn = inst.evtClick.getParameter('ArmedState') === true;
+		inst.evtClick.svgElement.dispatchEvent(new MouseEvent('click'));
+		const clickOff = inst.evtClick.getParameter('ArmedState') === false;
+
+		inst.evtPress.svgElement.dispatchEvent(new MouseEvent('mousedown'));
+		const pressOn = inst.evtPress.getParameter('PTTActive') === true;
+		inst.evtPress.svgElement.dispatchEvent(new MouseEvent('mouseup'));
+		const pressOff = inst.evtPress.getParameter('PTTActive') === false;
+
+		document.getElementById('mount-evt-dblclick').dispatchEvent(new MouseEvent('dblclick'));
+		const dblNext = inst.evtDbl.getParameter('OperatingMode') === 'warning';
+
+		document.getElementById('mount-evt-wheel').dispatchEvent(new WheelEvent('wheel', { deltaY: -100, cancelable: true }));
+		const wheelUp = inst.evtWheel.getParameter('ThermalLoad') === 47;
+
+		const browserEventsOk = hoverOn && hoverOff && clickOn && clickOff && pressOn && pressOff && dblNext && wheelUp;
+
 		return JSON.stringify({
-			ok: demo1Ok && demo2Ok && demo3Ok && demo4Ok && demo5Ok && demo6Ok,
-			demo1Ok, demo2Ok, demo3Ok, demo4Ok, demo5Ok, demo6Ok
+			ok: demo1Ok && demo2Ok && demo3Ok && demo4Ok && demo5Ok && demo6Ok && browserEventsOk,
+			demo1Ok, demo2Ok, demo3Ok, demo4Ok, demo5Ok, demo6Ok, browserEventsOk
 		});
 	})()`
 	rawDemo, err := chromedp.Run(taskCtx, chromedp.Evaluate[string](demoScript))
