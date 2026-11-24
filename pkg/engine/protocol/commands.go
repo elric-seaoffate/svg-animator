@@ -4022,7 +4022,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if cleanSlug == "" {
 			cleanSlug = "widget"
 		}
-		filename := cleanSlug + "-package.zip"
+		filename := cleanSlug + ".zip"
 
 		manifest := &scene.WidgetManifest{
 			SchemaVersion: 1,

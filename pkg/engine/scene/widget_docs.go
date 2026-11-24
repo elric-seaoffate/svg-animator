@@ -450,18 +450,18 @@ func GenerateWidgetReadme(widgetName, svgFilename string, manifest *WidgetManife
 	sb.WriteString("This directory contains a complete, portable, and ready-to-run SVG widget package exported from **SVG Animator Studio**.\n\n")
 
 	sb.WriteString("## Quick Start\n\n")
-	sb.WriteString("1. **Interactive Demo (No-Code):** Double-click `demo.html` in your browser. You can operate three independent live instances immediately with real-time controls.\n")
+	sb.WriteString(fmt.Sprintf("1. **Interactive Demo (No-Code):** Double-click `%s.html` (or `demo.html`) in your browser. You can operate three independent live instances immediately with real-time controls.\n", cleanBase))
 	sb.WriteString(fmt.Sprintf("2. **Standalone Asset:** `%s` is the collision-free SVG file ready to embed in any web application.\n", svgFilename))
-	sb.WriteString(fmt.Sprintf("3. **Properties Guide:** Read `%s-properties.md` for complete parameter specifications, object inventory, and integration code snippets.\n\n", cleanBase))
+	sb.WriteString(fmt.Sprintf("3. **Properties Guide:** Read `%s.md` (or `%s-properties.md`) for complete parameter specifications, object inventory, and integration code snippets.\n\n", cleanBase, cleanBase))
 
 	sb.WriteString("## Package File Index\n\n")
 	sb.WriteString("| File | Purpose |\n")
 	sb.WriteString("|---|---|\n")
 	sb.WriteString(fmt.Sprintf("| `%s` | Isolated, collision-free SVG widget with embedded JSON parameter manifest |\n", svgFilename))
-	sb.WriteString(fmt.Sprintf("| `%s-properties.md` | Authoritative properties guide, object inventory, and developer reference |\n", cleanBase))
-	sb.WriteString("| `widget-manifest.json` | Inspection copy of the validated parameter manifest schema |\n")
-	sb.WriteString("| `demo.html` | Ready-to-run interactive multi-instance no-code control page |\n")
-	sb.WriteString("| `js/svg-widget.js` | Lightweight, dependency-free JavaScript runtime adapter |\n")
+	sb.WriteString(fmt.Sprintf("| `%s.json` / `widget-manifest.json` | Validated parameter manifest schema matching `%s` |\n", cleanBase, cleanBase))
+	sb.WriteString(fmt.Sprintf("| `%s.html` / `demo.html` | Ready-to-run interactive multi-instance no-code control page |\n", cleanBase))
+	sb.WriteString(fmt.Sprintf("| `%s.md` / `%s-properties.md` | Authoritative properties guide, object inventory, and developer reference |\n", cleanBase, cleanBase))
+	sb.WriteString(fmt.Sprintf("| `js/%s.js` / `js/svg-widget.js` | Lightweight, dependency-free JavaScript runtime adapter |\n", cleanBase))
 	sb.WriteString("| `README.md` | This quick start and package index |\n\n")
 
 	paramCount := 0
@@ -973,20 +973,16 @@ func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS
 	if manifest.Parameters == nil {
 		manifest.Parameters = []WidgetParameter{}
 	}
-	if manifest.WidgetName == "" {
-		manifest.WidgetName = cleanBase
-	}
+	// Always synchronize manifest identifiers with the exported base name (e.g. "fleet")
+	manifest.WidgetName = cleanBase
 	if manifest.PackageVersion == "" {
 		manifest.PackageVersion = "1.0.0"
 	}
 	if manifest.MinRuntimeVersion == "" {
 		manifest.MinRuntimeVersion = "1.2.0"
 	}
-	// Keep packageId stable across revisions (slug or componentId) and store per-export digest in contentHash
-	if manifest.PackageId == "" {
-		manifest.PackageId = cleanBase
-	}
-	if manifest.ComponentID == "" {
+	manifest.PackageId = cleanBase
+	if manifest.ComponentID == "" || strings.HasPrefix(manifest.ComponentID, "cmp-") {
 		manifest.ComponentID = "cmp-" + cleanBase
 	}
 	paramJson, _ := json.Marshal(manifest.Parameters)
@@ -1036,11 +1032,15 @@ func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS
 		Content []byte
 	}{
 		{Path: path.Join(cleanBase, svgFilename), Content: []byte(isolatedSVG)},
+		{Path: path.Join(cleanBase, cleanBase+".json"), Content: manifestBytes},
 		{Path: path.Join(cleanBase, "widget-manifest.json"), Content: manifestBytes},
 		{Path: path.Join(cleanBase, "preview.svg"), Content: []byte(previewSVG)},
+		{Path: path.Join(cleanBase, cleanBase+".md"), Content: []byte(guideMarkdown)},
 		{Path: path.Join(cleanBase, guideFilename), Content: []byte(guideMarkdown)},
 		{Path: path.Join(cleanBase, "README.md"), Content: []byte(readmeMarkdown)},
+		{Path: path.Join(cleanBase, cleanBase+".html"), Content: []byte(demoHTML)},
 		{Path: path.Join(cleanBase, "demo.html"), Content: []byte(demoHTML)},
+		{Path: path.Join(cleanBase, "js", cleanBase+".js"), Content: []byte(svgWidgetJS)},
 		{Path: path.Join(cleanBase, "js", "svg-widget.js"), Content: []byte(svgWidgetJS)},
 	}
 

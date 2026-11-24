@@ -3514,7 +3514,7 @@ func TestDispatchWidgetParameters(t *testing.T) {
 	if pkgRes.Size <= 0 || pkgRes.ZipB64 == "" {
 		t.Fatalf("Widget.BuildPackage produced empty zip data")
 	}
-	if pkgRes.Filename != "test-protocol-widget-package.zip" {
+	if pkgRes.Filename != "test-protocol-widget.zip" {
 		t.Errorf("unexpected filename: %s", pkgRes.Filename)
 	}
 }

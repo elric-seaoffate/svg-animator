@@ -740,7 +740,7 @@ func handleExportWidgetPackage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s-package.zip\"", safeFilename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", safeFilename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(zipBytes)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(zipBytes)

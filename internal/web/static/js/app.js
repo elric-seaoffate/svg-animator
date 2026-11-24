@@ -5979,9 +5979,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCleanBaseName() {
+    const exportIn = document.getElementById('widgetExportBaseNameInput');
+    if (exportIn && exportIn.value && exportIn.value.trim()) {
+      const cleaned = exportIn.value.trim().replace(/\.(svg|zip|sva|html|json|md|js|png|webp|mp4)$/i, '').trim();
+      if (cleaned) return cleaned;
+    }
+    const projIn = document.getElementById('projectNameInput');
+    if (projIn && projIn.value && projIn.value.trim() && projIn.value.trim().toLowerCase() !== 'untitled project') {
+      const cleanedProj = projIn.value.trim().replace(/\.(svg|zip|sva)$/i, '').trim();
+      if (cleanedProj) return cleanedProj;
+    }
     if (!currentImage || !currentImage.filename) return 'export';
+    if (currentImage.filename === 'diagram_canvas.svg') return 'widget';
     return currentImage.filename.includes('.') ? currentImage.filename.split('.')[0] : currentImage.filename;
   }
+  window.getCleanBaseName = getCleanBaseName;
 
   function syncVal(id, val) {
     if (window.ControlStateAdaptor) {
@@ -6543,13 +6555,21 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       if (!currentImage || !window.currentRenderState) return;
       const rawSvg = getExportSVG();
-      const instanceId = 'widget-' + (Date.now() % 1000000);
+      const baseName = getCleanBaseName();
+      const cleanSlug = String(baseName || 'widget').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'widget';
+      const instanceId = cleanSlug;
       const rasterPolicy = document.getElementById('widgetExportImagePolicySelect')?.value || '2x';
       let manifest = null;
       if (window.EngineBridge && typeof window.EngineBridge.getWidgetParameters === 'function') {
         const params = window.EngineBridge.getWidgetParameters();
         if (Array.isArray(params) && params.length > 0) {
-          manifest = { schemaVersion: 1, parameters: params };
+          manifest = {
+            schemaVersion: 1,
+            widgetName: cleanSlug,
+            packageId: cleanSlug,
+            componentId: 'cmp-' + cleanSlug,
+            parameters: params
+          };
         }
       }
       const isolatedSvg = (window.SVGExportAdapter && typeof window.SVGExportAdapter.isolateWidget === 'function')
@@ -6563,7 +6583,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = getCleanBaseName() + '_widget.svg';
+      a.download = cleanSlug + '.svg';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -6572,7 +6592,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 150);
 
       if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
-        window.AppCoordinator.showNotification('Reusable SVG Widget exported (ID namespace: ' + instanceId + ')', 'success');
+        window.AppCoordinator.showNotification('Reusable SVG Widget exported: ' + cleanSlug + '.svg (ID namespace: ' + instanceId + ')', 'success');
       }
     } catch (err) {
       if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
@@ -6652,7 +6672,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const a = document.createElement('a');
           a.style.display = 'none';
           a.href = url;
-          a.download = res.filename || (baseName + '-package.zip');
+          a.download = res.filename || (baseName + '.zip');
           document.body.appendChild(a);
           a.click();
           setTimeout(() => {

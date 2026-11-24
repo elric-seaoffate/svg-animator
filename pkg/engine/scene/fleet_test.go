@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/base64"
 	"image/png"
@@ -189,13 +190,68 @@ func TestStage16FFleetWidgetCompatibilityAndOptimisation(t *testing.T) {
 		t.Fatalf("failed writing %s: %v", staticPath, err)
 	}
 
-	zipBytes, err := BuildWidgetPackageZipWithOptions(sc, "fleet1", rawFleet, "// svg-widget.js runtime", "2x")
+	zipBytes, err := BuildWidgetPackageZipWithOptions(sc, "fleet", rawFleet, "// svg-widget.js runtime", "2x")
 	if err != nil {
-		t.Fatalf("BuildWidgetPackageZipWithOptions(fleet1) failed: %v", err)
+		t.Fatalf("BuildWidgetPackageZipWithOptions(fleet) failed: %v", err)
 	}
 	rep := ValidateWidgetPackageDTCompatibility(zipBytes)
 	if !rep.Compatible {
-		t.Fatalf("expected fleet1 widget package to pass DT compatibility, got errors: %v", rep.Errors)
+		t.Fatalf("expected fleet widget package to pass DT compatibility, got errors: %v", rep.Errors)
+	}
+
+	// Verify all fleet.<ext> files and internal references match "fleet" inside the ZIP
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err != nil {
+		t.Fatalf("failed reading fleet zip: %v", err)
+	}
+	expectedZipEntries := map[string]bool{
+		"fleet/fleet.svg":            false,
+		"fleet/fleet.json":           false,
+		"fleet/widget-manifest.json": false,
+		"fleet/fleet.html":           false,
+		"fleet/demo.html":            false,
+		"fleet/fleet.md":             false,
+		"fleet/fleet-properties.md":  false,
+		"fleet/README.md":            false,
+		"fleet/js/fleet.js":          false,
+		"fleet/js/svg-widget.js":     false,
+		"fleet/preview.svg":          false,
+	}
+	for _, f := range zr.File {
+		if _, ok := expectedZipEntries[f.Name]; ok {
+			expectedZipEntries[f.Name] = true
+		}
+		rc, _ := f.Open()
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(rc)
+		rc.Close()
+		body := buf.String()
+		switch f.Name {
+		case "fleet/fleet.svg":
+			if !strings.Contains(body, `id="sva-widget-fleet"`) || !strings.Contains(body, `data-sva-widget-instance="fleet"`) {
+				t.Errorf("fleet/fleet.svg root ID or instance attribute does not match 'fleet'")
+			}
+			if !strings.Contains(body, `"widgetName":"fleet"`) || !strings.Contains(body, `"packageId":"fleet"`) {
+				t.Errorf("fleet/fleet.svg embedded manifest does not match 'fleet'")
+			}
+		case "fleet/fleet.json", "fleet/widget-manifest.json":
+			if !strings.Contains(body, `"widgetName": "fleet"`) || !strings.Contains(body, `"packageId": "fleet"`) {
+				t.Errorf("%s manifest does not match 'fleet': %s", f.Name, body)
+			}
+		case "fleet/fleet.html", "fleet/demo.html":
+			if !strings.Contains(body, `const SVG_FILE = 'fleet.svg';`) || !strings.Contains(body, `href="fleet-properties.md"`) {
+				t.Errorf("%s does not reference fleet.svg / fleet-properties.md", f.Name)
+			}
+		case "fleet/fleet.md", "fleet/fleet-properties.md", "fleet/README.md":
+			if !strings.Contains(body, `fleet.svg`) {
+				t.Errorf("%s does not reference fleet.svg", f.Name)
+			}
+		}
+	}
+	for entry, found := range expectedZipEntries {
+		if !found {
+			t.Errorf("expected zip entry %q in fleet.zip, but it was missing", entry)
+		}
 	}
 
 	// 5. Verify ValidateSafeImageSource rejects XSS / script schemes
