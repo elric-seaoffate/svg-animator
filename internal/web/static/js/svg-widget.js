@@ -44,8 +44,10 @@
 
   /**
    * Scopes CSS rules to the widget root ID and prefixes keyframes.
+   * Strips any pre-existing #sva-widget-* root selector prefix to prevent duplicated root selectors
+   * when re-isolating an already-isolated SVG widget (such as fleet1.svg).
    */
-  function scopeCSSRules(css, rootId, idMap, keyframeMap) {
+  function scopeCSSRules(css, rootId, idMap, keyframeMap, prevRootId) {
     let transformedCSS = css;
 
     // 1. Rename @keyframes definitions and usages
@@ -71,27 +73,57 @@
       return `/*__SVA_KF_BLOCK_${kfBlocks.length - 1}__*/`;
     });
 
+    const reLeadingRootPrefix = /^(?:#sva-widget-[a-zA-Z0-9_-]+\s+)+/;
+    const reExactRootOnly = /^#sva-widget-[a-zA-Z0-9_-]+$/;
+    const rePrevRootPrefix = prevRootId ? new RegExp(`^(?:#${escapeRegex(prevRootId)}\\s+)+`) : null;
+    const rePrevRootExact = prevRootId ? new RegExp(`^#${escapeRegex(prevRootId)}$`) : null;
+
     // 4. Scope remaining rule selectors to #rootId
     const reRule = /([^{}/]+)\{([^{}]+)\}/g;
     let scoped = cssWithoutKF.replace(reRule, (match, rawSel, body) => {
-      const sel = rawSel.trim();
-      if (sel.startsWith('@') || sel.startsWith('/*')) return match;
+      const trimmedRaw = rawSel.trim();
+      if (trimmedRaw.startsWith('/*')) return match;
 
-      const parts = sel.split(',');
+      // Handle @media (...) { innerSelectors { body } } where rawSel includes the @media header
+      let mediaPrefix = '';
+      let selToScope = trimmedRaw;
+      if (trimmedRaw.startsWith('@')) {
+        return match;
+      }
+
+      const parts = selToScope.split(',');
       const scopedParts = [];
       for (let s of parts) {
         let clean = s.trim();
         if (!clean) continue;
 
+        // Strip any pre-existing #sva-widget-* or #prevRootId prefix before remapping child IDs
+        clean = clean.replace(reLeadingRootPrefix, '');
+        if (rePrevRootPrefix) {
+          clean = clean.replace(rePrevRootPrefix, '');
+        }
+        clean = clean.replace(/^\[data-sva-widget-instance(?:=[^\]]*)?\]\s+/, '');
+
+        if (reExactRootOnly.test(clean) || (rePrevRootExact && rePrevRootExact.test(clean))) {
+          scopedParts.push(`#${rootId}`);
+          continue;
+        }
+
         // Replace any #oldId in selector
         for (const [oldId, newId] of Object.entries(idMap)) {
           clean = clean.replace(new RegExp(`#${escapeRegex(oldId)}\\b`, 'g'), `#${newId}`);
         }
-        scopedParts.push(`#${rootId} ${clean}`);
+        // Guard against any accidental leading #rootId duplication
+        clean = clean.replace(reLeadingRootPrefix, '');
+        if (clean === `#${rootId}`) {
+          scopedParts.push(`#${rootId}`);
+        } else {
+          scopedParts.push(`#${rootId} ${clean}`);
+        }
       }
 
       if (scopedParts.length === 0) return match;
-      return `\n    ${scopedParts.join(', ')} {${body}}`;
+      return `${mediaPrefix}\n    ${scopedParts.join(', ')} {${body}}`;
     });
 
     // 5. Restore @keyframes blocks
@@ -105,6 +137,7 @@
   /**
    * Core string/regex-based SVG widget isolator.
    * Works identically in browser DOM and Node.js headless environments.
+   * Safely re-isolates already-isolated SVGs without double-prefixing root selectors or data-*-id attributes.
    */
   function isolateSVGString(rawSvg, options = {}) {
     if (!rawSvg || typeof rawSvg !== 'string') {
@@ -121,19 +154,51 @@
     // transforms do not match '>' characters inside JSON descriptions before re-injecting at the end.
     const embeddedManifestBlocks = [];
     const reManifestScript = new RegExp(/<script\b[^>]*\bid=["'](?:[^"']*__)?sva-widget-manifest["'][^>]*>[\s\S]*?<\//.source + 'script>', 'gi');
-    const svgWithoutManifest = rawSvg.replace(reManifestScript, (block) => {
+    let svgWithoutManifest = rawSvg.replace(reManifestScript, (block) => {
       embeddedManifestBlocks.push(block);
       return '';
     });
 
-    // 1. Scan and collect declared IDs: id="VALUE" or id='VALUE'
+    // 0b. Detect if the input SVG was already isolated with a previous root ID / instance prefix
+    let prevRootId = '';
+    let prevPrefix = '';
+    const firstSvgMatch = /<svg\b([^>]*)>/i.exec(svgWithoutManifest);
+    if (firstSvgMatch && firstSvgMatch[1]) {
+      const rootAttrs = firstSvgMatch[1];
+      const rootIdMatch = /(?:^|\s)id\s*=\s*(["'])([^"']+)\1/i.exec(rootAttrs);
+      if (rootIdMatch && rootIdMatch[2]) {
+        prevRootId = rootIdMatch[2];
+      }
+      const instMatch = /\bdata-sva-widget-instance\s*=\s*(["'])([^"']+)\1/i.exec(rootAttrs);
+      if (instMatch && instMatch[2]) {
+        prevPrefix = `${instMatch[2]}__`;
+      } else if (prevRootId.startsWith('sva-widget-')) {
+        prevPrefix = `${prevRootId.slice('sva-widget-'.length)}__`;
+      }
+    }
+
+    // 0c. Normalize any previously-prefixed data-(lite|node|image|flow|glow|ripple|group)-id attributes
+    if (prevPrefix) {
+      const rePrefixedDataId = new RegExp(`\\b(data-(?:lite|node|image|flow|glow|ripple|group)-id\\s*=\\s*["'])${escapeRegex(prevPrefix)}([^"']+["'])`, 'gi');
+      svgWithoutManifest = svgWithoutManifest.replace(rePrefixedDataId, '$1$2');
+    }
+
+    // 1. Scan and collect declared IDs ONLY on real id="..." attributes (preceded by whitespace, never data-*-id)
     const idMap = {};
-    const reIDDecl = /\bid\s*=\s*(["'])([^"']+)\1/g;
+    const reIDDecl = /(?:^|\s)id\s*=\s*(["'])([^"']+)\1/g;
     let m;
     while ((m = reIDDecl.exec(svgWithoutManifest)) !== null) {
       const oldId = m[2];
-      if (oldId && !idMap[oldId]) {
-        idMap[oldId] = `${prefix}${oldId}`;
+      if (!oldId || oldId === prevRootId) continue;
+      if (!idMap[oldId]) {
+        const baseId = (prevPrefix && oldId.startsWith(prevPrefix))
+          ? oldId.slice(prevPrefix.length)
+          : oldId;
+        const newId = baseId.startsWith(prefix) ? baseId : `${prefix}${baseId}`;
+        idMap[oldId] = newId;
+        if (baseId !== oldId && !idMap[baseId]) {
+          idMap[baseId] = newId;
+        }
       }
     }
 
@@ -143,7 +208,14 @@
     while ((m = reKF.exec(svgWithoutManifest)) !== null) {
       const oldKF = m[1];
       if (oldKF && !keyframeMap[oldKF]) {
-        keyframeMap[oldKF] = `${prefix}${oldKF}`;
+        const baseKF = (prevPrefix && oldKF.startsWith(prevPrefix))
+          ? oldKF.slice(prevPrefix.length)
+          : oldKF;
+        const newKF = baseKF.startsWith(prefix) ? baseKF : `${prefix}${baseKF}`;
+        keyframeMap[oldKF] = newKF;
+        if (baseKF !== oldKF && !keyframeMap[baseKF]) {
+          keyframeMap[baseKF] = newKF;
+        }
       }
     }
 
@@ -151,7 +223,7 @@
     let transformed = svgWithoutManifest.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (match, attrs, css) => {
       let scopedCSS = css;
       if (scopeCss) {
-        scopedCSS = scopeCSSRules(css, rootId, idMap, keyframeMap);
+        scopedCSS = scopeCSSRules(css, rootId, idMap, keyframeMap, prevRootId);
       }
       return `<style${attrs}>${scopedCSS}</style>`;
     });
@@ -165,21 +237,23 @@
 
       if (tagName.toLowerCase() === 'svg' && isFirstSVG) {
         isFirstSVG = false;
-        // Set root ID and instance attribute
-        if (/\bid\s*=\s*["'][^"']*["']/i.test(tagAttrs)) {
-          tagAttrs = tagAttrs.replace(/\bid\s*=\s*["'][^"']*["']/i, `id="${rootId}"`);
+        // Set root ID and instance attribute (only match whitespace-preceded id=, never data-*-id=)
+        if (/(\s)id\s*=\s*["'][^"']*["']/i.test(tagAttrs)) {
+          tagAttrs = tagAttrs.replace(/(\s)id\s*=\s*["'][^"']*["']/i, `$1id="${rootId}"`);
         } else {
           tagAttrs = ` id="${rootId}"` + tagAttrs;
         }
 
-        if (!/data-sva-widget-instance/i.test(tagAttrs)) {
+        if (/\bdata-sva-widget-instance\s*=\s*["'][^"']*["']/i.test(tagAttrs)) {
+          tagAttrs = tagAttrs.replace(/\bdata-sva-widget-instance\s*=\s*["'][^"']*["']/i, `data-sva-widget-instance="${instanceId}"`);
+        } else {
           tagAttrs += ` data-sva-widget-instance="${instanceId}"`;
         }
       } else {
-        // Remap declared id attributes on non-root elements
-        tagAttrs = tagAttrs.replace(/\bid\s*=\s*(["'])([^"']+)\1/g, (match, q, oldId) => {
+        // Remap declared id attributes on non-root elements (preceded by whitespace so data-*-id is untouched)
+        tagAttrs = tagAttrs.replace(/(\s)id\s*=\s*(["'])([^"']+)\2/g, (match, ws, q, oldId) => {
           if (idMap[oldId]) {
-            return `id=${q}${idMap[oldId]}${q}`;
+            return `${ws}id=${q}${idMap[oldId]}${q}`;
           }
           return match;
         });
@@ -336,6 +410,19 @@
         return { valid: true, value: strVal };
       }
       case 'text': {
+        if (paramDef.property === 'src') {
+          const s = String(value).trim();
+          if (!s) {
+            // Empty string means preserve/restore the authored <image href> in the SVG template
+            return { valid: true, value: '' };
+          }
+          const lower = s.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+          if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('file:') ||
+              /[<>"'`]/.test(s) || (lower.startsWith('data:') && !/^data:image\/(?:png|jpeg|jpg|webp|gif|bmp|avif|svg\+xml)[;,]/.test(lower))) {
+            return { valid: false, error: `Unsafe or unsupported image source '${value}' for parameter '${paramDef.name}'.` };
+          }
+          return { valid: true, value: s };
+        }
         if (paramDef.property === 'samples') {
           let tokens = [];
           if (Array.isArray(value)) {
@@ -406,13 +493,13 @@
     }
 
     // 5. Stable entity data attributes (data-node-id, data-flow-id, data-image-id, data-glow-id, data-ripple-id, data-lite-id, data-group-id)
-    el = svgEl.querySelector(`[data-node-id="${targetName}"], [data-flow-id="${targetName}"], [data-image-id="${targetName}"], [data-glow-id="${targetName}"], [data-ripple-id="${targetName}"], [data-lite-id="${targetName}"], [data-group-id="${targetName}"]`);
+    el = svgEl.querySelector(`[data-node-id="${targetName}"], [data-flow-id="${targetName}"], [data-image-id="${targetName}"], [data-glow-id="${targetName}"], [data-ripple-id="${targetName}"], [data-lite-id="${targetName}"], [data-group-id="${targetName}"], [data-semantic-target="image-${targetName}"]`);
     if (el) return el;
 
-    // Stripped prefix fallback (e.g. "node-1" -> "1", "group-1" -> "1")
+    // Stripped prefix fallback (e.g. "node-1" -> "1", "group-1" -> "1", "image-image-1" -> "image-1")
     const strippedId = String(targetName).replace(/^(node|flow|glow|ripple|image|lite|group)-/, '');
     if (strippedId !== targetName) {
-      el = svgEl.querySelector(`[data-node-id="${strippedId}"], [data-flow-id="${strippedId}"], [data-image-id="${strippedId}"], [data-glow-id="${strippedId}"], [data-ripple-id="${strippedId}"], [data-lite-id="${strippedId}"], [data-group-id="${strippedId}"], [data-group-id="group-${strippedId}"]`);
+      el = svgEl.querySelector(`[data-node-id="${strippedId}"], [data-flow-id="${strippedId}"], [data-image-id="${strippedId}"], [data-glow-id="${strippedId}"], [data-ripple-id="${strippedId}"], [data-lite-id="${strippedId}"], [data-group-id="${strippedId}"], [data-group-id="group-${strippedId}"], [data-image-id$="__${strippedId}"], [data-lite-id$="__${strippedId}"]`);
       if (el) return el;
     }
 
@@ -1064,6 +1151,7 @@
     typeRepeat: { type: 'boolean' },
     text: { type: 'text' },
     textContent: { type: 'text' },
+    src: { type: 'text', isImageSrc: true },
     labelText: { type: 'text' },
     unit: { type: 'text' },
     lineGapRatio: { type: 'text' },
@@ -1285,7 +1373,14 @@
                 try { void node.getBoundingClientRect(); } catch (e) {}
                 node.style.visibility = '';
                 node.style.animationPlayState = 'running';
-                node.style.animationName = origInline;
+                if (origInline) {
+                  node.style.animationName = origInline;
+                } else {
+                  node.style.animationName = '';
+                  if (typeof node.style.removeProperty === 'function') {
+                    try { node.style.removeProperty('animation-name'); } catch (e) {}
+                  }
+                }
               }
             }
           }
@@ -2042,19 +2137,24 @@
           }
           const dir = String(value).toLowerCase() === 'ccw' ? 'ccw' : 'cw';
           el.querySelectorAll('.lite-payload').forEach(node => {
-            const curAnim = (node.style && node.style.animationName) || '';
-            const pfxMatch = curAnim.match(/^(.*__)sva-lite-trace-/);
-            const pfx = pfxMatch ? pfxMatch[1] : '';
+            const origAnim = node.getAttribute('data-orig-inline-anim') || (node.style && node.style.animationName) || '';
+            const pfxMatch = origAnim.match(/^(.*__)sva-lite-trace-/);
+            const pfx = pfxMatch ? pfxMatch[1] : ((instance && instance.prefix) || '');
             const entryExit = node.getAttribute('data-entry-exit') || 'none';
             const suffix = entryExit === 'fade' ? '-fade' : (entryExit === 'grow' ? '-grow' : (entryExit === 'fade-grow' ? '-fadegrow' : ''));
             const newTraceName = `${pfx}sva-lite-trace-${dir}${suffix}`;
+            const classTraceName = `sva-lite-trace-${dir}${suffix}`;
             if (node.classList) {
               Array.from(node.classList).forEach(cls => {
                 if (cls.includes('sva-lite-trace-')) node.classList.remove(cls);
               });
-              node.classList.add(newTraceName);
+              node.classList.add(classTraceName);
             }
-            if (node.style) {
+            if (node.hasAttribute('data-orig-inline-anim') && node.getAttribute('data-orig-inline-anim')) {
+              node.setAttribute('data-orig-inline-anim', newTraceName);
+            }
+            const isStopped = el.getAttribute('data-lite-play') === 'false' || el.getAttribute('data-play-animation') === 'false';
+            if (node.style && !isStopped && node.style.animationName && node.style.animationName !== 'none') {
               node.style.animationName = newTraceName;
             }
             node.setAttribute('data-direction', dir);
@@ -2522,6 +2622,30 @@
           el.setAttribute('data-lite-segment-style', ss);
           el.querySelectorAll('.lite-payload').forEach((node) => {
             node.setAttribute('stroke-linecap', (ss === 'rounded' || ss === 'dots') ? 'round' : 'butt');
+          });
+        }
+        break;
+      }
+      case 'src': {
+        if (el) {
+          const srcStr = String(value || '').trim();
+          const imgNodes = (el.tagName && el.tagName.toLowerCase() === 'image')
+            ? [el]
+            : Array.from(typeof el.querySelectorAll === 'function' ? el.querySelectorAll('image') : []);
+          imgNodes.forEach((imgEl) => {
+            if (!imgEl.hasAttribute('data-orig-href')) {
+              imgEl.setAttribute('data-orig-href', imgEl.getAttribute('href') || '');
+            }
+            const effHref = srcStr || imgEl.getAttribute('data-orig-href') || '';
+            if (!effHref) return;
+            imgEl.setAttribute('href', effHref);
+            if (imgEl.hasAttribute('xlink:href')) {
+              if (effHref.startsWith('data:image/')) {
+                imgEl.removeAttribute('xlink:href');
+              } else {
+                imgEl.setAttribute('xlink:href', effHref);
+              }
+            }
           });
         }
         break;
@@ -3370,7 +3494,8 @@
                 const mHasExplicitVal = tb && (tb.value !== undefined || tb.Value !== undefined);
                 const mExplicitVal = tb && (tb.value !== undefined ? tb.value : tb.Value);
 
-                if (mWhen || (mAction && mAction !== 'set') || (mHasExplicitVal && mExplicitVal !== null)) {
+                const isConditionalWhen = Boolean(mWhen && String(mWhen).trim().toLowerCase() !== 'always');
+                if (isConditionalWhen || (mAction && mAction !== 'set') || (mHasExplicitVal && mExplicitVal !== null)) {
                   hasConditionalOrActionBinding = true;
                 }
 
@@ -3684,12 +3809,24 @@
       };
 
       // 8. Initialize Domestic Browser Event Triggers & Text Box Lite controllers
+      // Semantics:
+      //   - hover: mouseenter -> true, mouseleave -> false (auto-bound when eventTrigger==="hover" or by convention on boolean "MouseOver" unless eventTrigger==="none")
+      //   - press: pointerdown/mousedown -> true, pointerup/mouseup/pointerleave/pointercancel -> false (momentary pressed visual state)
+      //   - click: click -> toggles boolean true/false (latched selection state)
+      //   - focus: focus/focusin -> true, blur/focusout -> false
+      //   - dblclick: dblclick -> toggles boolean true/false
       const hoverCleanups = [];
       if (options.interactiveTriggers !== false && svgEl && typeof svgEl.addEventListener === 'function' && Array.isArray(manifest.parameters)) {
         let needsFocusableRoot = false;
         for (const p of manifest.parameters) {
-          const trig = (p && (p.eventTrigger || p.EventTrigger || '')).toLowerCase().trim();
-          if (!trig || trig === 'none' || p.type !== 'boolean' || !p.name) continue;
+          if (!p || p.type !== 'boolean' || !p.name) continue;
+          const rawTrig = String(p.eventTrigger || p.EventTrigger || '').toLowerCase().trim();
+          if (rawTrig === 'none') continue;
+          let trig = rawTrig;
+          if (!trig && String(p.name).toLowerCase() === 'mouseover') {
+            trig = 'hover';
+          }
+          if (!trig) continue;
 
           if (trig === 'hover') {
             const onEnter = () => {
@@ -3815,7 +3952,7 @@
       }
       if (hasExplicitInit) {
         try {
-          handle.setParameters(Object.assign({}, options.parameters || {}, options.initialParameters || {}), { _initialMount: false });
+          handle.setParameters(Object.assign({}, options.parameters || {}, options.initialParameters || {}), { _initialMount: true, _force: true });
         } catch (err) {
           console.warn('[SVGWidget] Failed applying explicit initial parameters on mount:', err);
         }

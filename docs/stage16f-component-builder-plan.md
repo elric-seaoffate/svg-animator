@@ -260,3 +260,43 @@ Authorised to implement Stage 16F (Widget/Component Builder, Multi-Action State 
 2. M2: Implement animation lifecycle actions (play, pause, resume, stop_reset, enable, disable), idempotent repeated-state guards, authored-state snapshotting on mount, the spacious #componentBuilderModal UI with True/False state tabs, auto-populated False restoration actions, live Studio canvas preview toggle, and optional hover (mouseenter/mouseleave) trigger.
 3. M3: Support Enum/Choice, Number, Color, and Text component properties with target constraint validation, target-deletion pruning, updated widget-runtime-manifest.json, Go unit tests, Node regression harness scenarios, and headless Chromium verification of the ungrouped MouseOver button widget example (confirming 0 leftover Chromium processes), then deploy the verified build to Kiwiberry :8088.
 ```
+
+---
+
+## 12. Stage 16F Implementation Record & Sentinel-PVE (`fleet1.svg`) Compatibility Review
+
+### 12.1 Milestones M1–M3 & Common Browser Events Playground
+- **M1–M3 Implementation (`cdbf815`, `56cff44`):**
+  - Exposed all **63 verified runtime properties** across all 8 Low-Load Effects (`text-lite` `color` → **Text Colour** and `bgColor` → **Box Background Colour**, plus `bgOpacity`, `fontSize`, `letterSpacing`, `padding`, `curvature`, `linesPerSec`, `lineSpacing`, `holdDelay`, `clearDuration`, `typeMode`, `typeRepeat`, `textAnim`, `rings`, `minScale`, `delay`, `endDelay`, `startMode`, `endMode`, `segmentStyle`, `labelText`, `unit`, and `oscilloscope-lite` `playbackMode`) and Image objects (`src` → **Image / Icon Source**).
+  - Implemented ungrouped multi-action state mappings (`When`, `Action`, `Value`, `EventTrigger`) on `Target: "root"`, 6 animation lifecycle actions (`play`, `stop_reset`, `pause`, `resume`, `enable`, `disable`), two-phase atomic validation, idempotent repeated-value guards, target-deletion pruning, `#componentBuilderModal`, and the 6-card **Common Browser Events Playground** in `/component-builder-demo.html` and exported `demo.html`.
+
+### 12.2 Sentinel-PVE (`fleet1.svg`) Compatibility & Raster Optimisation Review
+Using the uploaded `200 × 50` button fixture [`demos/Stage-16F-Widget-Export/fleet1.svg`](../demos/Stage-16F-Widget-Export/fleet1.svg) (`1,205,248` bytes):
+
+1. **CSS Root-ID Rewriting & Re-Isolation Fix (`svg-widget.js` & `pkg/engine/scene/widget.go`):**
+   - **Root Cause:** `fleet1.svg` was exported via **Export Reusable SVG Widget**, so its root `<svg>` already had `id="sva-widget-widget-626997"` and its `<style>` selectors already started with `#sva-widget-widget-626997`. When `SVGWidget.mount()` re-isolated `fleet1.svg` for a new instance (`instA`), `idMap` treated the old root ID as a child element ID and `scopeCSSRules` prepended a second root ID, producing `#sva-widget-instA #instA__sva-widget-widget-626997 .sva-lite-radar-anim` (which matched nothing in the DOM). In addition, `\bid\s*=` matched the hyphen boundary in `data-lite-id` and `data-image-id`.
+   - **Correction:** `isolateSVGString` (JS) and `IsolateSVGWidget` (Go) now match only whitespace-preceded `(\s)id\s*=`, detect any pre-existing root `<svg id="...">` and `data-sva-widget-instance`, strip the previous instance prefix when remapping child IDs and `@keyframes`, normalize `data-*-id` attributes, and strip any existing leading `#sva-widget-*` prefix in `scopeCSSRules` before applying `#${rootId}`.
+
+2. **Animation Reliability (`perimeter-tracer` & `radar-lite`):**
+   - Verified in live Chromium (`window.getComputedStyle`) that `lite-4` (`radar-lite`) cleanly resolves `animationName: "<instanceId>__sva-lite-radar"` on `MouseOver = true` and `"none"` on `MouseOver = false` (calling `node.style.removeProperty('animation-name')` when `data-orig-inline-anim` is empty so scoped CSS class rules apply without inline specificity conflicts), and `lite-3` (`perimeter-tracer`) resolves `animationName: "<instanceId>__sva-lite-trace-cw"` on `Selected = true` and `"none"` on `Selected = false`.
+
+3. **Embedded Raster-Image Optimisation & 1× / 2× / 3× Display-Size Bake Options:**
+   - **Duplicate Base64 Elimination:** `SVGExportAdapter.serialize` (`export-adapter.js`), `ImageObjects.renderImageElement` (`engine-bridge.js`), and `OptimizeSVGWidgetRasterImages` (`pkg/engine/scene/widget_raster.go`) no longer duplicate `href="data:image/..."` into `xlink:href="data:image/..."`.
+   - **Non-Destructive Export-Time Raster Policy (`#widgetExportImagePolicySelect` in Export Studio & `OptimizeSVGWidgetRasterImages`):**
+     - Supports `2x` (**2× Display Size (HiDPI — Default)**), `1x` (**1× Display Size**), `3x` (**3× Display Size**), and `original` (**Original Source Resolution — Deduplicated**), using premultiplied-alpha area-averaging downsampling that never upscales smaller images and preserves full PNG RGBA transparency without modifying the Studio project's source image.
+     - Measured `fleet1.svg` (`572 × 572` PNG displayed at `49 × 49`) size reduction:
+       - Raw uploaded `fleet1.svg`: **`1,205,248` bytes (`1.21 MB`)**
+       - `original` (deduplicated `href`, full `572 × 572` px): **`610,960` bytes (`596.6 KB`, 49.3% reduction)**
+       - `3x` (`147 × 147` px Ultra HiDPI): **`65,144` bytes (`63.6 KB`, 94.6% reduction)**
+       - `2x` (`98 × 98` px Default HiDPI): **`39,200` bytes (`38.3 KB`, 96.7% reduction)**
+       - `1x` (`49 × 49` px Exact Display Size): **`23,224` bytes (`22.7 KB`, 98.1% reduction)**
+   - **Studio Image Inspector Bake / Downsample Options (`#btnDownsampleImage` & `#commitCropResolutionSelect`):**
+     - Added **`📐 Bake / Downsample Resolution (1×/2×/3×)...`** to the Image Inspector and **`#commitCropResolutionSelect`** to `#commitCropModal`, enabling authors to explicitly bake an imported image in the project to `1× Display Size`, `2× Display Size`, `3× Display Size` (only enabled when source > 2× display size; never upscales), or `Original Source Resolution`.
+
+4. **Reusable Component Content (`Label` Text & `Icon` Image Source):**
+   - Added `src` (`Type: "text"`, `Label: "Image / Icon Source"`) to `ObjectPropertyCatalog["image"]`, `VerifiedRuntimeProperties()` (`widget-runtime-manifest.json` v`1.2.1`, 63 verified properties), `ValidateWidgetParameter` (guarded by `ValidateSafeImageSource` rejecting `javascript:`, `vbscript:`, `file:`, and non-image `data:` URIs), and `svg-widget.js` (`case 'src':`, preserving `data-orig-href` when `src` is empty).
+   - Added 1-click **`+ Expose Label Text`** (`#btnCbModalQuickLabel`) and **`+ Expose Icon / Image`** (`#btnCbModalQuickIcon`) preset buttons in `#componentBuilderModal`.
+
+5. **Browser Event Handling Semantics:**
+   - Defined and verified `hover` (`mouseenter` → `true`, `mouseleave` → `false`, auto-selected for new `MouseOver` properties and supported by convention fallback on boolean `MouseOver` parameters unless `eventTrigger === "none"`), `press` (`pointerdown`/`mousedown` → `true`, `pointerup`/`mouseup`/`pointerleave`/`pointercancel` → `false`), `click` (`click` toggle `true`/`false`), `focus` (`focus`/`blur`), and `dblclick`, with complete listener teardown in `unmount()`.
+

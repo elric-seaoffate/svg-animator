@@ -42,7 +42,12 @@
       const elementsWithHref = xmlDoc.querySelectorAll('[href]');
       elementsWithHref.forEach((el) => {
         const hrefVal = el.getAttribute('href');
-        if (hrefVal) {
+        if (!hrefVal) return;
+        if (hrefVal.startsWith('data:image/')) {
+          // Do not duplicate embedded base64 raster payloads into legacy xlink:href
+          el.removeAttribute('xlink:href');
+          try { el.removeAttributeNS(XLINK_NS, 'href'); } catch (e) {}
+        } else {
           el.setAttributeNS(XLINK_NS, 'xlink:href', hrefVal);
         }
       });
@@ -56,10 +61,11 @@
       const prefix = options.prefix || '';
       const scopeCss = options.scopeCss !== false;
       const manifest = options.manifest || null;
+      const rasterPolicy = options.rasterPolicy || '2x';
 
       // 1. Prefer authoritative Go/WASM engine
       if (typeof window !== 'undefined' && window.EngineBridge && typeof window.EngineBridge.isolateSVGWidget === 'function' && window.EngineBridge.isReady()) {
-        const res = window.EngineBridge.isolateSVGWidget(rawSvg, instanceId, prefix, scopeCss, manifest);
+        const res = window.EngineBridge.isolateSVGWidget(rawSvg, instanceId, prefix, scopeCss, manifest, rasterPolicy);
         if (res && res.success && res.isolatedSvg) {
           return options.rawDetails ? res : res.isolatedSvg;
         }

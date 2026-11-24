@@ -970,6 +970,16 @@
       });
     }
 
+    const btnDownsample = document.getElementById('btnDownsampleImage');
+    if (btnDownsample && !btnDownsample._hasBound) {
+      btnDownsample._hasBound = true;
+      btnDownsample.addEventListener('click', () => {
+        if (window.ImageToolsController && typeof window.ImageToolsController.openCommitCropModal === 'function') {
+          window.ImageToolsController.openCommitCropModal();
+        }
+      });
+    }
+
     const btnExtractBg = document.getElementById('btnExtractBackgroundRegion');
     if (btnExtractBg && !btnExtractBg._hasBound) {
       btnExtractBg._hasBound = true;

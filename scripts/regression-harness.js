@@ -13245,6 +13245,120 @@ async function runHarness() {
   }
   console.log('[HARNESS] Scenario 98 PASS: Stage 16F Widget/Component Builder & Multi-Action State Mappings verified.');
 
+  // =========================================================================
+  // SCENARIO 99: Stage 16F Sentinel-PVE fleet1.svg Compatibility, Re-Isolation
+  // CSS Scoping, Animation Reliability, Raster Optimisation & Reusable Content
+  // =========================================================================
+  console.log('[HARNESS] Scenario 99: Stage 16F Sentinel-PVE fleet1.svg Compatibility & Multi-Instance Reuse...');
+  {
+    const fs = require('fs');
+    const path = require('path');
+    const fleetPath = path.join(__dirname, '..', 'demos', 'Stage-16F-Widget-Export', 'fleet1.svg');
+    const rawFleetSvg = fs.readFileSync(fleetPath, 'utf8');
+    const SVGWidgetFleet = require('../internal/web/static/js/svg-widget.js');
+
+    // 1. Re-isolate already-isolated fleet1.svg and verify zero duplicated root selectors
+    const isoA = SVGWidgetFleet.isolate(rawFleetSvg, { instanceId: 'sentinel-a', scopeCss: true, rawDetails: true });
+    const isoB = SVGWidgetFleet.isolate(rawFleetSvg, { instanceId: 'sentinel-b', scopeCss: true, rawDetails: true });
+    assert(isoA && isoA.success, 'FL-01: SVGWidget.isolate succeeded on fleet1.svg for sentinel-a');
+    assert(!/#sva-widget-[a-zA-Z0-9_-]+\s+#[a-zA-Z0-9_-]*sva-widget-/.test(isoA.isolatedSvg), 'FL-02: No duplicated #sva-widget-* root selectors in sentinel-a');
+    assert(!/#sva-widget-[a-zA-Z0-9_-]+\s+#[a-zA-Z0-9_-]*sva-widget-/.test(isoB.isolatedSvg), 'FL-03: No duplicated #sva-widget-* root selectors in sentinel-b');
+    assert(isoA.isolatedSvg.includes('#sva-widget-sentinel-a .sva-lite-radar-anim'), 'FL-04: Scoped .sva-lite-radar-anim rule matches #sva-widget-sentinel-a');
+    assert(isoB.isolatedSvg.includes('#sva-widget-sentinel-b .sva-lite-radar-anim'), 'FL-05: Scoped .sva-lite-radar-anim rule matches #sva-widget-sentinel-b');
+    assert(isoA.isolatedSvg.includes('data-lite-id="1"') && isoA.isolatedSvg.includes('data-image-id="image-1"'), 'FL-06: data-lite-id and data-image-id normalized without prefix corruption');
+
+    // 2. Mount two independent instances of fleet1-optimised.svg (with Label, Icon, Selected, OnClick, MouseOver)
+    const optFleetPath = path.join(__dirname, '..', 'internal', 'web', 'static', 'fleet1-optimised.svg');
+    const optFleetSvg = fs.readFileSync(optFleetPath, 'utf8');
+    assert(optFleetSvg.length < 50000, `FL-07: Optimised 2x HiDPI fleet1-optimised.svg is under 50 KB (${optFleetSvg.length} bytes vs ${rawFleetSvg.length} bytes)`);
+
+    const origDocFl = global.document;
+    try {
+      const mockDocFl = {
+        createElement(tag) {
+          const el = new MockStage16BElement(tag);
+          el.ownerDocument = mockDocFl;
+          return el;
+        },
+        createElementNS(ns, tag) {
+          const el = new MockStage16BElement(tag);
+          el.ownerDocument = mockDocFl;
+          return el;
+        },
+        getElementById() { return null; },
+        head: new MockStage16BElement('head')
+      };
+      mockDocFl.head.ownerDocument = mockDocFl;
+      global.document = mockDocFl;
+
+      const hostFl1 = mockDocFl.createElement('div');
+      const hostFl2 = mockDocFl.createElement('div');
+      const customIcon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+      const wFl1 = SVGWidgetFleet.mount(hostFl1, optFleetSvg, { instanceId: 'fl_one', visibilityAware: false });
+      const wFl2 = SVGWidgetFleet.mount(hostFl2, optFleetSvg, {
+        instanceId: 'fl_two',
+        visibilityAware: false,
+        parameters: {
+          Label: 'Aegis Command',
+          Icon: customIcon
+        }
+      });
+
+      const fl1Text = wFl1.svgElement.querySelector('[data-semantic-target="lite-1"]');
+      const fl2Text = wFl2.svgElement.querySelector('[data-semantic-target="lite-1"]');
+      const fl2Img = wFl2.svgElement.querySelector('[data-semantic-target="image-image-1"]');
+      const fl1Tracer = wFl1.svgElement.querySelector('[data-semantic-target="lite-3"]');
+      const fl1Radar = wFl1.svgElement.querySelector('[data-semantic-target="lite-4"]');
+
+      assert.strictEqual(fl1Text.getAttribute('data-text-content'), 'Fleet Sanctum', 'FL-08: Instance 1 retains default Label "Fleet Sanctum"');
+      assert.strictEqual(fl2Text.getAttribute('data-text-content'), 'Aegis Command', 'FL-09: Instance 2 overrides Label to "Aegis Command"');
+      assert.strictEqual(fl2Img.getAttribute('href'), customIcon, 'FL-10: Instance 2 overrides Icon image href cleanly');
+
+      // Test unsafe image source rejection
+      let rejectedUnsafeIcon = false;
+      try {
+        wFl2.setParameter('Icon', 'javascript:alert(1)');
+      } catch (e) {
+        rejectedUnsafeIcon = true;
+      }
+      assert(rejectedUnsafeIcon, 'FL-11: Unsafe javascript: Icon image source is rejected');
+
+      // Test MouseOver true/false radar-lite animation lifecycle on Instance 1
+      assert.strictEqual(fl1Radar.getAttribute('data-lite-play'), 'false', 'FL-12: Radar starts stopped on mount');
+      wFl1.setParameter('MouseOver', true);
+      assert.strictEqual(fl1Radar.getAttribute('visibility'), 'visible', 'FL-13: MouseOver=true shows radar-lite (lite-4)');
+      assert.strictEqual(fl1Radar.getAttribute('data-lite-play'), 'true', 'FL-14: MouseOver=true starts radar-lite animation');
+      wFl1.setParameter('MouseOver', false);
+      assert.strictEqual(fl1Radar.getAttribute('visibility'), 'hidden', 'FL-15: MouseOver=false hides radar-lite (lite-4)');
+      assert.strictEqual(fl1Radar.getAttribute('data-lite-play'), 'false', 'FL-16: MouseOver=false stops radar-lite animation');
+
+      // Test Selected & OnClick interaction on Instance 1 without leaving stale state
+      wFl1.setParameter('Selected', true);
+      assert.strictEqual(fl1Tracer.getAttribute('visibility'), 'visible', 'FL-17: Selected=true shows perimeter-tracer (lite-3)');
+      assert.strictEqual(fl1Tracer.getAttribute('data-lite-play'), 'true', 'FL-18: Selected=true plays perimeter-tracer');
+      assert.strictEqual(fl1Text.getAttribute('data-text-bg-color'), '#03152e', 'FL-19: Selected=true sets box bg to #03152e');
+
+      wFl1.setParameter('OnClick', true);
+      assert.strictEqual(fl1Text.getAttribute('data-text-color'), '#0f172a', 'FL-20: OnClick=true inverts text colour to #0f172a');
+      assert.strictEqual(fl1Text.getAttribute('data-text-bg-color'), '#95892d', 'FL-21: OnClick=true sets box bg to gold #95892d');
+
+      wFl1.setParameter('OnClick', false);
+      assert.strictEqual(fl1Text.getAttribute('data-text-color'), '#95892d', 'FL-22: OnClick=false restores text colour to gold #95892d');
+
+      wFl1.setParameter('Selected', false);
+      assert.strictEqual(fl1Tracer.getAttribute('visibility'), 'hidden', 'FL-23: Selected=false hides perimeter-tracer');
+      assert.strictEqual(fl1Tracer.getAttribute('data-lite-play'), 'false', 'FL-24: Selected=false stops perimeter-tracer');
+      assert.strictEqual(fl1Text.getAttribute('data-text-bg-color'), '#0f172a', 'FL-25: Selected=false restores box bg to #0f172a');
+
+      wFl1.destroy();
+      wFl2.destroy();
+    } finally {
+      global.document = origDocFl;
+    }
+  }
+  console.log('[HARNESS] Scenario 99 PASS: Stage 16F Sentinel-PVE fleet1.svg compatibility & multi-instance reuse verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15 & 16 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, and Go WASM engines verified.');
 }
 

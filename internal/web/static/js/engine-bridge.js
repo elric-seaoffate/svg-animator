@@ -2450,13 +2450,14 @@
       return null;
     },
 
-    isolateSVGWidget(rawSvg, instanceId = '', prefix = '', scopeCss = true, manifest = null) {
+    isolateSVGWidget(rawSvg, instanceId = '', prefix = '', scopeCss = true, manifest = null, rasterPolicy = '') {
       if (this.isReady() && rawSvg) {
         const payload = {
           svg: String(rawSvg),
           instanceId: String(instanceId || ''),
           prefix: String(prefix || ''),
-          scopeCss: Boolean(scopeCss)
+          scopeCss: Boolean(scopeCss),
+          rasterPolicy: String(rasterPolicy || '')
         };
         if (manifest && typeof manifest === 'object') {
           payload.manifest = manifest;
@@ -2691,12 +2692,13 @@
       return null;
     },
 
-    buildWidgetPackage(widgetName = '', svg = '', svgWidgetJs = '') {
+    buildWidgetPackage(widgetName = '', svg = '', svgWidgetJs = '', rasterPolicy = '') {
       if (this.isReady() && svg) {
         const res = this.dispatch('Widget.BuildPackage', {
           widgetName: String(widgetName || ''),
           svg: String(svg),
-          svgWidgetJs: String(svgWidgetJs || '')
+          svgWidgetJs: String(svgWidgetJs || ''),
+          rasterPolicy: String(rasterPolicy || '2x')
         });
         if (res && res.success) {
           res.zipBase64 = res.zipB64 || '';
@@ -4757,10 +4759,10 @@
         const natH = Number(img.naturalHeight) || Number(crop.origHeight) || h;
         const vb = `${crop.sourceX.toFixed(2)} ${crop.sourceY.toFixed(2)} ${crop.sourceWidth.toFixed(2)} ${crop.sourceHeight.toFixed(2)}`;
         const imgNameAttr = img.name ? ` data-semantic-name="${String(img.name).replace(/"/g, '&quot;')}"` : '';
-        innerSvg = `<svg id="img-${img.id}" data-image-id="${img.id}" data-semantic-target="image-${img.id}"${imgNameAttr} x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" xlink:href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
+        innerSvg = `<svg id="img-${img.id}" data-image-id="${img.id}" data-semantic-target="image-${img.id}"${imgNameAttr} x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" viewBox="${vb}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" style="overflow: hidden;"><image href="${href}" x="0" y="0" width="${natW}" height="${natH}" preserveAspectRatio="none" /></svg>`;
       } else {
         const imgNameAttr = img.name ? ` data-semantic-name="${String(img.name).replace(/"/g, '&quot;')}"` : '';
-        innerSvg = `<image id="img-${img.id}" data-image-id="${img.id}" data-semantic-target="image-${img.id}"${imgNameAttr} x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" xlink:href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
+        innerSvg = `<image id="img-${img.id}" data-image-id="${img.id}" data-semantic-target="image-${img.id}"${imgNameAttr} x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w}" height="${h}" href="${href}" preserveAspectRatio="${par}" opacity="${parseFloat(op.toFixed(4))}" />`;
       }
 
       if (img.clip && img.clip.enabled && img.clip.width > 0 && img.clip.height > 0) {

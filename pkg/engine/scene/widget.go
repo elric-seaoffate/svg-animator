@@ -21,10 +21,11 @@ func NextWidgetInstanceID() string {
 
 // WidgetIsolationOptions configures SVG widget isolation.
 type WidgetIsolationOptions struct {
-	InstanceID string          `json:"instanceId,omitempty"`
-	Prefix     string          `json:"prefix,omitempty"`
-	ScopeCSS   bool            `json:"scopeCss"`
-	Manifest   *WidgetManifest `json:"manifest,omitempty"`
+	InstanceID   string          `json:"instanceId,omitempty"`
+	Prefix       string          `json:"prefix,omitempty"`
+	ScopeCSS     bool            `json:"scopeCss"`
+	RasterPolicy string          `json:"rasterPolicy,omitempty"`
+	Manifest     *WidgetManifest `json:"manifest,omitempty"`
 }
 
 // IsolateSVGWidget rewrites an SVG document so that all element IDs, internal
@@ -64,27 +65,68 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 
 	// 0b. Strip executable <script> blocks (e.g. standalone file:// burst/text-lite helper scripts) so exported
 	// widget SVGs satisfy strict safe-SVG validation; preserve only <script type="application/json"> manifest blocks.
+	var savedManifestBlocks []string
 	reAnyScript := regexp.MustCompile(`(?is)<script\b([^>]*)>.*?</script>`)
 	rawSVG = reAnyScript.ReplaceAllStringFunc(rawSVG, func(block string) string {
 		sub := reAnyScript.FindStringSubmatch(block)
 		if len(sub) >= 2 && strings.Contains(strings.ToLower(sub[1]), "application/json") && strings.Contains(sub[1], "sva-widget-manifest") {
-			return block
+			savedManifestBlocks = append(savedManifestBlocks, block)
 		}
 		return ""
 	})
 
-	// 1. Scan and collect all declared IDs: id="VALUE" or id='VALUE'
+	// 0c. Optimise embedded raster images (deduplicate xlink:href data URIs and optionally downsample oversized rasters)
+	if !strings.EqualFold(strings.TrimSpace(opts.RasterPolicy), "none") {
+		rawSVG = OptimizeSVGWidgetRasterImages(rawSVG, opts.RasterPolicy)
+	}
+
+	// 0d. Detect if input SVG was already isolated with a previous root ID / instance prefix
+	var prevRootID, prevPrefix string
+	reFirstSVG := regexp.MustCompile(`(?is)<svg\b([^>]*)>`)
+	if firstSub := reFirstSVG.FindStringSubmatch(rawSVG); len(firstSub) >= 2 {
+		rootAttrs := firstSub[1]
+		reRootIDDecl := regexp.MustCompile(`(?:^|\s)id\s*=\s*["']([^"']+)["']`)
+		if idSub := reRootIDDecl.FindStringSubmatch(rootAttrs); len(idSub) >= 2 {
+			prevRootID = idSub[1]
+		}
+		reInstDecl := regexp.MustCompile(`\bdata-sva-widget-instance\s*=\s*["']([^"']+)["']`)
+		if instSub := reInstDecl.FindStringSubmatch(rootAttrs); len(instSub) >= 2 && instSub[1] != "" {
+			prevPrefix = instSub[1] + "__"
+		} else if strings.HasPrefix(prevRootID, "sva-widget-") {
+			prevPrefix = strings.TrimPrefix(prevRootID, "sva-widget-") + "__"
+		}
+	}
+
+	// 0e. Normalize any previously-prefixed data-(lite|node|image|flow|glow|ripple|group)-id attributes
+	if prevPrefix != "" {
+		rePrefixedDataID := regexp.MustCompile(`(?i)\b(data-(?:lite|node|image|flow|glow|ripple|group)-id\s*=\s*["'])` + regexp.QuoteMeta(prevPrefix) + `([^"']+["'])`)
+		rawSVG = rePrefixedDataID.ReplaceAllString(rawSVG, "${1}${2}")
+	}
+
+	// 1. Scan and collect all declared IDs ONLY on real id="..." attributes (preceded by whitespace, never data-*-id)
 	idMap := make(map[string]string)
-	reDeclaredID := regexp.MustCompile(`\bid\s*=\s*["']([^"']+)["']`)
+	reDeclaredID := regexp.MustCompile(`(?:^|\s)id\s*=\s*["']([^"']+)["']`)
 	matches := reDeclaredID.FindAllStringSubmatch(rawSVG, -1)
 	for _, m := range matches {
 		if len(m) >= 2 {
 			oldID := m[1]
-			if oldID != "" && idMap[oldID] == "" {
-				if strings.HasPrefix(oldID, prefix) {
-					idMap[oldID] = oldID
+			if oldID == "" || oldID == prevRootID {
+				continue
+			}
+			if idMap[oldID] == "" {
+				baseID := oldID
+				if prevPrefix != "" && strings.HasPrefix(oldID, prevPrefix) {
+					baseID = strings.TrimPrefix(oldID, prevPrefix)
+				}
+				var newID string
+				if strings.HasPrefix(baseID, prefix) {
+					newID = baseID
 				} else {
-					idMap[oldID] = prefix + oldID
+					newID = prefix + baseID
+				}
+				idMap[oldID] = newID
+				if baseID != oldID && idMap[baseID] == "" {
+					idMap[baseID] = newID
 				}
 			}
 		}
@@ -98,7 +140,20 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 		if len(km) >= 2 {
 			oldKF := km[1]
 			if oldKF != "" && keyframeMap[oldKF] == "" {
-				keyframeMap[oldKF] = prefix + oldKF
+				baseKF := oldKF
+				if prevPrefix != "" && strings.HasPrefix(oldKF, prevPrefix) {
+					baseKF = strings.TrimPrefix(oldKF, prevPrefix)
+				}
+				var newKF string
+				if strings.HasPrefix(baseKF, prefix) {
+					newKF = baseKF
+				} else {
+					newKF = prefix + baseKF
+				}
+				keyframeMap[oldKF] = newKF
+				if baseKF != oldKF && keyframeMap[baseKF] == "" {
+					keyframeMap[baseKF] = newKF
+				}
 			}
 		}
 	}
@@ -130,7 +185,7 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 
 		// Scope CSS rules to the widget root element
 		if opts.ScopeCSS || true {
-			cssContent = scopeCSSRules(cssContent, rootWidgetID, idMap)
+			cssContent = scopeCSSRules(cssContent, rootWidgetID, idMap, prevRootID)
 		}
 
 		return "<style" + styleAttrs + ">" + cssContent + "</style>"
@@ -157,28 +212,31 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 		// Check if this is the root <svg> element
 		if tagName == "svg" && isFirstSVG {
 			isFirstSVG = false
-			// Inject or replace id on root SVG
-			reRootID := regexp.MustCompile(`\bid\s*=\s*["'][^"']*["']`)
+			// Inject or replace id on root SVG (only match whitespace-preceded id=, never data-*-id=)
+			reRootID := regexp.MustCompile(`(\s)id\s*=\s*["'][^"']*["']`)
 			if reRootID.MatchString(tagAttrs) {
-				tagAttrs = reRootID.ReplaceAllString(tagAttrs, `id="`+rootWidgetID+`"`)
+				tagAttrs = reRootID.ReplaceAllString(tagAttrs, `${1}id="`+rootWidgetID+`"`)
 			} else {
 				tagAttrs = ` id="` + rootWidgetID + `"` + tagAttrs
 			}
 
-			// Add data-sva-widget-instance attribute
+			// Add or update data-sva-widget-instance attribute
 			reInstAttr := regexp.MustCompile(`\bdata-sva-widget-instance\s*=\s*["'][^"']*["']`)
-			if !reInstAttr.MatchString(tagAttrs) {
+			if reInstAttr.MatchString(tagAttrs) {
+				tagAttrs = reInstAttr.ReplaceAllString(tagAttrs, `data-sva-widget-instance="`+instanceID+`"`)
+			} else {
 				tagAttrs += ` data-sva-widget-instance="` + instanceID + `"`
 			}
 		} else {
-			// For all other elements, transform id attribute if present
-			reIDAttr := regexp.MustCompile(`\bid\s*=\s*(["'])([^"']+)(["'])`)
+			// For all other elements, transform id attribute if present (preceded by whitespace so data-*-id is untouched)
+			reIDAttr := regexp.MustCompile(`(\s)id\s*=\s*(["'])([^"']+)(["'])`)
 			tagAttrs = reIDAttr.ReplaceAllStringFunc(tagAttrs, func(m string) string {
 				parts := reIDAttr.FindStringSubmatch(m)
-				if len(parts) >= 4 {
-					oldID := parts[2]
+				if len(parts) >= 5 {
+					ws := parts[1]
+					oldID := parts[3]
 					if newID, ok := idMap[oldID]; ok {
-						return `id=` + parts[1] + newID + parts[3]
+						return ws + `id=` + parts[2] + newID + parts[4]
 					}
 				}
 				return m
@@ -274,27 +332,35 @@ func IsolateSVGWidget(rawSVG string, opts WidgetIsolationOptions) (string, map[s
 		return "<" + tagName + tagAttrs + ">"
 	})
 
-	// Inject manifest if provided and not already present
+	// Inject manifest if provided, or restore stripped embedded manifest block
 	if opts.Manifest != nil && len(opts.Manifest.Parameters) > 0 {
-		reExistingManifest := regexp.MustCompile(`(?i)<script\b[^>]*\bid=["'](?:[^"']*__)?sva-widget-manifest["']`)
-		if !reExistingManifest.MatchString(transformed) {
-			manifestBytes, err := json.Marshal(opts.Manifest)
-			if err == nil {
-				manifestTag := fmt.Sprintf("\n  <script type=\"application/json\" id=\"%ssva-widget-manifest\">%s</script>\n", prefix, string(manifestBytes))
-				if idx := strings.LastIndex(transformed, "</svg>"); idx != -1 {
-					transformed = transformed[:idx] + manifestTag + transformed[idx:]
-				} else {
-					transformed += manifestTag
-				}
+		manifestBytes, err := json.Marshal(opts.Manifest)
+		if err == nil {
+			manifestTag := fmt.Sprintf("\n  <script type=\"application/json\" id=\"%ssva-widget-manifest\">%s</script>\n", prefix, string(manifestBytes))
+			if idx := strings.LastIndex(transformed, "</svg>"); idx != -1 {
+				transformed = transformed[:idx] + manifestTag + transformed[idx:]
+			} else {
+				transformed += manifestTag
 			}
+			idMap["sva-widget-manifest"] = prefix + "sva-widget-manifest"
 		}
+	} else if len(savedManifestBlocks) > 0 {
+		reManifestIDAttr := regexp.MustCompile(`(?i)\bid\s*=\s*["'](?:[^"']*__)?sva-widget-manifest["']`)
+		restored := reManifestIDAttr.ReplaceAllString(savedManifestBlocks[0], `id="`+prefix+`sva-widget-manifest"`)
+		if idx := strings.LastIndex(transformed, "</svg>"); idx != -1 {
+			transformed = transformed[:idx] + "\n  " + restored + "\n" + transformed[idx:]
+		} else {
+			transformed += "\n  " + restored + "\n"
+		}
+		idMap["sva-widget-manifest"] = prefix + "sva-widget-manifest"
 	}
 
 	return transformed, idMap, nil
 }
 
-// scopeCSSRules scopes CSS rules to the widget root ID so they don't affect sibling elements.
-func scopeCSSRules(css string, rootID string, idMap map[string]string) string {
+// scopeCSSRules scopes CSS rules to the widget root ID so they don't affect sibling elements,
+// stripping any pre-existing #sva-widget-* root selector prefix to prevent duplicated root selectors.
+func scopeCSSRules(css string, rootID string, idMap map[string]string, prevRootID string) string {
 	// Temporarily extract @keyframes blocks so their inner rules are not scoped
 	var kfBlocks []string
 	reKFBlock := regexp.MustCompile(`(?s)@keyframes\s+[^{]+\{(?:[^{}]*\{[^{}]*\}[^{}]*)*\}`)
@@ -302,6 +368,15 @@ func scopeCSSRules(css string, rootID string, idMap map[string]string) string {
 		kfBlocks = append(kfBlocks, m)
 		return fmt.Sprintf("/*__SVA_KF_BLOCK_%d__*/", len(kfBlocks)-1)
 	})
+
+	reLeadingRootPrefix := regexp.MustCompile(`^(?:#sva-widget-[a-zA-Z0-9_-]+\s+)+`)
+	reExactRootOnly := regexp.MustCompile(`^#sva-widget-[a-zA-Z0-9_-]+$`)
+	var rePrevRootPrefix, rePrevRootExact *regexp.Regexp
+	if prevRootID != "" {
+		rePrevRootPrefix = regexp.MustCompile(`^(?:#` + regexp.QuoteMeta(prevRootID) + `\s+)+`)
+		rePrevRootExact = regexp.MustCompile(`^#` + regexp.QuoteMeta(prevRootID) + `$`)
+	}
+	reLeadingInstAttr := regexp.MustCompile(`^\[data-sva-widget-instance(?:=[^\]]*)?\]\s+`)
 
 	// Rule matcher: selector { declarations }
 	reRule := regexp.MustCompile(`(?s)([^{}/]+)\{([^{}]+)\}`)
@@ -324,12 +399,28 @@ func scopeCSSRules(css string, rootID string, idMap map[string]string) string {
 			if cleanSel == "" {
 				continue
 			}
+			cleanSel = reLeadingRootPrefix.ReplaceAllString(cleanSel, "")
+			if rePrevRootPrefix != nil {
+				cleanSel = rePrevRootPrefix.ReplaceAllString(cleanSel, "")
+			}
+			cleanSel = reLeadingInstAttr.ReplaceAllString(cleanSel, "")
+
+			if reExactRootOnly.MatchString(cleanSel) || (rePrevRootExact != nil && rePrevRootExact.MatchString(cleanSel)) {
+				scopedList = append(scopedList, "#"+rootID)
+				continue
+			}
+
 			// Remap any #oldID in selector
 			for oldID, newID := range idMap {
 				reOldSelID := regexp.MustCompile(`#` + regexp.QuoteMeta(oldID) + `\b`)
 				cleanSel = reOldSelID.ReplaceAllString(cleanSel, "#"+newID)
 			}
-			scopedList = append(scopedList, "#"+rootID+" "+cleanSel)
+			cleanSel = reLeadingRootPrefix.ReplaceAllString(cleanSel, "")
+			if cleanSel == "#"+rootID {
+				scopedList = append(scopedList, "#"+rootID)
+			} else {
+				scopedList = append(scopedList, "#"+rootID+" "+cleanSel)
+			}
 		}
 
 		if len(scopedList) == 0 {
@@ -480,6 +571,7 @@ var ObjectPropertyCatalog = map[string][]EligibleProperty{
 		{Property: "play", Type: "boolean", Label: "Play Animation", ParamSuffix: "play", Description: "Start or stop expanding liquid ripple wave animation", Default: true, DefaultSource: "true", RuntimeSemantics: "starts or stops ripple SMIL animations"},
 	},
 	"image": {
+		{Property: "src", Type: "text", Label: "Image / Icon Source", ParamSuffix: "src", Description: "Image source URL or data:image/... URI for runtime icon/image substitution", Default: "", DefaultSource: "image.src", RuntimeSemantics: "updates <image> href attribute with validated safe image source"},
 		{Property: "opacity", Type: "number", Label: "Image Opacity", ParamSuffix: "opacity", Description: "Transparency of the image layer (0.0 to 1.0)", Min: floatPtr(0), Max: floatPtr(1), Step: floatPtr(0.05), Default: 1.0, DefaultSource: "image.opacity", RuntimeSemantics: "sets image opacity"},
 		{Property: "visibility", Type: "boolean", Label: "Visibility", ParamSuffix: "visibility", Description: "Toggle visibility of the image layer", Default: true, DefaultSource: "image.visible", RuntimeSemantics: "toggles image visibility"},
 	},
@@ -1492,6 +1584,13 @@ func ValidateWidgetParameter(p WidgetParameter) error {
 							return fmt.Errorf("parameter %q action value %q is not a valid option for %s.%s (%v)", name, vStr, mTarget, mProp, found.Options)
 						}
 					}
+				case "text":
+					if mProp == "src" {
+						vStr := strings.TrimSpace(fmt.Sprintf("%v", tb.Value))
+						if err := ValidateSafeImageSource(vStr); err != nil {
+							return fmt.Errorf("parameter %q action value for %s.src is unsafe: %w", name, mTarget, err)
+						}
+					}
 				}
 			} else {
 				// Pass-through binding: parameter type must be compatible with target property type
@@ -1536,12 +1635,20 @@ func ValidateWidgetParameter(p WidgetParameter) error {
 				return fmt.Errorf("color parameter does not support property %q (allowed: fill, stroke, color, bgColor, borderColor)", prop)
 			}
 		case "boolean":
-			if prop != "visibility" && prop != "display" && prop != "showGuide" && prop != "repeat" && prop != "play" {
-				return fmt.Errorf("boolean parameter does not support property %q (allowed: visibility, display, showGuide, repeat, play)", prop)
+			if prop != "visibility" && prop != "display" && prop != "showGuide" && prop != "repeat" && prop != "play" && prop != "typeRepeat" {
+				return fmt.Errorf("boolean parameter does not support property %q (allowed: visibility, display, showGuide, repeat, play, typeRepeat)", prop)
 			}
 		case "text":
-			if prop != "text" && prop != "textContent" && prop != "lineGapRatio" && prop != "samples" {
-				return fmt.Errorf("text parameter does not support property %q (allowed: text, textContent, lineGapRatio, samples)", prop)
+			if prop != "text" && prop != "textContent" && prop != "lineGapRatio" && prop != "samples" && prop != "labelText" && prop != "unit" && prop != "src" {
+				return fmt.Errorf("text parameter does not support property %q (allowed: text, textContent, lineGapRatio, samples, labelText, unit, src)", prop)
+			}
+			if prop == "src" && p.Default != nil {
+				defStr := strings.TrimSpace(fmt.Sprintf("%v", p.Default))
+				if defStr != "" {
+					if err := ValidateSafeImageSource(defStr); err != nil {
+						return fmt.Errorf("parameter %q default image source is unsafe: %w", name, err)
+					}
+				}
 			}
 		case "speed":
 			if prop != "playbackRate" && prop != "speed" {

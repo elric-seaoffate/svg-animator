@@ -217,6 +217,10 @@
       if (cancelBtn) cancelBtn.addEventListener('click', () => this.close());
       const newBtn = document.getElementById('btnCbModalNewProp');
       if (newBtn) newBtn.addEventListener('click', () => this.open(null));
+      const quickLabelBtn = document.getElementById('btnCbModalQuickLabel');
+      if (quickLabelBtn) quickLabelBtn.addEventListener('click', () => this.openQuickLabelPreset());
+      const quickIconBtn = document.getElementById('btnCbModalQuickIcon');
+      if (quickIconBtn) quickIconBtn.addEventListener('click', () => this.openQuickIconPreset());
 
       const typeSel = document.getElementById('cbModalTypeSelect');
       if (typeSel) {
@@ -236,7 +240,18 @@
       }
 
       const nameIn = document.getElementById('cbModalNameInput');
-      if (nameIn) nameIn.addEventListener('input', () => this.validateForm());
+      if (nameIn) {
+        nameIn.addEventListener('input', () => {
+          const trigSel = document.getElementById('cbModalEventTriggerSelect');
+          if (trigSel && !this.originalName) {
+            const lowerName = nameIn.value.trim().toLowerCase();
+            if (lowerName === 'mouseover') trigSel.value = 'hover';
+            else if (lowerName === 'onclick' || lowerName === 'pressed') trigSel.value = 'press';
+            else if (lowerName === 'selected') trigSel.value = 'click';
+          }
+          this.validateForm();
+        });
+      }
 
       const colorPick = document.getElementById('cbModalDefaultColorPicker');
       const defIn = document.getElementById('cbModalDefaultInput');
@@ -541,8 +556,8 @@
         if (colorPick) colorPick.value = '#38bdf8';
         if (defIn) defIn.value = 'false';
         if (descIn) descIn.value = 'Controls multiple object colours and animations from one exposed property';
-        if (hoverChk) hoverChk.checked = false;
-        if (trigSel) trigSel.value = '';
+        if (hoverChk) hoverChk.checked = true;
+        if (trigSel) trigSel.value = 'hover';
         if (minIn) minIn.value = '0';
         if (maxIn) maxIn.value = '100';
         if (unitIn) unitIn.value = '';
@@ -604,6 +619,56 @@
     close() {
       const modal = document.getElementById('componentBuilderModal');
       if (modal) modal.style.display = 'none';
+    },
+
+    openQuickLabelPreset() {
+      const objs = getAllCanvasObjects();
+      const textObj = objs.find((o) => o.type === 'lite' && o.liteKind === 'text-lite') || objs.find((o) => o.type === 'node');
+      if (!textObj) {
+        if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+          window.AppCoordinator.showNotification('Add a Text Box Lite or Shape to the canvas first to expose a Label property.', 'warning');
+        }
+        return;
+      }
+      const curText = getAuthoredCanvasValue(textObj.target, 'text') || 'Button Label';
+      this.open({
+        name: 'Label',
+        label: 'Component Text Label',
+        type: 'text',
+        target: 'root',
+        property: 'text',
+        default: String(curText),
+        description: 'Displayed text label for reusable component instances',
+        targets: [
+          { target: textObj.target, property: 'text', when: 'always', action: 'set', value: null }
+        ]
+      });
+      this.originalName = '';
+    },
+
+    openQuickIconPreset() {
+      const objs = getAllCanvasObjects();
+      const imgObj = objs.find((o) => o.type === 'image');
+      if (!imgObj) {
+        if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
+          window.AppCoordinator.showNotification('Import an Image object onto the canvas first to expose an Icon property.', 'warning');
+        }
+        return;
+      }
+      const curSrc = getAuthoredCanvasValue(imgObj.target, 'src') || '';
+      this.open({
+        name: 'Icon',
+        label: 'Component Icon / Image Source',
+        type: 'text',
+        target: 'root',
+        property: 'src',
+        default: String(curSrc),
+        description: 'Image or icon source (URL or data:image/... URI) for reusable component instances',
+        targets: [
+          { target: imgObj.target, property: 'src', when: 'always', action: 'set', value: null }
+        ]
+      });
+      this.originalName = '';
     },
 
     _getEnumOptions() {

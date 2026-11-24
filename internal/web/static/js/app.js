@@ -1525,11 +1525,46 @@ window.ImageToolsController = {
   openCommitCropModal() {
     const sel = window.AppCoordinator?.getActiveSelection();
     const hasImageSelected = !!(sel && sel.type === 'image' && sel.id && window.ImageObjects && window.ImageObjects.getImage(sel.id));
+    const resRow = document.getElementById('commitCropResolutionRow');
+    const resSelect = document.getElementById('commitCropResolutionSelect');
+    const resSummary = document.getElementById('commitCropResSummary');
     if (hasImageSelected) {
       const img = window.ImageObjects.getImage(sel.id);
       const modal = document.getElementById('commitCropModal');
       const nameEl = document.getElementById('commitCropModalImageName');
       if (nameEl) nameEl.textContent = img.name || `Image ${img.id}`;
+      if (resRow) resRow.style.display = 'block';
+      if (resSelect) {
+        const dispW = Math.max(1, Math.round(Number(img.width) || 49));
+        const dispH = Math.max(1, Math.round(Number(img.height) || 49));
+        const srcW = Math.max(1, Math.round((img.crop && img.crop.enabled && img.crop.sourceWidth > 0) ? img.crop.sourceWidth : (Number(img.naturalWidth) || dispW)));
+        const srcH = Math.max(1, Math.round((img.crop && img.crop.enabled && img.crop.sourceHeight > 0) ? img.crop.sourceHeight : (Number(img.naturalHeight) || dispH)));
+        const calcDims = (mult) => {
+          const tw = Math.ceil(dispW * mult);
+          const th = Math.ceil(dispH * mult);
+          if (srcW <= tw && srcH <= th) return { w: srcW, h: srcH, capped: true };
+          const sc = Math.min(tw / srcW, th / srcH);
+          return { w: Math.max(1, Math.round(srcW * sc)), h: Math.max(1, Math.round(srcH * sc)), capped: false };
+        };
+        const d1 = calcDims(1);
+        const d2 = calcDims(2);
+        const d3 = calcDims(3);
+        const can3x = (srcW > dispW * 2 || srcH > dispH * 2);
+        resSelect.innerHTML = [
+          `<option value="1x">1× Display Size (${d1.w} × ${d1.h} px — Smallest File Size)</option>`,
+          `<option value="2x" selected>2× Display Size (${d2.w} × ${d2.h} px — HiDPI Recommended)</option>`,
+          `<option value="3x"${can3x ? '' : ' disabled'}>3× Display Size (${d3.w} × ${d3.h} px${can3x ? ' — Ultra HiDPI' : ' — Source ≤ 2× Display Size'})</option>`,
+          `<option value="original">Original Source Pixel Resolution (${srcW} × ${srcH} px)</option>`
+        ].join('');
+        const updateSummary = () => {
+          if (!resSummary) return;
+          const v = resSelect.value;
+          const chosen = v === '1x' ? d1 : (v === '2x' ? d2 : (v === '3x' ? d3 : { w: srcW, h: srcH }));
+          resSummary.textContent = `Source: ${srcW} × ${srcH} px (Display: ${dispW} × ${dispH} px) → Baked Raster: ${chosen.w} × ${chosen.h} px`;
+        };
+        resSelect.onchange = updateSummary;
+        updateSummary();
+      }
       if (modal) modal.style.display = 'flex';
       return;
     }
@@ -1538,6 +1573,7 @@ window.ImageToolsController = {
       const modal = document.getElementById('commitCropModal');
       const nameEl = document.getElementById('commitCropModalImageName');
       if (nameEl) nameEl.textContent = photo.filename || 'Canvas Background Photo';
+      if (resRow) resRow.style.display = 'none';
       if (modal) modal.style.display = 'flex';
       return;
     }
@@ -1559,6 +1595,9 @@ window.ImageToolsController = {
 
     if (isImageSelected) {
       const img = window.ImageObjects.getImage(sel.id);
+      const resPolicy = document.getElementById('commitCropResolutionSelect')?.value || 'original';
+      const origDisplayW = Number(img.width) || 0;
+      const origDisplayH = Number(img.height) || 0;
       this._extractCroppedImageDataUrl(img, (res) => {
         this.closeCommitCropModal();
         if (!res || !res.dataUrl) {
@@ -1566,13 +1605,14 @@ window.ImageToolsController = {
           return;
         }
 
+        const keepDisplayDims = (resPolicy === '1x' || resPolicy === '2x' || resPolicy === '3x') && origDisplayW > 0 && origDisplayH > 0;
         const commitOptions = {
           src: res.dataUrl,
           newSrc: res.dataUrl,
           naturalWidth: res.sw,
           naturalHeight: res.sh,
-          width: res.sw,
-          height: res.sh,
+          width: keepDisplayDims ? origDisplayW : res.sw,
+          height: keepDisplayDims ? origDisplayH : res.sh,
           discardVersions: !!discardVersions
         };
 
@@ -1606,14 +1646,14 @@ window.ImageToolsController = {
           window.AppCoordinator.selectObject('image', img.id, { openAccordionId: 'acc-image-tools' });
           window.AppCoordinator.updateActiveOverlays();
           window.AppCoordinator.showNotification(
-            discardVersions ? 'Crop committed: previous versions discarded.' : 'Crop committed: base asset updated.',
+            discardVersions ? `Image baked (${res.sw}×${res.sh} px): previous versions discarded.` : `Image baked (${res.sw}×${res.sh} px): base asset updated.`,
             'success',
             3000
           );
         }
         if (typeof window.syncImageEditorUI === 'function') window.syncImageEditorUI();
         this.syncUI();
-      });
+      }, resPolicy);
       return;
     }
 
@@ -2440,7 +2480,7 @@ window.ImageToolsController = {
     el.src = src;
   },
 
-  _extractCroppedImageDataUrl(img, cb) {
+  _extractCroppedImageDataUrl(img, cb, resolutionPolicy = 'original') {
     this._getImageElement(img, (imgEl) => {
       if (!imgEl) { cb(null); return; }
       const nw = Math.max(imgEl.naturalWidth || 0, img.naturalWidth || img.width || 0) || 800;
@@ -2452,13 +2492,32 @@ window.ImageToolsController = {
         sw = Math.max(1, Math.min(nw - sx, img.crop.sourceWidth));
         sh = Math.max(1, Math.min(nh - sy, img.crop.sourceHeight));
       }
+      let outW = Math.round(sw);
+      let outH = Math.round(sh);
+      const dispW = Number(img.width) || 0;
+      const dispH = Number(img.height) || 0;
+      if ((resolutionPolicy === '1x' || resolutionPolicy === '2x' || resolutionPolicy === '3x') && dispW > 0 && dispH > 0) {
+        const mult = resolutionPolicy === '1x' ? 1 : (resolutionPolicy === '3x' ? 3 : 2);
+        const maxW = Math.ceil(dispW * mult);
+        const maxH = Math.ceil(dispH * mult);
+        // Never upscale an image that is already smaller than or equal to the target bake size
+        if (sw > maxW || sh > maxH) {
+          const scale = Math.min(maxW / sw, maxH / sh);
+          outW = Math.max(1, Math.round(sw * scale));
+          outH = Math.max(1, Math.round(sh * scale));
+        }
+      }
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(sw);
-      canvas.height = Math.round(sh);
+      canvas.width = outW;
+      canvas.height = outH;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, sw, sh);
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, outW, outH);
+      }
       const dataUrl = canvas.toDataURL(img.mime || 'image/png');
-      cb({ dataUrl, sw, sh });
+      cb({ dataUrl, sw: outW, sh: outH });
     });
   },
 
@@ -2658,6 +2717,7 @@ function getDrawerWidgetPropDefs(type, targetId = '', liteKind = '') {
       { prop: 'play', label: 'Play Animation', type: 'boolean', desc: 'Start or stop expanding liquid ripple wave animation' }
     ],
     image: [
+      { prop: 'src', label: 'Image / Icon Source', type: 'text', desc: 'Image source URL or data:image/... URI for runtime icon/image substitution' },
       { prop: 'opacity', label: 'Image Opacity (0..1)', type: 'number', min: 0, max: 1, step: 0.05, desc: 'Opacity of the image layer' },
       { prop: 'visibility', label: 'Visibility (Toggle)', type: 'boolean', desc: 'Shows or hides this image object' }
     ],
@@ -2790,6 +2850,7 @@ function getObjectPropValue(type, id, prop) {
     const img = window.ImageObjects.getImage(id);
     if (img) {
       switch (prop) {
+        case 'src': return img.src || img.data || img.dataUrl || '';
         case 'opacity': return img.opacity !== undefined ? img.opacity : 1.0;
         case 'visibility': return img.visible !== false;
       }
@@ -6483,6 +6544,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!currentImage || !window.currentRenderState) return;
       const rawSvg = getExportSVG();
       const instanceId = 'widget-' + (Date.now() % 1000000);
+      const rasterPolicy = document.getElementById('widgetExportImagePolicySelect')?.value || '2x';
       let manifest = null;
       if (window.EngineBridge && typeof window.EngineBridge.getWidgetParameters === 'function') {
         const params = window.EngineBridge.getWidgetParameters();
@@ -6491,9 +6553,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       const isolatedSvg = (window.SVGExportAdapter && typeof window.SVGExportAdapter.isolateWidget === 'function')
-        ? window.SVGExportAdapter.isolateWidget(rawSvg, instanceId, { scopeCss: true, manifest })
+        ? window.SVGExportAdapter.isolateWidget(rawSvg, instanceId, { scopeCss: true, manifest, rasterPolicy })
         : (window.SVGWidget && typeof window.SVGWidget.isolate === 'function')
-          ? window.SVGWidget.isolate(rawSvg, { instanceId, scopeCss: true, manifest })
+          ? window.SVGWidget.isolate(rawSvg, { instanceId, scopeCss: true, manifest, rasterPolicy })
           : rawSvg;
 
       const blob = new Blob([isolatedSvg], { type: 'image/svg+xml;charset=utf-8' });
@@ -6564,6 +6626,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!currentImage || !window.currentRenderState) return;
       const baseName = getCleanBaseName();
       const rawSvg = getExportSVG();
+      const rasterPolicy = document.getElementById('widgetExportImagePolicySelect')?.value || '2x';
 
       if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
         window.AppCoordinator.showNotification('Packaging widget assets...', 'info');
@@ -6577,7 +6640,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) {}
 
       if (window.EngineBridge && typeof window.EngineBridge.buildWidgetPackage === 'function' && window.EngineBridge.isReady()) {
-        const res = window.EngineBridge.buildWidgetPackage(baseName, rawSvg, widgetJs);
+        const res = window.EngineBridge.buildWidgetPackage(baseName, rawSvg, widgetJs, rasterPolicy);
         if (res && res.success && res.zipB64) {
           const binaryStr = atob(res.zipB64);
           const bytes = new Uint8Array(binaryStr.length);

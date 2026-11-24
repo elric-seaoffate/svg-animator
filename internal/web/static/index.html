@@ -2077,6 +2077,9 @@
                 <div style="margin-bottom: 0.35rem;">
                   <button type="button" class="btn btn-secondary btn-sm" id="btnBakeImage" style="width: 100%; font-size: 0.72rem; padding: 0.25rem 0.4rem; color: #58a6ff; border-color: rgba(88,166,255,0.4);" title="Bake into Background Photo">🍳 Bake into Background...</button>
                 </div>
+                <div style="margin-bottom: 0.35rem;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnDownsampleImage" style="width: 100%; font-size: 0.72rem; padding: 0.25rem 0.4rem; color: #f2cc60; border-color: rgba(242,204,96,0.4);" title="Downsample / Bake Image Raster to 1x, 2x, or 3x Display Size">📐 Bake / Downsample Resolution (1×/2×/3×)...</button>
+                </div>
                 <div class="layer-status-row">
                   <span class="layer-position-label" id="imageCropStatusLabel">Crop: Full Image</span>
                 </div>
@@ -4125,6 +4128,15 @@
           <div class="btn-group">
             <button type="button" class="primary" id="btnDownloadSVG">Download Vector SVG (Locked Ratio)</button>
             <button type="button" class="secondary" id="btnDownloadHTML" style="margin-top: 0.45rem; width: 100%;">Download Interactive HTML</button>
+            <div style="margin-top: 0.55rem; padding: 6px 8px; background: rgba(22, 27, 34, 0.75); border: 1px solid #30363d; border-radius: 6px;">
+              <label for="widgetExportImagePolicySelect" style="display: block; font-size: 0.68rem; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px;">🖼️ Widget Embedded Raster Policy</label>
+              <select id="widgetExportImagePolicySelect" style="width: 100%; padding: 4px 6px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 4px; font-size: 0.73rem;">
+                <option value="2x" selected>2× Display Size (HiDPI — Recommended)</option>
+                <option value="1x">1× Display Size (Smallest File Size)</option>
+                <option value="3x">3× Display Size (Ultra HiDPI)</option>
+                <option value="original">Original Source Resolution (Deduplicated)</option>
+              </select>
+            </div>
             <button type="button" class="secondary" id="btnDownloadWidgetSVG" style="margin-top: 0.45rem; width: 100%;" title="Export collision-free reusable SVG widget for multi-instance embedding">📦 Export Reusable SVG Widget</button>
             <button type="button" class="secondary" id="btnDownloadWidgetGuide" style="margin-top: 0.35rem; width: 100%; font-size: 0.74rem;" title="Download automatically generated Markdown properties guide">📋 Download Widget Properties Guide</button>
             <button type="button" class="primary" id="btnDownloadWidgetPackage" style="margin-top: 0.35rem; width: 100%; background: #238636; font-size: 0.76rem;" title="Export complete portable package ZIP with SVG, guide, no-code control demo, manifest, and runtime">🎁 Export Widget Package (ZIP)</button>
@@ -4693,8 +4705,18 @@
       </div>
       <div class="modal-body" style="padding: 1rem; font-size: 0.85rem; color: #c9d1d9; line-height: 1.45;">
         <p style="margin: 0 0 0.75rem 0;">
-          This will bake the currently active cropped pixel area of <strong id="commitCropModalImageName" style="color: #fff;">image</strong> into a new base raster asset.
+          This will bake the currently active cropped or displayed pixel area of <strong id="commitCropModalImageName" style="color: #fff;">image</strong> into a new base raster asset.
         </p>
+        <div id="commitCropResolutionRow" style="margin-bottom: 0.85rem; padding: 0.65rem 0.75rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;">
+          <label for="commitCropResolutionSelect" style="display: block; font-size: 0.74rem; font-weight: 700; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px;">📐 Target Bake / Downsample Resolution</label>
+          <select id="commitCropResolutionSelect" style="width: 100%; padding: 6px 8px; background: #161b22; border: 1px solid #30363d; color: #e6edf3; border-radius: 5px; font-size: 0.78rem; font-weight: 600;">
+            <option value="1x">1× Display Size (Actual Display Pixels — Smallest Size)</option>
+            <option value="2x" selected>2× Display Size (HiDPI / Retina — Recommended)</option>
+            <option value="3x">3× Display Size (Ultra HiDPI — Only if Source Is Larger)</option>
+            <option value="original">Original Source Pixel Resolution (No Downsampling)</option>
+          </select>
+          <div id="commitCropResSummary" style="margin-top: 5px; font-size: 0.72rem; color: #8b949e;">Never upscales an image if the source is already smaller than the target bake size.</div>
+        </div>
         <div style="display: flex; flex-direction: column; gap: 0.6rem;">
           <button type="button" class="btn btn-primary" id="btnCommitCropPreserve" style="padding: 0.5rem 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 2px;">
             <strong style="font-size: 0.85rem; color: #fff;">Commit and Preserve Original</strong>
@@ -4912,7 +4934,9 @@
           <h3 id="cbModalTitle" style="margin: 0; font-size: 1.02rem; color: #7ee787; display: flex; align-items: center; gap: 0.45rem;">⚡ Component Builder — Multi-Action Property Editor</h3>
           <span style="font-size: 0.73rem; color: #8b949e;">Create arbitrary named properties (e.g. <code>MouseOver</code>) that drive multiple unrelated canvas objects and animations — <strong>no grouping required</strong>.</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <button type="button" id="btnCbModalQuickLabel" style="background: rgba(56,139,253,0.14); border: 1px solid #388bfd; color: #79c0ff; font-size: 0.72rem; padding: 4px 9px; border-radius: 5px; cursor: pointer; font-weight: 600;" title="Quick-create a reusable 'Label' text property bound to a Text Box Lite">+ Expose Label Text</button>
+          <button type="button" id="btnCbModalQuickIcon" style="background: rgba(210,168,255,0.14); border: 1px solid #a371f7; color: #d2a8ff; font-size: 0.72rem; padding: 4px 9px; border-radius: 5px; cursor: pointer; font-weight: 600;" title="Quick-create a reusable 'Icon' image source property bound to an Image object">+ Expose Icon / Image</button>
           <button type="button" id="btnCbModalNewProp" style="background: #21262d; border: 1px solid #3fb950; color: #7ee787; font-size: 0.74rem; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 600;">+ New Property</button>
           <button type="button" class="floating-editor-close-btn" id="btnCbModalClose" title="Close Component Builder">&times;</button>
         </div>

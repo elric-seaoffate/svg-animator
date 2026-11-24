@@ -876,10 +876,18 @@ func GenerateWidgetDemoHTML(widgetName, svgFilename string, manifest *WidgetMani
 	return sb.String()
 }
 
-// BuildWidgetPackageZip assembles the complete portable widget package ZIP in memory.
+// BuildWidgetPackageZip assembles the complete portable widget package ZIP in memory using the default 2x HiDPI raster policy.
 func BuildWidgetPackageZip(sc *Scene, widgetName, rawSVG, svgWidgetJS string) ([]byte, error) {
+	return BuildWidgetPackageZipWithOptions(sc, widgetName, rawSVG, svgWidgetJS, "2x")
+}
+
+// BuildWidgetPackageZipWithOptions assembles the complete portable widget package ZIP in memory with a configurable raster optimisation policy ("1x", "2x", "3x", "original").
+func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS, rasterPolicy string) ([]byte, error) {
 	if widgetName == "" {
 		widgetName = "widget"
+	}
+	if strings.TrimSpace(rasterPolicy) == "" {
+		rasterPolicy = "2x"
 	}
 	cleanBase := cleanWidgetSlug(widgetName)
 	svgFilename := cleanBase + ".svg"
@@ -989,9 +997,10 @@ func BuildWidgetPackageZip(sc *Scene, widgetName, rawSVG, svgWidgetJS string) ([
 	isolatedSVG := rawSVG
 	if strings.TrimSpace(rawSVG) != "" {
 		iso, _, err := IsolateSVGWidget(rawSVG, WidgetIsolationOptions{
-			InstanceID: cleanBase,
-			ScopeCSS:   true,
-			Manifest:   manifest,
+			InstanceID:   cleanBase,
+			ScopeCSS:     true,
+			RasterPolicy: rasterPolicy,
+			Manifest:     manifest,
 		})
 		if err == nil && iso != "" {
 			isolatedSVG = iso

@@ -287,7 +287,89 @@ func run() int {
 	record("S16F-02", "All 6 Required Browser Demonstrations (/component-builder-demo.html)",
 		demoRes["ok"] == true, rawDemo)
 
-	allPassed := len(results) == 2
+	// Wait briefly for async fetch('fleet1-optimised.svg') to mount fleetAlpha, fleetBeta, fleetGamma
+	time.Sleep(600 * time.Millisecond)
+	fleetScript := `(() => {
+		const inst = window.demoInstances || {};
+		const fa = inst.fleetAlpha;
+		const fb = inst.fleetBeta;
+		const fc = inst.fleetGamma;
+		if (!fa || !fb || !fc) {
+			return JSON.stringify({ ok: false, error: 'Fleet instances not mounted yet' });
+		}
+
+		// 1. Check CSS rules have no duplicated #sva-widget-* selectors
+		const styleA = fa.svgElement.querySelectorAll('style');
+		let cssTextA = '';
+		styleA.forEach(s => { cssTextA += s.textContent || ''; });
+		const noDupRoot = !/#sva-widget-[a-zA-Z0-9_-]+\s+#[a-zA-Z0-9_-]*sva-widget-/.test(cssTextA);
+		const hasRadarRuleA = cssTextA.includes('#sva-widget-fleet-alpha .sva-lite-radar-anim');
+
+		// 2. Check distinct Label and Icon content across 3 instances
+		const labelA = fa.svgElement.querySelector('[data-semantic-target="lite-1"]').getAttribute('data-text-content');
+		const labelB = fb.svgElement.querySelector('[data-semantic-target="lite-1"]').getAttribute('data-text-content');
+		const labelC = fc.svgElement.querySelector('[data-semantic-target="lite-1"]').getAttribute('data-text-content');
+		const iconA = fa.svgElement.querySelector('[data-semantic-target="image-image-1"]').getAttribute('href');
+		const iconB = fb.svgElement.querySelector('[data-semantic-target="image-image-1"]').getAttribute('href');
+		const iconC = fc.svgElement.querySelector('[data-semantic-target="image-image-1"]').getAttribute('href');
+		const distinctContentOk = (labelA === 'Fleet Sanctum' && labelB === 'Aegis Command' && labelC === 'Vanguard Relay' &&
+			iconA !== iconB && iconB !== iconC && iconA.startsWith('data:image/png;base64,') && iconB.startsWith('data:image/svg+xml;base64,'));
+
+		// 3. Test hover (mouseenter/mouseleave) on fleetAlpha -> radar-lite (lite-4) computed animationName & visibility
+		fa.svgElement.dispatchEvent(new MouseEvent('mouseenter'));
+		const radarEl = fa.svgElement.querySelector('[data-semantic-target="lite-4"]');
+		const ringEl = radarEl.querySelector('.lite-radar-ring');
+		const activeRadarAnim = window.getComputedStyle(ringEl).animationName;
+		const radarHoverOk = (fa.getParameter('MouseOver') === true &&
+			radarEl.getAttribute('visibility') === 'visible' &&
+			activeRadarAnim === 'fleet-alpha__sva-lite-radar');
+
+		fa.svgElement.dispatchEvent(new MouseEvent('mouseleave'));
+		const stoppedRadarAnim = window.getComputedStyle(ringEl).animationName;
+		const radarLeaveOk = (fa.getParameter('MouseOver') === false &&
+			radarEl.getAttribute('visibility') === 'hidden' &&
+			stoppedRadarAnim === 'none');
+
+		// 4. Test Selected (perimeter-tracer lite-3) and OnClick (pressed colour flash) on fleetBeta
+		fb.setParameter('Selected', true);
+		const tracerElB = fb.svgElement.querySelector('[data-semantic-target="lite-3"]');
+		const tracerPayB = tracerElB.querySelector('.lite-payload');
+		const activeTracerAnim = window.getComputedStyle(tracerPayB).animationName;
+		const selectedOnOk = (tracerElB.getAttribute('visibility') === 'visible' &&
+			activeTracerAnim === 'fleet-beta__sva-lite-trace-cw');
+
+		fb.svgElement.dispatchEvent(new PointerEvent('pointerdown'));
+		const onClickDownOk = (fb.getParameter('OnClick') === true &&
+			fb.svgElement.querySelector('[data-semantic-target="lite-1"]').getAttribute('data-text-bg-color') === '#95892d');
+		fb.svgElement.dispatchEvent(new PointerEvent('pointerup'));
+		const onClickUpOk = (fb.getParameter('OnClick') === false);
+
+		fb.setParameter('Selected', false);
+		const stoppedTracerAnim = window.getComputedStyle(tracerPayB).animationName;
+		const selectedOffOk = (tracerElB.getAttribute('visibility') === 'hidden' &&
+			tracerElB.getAttribute('data-lite-play') === 'false' &&
+			stoppedTracerAnim === 'none');
+
+		return JSON.stringify({
+			ok: noDupRoot && hasRadarRuleA && distinctContentOk && radarHoverOk && radarLeaveOk && selectedOnOk && onClickDownOk && onClickUpOk && selectedOffOk,
+			noDupRoot, hasRadarRuleA, distinctContentOk, radarHoverOk, radarLeaveOk, selectedOnOk, onClickDownOk, onClickUpOk, selectedOffOk,
+			activeRadarAnim,
+			stoppedRadarAnim,
+			activeTracerAnim,
+			stoppedTracerAnim
+		});
+	})()`
+	rawFleet, err := chromedp.Run(taskCtx, chromedp.Evaluate[string](fleetScript))
+	if err != nil {
+		record("S16F-03", "Sentinel-PVE fleet1.svg Multi-Instance CSS Scoping, Computed Animations & Label/Icon Reuse", false, err.Error())
+		return 1
+	}
+	var fleetRes map[string]any
+	_ = json.Unmarshal([]byte(rawFleet), &fleetRes)
+	record("S16F-03", "Sentinel-PVE fleet1.svg Multi-Instance CSS Scoping, Computed Animations & Label/Icon Reuse",
+		fleetRes["ok"] == true, rawFleet)
+
+	allPassed := len(results) == 3
 	for _, r := range results {
 		if !r.Passed {
 			allPassed = false

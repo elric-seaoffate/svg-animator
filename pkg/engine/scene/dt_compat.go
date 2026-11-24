@@ -95,6 +95,7 @@ func VerifiedRuntimeProperties() map[string]WidgetRuntimePropertySpec {
 		"segments":        {Types: []string{"number"}, Min: floatPtr(1), Max: floatPtr(32)},
 		"showGuide":       {Types: []string{"boolean"}},
 		"speed":           {Types: []string{"speed", "number"}, Min: floatPtr(0), Max: floatPtr(30)},
+		"src":             {Types: []string{"text"}},
 		"startMode":       {Types: []string{"enum", "text"}},
 		"startOffset":     {Types: []string{"number"}, Min: floatPtr(0), Max: floatPtr(100)},
 		"state":           {Types: []string{"enum", "text"}},

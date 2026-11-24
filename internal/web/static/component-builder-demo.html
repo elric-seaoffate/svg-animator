@@ -430,6 +430,43 @@ el.addEventListener('blur', () =&gt; w.setParameter('Focused', false));</div>
     </section>
   </div>
 
+  <!-- SENTINEL-PVE FLEET1.SVG MULTI-INSTANCE & REUSABLE CONTENT (LABEL + ICON) SHOWCASE -->
+  <section id="sec-demo-fleet" style="margin-top: 22px; border-color: #95892d; background: linear-gradient(145deg, #161b22 0%, #17181c 100%);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+      <div>
+        <h2 style="color:#f2cc60; margin:0 0 4px 0;">7. Sentinel-PVE <code>fleet1.svg</code> (200×50) — Multi-Instance CSS Scoping, Raster Optimisation &amp; Reusable <code>Label</code> / <code>Icon</code> Content</h2>
+        <p class="sub" style="margin:0;">Three independent instances mounted from one <strong>38.3 KB</strong> 2× HiDPI-optimised <code>fleet1.svg</code> template (down from <strong>1.21 MB</strong> — <strong>96.7% savings</strong>). Each instance overrides <code>Label</code> (Text Box Lite) and <code>Icon</code> (<code>image.src</code>) while sharing independent <code>MouseOver</code> (radar ping on hover), <code>OnClick</code> (gold flash on press), and <code>Selected</code> (perimeter tracer + typewriter on click).</p>
+      </div>
+      <span class="readout" id="readout-fleet-status">3 instances mounted (38.3 KB template)</span>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;">
+      <div class="event-card" id="fleet-card-alpha">
+        <h3><span>Instance A — Default</span> <span class="event-chip">fleet-alpha</span></h3>
+        <div class="stage-wrap" id="mount-fleet-alpha" style="min-height:92px;"></div>
+        <div class="ctrl-bar">
+          <button type="button" class="btn" id="btn-fleet-a-sel">Toggle Selected</button>
+          <span class="readout" id="readout-fleet-a">Selected: false</span>
+        </div>
+      </div>
+      <div class="event-card" id="fleet-card-beta">
+        <h3><span>Instance B — Custom Label &amp; Icon</span> <span class="event-chip">fleet-beta</span></h3>
+        <div class="stage-wrap" id="mount-fleet-beta" style="min-height:92px;"></div>
+        <div class="ctrl-bar">
+          <button type="button" class="btn" id="btn-fleet-b-sel">Toggle Selected</button>
+          <span class="readout" id="readout-fleet-b">Selected: false</span>
+        </div>
+      </div>
+      <div class="event-card" id="fleet-card-gamma">
+        <h3><span>Instance C — Custom Label &amp; Icon</span> <span class="event-chip">fleet-gamma</span></h3>
+        <div class="stage-wrap" id="mount-fleet-gamma" style="min-height:92px;"></div>
+        <div class="ctrl-bar">
+          <button type="button" class="btn" id="btn-fleet-c-sel">Toggle Selected</button>
+          <span class="readout" id="readout-fleet-c">Selected: false</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <script>
     // Shared SVG template for Demo 1 & Demo 6: Ungrouped MouseOver Button Widget
     // Contains:
@@ -934,6 +971,66 @@ el.addEventListener('blur', () =&gt; w.setParameter('Focused', false));</div>
         if (isScrubbing || e.shiftKey) scrubFromPointer(e);
       });
       window.addEventListener('pointerup', () => { isScrubbing = false; });
+
+      // =======================================================================
+      // 7. SENTINEL-PVE FLEET1.SVG MULTI-INSTANCE & REUSABLE CONTENT SHOWCASE
+      // =======================================================================
+      const shieldIconURI = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs><path d="M32 6 L54 14 V30 C54 45 44 55 32 59 C20 55 10 45 10 30 V14 Z" fill="url(#g)" stroke="#e0f2fe" stroke-width="2.5"/><path d="M24 32 L30 38 L42 25" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
+      const beaconIconURI = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="32" r="24" fill="#0f172a" stroke="#22c55e" stroke-width="3"/><circle cx="32" cy="32" r="15" fill="none" stroke="#4ade80" stroke-width="2" stroke-dasharray="6 4"/><circle cx="32" cy="32" r="6" fill="#22c55e"/></svg>`);
+
+      fetch('fleet1-optimised.svg')
+        .then((r) => r.ok ? r.text() : Promise.reject(new Error('Failed loading fleet1-optimised.svg')))
+        .then((fleetSvgText) => {
+          const fa = SVGWidget.mount('#mount-fleet-alpha', fleetSvgText, {
+            instanceId: 'fleet-alpha'
+          });
+          const fb = SVGWidget.mount('#mount-fleet-beta', fleetSvgText, {
+            instanceId: 'fleet-beta',
+            parameters: {
+              Label: 'Aegis Command',
+              Icon: shieldIconURI
+            }
+          });
+          const fc = SVGWidget.mount('#mount-fleet-gamma', fleetSvgText, {
+            instanceId: 'fleet-gamma',
+            parameters: {
+              Label: 'Vanguard Relay',
+              Icon: beaconIconURI
+            }
+          });
+          window.demoInstances.fleetAlpha = fa;
+          window.demoInstances.fleetBeta = fb;
+          window.demoInstances.fleetGamma = fc;
+
+          const bindFleetInteractions = (inst, btnId, readoutId, tag) => {
+            const svgNode = inst.svgElement;
+            const btn = document.getElementById(btnId);
+            const ro = document.getElementById(readoutId);
+            const toggleSel = () => {
+              const next = !inst.getParameter('Selected');
+              inst.setParameter('Selected', next);
+              if (ro) ro.textContent = `Selected: ${next}`;
+              logEventFeed(`${tag} -> Selected = ${next}`);
+            };
+            if (btn) btn.addEventListener('click', toggleSel);
+            if (svgNode) {
+              svgNode.style.cursor = 'pointer';
+              svgNode.addEventListener('pointerdown', () => inst.setParameter('OnClick', true));
+              svgNode.addEventListener('pointerup', () => inst.setParameter('OnClick', false));
+              svgNode.addEventListener('pointerleave', () => {
+                if (inst.getParameter('OnClick')) inst.setParameter('OnClick', false);
+              });
+              svgNode.addEventListener('click', toggleSel);
+            }
+          };
+
+          bindFleetInteractions(fa, 'btn-fleet-a-sel', 'readout-fleet-a', 'fleet-alpha');
+          bindFleetInteractions(fb, 'btn-fleet-b-sel', 'readout-fleet-b', 'fleet-beta');
+          bindFleetInteractions(fc, 'btn-fleet-c-sel', 'readout-fleet-c', 'fleet-gamma');
+        })
+        .catch((err) => {
+          console.warn('[Fleet Demo]', err);
+        });
     });
   </script>
 </body>

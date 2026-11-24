@@ -2,8 +2,8 @@
   "contractVersion": 1,
   "runtimeName": "svg-widget.js",
   "runtimeVersion": "1.2.1",
-  "sourceCommit": "cdbf8157748ac1d37c0a24080243eca382747992",
-  "runtimeSha256": "902b8910ef5d730ba6eb3296224053bdf3c9ecde039ee4da7e81d5b998be81c5",
+  "sourceCommit": "56cff443570cd2cda217268803d1aef7fe9d4254",
+  "runtimeSha256": "f704863245202002f2c7675be2695c841777398aa2b13ee867369f5baf804a1e",
   "supportedManifestSchemas": [
     1
   ],
@@ -313,6 +313,11 @@
       ],
       "min": 0,
       "max": 30
+    },
+    "src": {
+      "types": [
+        "text"
+      ]
     },
     "startMode": {
       "types": [

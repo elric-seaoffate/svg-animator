@@ -1326,11 +1326,12 @@ type ValidateSVAResponse struct {
 
 // IsolateSVGWidgetRequest is the payload for "Widget.IsolateSVG".
 type IsolateSVGWidgetRequest struct {
-	SVG        string                `json:"svg"`
-	InstanceID string                `json:"instanceId,omitempty"`
-	Prefix     string                `json:"prefix,omitempty"`
-	ScopeCSS   *bool                 `json:"scopeCss,omitempty"`
-	Manifest   *scene.WidgetManifest `json:"manifest,omitempty"`
+	SVG          string                `json:"svg"`
+	InstanceID   string                `json:"instanceId,omitempty"`
+	Prefix       string                `json:"prefix,omitempty"`
+	ScopeCSS     *bool                 `json:"scopeCss,omitempty"`
+	RasterPolicy string                `json:"rasterPolicy,omitempty"`
+	Manifest     *scene.WidgetManifest `json:"manifest,omitempty"`
 }
 
 // IsolateSVGWidgetResponse is returned by "Widget.IsolateSVG".
@@ -1387,9 +1388,10 @@ type WidgetGenerateGuideResponse struct {
 
 // WidgetBuildPackageRequest is the payload for "Widget.BuildPackage".
 type WidgetBuildPackageRequest struct {
-	WidgetName  string `json:"widgetName,omitempty"`
-	SVG         string `json:"svg"`
-	SVGWidgetJS string `json:"svgWidgetJs,omitempty"`
+	WidgetName   string `json:"widgetName,omitempty"`
+	SVG          string `json:"svg"`
+	SVGWidgetJS  string `json:"svgWidgetJs,omitempty"`
+	RasterPolicy string `json:"rasterPolicy,omitempty"`
 }
 
 // WidgetBuildPackageResponse is returned by "Widget.BuildPackage".
@@ -3762,10 +3764,11 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			}
 		}
 		isolated, idMap, err := scene.IsolateSVGWidget(req.SVG, scene.WidgetIsolationOptions{
-			InstanceID: req.InstanceID,
-			Prefix:     req.Prefix,
-			ScopeCSS:   scopeCSS,
-			Manifest:   manifest,
+			InstanceID:   req.InstanceID,
+			Prefix:       req.Prefix,
+			ScopeCSS:     scopeCSS,
+			RasterPolicy: req.RasterPolicy,
+			Manifest:     manifest,
 		})
 		if err != nil {
 			return json.Marshal(IsolateSVGWidgetResponse{
@@ -4005,7 +4008,7 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if wName == "" {
 			wName = "widget"
 		}
-		zipBytes, err := scene.BuildWidgetPackageZip(activeScene, wName, req.SVG, req.SVGWidgetJS)
+		zipBytes, err := scene.BuildWidgetPackageZipWithOptions(activeScene, wName, req.SVG, req.SVGWidgetJS, req.RasterPolicy)
 		if err != nil {
 			return json.Marshal(WidgetBuildPackageResponse{
 				Success: false,
