@@ -473,62 +473,7 @@ func normalizeParams(durationSecs float64, fps int, loopMode string, dims ...int
 	return width, height, fps, captureDuration, totalFrames
 }
 
-func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWriter io.Writer, duration float64, fps, width, height int, onProgress ProgressFunc) error {
-	totalFrames := int(duration * float64(fps))
-	if totalFrames < 1 {
-		totalFrames = 1
-	}
-
-	if onProgress != nil {
-		onProgress(0, totalFrames, "Initializing vector rasterization pipeline...")
-	}
-
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true),
-		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("no-sandbox", true),
-		chromedp.Flag("disable-dev-shm-usage", true),
-		chromedp.Flag("window-size", fmt.Sprintf("%d,%d", width, height)),
-	)
-
-	allocCtx, cancelAlloc := chromedp.NewExecAllocator(parentCtx, opts...)
-	defer cancelAlloc()
-
-	ctx, cancel := chromedp.NewContext(allocCtx)
-	defer cancel()
-
-	ctx, cancelTimeout := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancelTimeout()
-
-	absPath, err := filepath.Abs(htmlPath)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute html path: %w", err)
-	}
-	fileURL := "file://" + filepath.ToSlash(absPath)
-
-	// Intercept and strictly block external network requests and unauthorized file reads
-	events := chromedp.Events(ctx, fetch.RequestPaused)
-	go func() {
-		for ev, err := range events {
-			if err != nil {
-				return
-			}
-			reqURL := ev.Request.URL
-			// Allow main document navigation to fileURL and inline data URIs; block all SSRF / external URLs
-			if reqURL == fileURL || strings.HasPrefix(reqURL, "data:") {
-				_, _ = chromedp.Call(ctx, fetch.ContinueRequest, fetch.ContinueRequestParams{
-					RequestID: ev.RequestID,
-				})
-			} else {
-				_, _ = chromedp.Call(ctx, fetch.FailRequest, fetch.FailRequestParams{
-					RequestID:   ev.RequestID,
-					ErrorReason: network.ErrorReasonBlockedByClient,
-				})
-			}
-		}
-	}()
-
-	scrubberJS := `
+const scrubberJS = `
 		function solveCubicBezier(x1, y1, x2, y2, x) {
 			if (x <= 0) return 0;
 			if (x >= 1) return 1;
@@ -550,24 +495,288 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			return ((ay * t + by) * t + cy) * t;
 		}
 
+		function segmentGraphemes(str) {
+			const t = String(str || '');
+			if (!t) return [];
+			if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+				try {
+					return Array.from((new Intl.Segmenter(undefined, { granularity: 'grapheme' })).segment(t), function(x) { return x.segment; });
+				} catch (_) {}
+			}
+			return Array.from(t);
+		}
+
+		function isStoppedByPlayFalse(el) {
+			if (!el) return false;
+			if (el.getAttribute && (el.getAttribute('data-lite-play') === 'false' || el.getAttribute('data-play-animation') === 'false')) {
+				return true;
+			}
+			if (el.closest && el.closest('[data-lite-play="false"], [data-play-animation="false"]')) {
+				return true;
+			}
+			return false;
+		}
+
+		function initDeterministicScene() {
+			if (window.__svaDeterministicInitDone) return;
+			window.__svaDeterministicInitDone = true;
+
+			// 1. Apply play === false stopping for CSS & SMIL objects
+			document.querySelectorAll('[data-lite-play="false"], [data-play-animation="false"]').forEach(stEl => {
+				stEl.querySelectorAll('.lite-payload, .lite-osc-wave, .lite-text-element').forEach(node => {
+					if (node.style) {
+						node.style.animationPlayState = 'paused';
+						node.style.animationName = 'none';
+					}
+				});
+				stEl.querySelectorAll('animate, animateTransform, animateMotion, set').forEach(smil => {
+					smil.setAttribute('begin', 'indefinite');
+					if (typeof smil.endElement === 'function') {
+						try { smil.endElement(); } catch (_) {}
+					}
+					if (smil.parentNode) {
+						smil.parentNode.removeChild(smil);
+					}
+				});
+				if (stEl.classList && stEl.classList.contains('diagram-flow-instance')) {
+					stEl.querySelectorAll('.flow-payload-wrapper, .flow-payload-group').forEach(p => {
+						p.setAttribute('visibility', 'hidden');
+						if (p.style) p.style.visibility = 'hidden';
+					});
+				}
+			});
+
+			// 2. Calibrate horizontal tickers (ticker-h) using true rendered DOM text length
+			document.querySelectorAll('[data-lite-kind="text-lite"]').forEach(g => {
+				if (isStoppedByPlayFalse(g)) return;
+				let anim = g.getAttribute('data-text-anim') || 'none';
+				if (anim === 'overtype') anim = 'typewriter';
+				if (anim !== 'ticker-h') return;
+				const txtEl = g.querySelector('.lite-text-element');
+				if (!txtEl) return;
+				const fullStr = g.getAttribute('data-text-content') || txtEl.textContent || '';
+				const w = parseFloat(g.getAttribute('data-text-w')) || 220;
+				const pad = parseFloat(g.getAttribute('data-text-padding')) || 12;
+				const dir = g.getAttribute('data-text-direction') === 'reverse' ? 'reverse' : 'forward';
+				const pMode = g.getAttribute('data-text-playback-mode') || 'loop';
+				const spd = Math.max(10, parseFloat(g.getAttribute('data-text-scroll-speed')) || 90);
+				let tw = 0;
+				try { tw = txtEl.getComputedTextLength(); } catch (_) {}
+				if (!(tw > 0)) tw = Math.max(18, segmentGraphemes(fullStr).length * 10);
+				const dist = Math.max(20, w + tw);
+				const dur = Math.max(0.15, dist / spd);
+				const startPx = dir === 'reverse' ? -tw : w;
+				const endPx = pMode === 'once' ? pad : (dir === 'reverse' ? w : -tw);
+				txtEl.style.setProperty('--sva-ticker-start', startPx.toFixed(2) + 'px');
+				txtEl.style.setProperty('--sva-ticker-end', endPx.toFixed(2) + 'px');
+				txtEl.style.animationDuration = dur.toFixed(4) + 's';
+			});
+		}
+
+		function evaluateTextLiteAtTime(g, ms) {
+			let anim = g.getAttribute('data-text-anim') || 'none';
+			if (anim === 'overtype') anim = 'typewriter';
+			if (anim !== 'typewriter' && anim !== 'scramble') return;
+			const txtEl = g.querySelector('.lite-text-element');
+			const targetNode = g.querySelector('.lite-text-path') || txtEl;
+			if (!txtEl || !targetNode) return;
+			const fullStr = g.getAttribute('data-text-content') || '';
+			if (isStoppedByPlayFalse(g)) {
+				targetNode.textContent = fullStr;
+				return;
+			}
+			const gs = segmentGraphemes(fullStr);
+			const N = gs.length;
+			if (N === 0) {
+				targetNode.textContent = '';
+				return;
+			}
+			const rate = Math.max(1, parseFloat(g.getAttribute('data-text-type-speed')) || 14);
+			const hold = Math.max(0, parseFloat(g.getAttribute('data-text-hold-delay')) || 1.5);
+			const pMode = g.getAttribute('data-text-playback-mode') || 'loop';
+			const stepMs = Math.max(12, Math.round(1000 / rate));
+
+			if (anim === 'scramble') {
+				const cipher = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#%&*';
+				const activeDur = N * stepMs;
+				const holdDur = Math.max(200, hold * 1000);
+				const cycleDur = activeDur + holdDur;
+				let localMs = ms;
+				if (pMode !== 'once' && cycleDur > 0) {
+					localMs = ms % cycleDur;
+				}
+				let idx = Math.floor(localMs / stepMs);
+				if (idx > N) idx = N;
+				if (idx < 0) idx = 0;
+				let out = '';
+				for (let k = 0; k < N; k++) {
+					if (k < idx || gs[k] === ' ') {
+						out += gs[k];
+					} else {
+						out += cipher.charAt((k * 7 + (idx + 1) * 13) % cipher.length);
+					}
+				}
+				targetNode.textContent = out;
+				return;
+			}
+
+			// Typewriter
+			let mode = g.getAttribute('data-text-type-mode') || 'hold';
+			if (mode === 'loop') mode = 'delete';
+			const rep = g.getAttribute('data-text-type-repeat') === 'true' || pMode === 'loop';
+			const delStepMs = Math.max(10, Math.round(stepMs * 0.75));
+			const typeDur = N * stepMs;
+
+			if (mode === 'delete' || mode === 'delete-forward') {
+				const holdDur = Math.max(60, hold * 1000);
+				const delDur = N * delStepMs;
+				const pauseDur = rep ? 250 : 0;
+				const cycleDur = typeDur + holdDur + delDur + pauseDur;
+				let localMs = ms;
+				if (rep && cycleDur > 0) {
+					localMs = ms % cycleDur;
+				}
+				if (localMs < typeDur) {
+					const idx = Math.min(N, Math.floor(localMs / stepMs));
+					targetNode.textContent = gs.slice(0, idx).join('');
+				} else if (localMs < typeDur + holdDur) {
+					targetNode.textContent = fullStr;
+				} else if (localMs < typeDur + holdDur + delDur) {
+					const delElapsed = localMs - (typeDur + holdDur);
+					const delSteps = Math.min(N, Math.floor(delElapsed / delStepMs) + 1);
+					const rem = Math.max(0, N - delSteps);
+					if (mode === 'delete') {
+						targetNode.textContent = gs.slice(0, rem).join('');
+					} else {
+						targetNode.textContent = gs.slice(N - rem).join('');
+					}
+				} else {
+					targetNode.textContent = '';
+				}
+			} else {
+				const holdDur = Math.max(200, hold * 1000);
+				const cycleDur = typeDur + holdDur;
+				let localMs = ms;
+				if (rep && cycleDur > 0) {
+					localMs = ms % cycleDur;
+				}
+				if (localMs < typeDur) {
+					const idx = Math.min(N, Math.floor(localMs / stepMs));
+					targetNode.textContent = gs.slice(0, idx).join('');
+				} else {
+					targetNode.textContent = fullStr;
+				}
+			}
+		}
+
+		function evaluateBurstCyclesAtTime(n, ms) {
+			if (isStoppedByPlayFalse(n)) return;
+			const cyc = parseInt(n.getAttribute('data-burst-cycles') || '0', 10);
+			const pSec = parseFloat(n.getAttribute('data-pause-seconds') || '0');
+			if (!(cyc > 0 && pSec > 0)) return;
+			const anims = (typeof n.getAnimations === 'function') ? n.getAnimations() : [];
+			let baseDurSec = parseFloat((n.style && n.style.getPropertyValue('--sva-base-dur')) || (n.style && n.style.animationDuration) || '0');
+			if (!(baseDurSec > 0) && anims.length > 0 && anims[0].effect && typeof anims[0].effect.getTiming === 'function') {
+				const d = anims[0].effect.getTiming().duration;
+				if (typeof d === 'number' && d > 0) baseDurSec = d / 1000.0;
+			}
+			if (!(baseDurSec > 0) && typeof window.getComputedStyle === 'function') {
+				const cd = parseFloat(window.getComputedStyle(n).animationDuration || '0');
+				if (cd > 0) baseDurSec = cd;
+			}
+			if (!(baseDurSec > 0)) baseDurSec = 1;
+			const activeMs = cyc * baseDurSec * 1000.0;
+			const pauseMs = pSec * 1000.0;
+			const startDelaySec = parseFloat(n.getAttribute('data-flow-start-delay') || '0') || 0;
+			const startDelayMs = startDelaySec * 1000.0;
+			const totalCycleMs = activeMs + pauseMs;
+			if (totalCycleMs <= 0) return;
+
+			const visMode = n.getAttribute('data-pause-visibility') || 'hide';
+			const phaseRatio = parseFloat((n.style && n.style.getPropertyValue('--sva-phase-ratio')) || '0') || 0;
+			const phaseDelayMs = Math.abs(phaseRatio) * baseDurSec * 1000.0;
+
+			if (ms < startDelayMs) {
+				if (visMode === 'hide') {
+					n.setAttribute('visibility', 'hidden');
+					if (n.style) {
+						n.style.visibility = 'hidden';
+						n.style.opacity = '0';
+					}
+				}
+				anims.forEach(a => {
+					try { a.pause(); a.currentTime = phaseDelayMs; } catch (_) {}
+				});
+				return;
+			}
+
+			const localMs = (ms - startDelayMs) % totalCycleMs;
+			if (localMs < activeMs) {
+				n.removeAttribute('visibility');
+				if (n.style) {
+					n.style.visibility = '';
+					n.style.opacity = '';
+				}
+				anims.forEach(a => {
+					try { a.pause(); a.currentTime = localMs + phaseDelayMs; } catch (_) {}
+				});
+			} else {
+				if (visMode === 'hide') {
+					n.setAttribute('visibility', 'hidden');
+					if (n.style) {
+						n.style.visibility = 'hidden';
+						n.style.opacity = '0';
+					}
+				} else {
+					n.removeAttribute('visibility');
+					if (n.style) {
+						n.style.visibility = '';
+						n.style.opacity = '';
+					}
+				}
+				anims.forEach(a => {
+					try { a.pause(); a.currentTime = Math.max(0, activeMs - 0.1) + phaseDelayMs; } catch (_) {}
+				});
+			}
+		}
+
 		function setAnimTime(ms) {
+			initDeterministicScene();
 			const sec = ms / 1000.0;
 			
-			document.getAnimations().forEach(anim => {
-				anim.pause();
-				anim.currentTime = ms;
+			document.getAnimations({ subtree: true }).forEach(anim => {
+				try {
+					const target = anim.effect && anim.effect.target;
+					if (target && isStoppedByPlayFalse(target)) {
+						anim.pause();
+						return;
+					}
+					anim.pause();
+					anim.currentTime = ms;
+				} catch (_) {}
 			});
 			
 			document.querySelectorAll('svg').forEach(svg => { 
 				if (svg.setCurrentTime) { 
-					svg.pauseAnimations(); 
-					svg.setCurrentTime(sec); 
+					try {
+						svg.pauseAnimations(); 
+						svg.setCurrentTime(sec); 
+					} catch (_) {}
 				} 
+			});
+
+			document.querySelectorAll('[data-burst-cycles]').forEach(n => {
+				evaluateBurstCyclesAtTime(n, ms);
+			});
+
+			document.querySelectorAll('[data-lite-kind="text-lite"]').forEach(g => {
+				evaluateTextLiteAtTime(g, ms);
 			});
 
 			document.querySelectorAll('filter animate, filter animateTransform, mask animate, mask animateTransform').forEach(anim => {
 				const parent = anim.parentElement;
 				const attr = anim.getAttribute('attributeName');
+				if (anim.getAttribute('begin') === 'indefinite' || isStoppedByPlayFalse(anim)) return;
 				let durAttr = anim.getAttribute('dur') || '';
 				let dur = parseFloat(durAttr);
 				if (durAttr.endsWith('ms')) dur = dur / 1000.0;
@@ -675,18 +884,88 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 		}
 	`
 
+func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWriter io.Writer, duration float64, fps, width, height int, onProgress ProgressFunc) error {
+	totalFrames := int(duration * float64(fps))
+	if totalFrames < 1 {
+		totalFrames = 1
+	}
+
+	if onProgress != nil {
+		onProgress(0, totalFrames, "Initializing vector rasterization pipeline...")
+	}
+
+	absPath, err := filepath.Abs(htmlPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute html path: %w", err)
+	}
+
+	isTransparent := false
+	if rawHTML, readErr := os.ReadFile(absPath); readErr == nil {
+		if strings.Contains(string(rawHTML), `data-bg-transparent="true"`) {
+			isTransparent = true
+		}
+	}
+
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("headless", true),
+		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("window-size", fmt.Sprintf("%d,%d", width, height)),
+	)
+
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(parentCtx, opts...)
+	defer cancelAlloc()
+
+	ctx, cancel := chromedp.NewContext(allocCtx)
+	defer cancel()
+
+	ctx, cancelTimeout := context.WithTimeout(ctx, 30*time.Minute)
+	defer cancelTimeout()
+
+	fileURL := "file://" + filepath.ToSlash(absPath)
+
+	// Intercept and strictly block external network requests and unauthorized file reads
+	events := chromedp.Events(ctx, fetch.RequestPaused)
+	go func() {
+		for ev, err := range events {
+			if err != nil {
+				return
+			}
+			reqURL := ev.Request.URL
+			// Allow main document navigation to fileURL and inline data URIs; block all SSRF / external URLs
+			if reqURL == fileURL || strings.HasPrefix(reqURL, "data:") {
+				_, _ = chromedp.Call(ctx, fetch.ContinueRequest, fetch.ContinueRequestParams{
+					RequestID: ev.RequestID,
+				})
+			} else {
+				_, _ = chromedp.Call(ctx, fetch.FailRequest, fetch.FailRequestParams{
+					RequestID:   ev.RequestID,
+					ErrorReason: network.ErrorReasonBlockedByClient,
+				})
+			}
+		}
+	}()
+
 	cssOverrideJS := `
 		var isTrans = document.body.getAttribute('data-bg-transparent') === 'true' ||
 			(document.querySelector('svg') && document.querySelector('svg').getAttribute('data-bg-transparent') === 'true');
 		var customBg = document.body.getAttribute('data-bg-color') || '';
+		if (document.documentElement) {
+			document.documentElement.style.background = isTrans ? 'transparent' : (customBg || '#000000');
+			document.documentElement.style.backgroundColor = isTrans ? 'transparent' : (customBg || '#000000');
+		}
 		document.body.style.margin = '0';
 		document.body.style.padding = '0';
 		document.body.style.overflow = 'hidden';
 		if (isTrans) {
+			document.body.style.background = 'transparent';
 			document.body.style.backgroundColor = 'transparent';
 		} else if (customBg) {
+			document.body.style.background = customBg;
 			document.body.style.backgroundColor = customBg;
 		} else {
+			document.body.style.background = '#000000';
 			document.body.style.backgroundColor = '#000000';
 		}
 		
@@ -697,6 +976,7 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			vp.style.width = '100vw';
 			vp.style.height = '100vh';
 			if (isTrans) {
+				vp.style.background = 'transparent';
 				vp.style.backgroundColor = 'transparent';
 			}
 		}
@@ -710,6 +990,10 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			svg.style.height = '100vh';
 			svg.style.margin = '0';
 			svg.style.display = 'block';
+			if (isTrans) {
+				svg.style.background = 'transparent';
+				svg.style.backgroundColor = 'transparent';
+			}
 			var curPreserve = svg.getAttribute('preserveAspectRatio');
 			if (!curPreserve || curPreserve === 'none') {
 				svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
@@ -732,6 +1016,23 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 		return fmt.Errorf("svg failed to render: %w", err)
 	}
 
+	if _, err := chromedp.Call(ctx, emulation.SetDeviceMetricsOverride, emulation.SetDeviceMetricsOverrideParams{
+		Width:             int64(width),
+		Height:            int64(height),
+		DeviceScaleFactor: 1.0,
+		Mobile:            false,
+	}); err != nil {
+		fmt.Printf(">> Notice: failed to set device metrics override (%dx%d): %v\n", width, height, err)
+	}
+
+	if isTransparent {
+		if _, err := chromedp.Call(ctx, emulation.SetDefaultBackgroundColorOverride, emulation.SetDefaultBackgroundColorOverrideParams{
+			Color: &cdp.RGBA{R: 0, G: 0, B: 0, A: 1e-6},
+		}); err != nil {
+			fmt.Printf(">> Notice: failed to set transparent background override: %v\n", err)
+		}
+	}
+
 	// Wait for any embedded images or images to fully decode before starting frame capture (H-001)
 	waitForImagesJS := `(async () => {
 		const imgs = Array.from(document.querySelectorAll('image, img'));
@@ -750,14 +1051,10 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 		return fmt.Errorf("failed to inject css overrides: %w", err)
 	}
 
-	// Apply transparent screenshot background override in CDP if scene is transparent
-	isTransparent, _ := chromedp.Run(ctx, chromedp.Evaluate[bool](`document.body.getAttribute('data-bg-transparent') === 'true' || (document.querySelector('svg') && document.querySelector('svg').getAttribute('data-bg-transparent') === 'true')`))
 	if isTransparent {
-		if _, err := chromedp.Call(ctx, emulation.SetDefaultBackgroundColorOverride, emulation.SetDefaultBackgroundColorOverrideParams{
-			Color: &cdp.RGBA{R: 0, G: 0, B: 0, A: 0},
-		}); err != nil {
-			fmt.Printf(">> Notice: failed to set transparent background override: %v\n", err)
-		}
+		_, _ = chromedp.Call(ctx, emulation.SetDefaultBackgroundColorOverride, emulation.SetDefaultBackgroundColorOverrideParams{
+			Color: &cdp.RGBA{R: 0, G: 0, B: 0, A: 1e-6},
+		})
 	}
 
 	if _, err := chromedp.Run(ctx, chromedp.Evaluate[any](scrubberJS)); err != nil {
@@ -777,10 +1074,8 @@ func streamFramesToWriter(parentCtx context.Context, htmlPath string, frameWrite
 			return fmt.Errorf("failed scrubbing frame %d: %w", i, err)
 		}
 
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("render canceled: %w", ctx.Err())
-		case <-time.After(35 * time.Millisecond):
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("render canceled: %w", err)
 		}
 
 		buf, err := chromedp.Run(ctx, chromedp.CaptureScreenshot())

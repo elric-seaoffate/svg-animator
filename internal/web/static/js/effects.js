@@ -658,7 +658,7 @@ window.Effects = {
       filterDefs += `</feGaussianBlur></filter>`;
       filterAttr = `filter="url(#opt-focus)"`;
 
-    } else if (opt.type === 'tilt-shift' && !isBlank) {
+    } else if (opt.type === 'tilt-shift') {
       const tShape = opt.tsShape || 'horizontal';
       const cw = opt.tsWidth / 2;
       const feather = Math.max(8, opt.tsWidth * 0.45);
@@ -667,7 +667,7 @@ window.Effects = {
         <feGaussianBlur stdDeviation="${opt.tsBlur}" />
       </filter>`;
 
-      if (tShape === 'horizontal') {
+      if (tShape === 'horizontal' || tShape === 'linear') {
         const topClear = Math.max(0, opt.tsPos - cw);
         const topSolid = Math.max(0, topClear - feather);
         const botClear = Math.min(100, opt.tsPos + cw);
@@ -708,7 +708,23 @@ window.Effects = {
       }
 
       filterDefs += `<mask id="ts-mask"><rect x="0" y="0" width="${w}" height="${h}" fill="url(#ts-grad)" /></mask>`;
-      extraOverlays = this.buildPhotoElement(state.image, w, h, `filter="url(#opt-ts-blur)" mask="url(#ts-mask)" pointer-events="none"`);
+      if (!isBlank) {
+        extraOverlays = this.buildPhotoElement(state.image, w, h, `filter="url(#opt-ts-blur)" mask="url(#ts-mask)" pointer-events="none"`);
+      } else {
+        let tsBaseRects = c.bgTransparent ? '' : `<rect x="0" y="0" width="${w}" height="${h}" fill="${bgColor}" />`;
+        if (patternType === 'blueprint') {
+          tsBaseRects += `<rect x="0" y="0" width="${w}" height="${h}" fill="url(#bgMajorGrid)" />`;
+        } else if (patternType === 'dots') {
+          tsBaseRects += `<rect x="0" y="0" width="${w}" height="${h}" fill="url(#bgDotGrid)" />`;
+        } else if (patternType === 'graph') {
+          tsBaseRects += `<rect x="0" y="0" width="${w}" height="${h}" fill="url(#bgGraphGrid)" />`;
+        } else if (patternType === 'dark-radial') {
+          tsBaseRects += `<rect x="0" y="0" width="${w}" height="${h}" fill="url(#bgRadialGrad)" />`;
+        }
+        if (tsBaseRects) {
+          extraOverlays = `<g filter="url(#opt-ts-blur)" mask="url(#ts-mask)" pointer-events="none">${tsBaseRects}</g>`;
+        }
+      }
 
     } else if (opt.type === 'motion-blur') {
       const rad = opt.mbAng * (Math.PI / 180);

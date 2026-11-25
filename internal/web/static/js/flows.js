@@ -507,7 +507,8 @@ window.DataFlows = {
     }
 
     const flowNameAttr = f.name ? ' data-semantic-name="' + String(f.name).replace(/"/g, '&quot;') + '"' : '';
-    return '<g id="flow-' + f.id + '" data-flow-id="' + f.id + '" data-semantic-target="flow-' + f.id + '"' + flowNameAttr + ' class="diagram-flow-instance">' + elements + '</g>';
+    const flowPlayAttr = f.play === false ? ' data-play-animation="false"' : '';
+    return '<g id="flow-' + f.id + '" data-flow-id="' + f.id + '" data-semantic-target="flow-' + f.id + '"' + flowNameAttr + flowPlayAttr + ' class="diagram-flow-instance">' + elements + '</g>';
   },
 
   injectIntoSVG(svgString, stateOrWidth, heightArg) {

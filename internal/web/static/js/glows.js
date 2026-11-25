@@ -372,7 +372,8 @@ window.Glows = {
     }
 
     const glowNameAttr = glow.name ? ' data-semantic-name="' + String(glow.name).replace(/"/g, '&quot;') + '"' : '';
-    return '<g id="glow-' + glow.id + '" class="diagram-glow-instance" data-glow-id="' + glow.id + '" data-semantic-target="glow-' + glow.id + '"' + glowNameAttr + '>' +
+    const glowPlayAttr = glow.play === false ? ' data-play-animation="false"' : '';
+    return '<g id="glow-' + glow.id + '" class="diagram-glow-instance" data-glow-id="' + glow.id + '" data-semantic-target="glow-' + glow.id + '"' + glowNameAttr + glowPlayAttr + '>' +
       hitTargetEl +
       '<g ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0">' + animTag + shapeEl + '</g></g>' +
       '</g>';

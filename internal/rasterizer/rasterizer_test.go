@@ -113,3 +113,40 @@ func TestFanOutDistributor_EncoderError(t *testing.T) {
 		t.Fatalf("expected error to mention 'mock-fail', got: %v", err)
 	}
 }
+
+func TestNormalizeParams_DimensionsAndPingPong(t *testing.T) {
+	w, h, fps, capDur, totalFrames := normalizeParams(2.5, 10, "pingpong", 333, 111)
+	if w != 334 {
+		t.Fatalf("expected even width 334, got %d", w)
+	}
+	if h != 112 {
+		t.Fatalf("expected even height 112, got %d", h)
+	}
+	if fps != 10 {
+		t.Fatalf("expected fps 10, got %d", fps)
+	}
+	if capDur != 5.0 {
+		t.Fatalf("expected pingpong duration to double to 5.0s, got %f", capDur)
+	}
+	if totalFrames != 50 {
+		t.Fatalf("expected 50 total frames (5.0s * 10 fps), got %d", totalFrames)
+	}
+}
+
+func TestScrubberJS_DeterministicEvaluatorsPresent(t *testing.T) {
+	required := []string{
+		"function setAnimTime(ms)",
+		"function initDeterministicScene()",
+		"function evaluateTextLiteAtTime(g, ms)",
+		"function evaluateBurstCyclesAtTime(n, ms)",
+		"data-play-animation=\"false\"",
+		"data-lite-play=\"false\"",
+		"getBoundingClientRect()",
+	}
+	for _, token := range required {
+		if !strings.Contains(scrubberJS, token) {
+			t.Fatalf("expected scrubberJS to contain deterministic evaluator token %q", token)
+		}
+	}
+}
+

@@ -955,8 +955,8 @@ window.LiteEffects = {
     const uses = [];
     for (let k = 0; k < M; k++) {
       const phaseDelay = -(k / M) * totalDur;
-      const burstAttrs = (k === 0 && hasCyclePause)
-        ? ` data-burst-cycles="1" data-pause-seconds="${pauseSec.toFixed(3)}" data-pause-visibility="hide"`
+      const burstAttrs = hasCyclePause
+        ? ` data-burst-cycles="1" data-pause-seconds="${pauseSec.toFixed(3)}" data-pause-visibility="hide" data-flow-start-delay="${startDelay.toFixed(3)}" data-flow-end-delay="${endDelay.toFixed(3)}"`
         : '';
       const styleStr = `animation-name:${kfName};animation-duration:${totalDur.toFixed(4)}s;animation-timing-function:linear;animation-delay:${phaseDelay.toFixed(4)}s;animation-iteration-count:${iterCss};animation-direction:${dirCss};animation-fill-mode:${fillCss};--sva-base-dur:${totalDur.toFixed(4)}s;--sva-phase-ratio:${(k / M).toFixed(6)};`;
       uses.push(`<use href="#${trackId}" class="lite-payload lite-flow-seg" data-semantic-role="payload" data-seg-index="${k}" data-seg-count="${M}"${burstAttrs} fill="none" stroke="${color}" stroke-width="${sw.toFixed(2)}" stroke-linecap="${linecap}" stroke-dasharray="${dashLen.toFixed(2)} ${clearGap.toFixed(2)}" shape-rendering="geometricPrecision" style="${styleStr}" pointer-events="none" />`);
@@ -1922,7 +1922,8 @@ window.LiteEffects = {
       (le.kind === 'perimeter-tracer' && Number(le.burstCycles) > 0 && Number(le.pauseSeconds) > 0 && le.playbackMode !== 'once') ||
       (le.kind === 'flash' && Boolean(le.repeat)) ||
       (le.kind === 'flow-lite' && ((Number(le.delay) || 0) + (Number(le.endDelay) || 0)) > 0 && le.playbackMode !== 'once') ||
-      (le.kind === 'text-lite' && le.textAnim && le.textAnim !== 'none')
+      (le.kind === 'text-lite' && le.textAnim && le.textAnim !== 'none') ||
+      (le.play === false)
     );
     if (!needsBurstScript) return '';
     return `\n<script type="application/ecmascript"><![CDATA[
@@ -1930,8 +1931,22 @@ window.LiteEffects = {
   var cs=document.currentScript;
   var s=(cs&&(cs.ownerSVGElement||(cs.closest&&cs.closest('svg'))))||document.documentElement;
   if(!s||s.hasAttribute('data-sva-runtime-managed')||(s.closest&&s.closest('.sva-widget-wrapper')))return;
+  var stopped=s.querySelectorAll('[data-lite-play="false"],[data-play-animation="false"]');
+  for(var p=0;p<stopped.length;p++){
+    var stEl=stopped[p];
+    var animKids=stEl.querySelectorAll('.lite-payload,.lite-osc-wave,.lite-text-element');
+    for(var ak=0;ak<animKids.length;ak++){
+      if(animKids[ak].style){animKids[ak].style.animationPlayState='paused';animKids[ak].style.animationName='none';}
+    }
+    var smilKids=stEl.querySelectorAll('animate,animateTransform,animateMotion,set');
+    for(var sk=0;sk<smilKids.length;sk++){
+      smilKids[sk].setAttribute('begin','indefinite');
+      if(typeof smilKids[sk].endElement==='function'){try{smilKids[sk].endElement();}catch(_){}}
+    }
+  }
   var nodes=s.querySelectorAll('[data-burst-cycles]');
   for(var i=0;i<nodes.length;i++){(function(n){
+    if(n.closest&&n.closest('[data-lite-play="false"],[data-play-animation="false"]'))return;
     n.addEventListener('animationend',function(){
       var cyc=parseInt(n.getAttribute('data-burst-cycles')||'0',10);
       var pSec=parseFloat(n.getAttribute('data-pause-seconds')||'0');
@@ -1957,6 +1972,7 @@ window.LiteEffects = {
   }
     const tNodes=s.querySelectorAll('[data-lite-kind="text-lite"]');
     for(var j=0;j<tNodes.length;j++){(function(g){
+      if(g.getAttribute('data-lite-play')==='false'||g.getAttribute('data-play-animation')==='false')return;
       var anim=g.getAttribute('data-text-anim')||'none';
       if(anim==='overtype')anim='typewriter';
       if(anim==='none')return;
@@ -2049,7 +2065,22 @@ window.LiteEffects = {
       this._studioBurstTimers.forEach((t) => clearTimeout(t));
     }
     this._studioBurstTimers = [];
+    container.querySelectorAll('[data-lite-play="false"], [data-play-animation="false"]').forEach((stEl) => {
+      stEl.querySelectorAll('.lite-payload, .lite-osc-wave, .lite-text-element').forEach((node) => {
+        if (node.style) {
+          node.style.animationPlayState = 'paused';
+          node.style.animationName = 'none';
+        }
+      });
+      stEl.querySelectorAll('animate, animateTransform, animateMotion, set').forEach((smil) => {
+        smil.setAttribute('begin', 'indefinite');
+        if (typeof smil.endElement === 'function') {
+          try { smil.endElement(); } catch (_) {}
+        }
+      });
+    });
     container.querySelectorAll('[data-burst-cycles]').forEach((node) => {
+      if (node.closest && node.closest('[data-lite-play="false"], [data-play-animation="false"]')) return;
       node.addEventListener('animationend', () => {
         const cyc = parseInt(node.getAttribute('data-burst-cycles') || '0', 10);
         const pSec = parseFloat(node.getAttribute('data-pause-seconds') || '0');
@@ -2070,6 +2101,7 @@ window.LiteEffects = {
 
     // Bind live Studio preview controllers for Text Box Lite tickers, typewriters, and scramble
     container.querySelectorAll('[data-lite-kind="text-lite"]').forEach((g) => {
+      if (g.getAttribute('data-lite-play') === 'false' || g.getAttribute('data-play-animation') === 'false') return;
       let anim = g.getAttribute('data-text-anim') || 'none';
       if (anim === 'overtype') anim = 'typewriter';
       if (anim === 'none') return;

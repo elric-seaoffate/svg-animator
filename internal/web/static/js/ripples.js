@@ -329,7 +329,8 @@ window.Ripples = {
     const maxR = Math.max(30, rp.outerR || 100);
     const hitTargetEl = '<circle class="ripple-hit-target" cx="' + px.toFixed(2) + '" cy="' + py.toFixed(2) + '" r="' + maxR.toFixed(2) + '" fill="transparent" pointer-events="all" style="cursor: pointer;" />';
     const rippleNameAttr = rp.name ? ' data-semantic-name="' + String(rp.name).replace(/"/g, '&quot;') + '"' : '';
-    return '<g id="ripple-' + rp.id + '" class="diagram-ripple-instance" data-ripple-id="' + rp.id + '" data-semantic-target="ripple-' + rp.id + '"' + rippleNameAttr + '>' +
+    const ripplePlayAttr = rp.play === false ? ' data-play-animation="false"' : '';
+    return '<g id="ripple-' + rp.id + '" class="diagram-ripple-instance" data-ripple-id="' + rp.id + '" data-semantic-target="ripple-' + rp.id + '"' + rippleNameAttr + ripplePlayAttr + '>' +
       hitTargetEl +
       refractedPhoto + '<g pointer-events="none">' + ringShadows + '</g><g pointer-events="none">' + ringHighlights + '</g>' +
       '</g>';

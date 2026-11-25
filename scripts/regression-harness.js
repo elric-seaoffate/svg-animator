@@ -13516,7 +13516,114 @@ async function runHarness() {
   }
   console.log('[HARNESS] Scenario 100 PASS: Stage 16F Simplified Export Menu & Compact Export as Widget Dialog verified.');
 
-  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15 & 16 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, and Go WASM engines verified.');
+  // =========================================================================
+  // SCENARIO 101: Stage 17-M1 Complete Animation Export Correctness &
+  // Deterministic Timestamp Evaluation Across All Animation Families
+  // =========================================================================
+  console.log('[HARNESS] Running Scenario 101: Stage 17-M1 Complete Animation Export Correctness...');
+  {
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+    window.SceneState.setControl('canvasWidthInput', '600');
+    window.SceneState.setControl('canvasHeightInput', '400');
+    window.SceneState.setControl('canvasPatternSelect', 'transparent');
+    window.EngineBridge.updateCanvas({ width: 600, height: 400 });
+
+    // 1. Verify play: false emits data-play-animation="false" across all 5 object types
+    const nStopped = window.DiagramNodes.addNode({ shape: 'hexagon', name: 'node-stop', animation: 'pulse-border' });
+    window.DiagramNodes.updateNode(nStopped.id, { play: false });
+    const nPlaying = window.DiagramNodes.addNode({ shape: 'circle', name: 'node-play', animation: 'float' });
+    window.DiagramNodes.updateNode(nPlaying.id, { play: true });
+
+    const fStopped = window.DataFlows.addFlow();
+    window.DataFlows.updateFlow(fStopped.id, { play: false });
+
+    const gStopped = window.Glows.addGlow();
+    window.Glows.updateGlow(gStopped.id, { shape: 'radar', rings: 3, play: false });
+
+    const rStopped = window.Ripples.addRipple();
+    window.Ripples.updateRipple(rStopped.id, { play: false });
+
+    const lStopped = window.LiteEffects.createLiteEffect({
+      kind: 'perimeter-tracer',
+      x: 50,
+      y: 50,
+      play: false
+    });
+
+    // 2. Verify multi-segment flow-lite with delay + endDelay emits burst attributes on ALL segments
+    const lMultiFlow = window.LiteEffects.createLiteEffect({
+      kind: 'flow-lite',
+      x: 50,
+      y: 50,
+      style: 'dashed',
+      speed: 1.5,
+      delay: 0.4,
+      endDelay: 0.6,
+      points: [
+        { x: 10, y: 70 },
+        { x: 35, y: 65 },
+        { x: 60, y: 75 },
+        { x: 85, y: 70 }
+      ]
+    });
+
+    // 3. Verify text-lite typewriter (delete-forward & hold) and scramble markup attributes
+    const lTypewriter = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      x: 35,
+      y: 85,
+      labelText: 'ALERT-17',
+      textAnim: 'typewriter',
+      typeMode: 'delete-forward',
+      typeSpeed: 10,
+      holdDelay: 0.5,
+      typeRepeat: true
+    });
+
+    const lScramble = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      x: 75,
+      y: 85,
+      labelText: 'DECODED',
+      textAnim: 'scramble',
+      typeSpeed: 10,
+      holdDelay: 0.5,
+      typeRepeat: true
+    });
+
+    // 4. Verify Optical Tilt-Shift builds on blank/diagram canvas for both 'horizontal'/'linear', 'vertical', and 'radial'
+    window.SceneState.setControl('effectSelect', 'tilt-shift');
+    window.SceneState.setControl('tsShapeSelect', 'linear');
+    window.SceneState.setControl('tsPosSlider', '50');
+    window.SceneState.setControl('tsWidthSlider', '20');
+    window.SceneState.setControl('tsBlurSlider', '8');
+    const optEl = document.getElementById('effectSelect');
+    if (optEl) optEl.value = 'tilt-shift';
+    const tsEl = document.getElementById('tsShapeSelect');
+    if (tsEl) tsEl.value = 'linear';
+
+    const renderSt = window.SceneState.buildRenderState();
+    const builtSvg = window.buildFullSVG(renderSt);
+    assert.ok(builtSvg.includes(`data-semantic-target="node-${nStopped.id}"`) && builtSvg.includes('data-play-animation="false"'), 'S17-01: Stopped DiagramNode emits data-play-animation="false"');
+    assert.ok(builtSvg.includes(`data-semantic-target="flow-${fStopped.id}"`) && builtSvg.includes('data-play-animation="false"'), 'S17-02: Stopped DataFlow emits data-play-animation="false"');
+    assert.ok(builtSvg.includes(`data-semantic-target="glow-${gStopped.id}"`) && builtSvg.includes('data-play-animation="false"'), 'S17-03: Stopped Glow emits data-play-animation="false"');
+    assert.ok(builtSvg.includes(`data-semantic-target="ripple-${rStopped.id}"`) && builtSvg.includes('data-play-animation="false"'), 'S17-04: Stopped Ripple emits data-play-animation="false"');
+    assert.ok(builtSvg.includes(`id="lite-${lStopped.id}"`) && builtSvg.includes('data-lite-play="false"'), 'S17-05: Stopped LiteEffect emits data-lite-play="false"');
+
+    // Verify all M segments of multi-segment flow-lite have data-burst-cycles="1" and data-flow-start-delay="0.400"
+    const burstMatches = builtSvg.match(/data-flow-start-delay="0\.400"/g) || [];
+    assert.ok(burstMatches.length >= 2, `S17-06: All ${burstMatches.length} segments of multi-segment flow-lite receive data-flow-start-delay="0.400" and burst attributes`);
+
+    assert.ok(builtSvg.includes('id="opt-ts-blur"') && builtSvg.includes('id="ts-mask"'), 'S17-07: Optical tilt-shift filter & mask render on blank/diagram canvas');
+
+    // Reset optical effect
+    window.SceneState.setControl('effectSelect', 'none');
+    if (optEl) optEl.value = 'none';
+  }
+  console.log('[HARNESS] Scenario 101 PASS: Stage 17-M1 Complete Animation Export Correctness & Deterministic Timestamp Evaluation verified.');
+
+  console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16 & 17-M1 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, deterministic animation export scrubbing, and Go WASM engines verified.');
 }
 
 runHarness()

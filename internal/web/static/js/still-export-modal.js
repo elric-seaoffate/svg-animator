@@ -216,12 +216,223 @@ window.StillExportStudio = {
       const svgEl = sandbox.querySelector('svg');
       if (!svgEl) return rawSvg;
 
+      const snapshotMs = snapshotSec * 1000.0;
+      const segG = (str) => {
+        const t = String(str || '');
+        if (!t) return [];
+        if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+          try {
+            return Array.from((new Intl.Segmenter(undefined, { granularity: 'grapheme' })).segment(t), (x) => x.segment);
+          } catch (_) {}
+        }
+        return Array.from(t);
+      };
+      const isStopped = (el) => {
+        if (!el) return false;
+        if (el.getAttribute && (el.getAttribute('data-lite-play') === 'false' || el.getAttribute('data-play-animation') === 'false')) return true;
+        if (el.closest && el.closest('[data-lite-play="false"], [data-play-animation="false"]')) return true;
+        return false;
+      };
+
+      svgEl.querySelectorAll('[data-lite-play="false"], [data-play-animation="false"]').forEach((stEl) => {
+        stEl.querySelectorAll('.lite-payload, .lite-osc-wave, .lite-text-element').forEach((node) => {
+          if (node.style) {
+            node.style.animationPlayState = 'paused';
+            node.style.animationName = 'none';
+          }
+        });
+        stEl.querySelectorAll('animate, animateTransform, animateMotion, set').forEach((smil) => {
+          smil.setAttribute('begin', 'indefinite');
+          if (smil.parentNode) smil.parentNode.removeChild(smil);
+        });
+        if (stEl.classList && stEl.classList.contains('diagram-flow-instance')) {
+          stEl.querySelectorAll('.flow-payload-wrapper, .flow-payload-group').forEach((p) => {
+            p.setAttribute('visibility', 'hidden');
+            if (p.style) p.style.visibility = 'hidden';
+          });
+        }
+      });
+
+      // Calibrate ticker-h before evaluating CSS animations
+      svgEl.querySelectorAll('[data-lite-kind="text-lite"]').forEach((g) => {
+        if (isStopped(g)) return;
+        let anim = g.getAttribute('data-text-anim') || 'none';
+        if (anim === 'overtype') anim = 'typewriter';
+        if (anim === 'ticker-h') {
+          const txtEl = g.querySelector('.lite-text-element');
+          if (!txtEl) return;
+          const fullStr = g.getAttribute('data-text-content') || txtEl.textContent || '';
+          const w = parseFloat(g.getAttribute('data-text-w')) || 220;
+          const pad = parseFloat(g.getAttribute('data-text-padding')) || 12;
+          const dir = g.getAttribute('data-text-direction') === 'reverse' ? 'reverse' : 'forward';
+          const pMode = g.getAttribute('data-text-playback-mode') || 'loop';
+          const spd = Math.max(10, parseFloat(g.getAttribute('data-text-scroll-speed')) || 90);
+          let tw = 0;
+          try { tw = txtEl.getComputedTextLength(); } catch (_) {}
+          if (!(tw > 0)) tw = Math.max(18, segG(fullStr).length * 10);
+          const dist = Math.max(20, w + tw);
+          const dur = Math.max(0.15, dist / spd);
+          const startPx = dir === 'reverse' ? -tw : w;
+          const endPx = pMode === 'once' ? pad : (dir === 'reverse' ? w : -tw);
+          txtEl.style.setProperty('--sva-ticker-start', startPx.toFixed(2) + 'px');
+          txtEl.style.setProperty('--sva-ticker-end', endPx.toFixed(2) + 'px');
+          txtEl.style.animationDuration = dur.toFixed(4) + 's';
+        }
+      });
+
       if (svgEl.getAnimations) {
         svgEl.getAnimations({ subtree: true }).forEach((anim) => {
+          const target = anim.effect && anim.effect.target;
+          if (target && isStopped(target)) {
+            anim.pause();
+            return;
+          }
           anim.pause();
-          anim.currentTime = snapshotSec * 1000;
+          anim.currentTime = snapshotMs;
         });
       }
+
+      // Deterministically evaluate burst-pause Low-Load Effects and Text Lite typewriter/scramble
+      svgEl.querySelectorAll('[data-burst-cycles]').forEach((n) => {
+        if (isStopped(n)) return;
+        const cyc = parseInt(n.getAttribute('data-burst-cycles') || '0', 10);
+        const pSec = parseFloat(n.getAttribute('data-pause-seconds') || '0');
+        if (!(cyc > 0 && pSec > 0)) return;
+        const anims = (typeof n.getAnimations === 'function') ? n.getAnimations() : [];
+        let baseDurSec = parseFloat((n.style && n.style.getPropertyValue('--sva-base-dur')) || (n.style && n.style.animationDuration) || '0');
+        if (!(baseDurSec > 0) && anims.length > 0 && anims[0].effect && typeof anims[0].effect.getTiming === 'function') {
+          const d = anims[0].effect.getTiming().duration;
+          if (typeof d === 'number' && d > 0) baseDurSec = d / 1000.0;
+        }
+        if (!(baseDurSec > 0) && typeof window.getComputedStyle === 'function') {
+          const cd = parseFloat(window.getComputedStyle(n).animationDuration || '0');
+          if (cd > 0) baseDurSec = cd;
+        }
+        if (!(baseDurSec > 0)) baseDurSec = 1;
+        const activeMs = cyc * baseDurSec * 1000.0;
+        const pauseMs = pSec * 1000.0;
+        const startDelaySec = parseFloat(n.getAttribute('data-flow-start-delay') || '0') || 0;
+        const startDelayMs = startDelaySec * 1000.0;
+        const totalCycleMs = activeMs + pauseMs;
+        if (totalCycleMs <= 0) return;
+        const visMode = n.getAttribute('data-pause-visibility') || 'hide';
+        const phaseRatio = parseFloat((n.style && n.style.getPropertyValue('--sva-phase-ratio')) || '0') || 0;
+        const phaseDelayMs = Math.abs(phaseRatio) * baseDurSec * 1000.0;
+
+        if (snapshotMs < startDelayMs) {
+          if (visMode === 'hide') {
+            n.setAttribute('visibility', 'hidden');
+            if (n.style) { n.style.visibility = 'hidden'; n.style.opacity = '0'; }
+          }
+          anims.forEach((a) => { try { a.pause(); a.currentTime = phaseDelayMs; } catch (_) {} });
+          return;
+        }
+        const localMs = (snapshotMs - startDelayMs) % totalCycleMs;
+        if (localMs < activeMs) {
+          n.removeAttribute('visibility');
+          if (n.style) { n.style.visibility = ''; n.style.opacity = ''; }
+          anims.forEach((a) => { try { a.pause(); a.currentTime = localMs + phaseDelayMs; } catch (_) {} });
+        } else {
+          if (visMode === 'hide') {
+            n.setAttribute('visibility', 'hidden');
+            if (n.style) { n.style.visibility = 'hidden'; n.style.opacity = '0'; }
+          } else {
+            n.removeAttribute('visibility');
+            if (n.style) { n.style.visibility = ''; n.style.opacity = ''; }
+          }
+          anims.forEach((a) => { try { a.pause(); a.currentTime = Math.max(0, activeMs - 0.1) + phaseDelayMs; } catch (_) {} });
+        }
+      });
+
+      svgEl.querySelectorAll('[data-lite-kind="text-lite"]').forEach((g) => {
+        let anim = g.getAttribute('data-text-anim') || 'none';
+        if (anim === 'overtype') anim = 'typewriter';
+        if (anim !== 'typewriter' && anim !== 'scramble') return;
+        const txtEl = g.querySelector('.lite-text-element');
+        const targetNode = g.querySelector('.lite-text-path') || txtEl;
+        if (!txtEl || !targetNode) return;
+        const fullStr = g.getAttribute('data-text-content') || '';
+        if (isStopped(g)) {
+          targetNode.textContent = fullStr;
+          return;
+        }
+        const gs = segG(fullStr);
+        const N = gs.length;
+        if (N === 0) { targetNode.textContent = ''; return; }
+        const rate = Math.max(1, parseFloat(g.getAttribute('data-text-type-speed')) || 14);
+        const hold = Math.max(0, parseFloat(g.getAttribute('data-text-hold-delay')) || 1.5);
+        const pMode = g.getAttribute('data-text-playback-mode') || 'loop';
+        const stepMs = Math.max(12, Math.round(1000 / rate));
+
+        if (anim === 'scramble') {
+          const cipher = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#%&*';
+          const activeDur = N * stepMs;
+          const holdDur = Math.max(200, hold * 1000);
+          const cycleDur = activeDur + holdDur;
+          let localMs = (pMode !== 'once' && cycleDur > 0) ? (snapshotMs % cycleDur) : snapshotMs;
+          let idx = Math.max(0, Math.min(N, Math.floor(localMs / stepMs)));
+          let out = '';
+          for (let k = 0; k < N; k++) {
+            if (k < idx || gs[k] === ' ') out += gs[k];
+            else out += cipher.charAt((k * 7 + (idx + 1) * 13) % cipher.length);
+          }
+          targetNode.textContent = out;
+        } else {
+          let mode = g.getAttribute('data-text-type-mode') || 'hold';
+          if (mode === 'loop') mode = 'delete';
+          const rep = g.getAttribute('data-text-type-repeat') === 'true' || pMode === 'loop';
+          const delStepMs = Math.max(10, Math.round(stepMs * 0.75));
+          const typeDur = N * stepMs;
+          if (mode === 'delete' || mode === 'delete-forward') {
+            const holdDur = Math.max(60, hold * 1000);
+            const delDur = N * delStepMs;
+            const pauseDur = rep ? 250 : 0;
+            const cycleDur = typeDur + holdDur + delDur + pauseDur;
+            const localMs = (rep && cycleDur > 0) ? (snapshotMs % cycleDur) : snapshotMs;
+            if (localMs < typeDur) {
+              targetNode.textContent = gs.slice(0, Math.min(N, Math.floor(localMs / stepMs))).join('');
+            } else if (localMs < typeDur + holdDur) {
+              targetNode.textContent = fullStr;
+            } else if (localMs < typeDur + holdDur + delDur) {
+              const delSteps = Math.min(N, Math.floor((localMs - typeDur - holdDur) / delStepMs) + 1);
+              const rem = Math.max(0, N - delSteps);
+              targetNode.textContent = mode === 'delete' ? gs.slice(0, rem).join('') : gs.slice(N - rem).join('');
+            } else {
+              targetNode.textContent = '';
+            }
+          } else {
+            const holdDur = Math.max(200, hold * 1000);
+            const cycleDur = typeDur + holdDur;
+            const localMs = (rep && cycleDur > 0) ? (snapshotMs % cycleDur) : snapshotMs;
+            targetNode.textContent = localMs < typeDur
+              ? gs.slice(0, Math.min(N, Math.floor(localMs / stepMs))).join('')
+              : fullStr;
+          }
+        }
+      });
+
+      // Bake computed CSS properties on Low-Load Effects so standalone Image/Canvas rasterization preserves exact frame state
+      svgEl.querySelectorAll('.lite-payload, .lite-osc-wave, .lite-text-element').forEach((node) => {
+        if (isStopped(node)) {
+          if (node.style) node.style.animation = 'none';
+          return;
+        }
+        const cs = window.getComputedStyle(node);
+        if (cs) {
+          if (cs.strokeDashoffset && cs.strokeDashoffset !== '0px') {
+            node.setAttribute('stroke-dashoffset', cs.strokeDashoffset);
+            if (node.style) node.style.strokeDashoffset = cs.strokeDashoffset;
+          }
+          if (cs.opacity && cs.opacity !== '') {
+            node.setAttribute('opacity', cs.opacity);
+            if (node.style) node.style.opacity = cs.opacity;
+          }
+          if (cs.transform && cs.transform !== 'none') {
+            if (node.style) node.style.transform = cs.transform;
+          }
+          if (node.style) node.style.animation = 'none';
+        }
+      });
       const camRig = svgEl.querySelector('.camera-rig');
       if (camRig) {
         const comp = window.getComputedStyle(camRig);
@@ -241,6 +452,10 @@ window.StillExportStudio = {
 
       svgEl.querySelectorAll('set').forEach((setEl) => {
         const parent = setEl.parentElement;
+        if (isStopped(setEl)) {
+          setEl.remove();
+          return;
+        }
         const res = this.evaluateSetTiming(setEl, snapshotSec, forcePeakVis);
         if (parent && res.apply) {
           parent.setAttribute(res.attr, res.toVal);
@@ -252,7 +467,7 @@ window.StillExportStudio = {
         const payloadGroup = motionEl.parentElement;
         if (!payloadGroup) return;
 
-        if (!includePayloads) {
+        if (!includePayloads || isStopped(motionEl)) {
           const wrapper = payloadGroup.closest('.flow-payload-wrapper') || payloadGroup;
           wrapper.remove();
           return;
@@ -337,7 +552,7 @@ window.StillExportStudio = {
       svgEl.querySelectorAll('animate').forEach((anim) => {
         const parent = anim.parentElement;
         const attr = anim.getAttribute('attributeName');
-        if (!parent || !attr) {
+        if (!parent || !attr || isStopped(anim)) {
           anim.remove();
           return;
         }
@@ -364,6 +579,10 @@ window.StillExportStudio = {
 
       svgEl.querySelectorAll('animateTransform').forEach((animT) => {
         const parent = animT.parentElement;
+        if (isStopped(animT)) {
+          animT.remove();
+          return;
+        }
         const res = this.evaluateAnimateTransform(animT, snapshotSec, forcePeakVis);
         if (parent && res && res.transformPatch) {
           const baseTransform = parent.getAttribute('transform') || '';

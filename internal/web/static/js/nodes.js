@@ -329,7 +329,8 @@ window.DiagramNodes = {
     }
 
     const nodeNameAttr = n.name ? ' data-semantic-name="' + String(n.name).replace(/"/g, '&quot;') + '"' : '';
-    return '<g id="node-' + n.id + '" class="diagram-node-instance" data-node-id="' + n.id + '" data-semantic-target="node-' + n.id + '"' + nodeNameAttr + ' transform="translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')" style="cursor: move;">' + animTags + shapeSVG + textSVG + '</g>';
+    const nodePlayAttr = n.play === false ? ' data-play-animation="false"' : '';
+    return '<g id="node-' + n.id + '" class="diagram-node-instance" data-node-id="' + n.id + '" data-semantic-target="node-' + n.id + '"' + nodeNameAttr + nodePlayAttr + ' transform="translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')" style="cursor: move;">' + animTags + shapeSVG + textSVG + '</g>';
   },
 
   injectIntoSVG(svgString, state) {
