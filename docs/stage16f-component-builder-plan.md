@@ -298,5 +298,9 @@ Using the uploaded `200 × 50` button fixture [`demos/Stage-16F-Widget-Export/fl
    - Added 1-click **`+ Expose Label Text`** (`#btnCbModalQuickLabel`) and **`+ Expose Icon / Image`** (`#btnCbModalQuickIcon`) preset buttons in `#componentBuilderModal`.
 
 5. **Browser Event Handling Semantics:**
-   - Defined and verified `hover` (`mouseenter` → `true`, `mouseleave` → `false`, auto-selected for new `MouseOver` properties and supported by convention fallback on boolean `MouseOver` parameters unless `eventTrigger === "none"`), `press` (`pointerdown`/`mousedown` → `true`, `pointerup`/`mouseup`/`pointerleave`/`pointercancel` → `false`), `click` (`click` toggle `true`/`false`), `focus` (`focus`/`blur`), and `dblclick`, with complete listener teardown in `unmount()`.
+   - Defined and verified explicit `hover` (`mouseenter` → `true`, `mouseleave` → `false`), `press` (`pointerdown`/`mousedown` → `true`, `pointerup`/`mouseup`/`pointerleave`/`pointercancel` → `false`), `click` (`click` toggle `true`/`false`), `focus` (`focus`/`blur`), and `dblclick`, with complete listener teardown in `unmount()` and zero implicit name-based event-trigger guessing.
+
+6. **Dedicated Four-Tab Export to Widget Dialog (`#widgetExportModal` & `docs/stage16f-export-widget-dialog-plan.md`):**
+   - Implemented the spacious 4-tab `#widgetExportModal` (`internal/web/static/js/widget-export-modal.js` / `window.WidgetExportDialog`), canonical 7-file `<base>.zip` package output, human-readable `When TRUE` / `When FALSE` action review cards, Browser Event Trigger review table, Reusable Content vs Fixed Artwork audit, Component Builder round-trip editing (preserving draft state and discarding cancelled edits), and live 1-instance / 2-instance `SVGWidget.mount()` sandbox preview (**Stage 16F Export Dialog — IMPLEMENTED, AWAITING USER ACCEPTANCE**).
+
 

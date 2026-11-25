@@ -33,13 +33,13 @@ func runVoid(ctx context.Context, actions ...chromedp.Action[chromedp.Void]) err
 func waitWasmReady(ctx context.Context) error {
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		ok, err := chromedp.Run(ctx, chromedp.Evaluate[bool](`Boolean(window.EngineBridge && window.EngineBridge.isReady && window.EngineBridge.isReady() && window.ComponentBuilder)`))
+		ok, err := chromedp.Run(ctx, chromedp.Evaluate[bool](`Boolean(window.EngineBridge && window.EngineBridge.isReady && window.EngineBridge.isReady() && window.ComponentBuilder && window.WidgetExportDialog)`))
 		if err == nil && ok {
 			return nil
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
-	return fmt.Errorf("timed out waiting for WASM EngineBridge and ComponentBuilder")
+	return fmt.Errorf("timed out waiting for WASM EngineBridge, ComponentBuilder, and WidgetExportDialog")
 }
 
 func main() {
@@ -63,9 +63,9 @@ func run() int {
 		return 1
 	}
 
-	portAddr := "127.0.0.1:18089"
-	studioURL := "http://127.0.0.1:18089/"
-	demoURL := "http://127.0.0.1:18089/component-builder-demo.html"
+	portAddr := "127.0.0.1:18093"
+	studioURL := "http://127.0.0.1:18093/"
+	demoURL := "http://127.0.0.1:18093/component-builder-demo.html"
 	srvCmd := exec.Command(binPath, "-serve", portAddr)
 	srvCmd.Dir = tmpDir
 	if err := srvCmd.Start(); err != nil {
@@ -79,7 +79,7 @@ func run() int {
 		}
 	}()
 
-	tunCmd := exec.Command("ssh", "-N", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=no", "-R", "18089:127.0.0.1:18089", "nigel@192.168.100.40")
+	tunCmd := exec.Command("ssh", "-N", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=no", "-R", "18093:127.0.0.1:18093", "nigel@192.168.100.40")
 	if err := tunCmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed starting ssh reverse tunnel: %v\n", err)
 		return 1
@@ -184,6 +184,160 @@ func run() int {
 	_ = json.Unmarshal([]byte(rawStudio), &studioRes)
 	record("S16F-01", "Studio Component Builder & Low-Load Property Completeness",
 		studioRes["ok"] == true, rawStudio)
+
+	// Pre-load SVGWidget runtime in Studio page before running synchronous S16F-04 check
+	_, _ = chromedp.Run(taskCtx, chromedp.Evaluate[string](`(() => { window.WidgetExportDialog._ensureSVGWidgetRuntime(); return "loading"; })()`))
+	for i := 0; i < 30; i++ {
+		rdy, _ := chromedp.Run(taskCtx, chromedp.Evaluate[bool](`Boolean(window.SVGWidget && typeof window.SVGWidget.mount === 'function')`))
+		if rdy {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Gate S16F-04: Dedicated Four-Tab Export to Widget Dialog (`window.WidgetExportDialog`),
+	// Right Drawer + Floating Context Editor open, Fleet Duplicate Event Warning, Missing FALSE Warning,
+	// Component Builder Round-Trip (Cancel vs Save), Live 2-Instance Sandbox Preview, and 7-File Canonical Package
+	exportDialogScript := `(() => {
+		window.ProjectManager.resetToNewProject();
+		window.EngineBridge.setWidgetParameters([]);
+
+		const flText = window.LiteEffects.createLiteEffect({
+			kind: 'text-lite',
+			name: 'FleetLabel',
+			variant: 'rounded',
+			text: 'Fleet Sanctum',
+			x: 100, y: 25, width: 150, height: 46,
+			color: '#95892d', bgColor: '#0f172a', borderColor: '#38bdf8'
+		});
+		const flTracer = window.LiteEffects.createLiteEffect({
+			kind: 'perimeter-tracer',
+			name: 'BorderTracer',
+			variant: 'rounded',
+			x: 100, y: 25, width: 196, height: 46,
+			color: '#f7ca18', play: false
+		});
+		const flRadar = window.LiteEffects.createLiteEffect({
+			kind: 'radar-lite',
+			name: 'HoverRadar',
+			x: 28, y: 25, width: 44, height: 44,
+			color: '#38bdf8', play: false
+		});
+		const flImg = window.ImageObjects.createImage({
+			name: 'FleetOwlBook',
+			filename: 'owl.png',
+			data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+			naturalWidth: 572, naturalHeight: 572, width: 49, height: 49, x: 28, y: 25
+		});
+
+		// Ensure Right Drawer and Floating Context Editor are open while opening Export Dialog
+		if (window.WorkspaceController && typeof window.WorkspaceController.openRightDrawer === 'function') {
+			window.WorkspaceController.openRightDrawer();
+		}
+		if (window.FloatingPropertiesEditor && typeof window.FloatingPropertiesEditor.openFor === 'function') {
+			window.FloatingPropertiesEditor.openFor('lite', flText.id);
+		}
+
+		// Configure original Fleet properties with duplicate hover trigger on OnClick & missing FALSE branch
+		window.EngineBridge.addWidgetParameter({
+			name: 'MouseOver', label: 'Mouse Over State', type: 'boolean', target: 'root', property: 'state',
+			default: false, eventTrigger: 'hover',
+			targets: [
+				{ target: 'lite-' + flText.id, property: 'color', when: 'true', action: 'set', value: '#e9db6c' },
+				{ target: 'lite-' + flRadar.id, property: 'play', when: 'true', action: 'play', value: true },
+				{ target: 'lite-' + flText.id, property: 'color', when: 'false', action: 'set', value: '#95892d' },
+				{ target: 'lite-' + flRadar.id, property: 'play', when: 'false', action: 'stop_reset', value: false }
+			]
+		});
+		window.EngineBridge.addWidgetParameter({
+			name: 'OnClick', label: 'Button Press State', type: 'boolean', target: 'root', property: 'state',
+			default: false, eventTrigger: 'hover',
+			targets: [
+				{ target: 'lite-' + flText.id, property: 'bgColor', when: 'true', action: 'set', value: '#95892d' }
+			]
+		});
+		window.EngineBridge.addWidgetParameter({
+			name: 'Selected', label: 'Active Selection', type: 'boolean', target: 'root', property: 'state',
+			default: false, eventTrigger: '',
+			targets: [
+				{ target: 'lite-' + flTracer.id, property: 'play', when: 'true', action: 'play', value: true },
+				{ target: 'lite-' + flTracer.id, property: 'play', when: 'false', action: 'stop_reset', value: false }
+			]
+		});
+		window.EngineBridge.addWidgetParameter({
+			name: 'Label', label: 'Button Label', type: 'text', target: 'root', property: 'text',
+			default: 'Fleet Sanctum',
+			targets: [
+				{ target: 'lite-' + flText.id, property: 'text', when: 'always', action: 'set', value: null }
+			]
+		});
+
+		document.getElementById('btnOpenWidgetExportModal').click();
+		const dialogOpen = document.getElementById('widgetExportModal').style.display === 'flex';
+		document.getElementById('wxBaseNameInput').value = 'fleet';
+		document.getElementById('wxBaseNameInput').dispatchEvent(new Event('input'));
+		const derivedPreviewText = document.getElementById('wxDerivedFilenamesPreview').textContent || '';
+		const derivedNamesOk = derivedPreviewText.includes('fleet.zip') && derivedPreviewText.includes('fleet/fleet.svg');
+
+		const v1 = window.WidgetExportDialog.validate();
+		const caughtDupHover = v1.warnings.some(w => w.code === 'WARN-DUP-EVENT');
+		const caughtMissingFalse = v1.warnings.some(w => w.code === 'WARN-NO-FALSE-BRANCH' && w.paramName === 'OnClick');
+
+		// Switch to Tab 2 (Properties) and test Component Builder round-trip Cancel
+		window.WidgetExportDialog.switchTab('properties');
+		const cardsHtml = document.getElementById('wxPropertyCardsList').textContent || '';
+		const usesFriendlyNames = cardsHtml.includes('Text Box "FleetLabel"') && cardsHtml.includes('Radar Ping "HoverRadar"');
+
+		const onClickP = window.WidgetExportDialog.getAuthoritativeParameters().find(p => (p.name || p.Name) === 'OnClick');
+		window.WidgetExportDialog.openComponentBuilderForEdit(onClickP);
+		const pausedOk = window.WidgetExportDialog._pausedForEdit === true;
+		document.getElementById('cbModalEventTriggerSelect').value = 'press';
+		document.getElementById('btnCbModalCancel').click();
+		const resumedOk = window.WidgetExportDialog.isOpen === true && document.getElementById('widgetExportModal').style.display === 'flex';
+		const afterCancelP = window.WidgetExportDialog.getAuthoritativeParameters().find(p => (p.name || p.Name) === 'OnClick');
+		const cancelPreservedAuth = (afterCancelP.eventTrigger || afterCancelP.EventTrigger) === 'hover';
+
+		// Fix OnClick via Component Builder Save
+		window.WidgetExportDialog.openComponentBuilderForEdit(afterCancelP);
+		document.getElementById('cbModalEventTriggerSelect').value = 'press';
+		document.getElementById('btnCbAutoFillFalseBranch').click();
+		const saveFixedOk = window.ComponentBuilder.save();
+		const afterSaveP = window.WidgetExportDialog.getAuthoritativeParameters().find(p => (p.name || p.Name) === 'OnClick');
+		const saveUpdatedAuth = (afterSaveP.eventTrigger || afterSaveP.EventTrigger) === 'press';
+
+		// Switch to Tab 3 (Live Sandbox Preview) and test Single + Dual instance mount & teardown
+		window.WidgetExportDialog.switchTab('preview');
+		const singleMountedOk = Boolean(window.WidgetExportDialog._previewInstA);
+		document.getElementById('wxPreviewModeDualBtn').click();
+		const dualMountedOk = Boolean(window.WidgetExportDialog._previewInstA && window.WidgetExportDialog._previewInstB);
+
+		// Switch to Tab 4 (Validation & Package Contents)
+		window.WidgetExportDialog.switchTab('validation');
+		const v2 = window.WidgetExportDialog.validate();
+		const pkgTableText = document.getElementById('wxPackageFilesTable').textContent || '';
+		const canonical7Ok = pkgTableText.includes('7 canonical files') && pkgTableText.includes('fleet/fleet.svg');
+
+		window.WidgetExportDialog.close();
+		const previewDestroyedOk = (window.WidgetExportDialog._previewInstA === null && window.WidgetExportDialog._previewInstB === null);
+
+		return JSON.stringify({
+			ok: dialogOpen && derivedNamesOk && caughtDupHover && caughtMissingFalse && usesFriendlyNames &&
+				pausedOk && resumedOk && cancelPreservedAuth && saveFixedOk && saveUpdatedAuth &&
+				singleMountedOk && dualMountedOk && v2.valid && canonical7Ok && previewDestroyedOk,
+			dialogOpen, derivedNamesOk, caughtDupHover, caughtMissingFalse, usesFriendlyNames,
+			pausedOk, resumedOk, cancelPreservedAuth, saveFixedOk, saveUpdatedAuth,
+			singleMountedOk, dualMountedOk, validAfterFix: v2.valid, canonical7Ok, previewDestroyedOk
+		});
+	})()`
+	rawExportDlg, err := chromedp.Run(taskCtx, chromedp.Evaluate[string](exportDialogScript))
+	if err != nil {
+		record("S16F-04", "Dedicated Four-Tab Export to Widget Dialog (#widgetExportModal)", false, err.Error())
+		return 1
+	}
+	var exportDlgRes map[string]any
+	_ = json.Unmarshal([]byte(rawExportDlg), &exportDlgRes)
+	record("S16F-04", "Dedicated Four-Tab Export to Widget Dialog (#widgetExportModal)",
+		exportDlgRes["ok"] == true, rawExportDlg)
 
 	if err := runVoid(taskCtx, chromedp.Navigate(demoURL), chromedp.WaitReady("#sec-demo-6")); err != nil {
 		record("S16F-02", "Demo Page Navigation", false, err.Error())
@@ -369,7 +523,7 @@ func run() int {
 	record("S16F-03", "Sentinel-PVE fleet1.svg Multi-Instance CSS Scoping, Computed Animations & Label/Icon Reuse",
 		fleetRes["ok"] == true, rawFleet)
 
-	allPassed := len(results) == 3
+	allPassed := len(results) == 4
 	for _, r := range results {
 		if !r.Passed {
 			allPassed = false

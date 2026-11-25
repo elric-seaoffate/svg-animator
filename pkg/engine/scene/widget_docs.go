@@ -450,18 +450,19 @@ func GenerateWidgetReadme(widgetName, svgFilename string, manifest *WidgetManife
 	sb.WriteString("This directory contains a complete, portable, and ready-to-run SVG widget package exported from **SVG Animator Studio**.\n\n")
 
 	sb.WriteString("## Quick Start\n\n")
-	sb.WriteString(fmt.Sprintf("1. **Interactive Demo (No-Code):** Double-click `%s.html` (or `demo.html`) in your browser. You can operate three independent live instances immediately with real-time controls.\n", cleanBase))
+	sb.WriteString("1. **Interactive Demo (No-Code):** Double-click `demo.html` in your browser. You can operate three independent live instances immediately with real-time controls.\n")
 	sb.WriteString(fmt.Sprintf("2. **Standalone Asset:** `%s` is the collision-free SVG file ready to embed in any web application.\n", svgFilename))
-	sb.WriteString(fmt.Sprintf("3. **Properties Guide:** Read `%s.md` (or `%s-properties.md`) for complete parameter specifications, object inventory, and integration code snippets.\n\n", cleanBase, cleanBase))
+	sb.WriteString(fmt.Sprintf("3. **Properties Guide:** Read `%s-properties.md` for complete parameter specifications, object inventory, and integration code snippets.\n\n", cleanBase))
 
 	sb.WriteString("## Package File Index\n\n")
 	sb.WriteString("| File | Purpose |\n")
 	sb.WriteString("|---|---|\n")
 	sb.WriteString(fmt.Sprintf("| `%s` | Isolated, collision-free SVG widget with embedded JSON parameter manifest |\n", svgFilename))
-	sb.WriteString(fmt.Sprintf("| `%s.json` / `widget-manifest.json` | Validated parameter manifest schema matching `%s` |\n", cleanBase, cleanBase))
-	sb.WriteString(fmt.Sprintf("| `%s.html` / `demo.html` | Ready-to-run interactive multi-instance no-code control page |\n", cleanBase))
-	sb.WriteString(fmt.Sprintf("| `%s.md` / `%s-properties.md` | Authoritative properties guide, object inventory, and developer reference |\n", cleanBase, cleanBase))
-	sb.WriteString(fmt.Sprintf("| `js/%s.js` / `js/svg-widget.js` | Lightweight, dependency-free JavaScript runtime adapter |\n", cleanBase))
+	sb.WriteString("| `widget-manifest.json` | Validated parameter manifest schema matching the embedded SVG manifest |\n")
+	sb.WriteString("| `js/svg-widget.js` | Lightweight, dependency-free JavaScript runtime adapter |\n")
+	sb.WriteString(fmt.Sprintf("| `%s-properties.md` | Authoritative properties guide, object inventory, and developer reference |\n", cleanBase))
+	sb.WriteString("| `demo.html` | Ready-to-run interactive multi-instance no-code control page |\n")
+	sb.WriteString("| `preview.svg` | Clean static preview SVG thumbnail |\n")
 	sb.WriteString("| `README.md` | This quick start and package index |\n\n")
 
 	paramCount := 0
@@ -876,13 +877,27 @@ func GenerateWidgetDemoHTML(widgetName, svgFilename string, manifest *WidgetMani
 	return sb.String()
 }
 
+// WidgetPackageMetadata carries optional user-configured metadata from the Export to Widget dialog.
+type WidgetPackageMetadata struct {
+	DisplayName string   `json:"displayName,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Version     string   `json:"version,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
 // BuildWidgetPackageZip assembles the complete portable widget package ZIP in memory using the default 2x HiDPI raster policy.
 func BuildWidgetPackageZip(sc *Scene, widgetName, rawSVG, svgWidgetJS string) ([]byte, error) {
-	return BuildWidgetPackageZipWithOptions(sc, widgetName, rawSVG, svgWidgetJS, "2x")
+	return BuildWidgetPackageZipWithMetadata(sc, widgetName, rawSVG, svgWidgetJS, "2x", nil)
 }
 
 // BuildWidgetPackageZipWithOptions assembles the complete portable widget package ZIP in memory with a configurable raster optimisation policy ("1x", "2x", "3x", "original").
 func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS, rasterPolicy string) ([]byte, error) {
+	return BuildWidgetPackageZipWithMetadata(sc, widgetName, rawSVG, svgWidgetJS, rasterPolicy, nil)
+}
+
+// BuildWidgetPackageZipWithMetadata assembles the complete 7-file canonical portable widget package ZIP in memory.
+func BuildWidgetPackageZipWithMetadata(sc *Scene, widgetName, rawSVG, svgWidgetJS, rasterPolicy string, meta *WidgetPackageMetadata) ([]byte, error) {
 	if widgetName == "" {
 		widgetName = "widget"
 	}
@@ -890,6 +905,10 @@ func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS
 		rasterPolicy = "2x"
 	}
 	cleanBase := cleanWidgetSlug(widgetName)
+	displayTitle := widgetName
+	if meta != nil && strings.TrimSpace(meta.DisplayName) != "" {
+		displayTitle = strings.TrimSpace(meta.DisplayName)
+	}
 	svgFilename := cleanBase + ".svg"
 	guideFilename := cleanBase + "-properties.md"
 
@@ -973,6 +992,20 @@ func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS
 	if manifest.Parameters == nil {
 		manifest.Parameters = []WidgetParameter{}
 	}
+	if meta != nil {
+		if strings.TrimSpace(meta.Description) != "" {
+			manifest.Description = strings.TrimSpace(meta.Description)
+		}
+		if strings.TrimSpace(meta.Category) != "" {
+			manifest.Category = strings.TrimSpace(meta.Category)
+		}
+		if strings.TrimSpace(meta.Version) != "" {
+			manifest.PackageVersion = NormalizeSemVer(meta.Version)
+		}
+		if len(meta.Tags) > 0 {
+			manifest.Tags = append([]string(nil), meta.Tags...)
+		}
+	}
 	// Always synchronize manifest identifiers with the exported base name (e.g. "fleet")
 	manifest.WidgetName = cleanBase
 	if manifest.PackageVersion == "" {
@@ -1009,9 +1042,9 @@ func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS
 	}
 
 	// 4. Generate documentation and inspection copies (embedding isolatedSVG into demo.html for direct offline file:// operation)
-	guideMarkdown := GenerateWidgetPropertiesGuide(sc, widgetName, svgFilename, manifest)
-	readmeMarkdown := GenerateWidgetReadme(widgetName, svgFilename, manifest)
-	demoHTML := GenerateWidgetDemoHTML(widgetName, svgFilename, manifest, isolatedSVG)
+	guideMarkdown := GenerateWidgetPropertiesGuide(sc, displayTitle, svgFilename, manifest)
+	readmeMarkdown := GenerateWidgetReadme(displayTitle, svgFilename, manifest)
+	demoHTML := GenerateWidgetDemoHTML(displayTitle, svgFilename, manifest, isolatedSVG)
 
 	manifestBytes := []byte("{}\n")
 	if mb, err := json.MarshalIndent(manifest, "", "  "); err == nil {
@@ -1032,15 +1065,11 @@ func BuildWidgetPackageZipWithOptions(sc *Scene, widgetName, rawSVG, svgWidgetJS
 		Content []byte
 	}{
 		{Path: path.Join(cleanBase, svgFilename), Content: []byte(isolatedSVG)},
-		{Path: path.Join(cleanBase, cleanBase+".json"), Content: manifestBytes},
 		{Path: path.Join(cleanBase, "widget-manifest.json"), Content: manifestBytes},
 		{Path: path.Join(cleanBase, "preview.svg"), Content: []byte(previewSVG)},
-		{Path: path.Join(cleanBase, cleanBase+".md"), Content: []byte(guideMarkdown)},
 		{Path: path.Join(cleanBase, guideFilename), Content: []byte(guideMarkdown)},
 		{Path: path.Join(cleanBase, "README.md"), Content: []byte(readmeMarkdown)},
-		{Path: path.Join(cleanBase, cleanBase+".html"), Content: []byte(demoHTML)},
 		{Path: path.Join(cleanBase, "demo.html"), Content: []byte(demoHTML)},
-		{Path: path.Join(cleanBase, "js", cleanBase+".js"), Content: []byte(svgWidgetJS)},
 		{Path: path.Join(cleanBase, "js", "svg-widget.js"), Content: []byte(svgWidgetJS)},
 	}
 

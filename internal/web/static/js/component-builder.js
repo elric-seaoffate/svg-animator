@@ -242,13 +242,6 @@
       const nameIn = document.getElementById('cbModalNameInput');
       if (nameIn) {
         nameIn.addEventListener('input', () => {
-          const trigSel = document.getElementById('cbModalEventTriggerSelect');
-          if (trigSel && !this.originalName) {
-            const lowerName = nameIn.value.trim().toLowerCase();
-            if (lowerName === 'mouseover') trigSel.value = 'hover';
-            else if (lowerName === 'onclick' || lowerName === 'pressed') trigSel.value = 'press';
-            else if (lowerName === 'selected') trigSel.value = 'click';
-          }
           this.validateForm();
         });
       }
@@ -556,8 +549,8 @@
         if (colorPick) colorPick.value = '#38bdf8';
         if (defIn) defIn.value = 'false';
         if (descIn) descIn.value = 'Controls multiple object colours and animations from one exposed property';
-        if (hoverChk) hoverChk.checked = true;
-        if (trigSel) trigSel.value = 'hover';
+        if (hoverChk) hoverChk.checked = false;
+        if (trigSel) trigSel.value = '';
         if (minIn) minIn.value = '0';
         if (maxIn) maxIn.value = '100';
         if (unitIn) unitIn.value = '';
@@ -619,11 +612,16 @@
     close() {
       const modal = document.getElementById('componentBuilderModal');
       if (modal) modal.style.display = 'none';
+      if (window.WidgetExportDialog && window.WidgetExportDialog._pausedForEdit && typeof window.WidgetExportDialog.resumeFromComponentBuilder === 'function') {
+        window.WidgetExportDialog.resumeFromComponentBuilder();
+      }
     },
 
-    openQuickLabelPreset() {
+    openQuickLabelPreset(targetId) {
       const objs = getAllCanvasObjects();
-      const textObj = objs.find((o) => o.type === 'lite' && o.liteKind === 'text-lite') || objs.find((o) => o.type === 'node');
+      const textObj = (targetId && objs.find((o) => o.target === targetId)) ||
+        objs.find((o) => o.type === 'lite' && o.liteKind === 'text-lite') ||
+        objs.find((o) => o.type === 'node');
       if (!textObj) {
         if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
           window.AppCoordinator.showNotification('Add a Text Box Lite or Shape to the canvas first to expose a Label property.', 'warning');
@@ -646,9 +644,10 @@
       this.originalName = '';
     },
 
-    openQuickIconPreset() {
+    openQuickIconPreset(targetId) {
       const objs = getAllCanvasObjects();
-      const imgObj = objs.find((o) => o.type === 'image');
+      const imgObj = (targetId && objs.find((o) => o.target === targetId)) ||
+        objs.find((o) => o.type === 'image');
       if (!imgObj) {
         if (window.AppCoordinator && typeof window.AppCoordinator.showNotification === 'function') {
           window.AppCoordinator.showNotification('Import an Image object onto the canvas first to expose an Icon property.', 'warning');

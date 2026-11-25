@@ -1388,10 +1388,15 @@ type WidgetGenerateGuideResponse struct {
 
 // WidgetBuildPackageRequest is the payload for "Widget.BuildPackage".
 type WidgetBuildPackageRequest struct {
-	WidgetName   string `json:"widgetName,omitempty"`
-	SVG          string `json:"svg"`
-	SVGWidgetJS  string `json:"svgWidgetJs,omitempty"`
-	RasterPolicy string `json:"rasterPolicy,omitempty"`
+	WidgetName   string   `json:"widgetName,omitempty"`
+	DisplayName  string   `json:"displayName,omitempty"`
+	Description  string   `json:"description,omitempty"`
+	Category     string   `json:"category,omitempty"`
+	Version      string   `json:"version,omitempty"`
+	Tags         []string `json:"tags,omitempty"`
+	SVG          string   `json:"svg"`
+	SVGWidgetJS  string   `json:"svgWidgetJs,omitempty"`
+	RasterPolicy string   `json:"rasterPolicy,omitempty"`
 }
 
 // WidgetBuildPackageResponse is returned by "Widget.BuildPackage".
@@ -4008,7 +4013,14 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if wName == "" {
 			wName = "widget"
 		}
-		zipBytes, err := scene.BuildWidgetPackageZipWithOptions(activeScene, wName, req.SVG, req.SVGWidgetJS, req.RasterPolicy)
+		meta := &scene.WidgetPackageMetadata{
+			DisplayName: req.DisplayName,
+			Description: req.Description,
+			Category:    req.Category,
+			Version:     req.Version,
+			Tags:        req.Tags,
+		}
+		zipBytes, err := scene.BuildWidgetPackageZipWithMetadata(activeScene, wName, req.SVG, req.SVGWidgetJS, req.RasterPolicy, meta)
 		if err != nil {
 			return json.Marshal(WidgetBuildPackageResponse{
 				Success: false,

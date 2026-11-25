@@ -4034,9 +4034,12 @@
 
             <!-- SECTION 0B: COMPONENT BUILDER — MULTI-ACTION COMPONENT PROPERTIES (STAGE 16F, NO GROUP REQUIRED) -->
             <div id="componentBuilderSection" style="margin-bottom: 0.75rem; background: #161b22; border: 1px solid #3fb950; border-radius: 6px; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 4px; flex-wrap: wrap;">
                 <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #7ee787; letter-spacing: 0.04em;">⚡ Component Builder (<strong id="cbParamCountBadge">0</strong>)</span>
-                <button type="button" class="btn btn-primary btn-sm" id="btnOpenComponentBuilderModal" style="font-size: 0.68rem; padding: 3px 8px; background: #238636; border-color: #3fb950; color: #fff; font-weight: 600;" title="Create an exposed component property that drives multiple independent objects and animations without grouping">+ New Component Property</button>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnOpenComponentBuilderModal" style="font-size: 0.68rem; padding: 3px 8px; background: #238636; border-color: #3fb950; color: #fff; font-weight: 600;" title="Create an exposed component property that drives multiple independent objects and animations without grouping">+ New Component Property</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenWidgetExportFromMaker" style="font-size: 0.68rem; padding: 3px 8px; background: #1f6feb; border-color: #58a6ff; color: #fff; font-weight: 600;" title="Open the dedicated Export to Widget dialog to review, test, validate, and export">📦 Export to Widget...</button>
+                </div>
               </div>
               <div style="font-size: 0.70rem; color: #8b949e; margin-bottom: 6px;">
                 Expose arbitrary named properties (e.g. <code>MouseOver</code>) that control multiple independent objects and animations across the canvas — <strong>no group required</strong>.
@@ -4129,6 +4132,7 @@
             <button type="button" class="primary" id="btnDownloadSVG">Download Vector SVG (Locked Ratio)</button>
             <button type="button" class="secondary" id="btnDownloadHTML" style="margin-top: 0.45rem; width: 100%;">Download Interactive HTML</button>
             <div style="margin-top: 0.55rem; padding: 6px 8px; background: rgba(22, 27, 34, 0.75); border: 1px solid #30363d; border-radius: 6px;">
+              <button type="button" class="primary" id="btnOpenWidgetExportModal" style="width: 100%; margin-bottom: 7px; background: linear-gradient(135deg, #1f6feb, #238636); border: 1px solid #58a6ff; font-size: 0.78rem; font-weight: 700; padding: 7px 10px;" title="Open the dedicated 4-tab Export to Widget studio to review properties, test live events, validate configuration, and export">📦 Export to Widget (Review, Test &amp; Package)...</button>
               <label for="widgetExportBaseNameInput" style="display: block; font-size: 0.68rem; font-weight: 700; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px;">🏷️ Export / Widget Base Name</label>
               <input type="text" id="widgetExportBaseNameInput" placeholder="e.g. fleet (produces fleet.zip / fleet.svg)" style="width: 100%; padding: 4px 7px; margin-bottom: 6px; background: #0d1117; border: 1px solid #30363d; color: #7ee787; border-radius: 4px; font-size: 0.75rem; font-family: ui-monospace, monospace; font-weight: 600;">
               <label for="widgetExportImagePolicySelect" style="display: block; font-size: 0.68rem; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px;">🖼️ Widget Embedded Raster Policy</label>
@@ -5050,6 +5054,282 @@
     </div>
   </div>
 
+  <!-- STAGE 16F DEDICATED EXPORT TO WIDGET DIALOG (4 TABS: DETAILS, PROPERTIES/EVENTS/ACTIONS, LIVE SANDBOX PREVIEW, VALIDATION & PACKAGE) -->
+  <div id="widgetExportModal" class="modal-overlay" style="display: none; z-index: 2650;" role="dialog" aria-modal="true" aria-labelledby="wxModalTitle">
+      <div class="modal-card" style="width: 1120px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; background: #0d1117; border: 1px solid #388bfd; border-radius: 10px; box-shadow: 0 18px 48px rgba(0,0,0,0.8);">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 13px 20px; background: #161b22; border-bottom: 1px solid #30363d;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h3 id="wxModalTitle" style="margin: 0; font-size: 1.02rem; color: #58a6ff; font-weight: 700;">📦 Export to Widget — Review, Validate &amp; Package</h3>
+              <span id="wxHeaderStatusBadge" style="font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 12px; background: rgba(63, 185, 80, 0.16); color: #7ee787; border: 1px solid rgba(63, 185, 80, 0.45);">Ready to Export</span>
+            </div>
+            <p style="margin: 2px 0 0 0; font-size: 0.74rem; color: #8b949e;">Review component properties, verify browser event triggers and conditional actions, test in a live isolated sandbox, and produce a self-contained widget package.</p>
+          </div>
+          <button type="button" id="btnWxModalClose" style="background: transparent; border: none; color: #8b949e; font-size: 1.4rem; cursor: pointer; line-height: 1;" title="Close Export to Widget Dialog">&times;</button>
+        </div>
+
+        <!-- 4-Tab Bar -->
+        <div id="wxTabBar" style="display: flex; gap: 4px; padding: 8px 20px 0 20px; background: #161b22; border-bottom: 1px solid #30363d;">
+          <button type="button" class="wx-tab-btn" id="wxTabBtnDetails" data-wx-tab="details" style="padding: 8px 14px; font-size: 0.78rem; font-weight: 700; background: #0d1117; color: #58a6ff; border: 1px solid #30363d; border-bottom: 2px solid #58a6ff; border-radius: 6px 6px 0 0; cursor: pointer;">1. Widget Details &amp; Export Settings</button>
+          <button type="button" class="wx-tab-btn" id="wxTabBtnProperties" data-wx-tab="properties" style="padding: 8px 14px; font-size: 0.78rem; font-weight: 600; background: transparent; color: #8b949e; border: 1px solid transparent; border-radius: 6px 6px 0 0; cursor: pointer;">2. Properties, Events &amp; Actions (<span id="wxTabParamCount">0</span>)</button>
+          <button type="button" class="wx-tab-btn" id="wxTabBtnPreview" data-wx-tab="preview" style="padding: 8px 14px; font-size: 0.78rem; font-weight: 600; background: transparent; color: #8b949e; border: 1px solid transparent; border-radius: 6px 6px 0 0; cursor: pointer;">3. Live Sandbox Preview &amp; Interaction Test</button>
+          <button type="button" class="wx-tab-btn" id="wxTabBtnValidation" data-wx-tab="validation" style="padding: 8px 14px; font-size: 0.78rem; font-weight: 600; background: transparent; color: #8b949e; border: 1px solid transparent; border-radius: 6px 6px 0 0; cursor: pointer;">4. Validation &amp; Package Contents (<span id="wxTabDiagCount">0</span>)</button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <div style="padding: 18px 20px; overflow-y: auto; flex: 1; min-height: 440px;">
+          <!-- TAB 1: WIDGET DETAILS & EXPORT SETTINGS -->
+          <div id="wxTabPanelDetails" class="wx-tab-panel" style="display: block;">
+            <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px;">
+              <!-- Left Column: Identity & Metadata -->
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                  <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #58a6ff; letter-spacing: 0.04em; margin-bottom: 10px;">🏷️ Widget Identity &amp; Package Metadata</div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <div>
+                      <label for="wxWidgetTitleInput" style="display: block; font-size: 0.72rem; font-weight: 700; color: #c9d1d9; margin-bottom: 4px;">Widget Display Name</label>
+                      <input type="text" id="wxWidgetTitleInput" placeholder="e.g. Fleet Sanctum Button" style="width: 100%; padding: 6px 9px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.80rem; font-weight: 600;">
+                    </div>
+                    <div>
+                      <label for="wxBaseNameInput" style="display: block; font-size: 0.72rem; font-weight: 700; color: #7ee787; margin-bottom: 4px;">Export Base Name (Entered Once)</label>
+                      <input type="text" id="wxBaseNameInput" placeholder="e.g. fleet" style="width: 100%; padding: 6px 9px; background: #0d1117; border: 1px solid #3fb950; border-radius: 5px; color: #7ee787; font-size: 0.80rem; font-family: ui-monospace, monospace; font-weight: 700;">
+                    </div>
+                  </div>
+
+                  <!-- Live Derived Package Filenames Preview -->
+                  <div id="wxDerivedFilenamesPreview" style="margin-bottom: 10px; padding: 8px 10px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px; font-size: 0.72rem; color: #8b949e; font-family: ui-monospace, monospace; line-height: 1.55;">
+                    Derived Package: <strong style="color: #7ee787;">widget.zip</strong> &rarr; <code>widget/widget.svg</code>, <code>widget/widget-manifest.json</code>, <code>widget/js/svg-widget.js</code>, <code>widget/widget-properties.md</code>, <code>widget/demo.html</code>, <code>widget/README.md</code>, <code>widget/preview.svg</code>
+                  </div>
+
+                  <div style="margin-bottom: 10px;">
+                    <label for="wxDescriptionInput" style="display: block; font-size: 0.72rem; font-weight: 700; color: #c9d1d9; margin-bottom: 4px;">Description</label>
+                    <input type="text" id="wxDescriptionInput" placeholder="Optional summary of the widget's purpose and exposed controls" style="width: 100%; padding: 6px 9px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.78rem;">
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: 1fr 0.7fr 1.3fr; gap: 10px;">
+                    <div>
+                      <label for="wxCategorySelect" style="display: block; font-size: 0.72rem; font-weight: 700; color: #c9d1d9; margin-bottom: 4px;">Category</label>
+                      <select id="wxCategorySelect" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.78rem;">
+                        <option value="Controls">Controls &amp; Buttons</option>
+                        <option value="Indicators">Status Indicators</option>
+                        <option value="Meters">Meters &amp; Gauges</option>
+                        <option value="Telemetry">Telemetry &amp; Waveforms</option>
+                        <option value="Navigation">Navigation &amp; Cards</option>
+                        <option value="Topology">Network &amp; Topology</option>
+                        <option value="General">General</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label for="wxVersionInput" style="display: block; font-size: 0.72rem; font-weight: 700; color: #c9d1d9; margin-bottom: 4px;">Version</label>
+                      <input type="text" id="wxVersionInput" value="1.0.0" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.78rem; font-family: ui-monospace, monospace;">
+                    </div>
+                    <div>
+                      <label for="wxTagsInput" style="display: block; font-size: 0.72rem; font-weight: 700; color: #c9d1d9; margin-bottom: 4px;">Tags (comma-separated)</label>
+                      <input type="text" id="wxTagsInput" placeholder="e.g. button, status, interactive" style="width: 100%; padding: 6px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #e6edf3; font-size: 0.78rem;">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Read-Only Canvas & Scene Summary -->
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                  <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #79c0ff; letter-spacing: 0.04em; margin-bottom: 8px;">📐 Read-Only Canvas &amp; Scene Summary</div>
+                  <div id="wxCanvasSummaryBox" style="font-size: 0.76rem; color: #c9d1d9; line-height: 1.6;">
+                    Loading canvas dimensions and scene inventory...
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Column: Embedded Raster Optimisation & Contract Settings -->
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #7ee787; letter-spacing: 0.04em;">🖼️ Embedded Raster-Image Optimisation</span>
+                    <select id="wxRasterPolicySelect" style="padding: 3px 7px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #7ee787; font-size: 0.73rem; font-weight: 600;">
+                      <option value="2x" selected>2× — Recommended (Default)</option>
+                      <option value="1x">1× — Displayed Size</option>
+                      <option value="3x">3× — High Magnification</option>
+                      <option value="original">Original — Unmodified Resolution</option>
+                    </select>
+                  </div>
+                  <p style="margin: 0 0 10px 0; font-size: 0.73rem; color: #8b949e; line-height: 1.45;">
+                    Downsamples oversized embedded PNG/JPEG/WebP artwork during widget export and removes duplicate <code>xlink:href</code> data URIs. <strong>Your original high-resolution images in the Studio project are never altered.</strong>
+                  </p>
+                  <div id="wxRasterPolicyCards" style="display: flex; flex-direction: column; gap: 7px;">
+                    <label id="wxRasterCard2x" data-policy="2x" style="display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: rgba(35, 134, 54, 0.14); border: 1px solid #3fb950; border-radius: 6px; cursor: pointer;">
+                      <input type="radio" name="wxRasterPolicyRadio" value="2x" checked style="margin-top: 3px;">
+                      <div style="font-size: 0.74rem;">
+                        <div style="font-weight: 700; color: #7ee787;">2× — Recommended (Default)</div>
+                        <div style="color: #8b949e;">Sharp on standard and Retina/HiDPI displays while keeping exported SVG size compact (e.g. reduces a 572×572 icon displayed at 49×49 px to 98×98 px, cutting a 1.21 MB SVG to ~38 KB).</div>
+                      </div>
+                    </label>
+                    <label id="wxRasterCard1x" data-policy="1x" style="display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; cursor: pointer;">
+                      <input type="radio" name="wxRasterPolicyRadio" value="1x" style="margin-top: 3px;">
+                      <div style="font-size: 0.74rem;">
+                        <div style="font-weight: 700; color: #e6edf3;">1× — Displayed Size</div>
+                        <div style="color: #8b949e;">Smallest possible file size for dense dashboards with dozens of simultaneous widget instances.</div>
+                      </div>
+                    </label>
+                    <label id="wxRasterCard3x" data-policy="3x" style="display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; cursor: pointer;">
+                      <input type="radio" name="wxRasterPolicyRadio" value="3x" style="margin-top: 3px;">
+                      <div style="font-size: 0.74rem;">
+                        <div style="font-weight: 700; color: #e6edf3;">3× — High Magnification</div>
+                        <div style="color: #8b949e;">Extra detail for widgets that will be zoomed or displayed on large-format 4K/8K control walls.</div>
+                      </div>
+                    </label>
+                    <label id="wxRasterCardOriginal" data-policy="original" style="display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; cursor: pointer;">
+                      <input type="radio" name="wxRasterPolicyRadio" value="original" style="margin-top: 3px;">
+                      <div style="font-size: 0.74rem;">
+                        <div style="font-weight: 700; color: #e6edf3;">Original — Unmodified Resolution</div>
+                        <div style="color: #8b949e;">Keeps full source pixel dimensions (still deduplicates redundant <code>xlink:href</code> base64 payloads).</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Target Consumer Contract Mode -->
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 14px;">
+                  <label style="display: flex; align-items: flex-start; gap: 9px; cursor: pointer;">
+                    <input type="checkbox" id="wxStrictDTContractChk" style="margin-top: 3px;">
+                    <div style="font-size: 0.74rem;">
+                      <div style="font-weight: 700; color: #d29922;">Enforce Strict Digital Twin (4 MiB / Safe-SVG) Contract as Blocking</div>
+                      <div style="color: #8b949e; margin-top: 2px;">When unchecked (default), Digital Twin-specific checks (such as 4 MiB SVG size cap or self-contained data-URI image requirements) are shown as non-blocking warnings so general web widgets can still be exported freely.</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: PROPERTIES, EVENTS & CONDITIONAL ACTIONS -->
+          <div id="wxTabPanelProperties" class="wx-tab-panel" style="display: none;">
+            <!-- Section A: Reusable Content vs Fixed Artwork Audit -->
+            <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #79c0ff; letter-spacing: 0.04em;">🔤 Reusable Content vs Fixed Artwork Audit (Text &amp; Images)</span>
+                <span style="font-size: 0.71rem; color: #8b949e;">Expose text labels or icons so multiple widget instances can show different labels/icons on the same page</span>
+              </div>
+              <div id="wxReusableContentBox" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+
+            <!-- Section B: Browser Event Trigger Review Table -->
+            <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #d29922; letter-spacing: 0.04em;">⚡ Browser Event Trigger Review</span>
+                <span style="font-size: 0.71rem; color: #8b949e;">Event triggers are explicit — properties are never bound to Hover or Click solely by their name</span>
+              </div>
+              <div id="wxEventTriggerWarnings" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;"></div>
+              <div id="wxEventTriggerTableWrap" style="overflow-x: auto;"></div>
+            </div>
+
+            <!-- Section C: Exposed Properties & Conditional Action Cards -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: #7ee787; letter-spacing: 0.04em;">🎯 Exposed Component Properties &amp; Conditional Actions</span>
+              <button type="button" class="btn btn-primary btn-sm" id="btnWxNewPropertyInCB" style="font-size: 0.73rem; padding: 4px 10px; background: #238636; border-color: #3fb950; color: #fff; font-weight: 600;">+ New Property in Component Builder</button>
+            </div>
+            <div id="wxPropertyCardsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          </div>
+
+          <!-- TAB 3: LIVE SANDBOX PREVIEW & INTERACTION TEST -->
+          <div id="wxTabPanelPreview" class="wx-tab-panel" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: #58a6ff; text-transform: uppercase;">Sandbox Mode:</span>
+                <button type="button" id="wxPreviewModeSingleBtn" class="btn btn-primary btn-sm" style="font-size: 0.73rem; padding: 4px 10px; background: #1f6feb; border-color: #58a6ff; color: #fff;">Single Instance</button>
+                <button type="button" id="wxPreviewModeDualBtn" class="btn btn-secondary btn-sm" style="font-size: 0.73rem; padding: 4px 10px;">Two Instances (Compare Label, Icon &amp; CSS Scoping)</button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="wxPreviewEventReadout" style="font-size: 0.74rem; font-family: ui-monospace, monospace; padding: 4px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 5px; color: #79c0ff;">
+                  Event Readout: Hover, press, or click the widget preview below
+                </div>
+                <button type="button" id="wxPreviewResetBtn" class="btn btn-secondary btn-sm" style="font-size: 0.73rem; padding: 4px 10px;">↺ Reset to Defaults</button>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px;">
+              <!-- Left: Live Mounted Widget Stage -->
+              <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #7ee787;">🟢 Live Isolated SVGWidget.mount() Stage</span>
+                  <span id="wxPreviewMountBadge" style="font-size: 0.70rem; color: #8b949e; font-family: ui-monospace, monospace;">instance: wx-preview-a</span>
+                </div>
+                <!-- Single Instance Stage -->
+                <div id="wxPreviewStageSingle" style="min-height: 220px; background: repeating-conic-gradient(#0d1117 0% 25%, #121820 0% 50%) 50% / 20px 20px; border: 1px solid #21262d; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 18px; overflow: auto;"></div>
+                <!-- Dual Instance Comparison Stage -->
+                <div id="wxPreviewStageDual" style="display: none; flex-direction: column; gap: 12px;">
+                  <div style="background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                      <span style="font-size: 0.72rem; font-weight: 700; color: #58a6ff;">Instance A (<code>wx-preview-a</code>) — Controlled by Sliders/Toggles on Right</span>
+                    </div>
+                    <div id="wxPreviewSlotA" style="min-height: 110px; background: repeating-conic-gradient(#0d1117 0% 25%, #121820 0% 50%) 50% / 18px 18px; border: 1px solid #21262d; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 10px;"></div>
+                  </div>
+                  <div style="background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;">
+                      <span style="font-size: 0.72rem; font-weight: 700; color: #d29922;">Instance B (<code>wx-preview-b</code>) — Independent Instance &amp; Overrides</span>
+                      <div id="wxPreviewInstanceBQuickControls" style="display: flex; gap: 6px; align-items: center;"></div>
+                    </div>
+                    <div id="wxPreviewSlotB" style="min-height: 110px; background: repeating-conic-gradient(#0d1117 0% 25%, #121820 0% 50%) 50% / 18px 18px; border: 1px solid #21262d; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Interactive Property Controls Deck -->
+              <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; display: flex; flex-direction: column;">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #79c0ff; margin-bottom: 6px;">🎛️ Exposed Property Controls (Instance A)</div>
+                <p style="margin: 0 0 10px 0; font-size: 0.72rem; color: #8b949e;">Toggle Boolean states, test animations, or enter custom text/colour values to verify how an external consuming application drives this widget.</p>
+                <div id="wxPreviewControlsDeck" style="display: flex; flex-direction: column; gap: 8px; max-height: 330px; overflow-y: auto;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: VALIDATION & PACKAGE CONTENTS -->
+          <div id="wxTabPanelValidation" class="wx-tab-panel" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px;">
+              <!-- Left: Diagnostics (Blocking Errors, Warnings, Passed Checks) -->
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                  <div style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #f85149; letter-spacing: 0.04em; margin-bottom: 8px;">❌ Blocking Errors (Must Resolve Before Export)</div>
+                  <div id="wxValidationErrorsList" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem;"></div>
+                </div>
+
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                  <div style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #d29922; letter-spacing: 0.04em; margin-bottom: 8px;">⚠️ Non-Blocking Warnings (Advisory Only — Never Block Export)</div>
+                  <div id="wxValidationWarningsList" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem;"></div>
+                </div>
+
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                  <div style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #3fb950; letter-spacing: 0.04em; margin-bottom: 8px;">✅ Passed Contract Checks</div>
+                  <div id="wxValidationPassedList" style="display: flex; flex-direction: column; gap: 5px; font-size: 0.74rem; color: #c9d1d9;"></div>
+                </div>
+              </div>
+
+              <!-- Right: Canonical 7-File Package Contents -->
+              <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px;">
+                <div style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #58a6ff; letter-spacing: 0.04em; margin-bottom: 6px;">📦 Canonical 7-File Widget Package Structure</div>
+                <p style="margin: 0 0 10px 0; font-size: 0.73rem; color: #8b949e;">
+                  All internal filenames, manifest references, properties documentation, and demo mount calls are synchronised to your Export Base Name.
+                </p>
+                <div id="wxPackageFilesTable" style="font-size: 0.74rem;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #161b22; border-top: 1px solid #30363d; gap: 12px; flex-wrap: wrap;">
+          <div id="wxFooterStatusText" style="flex: 1; font-size: 0.76rem; color: #8b949e;">
+            Ready to export self-contained widget package.
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnWxModalCancel" style="padding: 7px 12px; font-size: 0.76rem;">Cancel</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnWxExportGuide" style="padding: 7px 12px; font-size: 0.75rem;" title="Download Markdown properties &amp; integration guide">📋 Properties Guide (.md)</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnWxExportStandaloneSVG" style="padding: 7px 13px; font-size: 0.76rem; color: #79c0ff; border-color: #388bfd;" title="Download standalone isolated SVG widget file">📄 Export Standalone SVG</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnWxExportPackageZip" style="padding: 7px 16px; font-size: 0.79rem; background: #238636; border-color: #3fb950; color: #fff; font-weight: 700;" title="Download complete 7-file widget package (.zip)">🎁 Export Widget Package (.zip)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   <!-- Studio Non-Blocking Notification / Toast Container -->
   <div id="studioNotificationContainer" class="studio-notification-container" aria-live="polite"></div>
 
@@ -5080,6 +5360,7 @@
   <script src="js/app.js?v=6.0"></script>
   <script src="js/component-library.js?v=6.0"></script>
   <script src="js/component-builder.js?v=6.0"></script>
+  <script src="js/widget-export-modal.js?v=6.0"></script>
   <script src="js/still-export-modal.js?v=6.0"></script>
   <script src="js/export-modal.js?v=6.0"></script>
 </body>

@@ -3810,7 +3810,7 @@
 
       // 8. Initialize Domestic Browser Event Triggers & Text Box Lite controllers
       // Semantics:
-      //   - hover: mouseenter -> true, mouseleave -> false (auto-bound when eventTrigger==="hover" or by convention on boolean "MouseOver" unless eventTrigger==="none")
+      //   - hover: mouseenter -> true, mouseleave -> false (bound only when eventTrigger==="hover")
       //   - press: pointerdown/mousedown -> true, pointerup/mouseup/pointerleave/pointercancel -> false (momentary pressed visual state)
       //   - click: click -> toggles boolean true/false (latched selection state)
       //   - focus: focus/focusin -> true, blur/focusout -> false
@@ -3820,13 +3820,8 @@
         let needsFocusableRoot = false;
         for (const p of manifest.parameters) {
           if (!p || p.type !== 'boolean' || !p.name) continue;
-          const rawTrig = String(p.eventTrigger || p.EventTrigger || '').toLowerCase().trim();
-          if (rawTrig === 'none') continue;
-          let trig = rawTrig;
-          if (!trig && String(p.name).toLowerCase() === 'mouseover') {
-            trig = 'hover';
-          }
-          if (!trig) continue;
+          const trig = String(p.eventTrigger || p.EventTrigger || '').toLowerCase().trim();
+          if (!trig || trig === 'none') continue;
 
           if (trig === 'hover') {
             const onEnter = () => {

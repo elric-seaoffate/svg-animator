@@ -199,26 +199,27 @@ func TestStage16FFleetWidgetCompatibilityAndOptimisation(t *testing.T) {
 		t.Fatalf("expected fleet widget package to pass DT compatibility, got errors: %v", rep.Errors)
 	}
 
-	// Verify all fleet.<ext> files and internal references match "fleet" inside the ZIP
+	// Verify the canonical 7-file package structure and internal reference agreement on "fleet" inside fleet.zip
 	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 	if err != nil {
 		t.Fatalf("failed reading fleet zip: %v", err)
 	}
+	if len(zr.File) != 7 {
+		t.Fatalf("expected exactly 7 canonical files in fleet.zip, got %d", len(zr.File))
+	}
 	expectedZipEntries := map[string]bool{
 		"fleet/fleet.svg":            false,
-		"fleet/fleet.json":           false,
 		"fleet/widget-manifest.json": false,
-		"fleet/fleet.html":           false,
 		"fleet/demo.html":            false,
-		"fleet/fleet.md":             false,
 		"fleet/fleet-properties.md":  false,
 		"fleet/README.md":            false,
-		"fleet/js/fleet.js":          false,
 		"fleet/js/svg-widget.js":     false,
 		"fleet/preview.svg":          false,
 	}
 	for _, f := range zr.File {
-		if _, ok := expectedZipEntries[f.Name]; ok {
+		if _, ok := expectedZipEntries[f.Name]; !ok {
+			t.Errorf("unexpected file entry %q in canonical 7-file fleet.zip", f.Name)
+		} else {
 			expectedZipEntries[f.Name] = true
 		}
 		rc, _ := f.Open()
@@ -234,15 +235,15 @@ func TestStage16FFleetWidgetCompatibilityAndOptimisation(t *testing.T) {
 			if !strings.Contains(body, `"widgetName":"fleet"`) || !strings.Contains(body, `"packageId":"fleet"`) {
 				t.Errorf("fleet/fleet.svg embedded manifest does not match 'fleet'")
 			}
-		case "fleet/fleet.json", "fleet/widget-manifest.json":
+		case "fleet/widget-manifest.json":
 			if !strings.Contains(body, `"widgetName": "fleet"`) || !strings.Contains(body, `"packageId": "fleet"`) {
 				t.Errorf("%s manifest does not match 'fleet': %s", f.Name, body)
 			}
-		case "fleet/fleet.html", "fleet/demo.html":
+		case "fleet/demo.html":
 			if !strings.Contains(body, `const SVG_FILE = 'fleet.svg';`) || !strings.Contains(body, `href="fleet-properties.md"`) {
 				t.Errorf("%s does not reference fleet.svg / fleet-properties.md", f.Name)
 			}
-		case "fleet/fleet.md", "fleet/fleet-properties.md", "fleet/README.md":
+		case "fleet/fleet-properties.md", "fleet/README.md":
 			if !strings.Contains(body, `fleet.svg`) {
 				t.Errorf("%s does not reference fleet.svg", f.Name)
 			}

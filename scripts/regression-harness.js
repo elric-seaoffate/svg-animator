@@ -1425,6 +1425,7 @@ async function runHarness() {
 
   loadProductionScript('component-library.js');
   loadProductionScript('component-builder.js');
+  loadProductionScript('widget-export-modal.js');
   loadProductionScript('still-export-modal.js');
   loadProductionScript('export-modal.js');
 
@@ -2241,7 +2242,7 @@ async function runHarness() {
   while ((scriptMatch = scriptRegex.exec(htmlSource)) !== null) {
     scriptTagsInHtml.push(scriptMatch[1]);
   }
-  assert.strictEqual(scriptTagsInHtml.length, 28, 'index.html must contain exactly 28 script tags');
+  assert.strictEqual(scriptTagsInHtml.length, 29, 'index.html must contain exactly 29 script tags');
   const expectedScriptOrder = [
     'js/wasm_exec.js',
     'js/engine-bridge.js',
@@ -2269,10 +2270,11 @@ async function runHarness() {
     'js/app.js',
     'js/component-library.js',
     'js/component-builder.js',
+    'js/widget-export-modal.js',
     'js/still-export-modal.js',
     'js/export-modal.js'
   ];
-  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '28 script tags must be in exact dependency order');
+  assert.deepStrictEqual(scriptTagsInHtml, expectedScriptOrder, '29 script tags must be in exact dependency order');
 
   // 14. Phase 4: Floating Contextual Object Properties Editor Verification
   assert.ok(window.FloatingPropertiesEditor, 'window.FloatingPropertiesEditor must be defined');
@@ -9172,8 +9174,8 @@ async function runHarness() {
   while ((s74Match = s74ScriptRegex.exec(s74IndexHtmlContent)) !== null) {
     expectedHtmlScripts.push(s74Match[1]);
   }
-  assert.strictEqual(expectedHtmlScripts.length, 28, 'Test 1: index.html must declare exactly 28 scripts');
-  assert.strictEqual(harnessLoadedScripts.length, 28, 'Test 1: Harness must load exactly 28 production scripts');
+  assert.strictEqual(expectedHtmlScripts.length, 29, 'Test 1: index.html must declare exactly 29 scripts');
+  assert.strictEqual(harnessLoadedScripts.length, 29, 'Test 1: Harness must load exactly 29 production scripts');
   for (let i = 0; i < expectedHtmlScripts.length; i++) {
     assert.strictEqual(
       harnessLoadedScripts[i],
@@ -13358,6 +13360,191 @@ async function runHarness() {
     }
   }
   console.log('[HARNESS] Scenario 99 PASS: Stage 16F Sentinel-PVE fleet1.svg compatibility & multi-instance reuse verified.');
+
+  // ===========================================================================
+  // SCENARIO 100: Stage 16F Dedicated Four-Tab Export to Widget Dialog (`window.WidgetExportDialog`),
+  //               Duplicate Event Warning, Missing FALSE Action Warning, Explicit Event Triggers,
+  //               Component Builder Round-Trip (Save vs Cancel), and 7-File Canonical Package
+  // ===========================================================================
+  {
+    assert.ok(window.WidgetExportDialog, 'WX-01: window.WidgetExportDialog must exist');
+    assert.strictEqual(typeof window.WidgetExportDialog.open, 'function', 'WX-02: WidgetExportDialog.open must be a function');
+    assert.strictEqual(typeof window.WidgetExportDialog.validate, 'function', 'WX-03: WidgetExportDialog.validate must be a function');
+
+    // Clear existing parameters and set up a Fleet-style scene with 4 objects
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+
+    const flText = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      name: 'FleetLabel',
+      text: 'Fleet Sanctum',
+      color: '#95892d',
+      bgColor: '#0f172a',
+      borderColor: '#38bdf8'
+    });
+    const flTracer = window.LiteEffects.createLiteEffect({
+      kind: 'perimeter-tracer',
+      name: 'BorderTracer',
+      color: '#f7ca18',
+      play: false
+    });
+    const flRadar = window.LiteEffects.createLiteEffect({
+      kind: 'radar-lite',
+      name: 'HoverRadar',
+      color: '#38bdf8',
+      play: false
+    });
+    const flImg = window.ImageObjects.createImage({
+      name: 'FleetOwlBook',
+      filename: 'owl.png',
+      data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      naturalWidth: 572,
+      naturalHeight: 572,
+      width: 49,
+      height: 49
+    });
+
+    // 1. Reproduce original Fleet oversight: MouseOver and OnClick both bound to hover, and Selected missing When FALSE
+    window.EngineBridge.addWidgetParameter({
+      name: 'MouseOver',
+      label: 'Mouse Over State',
+      type: 'boolean',
+      target: 'root',
+      property: 'state',
+      default: false,
+      eventTrigger: 'hover',
+      targets: [
+        { target: `lite-${flText.id}`, property: 'color', when: 'true', action: 'set', value: '#e9db6c' },
+        { target: `lite-${flRadar.id}`, property: 'play', when: 'true', action: 'play', value: true },
+        { target: `lite-${flText.id}`, property: 'color', when: 'false', action: 'set', value: '#95892d' },
+        { target: `lite-${flRadar.id}`, property: 'play', when: 'false', action: 'stop_reset', value: false }
+      ]
+    });
+    window.EngineBridge.addWidgetParameter({
+      name: 'OnClick',
+      label: 'Button Press State',
+      type: 'boolean',
+      target: 'root',
+      property: 'state',
+      default: false,
+      eventTrigger: 'hover', // intentional duplicate trigger to test WARN-DUP-EVENT
+      targets: [
+        { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#95892d' }
+        // intentional missing When FALSE to test WARN-NO-FALSE-BRANCH
+      ]
+    });
+    window.EngineBridge.addWidgetParameter({
+      name: 'Selected',
+      label: 'Active Selection',
+      type: 'boolean',
+      target: 'root',
+      property: 'state',
+      default: false,
+      eventTrigger: '',
+      targets: [
+        { target: `lite-${flTracer.id}`, property: 'play', when: 'true', action: 'play', value: true },
+        { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#03152e' },
+        { target: `lite-${flTracer.id}`, property: 'play', when: 'false', action: 'stop_reset', value: false }
+        // intentional partial restore (bgColor not restored in FALSE) to test WARN-PARTIAL-RESTORE
+      ]
+    });
+
+    // Open Export to Widget Dialog
+    window.WidgetExportDialog.open();
+    assert.strictEqual(window.WidgetExportDialog.isOpen, true, 'WX-04: Dialog is open');
+    window.WidgetExportDialog._draft.baseName = 'fleet';
+    window.WidgetExportDialog._draft.widgetTitle = 'Fleet Sanctum Button';
+    window.WidgetExportDialog.updateDerivedFilenamesPreview();
+
+    const v1 = window.WidgetExportDialog.validate();
+    assert.strictEqual(v1.valid, true, 'WX-05: Warnings never block export (valid === true)');
+    assert.ok(v1.warnings.some((w) => w.code === 'WARN-DUP-EVENT'), 'WX-06: Detects duplicate browser event trigger (WARN-DUP-EVENT)');
+    assert.ok(v1.warnings.some((w) => w.code === 'WARN-NO-FALSE-BRANCH' && w.paramName === 'OnClick'), 'WX-07: Detects missing When FALSE branch on OnClick (WARN-NO-FALSE-BRANCH)');
+    assert.ok(v1.warnings.some((w) => w.code === 'WARN-PARTIAL-RESTORE' && w.paramName === 'Selected'), 'WX-08: Detects partial When FALSE restoration on Selected (WARN-PARTIAL-RESTORE)');
+
+    // 2. Test Tab 2 rendering and Component Builder round-trip (Cancel vs Save)
+    window.WidgetExportDialog.switchTab('properties');
+    assert.strictEqual(window.WidgetExportDialog.activeTab, 'properties', 'WX-09: Switched to Tab 2 (properties)');
+
+    // Round-trip Cancel test: open OnClick in Component Builder, modify in form, then Cancel -> authoritative state unchanged
+    const onClickParam = window.WidgetExportDialog.getAuthoritativeParameters().find((p) => (p.name || p.Name) === 'OnClick');
+    window.WidgetExportDialog.openComponentBuilderForEdit(onClickParam);
+    assert.strictEqual(window.WidgetExportDialog._pausedForEdit, true, 'WX-10: Export dialog paused for Component Builder edit');
+    const cbTrigSel = document.getElementById('cbModalEventTriggerSelect');
+    if (cbTrigSel) cbTrigSel.value = 'press';
+    // Close without saving (Cancel)
+    window.ComponentBuilder.close();
+    assert.strictEqual(window.WidgetExportDialog._pausedForEdit, false, 'WX-11: Export dialog resumed after Component Builder close');
+    assert.strictEqual(window.WidgetExportDialog.isOpen, true, 'WX-12: Export dialog is open again');
+    assert.strictEqual(window.WidgetExportDialog._draft.baseName, 'fleet', 'WX-13: Draft baseName "fleet" preserved across round-trip');
+    const onClickAfterCancel = window.WidgetExportDialog.getAuthoritativeParameters().find((p) => (p.name || p.Name) === 'OnClick');
+    assert.strictEqual(onClickAfterCancel.eventTrigger || onClickAfterCancel.EventTrigger, 'hover', 'WX-14: Cancelled edit in Component Builder did not mutate authoritative parameter');
+
+    // Fix OnClick to use eventTrigger: "press" and add When FALSE action, and fix Selected When FALSE action
+    window.EngineBridge.addWidgetParameter({
+      name: 'OnClick',
+      label: 'Button Press State',
+      type: 'boolean',
+      target: 'root',
+      property: 'state',
+      default: false,
+      eventTrigger: 'press',
+      targets: [
+        { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#95892d' },
+        { target: `lite-${flText.id}`, property: 'bgColor', when: 'false', action: 'set', value: '#0f172a' }
+      ]
+    });
+    window.EngineBridge.addWidgetParameter({
+      name: 'Selected',
+      label: 'Active Selection',
+      type: 'boolean',
+      target: 'root',
+      property: 'state',
+      default: false,
+      eventTrigger: '',
+      targets: [
+        { target: `lite-${flTracer.id}`, property: 'play', when: 'true', action: 'play', value: true },
+        { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#03152e' },
+        { target: `lite-${flTracer.id}`, property: 'play', when: 'false', action: 'stop_reset', value: false },
+        { target: `lite-${flText.id}`, property: 'bgColor', when: 'false', action: 'set', value: '#0f172a' }
+      ]
+    });
+
+    const v2 = window.WidgetExportDialog.validate();
+    assert.strictEqual(v2.valid, true, 'WX-15: Corrected Fleet configuration is valid');
+    assert.strictEqual(v2.warnings.length, 0, 'WX-16: Zero warnings after fixing event trigger and FALSE actions');
+
+    // 3. Test blocking error detection when a parameter references a non-existent target
+    window.EngineBridge.addWidgetParameter({
+      name: 'BrokenParam',
+      type: 'boolean',
+      target: 'root',
+      property: 'state',
+      default: false,
+      targets: [
+        { target: 'lite-99999', property: 'color', when: 'true', action: 'set', value: '#ff0000' }
+      ]
+    });
+    const vBroken = window.WidgetExportDialog.validate();
+    assert.strictEqual(vBroken.valid, false, 'WX-17: Missing target object produces a blocking error (valid === false)');
+    assert.ok(vBroken.errors.some((e) => e.code === 'ERR-TARGET'), 'WX-18: Error code ERR-TARGET reported');
+    window.EngineBridge.removeWidgetParameter('BrokenParam');
+
+    // 4. Verify 7-file canonical ZIP generation with metadata via EngineBridge.buildWidgetPackage
+    const rawSvg = window.buildFullSVG(window.SceneState.buildRenderState());
+    const pkgRes = window.EngineBridge.buildWidgetPackage('fleet', rawSvg, '// svg-widget runtime', '2x', {
+      displayName: 'Fleet Sanctum Button',
+      description: 'Interactive Fleet command button',
+      category: 'Controls',
+      version: '1.2.1',
+      tags: ['button', 'fleet']
+    });
+    assert.ok(pkgRes && pkgRes.success && pkgRes.zipB64, 'WX-19: buildWidgetPackage with metadata succeeded');
+    assert.strictEqual(pkgRes.filename, 'fleet.zip', 'WX-20: Derived archive filename is fleet.zip');
+    window.WidgetExportDialog.close();
+  }
+  console.log('[HARNESS] Scenario 100 PASS: Stage 16F Dedicated Four-Tab Export to Widget Dialog verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15 & 16 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, and Go WASM engines verified.');
 }

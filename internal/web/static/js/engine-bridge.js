@@ -2692,14 +2692,22 @@
       return null;
     },
 
-    buildWidgetPackage(widgetName = '', svg = '', svgWidgetJs = '', rasterPolicy = '') {
+    buildWidgetPackage(widgetName = '', svg = '', svgWidgetJs = '', rasterPolicy = '', meta = null) {
       if (this.isReady() && svg) {
-        const res = this.dispatch('Widget.BuildPackage', {
+        const reqPayload = {
           widgetName: String(widgetName || ''),
           svg: String(svg),
           svgWidgetJs: String(svgWidgetJs || ''),
           rasterPolicy: String(rasterPolicy || '2x')
-        });
+        };
+        if (meta && typeof meta === 'object') {
+          if (meta.displayName) reqPayload.displayName = String(meta.displayName);
+          if (meta.description) reqPayload.description = String(meta.description);
+          if (meta.category) reqPayload.category = String(meta.category);
+          if (meta.version) reqPayload.version = String(meta.version);
+          if (Array.isArray(meta.tags)) reqPayload.tags = meta.tags;
+        }
+        const res = this.dispatch('Widget.BuildPackage', reqPayload);
         if (res && res.success) {
           res.zipBase64 = res.zipB64 || '';
           return res;
