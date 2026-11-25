@@ -4024,9 +4024,6 @@ window.GroupMappingDialog = {
     if (gid) {
       this.refreshParentInspectors(gid);
     }
-    if (window.WidgetExportDialog && window.WidgetExportDialog._pausedForEdit && typeof window.WidgetExportDialog.resumeFromComponentBuilder === 'function') {
-      window.WidgetExportDialog.resumeFromComponentBuilder();
-    }
   },
 
   close() {
@@ -4039,9 +4036,6 @@ window.GroupMappingDialog = {
     this.lastSavedSnapshot = null;
     if (gid) {
       this.refreshParentInspectors(gid);
-    }
-    if (window.WidgetExportDialog && window.WidgetExportDialog._pausedForEdit && typeof window.WidgetExportDialog.resumeFromComponentBuilder === 'function') {
-      window.WidgetExportDialog.resumeFromComponentBuilder();
     }
   },
 
@@ -5985,6 +5979,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getCleanBaseName() {
+    const wxIn = document.getElementById('wxBaseNameInput');
+    if (wxIn && wxIn.value && wxIn.value.trim()) {
+      const cleanedWx = wxIn.value.trim().replace(/\.(svg|zip|sva|html|json|md|js|png|webp|mp4)$/i, '').trim();
+      if (cleanedWx) return cleanedWx;
+    }
     const exportIn = document.getElementById('widgetExportBaseNameInput');
     if (exportIn && exportIn.value && exportIn.value.trim()) {
       const cleaned = exportIn.value.trim().replace(/\.(svg|zip|sva|html|json|md|js|png|webp|mp4)$/i, '').trim();

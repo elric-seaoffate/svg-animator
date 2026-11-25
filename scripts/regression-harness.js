@@ -9706,8 +9706,8 @@ async function runHarness() {
   }
 
   // Test 5: Reusable SVG Widget Export UI Button
-  const btnExportWidget = document.getElementById('btnDownloadWidgetSVG');
-  assert.ok(btnExportWidget, 'Test 5: #btnDownloadWidgetSVG button present in index.html DOM');
+  const btnExportWidget = document.getElementById('btnOpenWidgetExportModal');
+  assert.ok(btnExportWidget, 'Test 5: #btnOpenWidgetExportModal (Export as Widget…) button present in index.html DOM');
 
   console.log('[HARNESS] Scenario 76 PASS: Stage 16A Reusable, Self-Contained and Collision-Free SVG Widgets verified.');
 
@@ -10726,9 +10726,7 @@ async function runHarness() {
   const exportBtnIds = [
     'btnDownloadSVG',
     'btnDownloadHTML',
-    'btnDownloadWidgetSVG',
-    'btnDownloadWidgetGuide',
-    'btnDownloadWidgetPackage',
+    'btnOpenWidgetExportModal',
     'btnOpenStillModal',
     'btnOpenBitmapModal'
   ];
@@ -10737,6 +10735,9 @@ async function runHarness() {
     assert.ok(btn, `W16B-LAY12: Button ${bId} exists in DOM`);
     assert.ok(exportBlock.includes(`id="${bId}"`), `W16B-LAY13: Button ${bId} is defined inside acc-export block in HTML`);
   }
+  assert.ok(!exportBlock.includes('id="btnDownloadWidgetSVG"'), 'W16B-LAY14: Redundant btnDownloadWidgetSVG removed from acc-export');
+  assert.ok(!exportBlock.includes('id="btnDownloadWidgetGuide"'), 'W16B-LAY15: Redundant btnDownloadWidgetGuide removed from acc-export');
+  assert.ok(!exportBlock.includes('id="btnDownloadWidgetPackage"'), 'W16B-LAY16: Redundant btnDownloadWidgetPackage removed from acc-export');
 
   console.log('[HARNESS] Scenario 82 PASS: Export & Production Render Accordion Containment Integrity verified.');
 
@@ -13362,14 +13363,14 @@ async function runHarness() {
   console.log('[HARNESS] Scenario 99 PASS: Stage 16F Sentinel-PVE fleet1.svg compatibility & multi-instance reuse verified.');
 
   // ===========================================================================
-  // SCENARIO 100: Stage 16F Dedicated Four-Tab Export to Widget Dialog (`window.WidgetExportDialog`),
-  //               Duplicate Event Warning, Missing FALSE Action Warning, Explicit Event Triggers,
-  //               Component Builder Round-Trip (Save vs Cancel), and 7-File Canonical Package
+  // SCENARIO 100: Stage 16F Simplified Export Menu & Compact Export as Widget Dialog (`window.WidgetExportDialog`),
+  //               Widget Only (.svg) vs ZIP Package (.zip, 7 Canonical Files), Raster Optimisation,
+  //               Unobtrusive Export-Time Validation, and Authoring Warnings in Component Builder
   // ===========================================================================
   {
     assert.ok(window.WidgetExportDialog, 'WX-01: window.WidgetExportDialog must exist');
     assert.strictEqual(typeof window.WidgetExportDialog.open, 'function', 'WX-02: WidgetExportDialog.open must be a function');
-    assert.strictEqual(typeof window.WidgetExportDialog.validate, 'function', 'WX-03: WidgetExportDialog.validate must be a function');
+    assert.strictEqual(typeof window.WidgetExportDialog.executeExport, 'function', 'WX-03: WidgetExportDialog.executeExport must be a function');
 
     // Clear existing parameters and set up a Fleet-style scene with 4 objects
     window.ProjectManager.resetToNewProject();
@@ -13395,7 +13396,7 @@ async function runHarness() {
       color: '#38bdf8',
       play: false
     });
-    const flImg = window.ImageObjects.createImage({
+    window.ImageObjects.createImage({
       name: 'FleetOwlBook',
       filename: 'owl.png',
       data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -13405,7 +13406,7 @@ async function runHarness() {
       height: 49
     });
 
-    // 1. Reproduce original Fleet oversight: MouseOver and OnClick both bound to hover, and Selected missing When FALSE
+    // 1. Verify Component Builder authoring warnings live in Widget Maker (not in Export dialog)
     window.EngineBridge.addWidgetParameter({
       name: 'MouseOver',
       label: 'Mouse Over State',
@@ -13428,60 +13429,16 @@ async function runHarness() {
       target: 'root',
       property: 'state',
       default: false,
-      eventTrigger: 'hover', // intentional duplicate trigger to test WARN-DUP-EVENT
+      eventTrigger: 'hover', // duplicate hover trigger
       targets: [
         { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#95892d' }
-        // intentional missing When FALSE to test WARN-NO-FALSE-BRANCH
+        // missing When FALSE branch
       ]
     });
-    window.EngineBridge.addWidgetParameter({
-      name: 'Selected',
-      label: 'Active Selection',
-      type: 'boolean',
-      target: 'root',
-      property: 'state',
-      default: false,
-      eventTrigger: '',
-      targets: [
-        { target: `lite-${flTracer.id}`, property: 'play', when: 'true', action: 'play', value: true },
-        { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#03152e' },
-        { target: `lite-${flTracer.id}`, property: 'play', when: 'false', action: 'stop_reset', value: false }
-        // intentional partial restore (bgColor not restored in FALSE) to test WARN-PARTIAL-RESTORE
-      ]
-    });
+    const cbWarns = window.ComponentBuilder.computeAuthoringWarnings(window.ComponentBuilder.getComponentBuilderParameters());
+    assert.strictEqual(cbWarns.length, 2, 'WX-04: Component Builder detects missing FALSE actions and duplicate browser event triggers during authoring');
 
-    // Open Export to Widget Dialog
-    window.WidgetExportDialog.open();
-    assert.strictEqual(window.WidgetExportDialog.isOpen, true, 'WX-04: Dialog is open');
-    window.WidgetExportDialog._draft.baseName = 'fleet';
-    window.WidgetExportDialog._draft.widgetTitle = 'Fleet Sanctum Button';
-    window.WidgetExportDialog.updateDerivedFilenamesPreview();
-
-    const v1 = window.WidgetExportDialog.validate();
-    assert.strictEqual(v1.valid, true, 'WX-05: Warnings never block export (valid === true)');
-    assert.ok(v1.warnings.some((w) => w.code === 'WARN-DUP-EVENT'), 'WX-06: Detects duplicate browser event trigger (WARN-DUP-EVENT)');
-    assert.ok(v1.warnings.some((w) => w.code === 'WARN-NO-FALSE-BRANCH' && w.paramName === 'OnClick'), 'WX-07: Detects missing When FALSE branch on OnClick (WARN-NO-FALSE-BRANCH)');
-    assert.ok(v1.warnings.some((w) => w.code === 'WARN-PARTIAL-RESTORE' && w.paramName === 'Selected'), 'WX-08: Detects partial When FALSE restoration on Selected (WARN-PARTIAL-RESTORE)');
-
-    // 2. Test Tab 2 rendering and Component Builder round-trip (Cancel vs Save)
-    window.WidgetExportDialog.switchTab('properties');
-    assert.strictEqual(window.WidgetExportDialog.activeTab, 'properties', 'WX-09: Switched to Tab 2 (properties)');
-
-    // Round-trip Cancel test: open OnClick in Component Builder, modify in form, then Cancel -> authoritative state unchanged
-    const onClickParam = window.WidgetExportDialog.getAuthoritativeParameters().find((p) => (p.name || p.Name) === 'OnClick');
-    window.WidgetExportDialog.openComponentBuilderForEdit(onClickParam);
-    assert.strictEqual(window.WidgetExportDialog._pausedForEdit, true, 'WX-10: Export dialog paused for Component Builder edit');
-    const cbTrigSel = document.getElementById('cbModalEventTriggerSelect');
-    if (cbTrigSel) cbTrigSel.value = 'press';
-    // Close without saving (Cancel)
-    window.ComponentBuilder.close();
-    assert.strictEqual(window.WidgetExportDialog._pausedForEdit, false, 'WX-11: Export dialog resumed after Component Builder close');
-    assert.strictEqual(window.WidgetExportDialog.isOpen, true, 'WX-12: Export dialog is open again');
-    assert.strictEqual(window.WidgetExportDialog._draft.baseName, 'fleet', 'WX-13: Draft baseName "fleet" preserved across round-trip');
-    const onClickAfterCancel = window.WidgetExportDialog.getAuthoritativeParameters().find((p) => (p.name || p.Name) === 'OnClick');
-    assert.strictEqual(onClickAfterCancel.eventTrigger || onClickAfterCancel.EventTrigger, 'hover', 'WX-14: Cancelled edit in Component Builder did not mutate authoritative parameter');
-
-    // Fix OnClick to use eventTrigger: "press" and add When FALSE action, and fix Selected When FALSE action
+    // Fix OnClick to use press and include FALSE restoration
     window.EngineBridge.addWidgetParameter({
       name: 'OnClick',
       label: 'Button Press State',
@@ -13505,17 +13462,39 @@ async function runHarness() {
       eventTrigger: '',
       targets: [
         { target: `lite-${flTracer.id}`, property: 'play', when: 'true', action: 'play', value: true },
-        { target: `lite-${flText.id}`, property: 'bgColor', when: 'true', action: 'set', value: '#03152e' },
-        { target: `lite-${flTracer.id}`, property: 'play', when: 'false', action: 'stop_reset', value: false },
-        { target: `lite-${flText.id}`, property: 'bgColor', when: 'false', action: 'set', value: '#0f172a' }
+        { target: `lite-${flTracer.id}`, property: 'play', when: 'false', action: 'stop_reset', value: false }
       ]
     });
 
-    const v2 = window.WidgetExportDialog.validate();
-    assert.strictEqual(v2.valid, true, 'WX-15: Corrected Fleet configuration is valid');
-    assert.strictEqual(v2.warnings.length, 0, 'WX-16: Zero warnings after fixing event trigger and FALSE actions');
+    // 2. Open compact Export as Widget dialog and verify controls
+    window.WidgetExportDialog.open({ baseName: 'fleet', rasterPolicy: '2x', exportFormat: 'svg' });
+    assert.strictEqual(window.WidgetExportDialog.isOpen, true, 'WX-05: Compact Export as Widget dialog is open');
+    assert.strictEqual(window.WidgetExportDialog.baseName, 'fleet', 'WX-06: Filename set to fleet');
+    assert.strictEqual(window.WidgetExportDialog.rasterPolicy, '2x', 'WX-07: Raster policy defaults to 2x');
+    assert.strictEqual(window.WidgetExportDialog.exportFormat, 'svg', 'WX-08: Export format set to Widget only (svg)');
 
-    // 3. Test blocking error detection when a parameter references a non-existent target
+    // 3. Test "Widget only" export produces isolated fleet.svg
+    const svgOut = await window.WidgetExportDialog.executeExport();
+    assert.ok(svgOut && svgOut.success, 'WX-09: Widget only export succeeded');
+    assert.strictEqual(svgOut.filename, 'fleet.svg', 'WX-10: Widget only export produces fleet.svg');
+    assert.ok(svgOut.svg && svgOut.svg.includes('<svg') && svgOut.svg.includes('sva-widget-manifest'), 'WX-11: fleet.svg contains isolated SVG and embedded widget manifest');
+    assert.strictEqual(window.WidgetExportDialog.isOpen, false, 'WX-12: Dialog closes automatically on successful export');
+
+    // 4. Test "ZIP package" export produces canonical 7-file fleet.zip
+    window.WidgetExportDialog.open({ baseName: 'fleet', rasterPolicy: '2x', exportFormat: 'zip' });
+    const zipOut = await window.WidgetExportDialog.executeExport();
+    assert.ok(zipOut && zipOut.success && zipOut.zipB64, 'WX-13: ZIP package export succeeded');
+    assert.strictEqual(zipOut.filename, 'fleet.zip', 'WX-14: ZIP package export produces fleet.zip');
+
+    // 5. Test invalid filename rejection on Export
+    window.WidgetExportDialog.open({ baseName: '   ', rasterPolicy: '2x', exportFormat: 'zip' });
+    const badNameOut = await window.WidgetExportDialog.executeExport();
+    assert.strictEqual(badNameOut.success, false, 'WX-15: Empty/invalid filename is rejected on Export');
+    assert.ok(badNameOut.errors.some((e) => e.code === 'ERR-FILENAME'), 'WX-16: ERR-FILENAME reported concisely');
+    assert.strictEqual(window.WidgetExportDialog.isOpen, true, 'WX-17: Dialog stays open displaying concise error when invalid');
+
+    // 6. Test missing target object rejection on Export
+    window.WidgetExportDialog.open({ baseName: 'fleet', rasterPolicy: '2x', exportFormat: 'zip' });
     window.EngineBridge.addWidgetParameter({
       name: 'BrokenParam',
       type: 'boolean',
@@ -13526,25 +13505,16 @@ async function runHarness() {
         { target: 'lite-99999', property: 'color', when: 'true', action: 'set', value: '#ff0000' }
       ]
     });
-    const vBroken = window.WidgetExportDialog.validate();
-    assert.strictEqual(vBroken.valid, false, 'WX-17: Missing target object produces a blocking error (valid === false)');
-    assert.ok(vBroken.errors.some((e) => e.code === 'ERR-TARGET'), 'WX-18: Error code ERR-TARGET reported');
+    const brokenOut = await window.WidgetExportDialog.executeExport();
+    assert.strictEqual(brokenOut.success, false, 'WX-18: Broken target parameter is rejected on Export');
+    assert.ok(brokenOut.errors.some((e) => e.code === 'ERR-TARGET'), 'WX-19: ERR-TARGET reported concisely');
     window.EngineBridge.removeWidgetParameter('BrokenParam');
 
-    // 4. Verify 7-file canonical ZIP generation with metadata via EngineBridge.buildWidgetPackage
-    const rawSvg = window.buildFullSVG(window.SceneState.buildRenderState());
-    const pkgRes = window.EngineBridge.buildWidgetPackage('fleet', rawSvg, '// svg-widget runtime', '2x', {
-      displayName: 'Fleet Sanctum Button',
-      description: 'Interactive Fleet command button',
-      category: 'Controls',
-      version: '1.2.1',
-      tags: ['button', 'fleet']
-    });
-    assert.ok(pkgRes && pkgRes.success && pkgRes.zipB64, 'WX-19: buildWidgetPackage with metadata succeeded');
-    assert.strictEqual(pkgRes.filename, 'fleet.zip', 'WX-20: Derived archive filename is fleet.zip');
+    // 7. Cancel leaves scene unchanged
     window.WidgetExportDialog.close();
+    assert.strictEqual(window.WidgetExportDialog.isOpen, false, 'WX-20: Cancel/close hides dialog cleanly');
   }
-  console.log('[HARNESS] Scenario 100 PASS: Stage 16F Dedicated Four-Tab Export to Widget Dialog verified.');
+  console.log('[HARNESS] Scenario 100 PASS: Stage 16F Simplified Export Menu & Compact Export as Widget Dialog verified.');
 
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15 & 16 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, and Go WASM engines verified.');
 }

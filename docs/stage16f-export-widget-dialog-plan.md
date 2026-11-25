@@ -408,30 +408,38 @@ Authorised to implement the Stage 16F Dedicated Export to Widget Dialog (#widget
 
 ---
 
-## 10. Implementation & Verification Record (Milestones M1–M3 Complete)
+## 10. Implementation & Verification Record (Simplified Compact Export as Widget Dialog)
 
-**Status:** **Stage 16F Export Dialog — IMPLEMENTED, AWAITING USER ACCEPTANCE**
+**Status:** **Stage 16F Export as Widget — SIMPLIFIED & IMPLEMENTED, AWAITING USER ACCEPTANCE**
 
-### 10.1 Delivered Components
-1. **Milestone M1 — Canonical 7-File Package Structure, Package Metadata & Explicit Event Triggers:**
-   - Updated [`pkg/engine/scene/widget_docs.go`](../pkg/engine/scene/widget_docs.go) (`WidgetPackageMetadata`, `BuildWidgetPackageZipWithMetadata`) and [`pkg/engine/protocol/commands.go`](../pkg/engine/protocol/commands.go) (`WidgetBuildPackageRequest`) so exported `<base>.zip` archives contain the exact **7 canonical files** (`<base>/<base>.svg`, `<base>/widget-manifest.json`, `<base>/js/svg-widget.js`, `<base>/<base>-properties.md`, `<base>/demo.html`, `<base>/README.md`, `<base>/preview.svg`) with zero redundant duplicates (`<base>.json`, `<base>.html`, `<base>.md`, `js/<base>.js` removed).
-   - Removed implicit name-based `hover` auto-binding from [`internal/web/static/js/svg-widget.js`](../internal/web/static/js/svg-widget.js) and [`internal/web/static/js/component-builder.js`](../internal/web/static/js/component-builder.js). Domestic browser event triggers (`hover`, `press`, `click`, `focus`, `dblclick`) are now strictly opt-in via explicit `eventTrigger` configuration.
+### 10.1 User-Requested Simplification & Separation of Responsibilities
+Following user review of the initial four-tab export dialog, the export workflow was simplified to establish a strict, clean boundary between authoring and saving:
 
-2. **Milestone M2 & M3 — Dedicated Four-Tab Export to Widget Dialog (`#widgetExportModal` & `window.WidgetExportDialog`):**
-   - Implemented `#widgetExportModal` in [`internal/web/static/index.html`](../internal/web/static/index.html) and [`internal/web/static/js/widget-export-modal.js`](../internal/web/static/js/widget-export-modal.js), launched via **`📦 Export to Widget (Review, Test & Package)...`** (`#btnOpenWidgetExportModal`) in Export & Render Studio or **`📦 Export to Widget...`** (`#btnOpenWidgetExportFromMaker`) in Widget Maker:
-     - **Tab 1 (`1. Widget Details & Export Settings`):** Two-column layout with **Widget Display Name**, **Export Base Name** (entered once with live derived 7-file preview), **Description**, **Category**, **Version**, **Tags**, **Read-Only Canvas & Scene Summary** (`20 × 20` to `3840 × 3840` px), the four **Embedded Raster-Image Optimisation** cards (`2× — Recommended` default, `1× — Displayed Size`, `3× — High Magnification`, `Original — Unmodified Resolution`), and the opt-in **`Enforce Strict Digital Twin (4 MiB / Safe-SVG) Contract as Blocking`** toggle.
-     - **Tab 2 (`2. Properties, Events & Actions`):** **Reusable Content vs Fixed Artwork Audit** (with 1-click `+ Expose as Label` / `+ Expose as Icon` shortcuts), **Browser Event Trigger Review Table**, and human-readable **Exposed Property & Conditional Action Cards** showing friendly object names (`Text Box "FleetLabel"`, `Perimeter Tracer "BorderTracer"`, `Radar Ping "HoverRadar"`) and separate **`When TRUE`** / **`When FALSE`** action panels with **`✏️ Edit in Component Builder`** round-trip buttons.
-     - **Tab 3 (`3. Live Sandbox Preview & Interaction Test`):** Real isolated `SVGWidget.mount()` stage with **Single Instance** vs **Two Instances (Compare Label, Icon & CSS Scoping)** mode, live **Browser Event Readout** badge (`mouseenter`/`mouseleave`, `pointerdown`/`pointerup`, `click`), interactive property controls deck, **`↺ Reset to Defaults`**, and deterministic `destroy()` + listener teardown on close.
-     - **Tab 4 (`4. Validation & Package Contents`):** Separates blocking **Errors (`❌`)** from non-blocking **Warnings (`⚠️`)** (`WARN-DUP-EVENT`, `WARN-NO-FALSE-BRANCH`, `WARN-PARTIAL-RESTORE`, `WARN-EVENT-NAME-NONE`, `WARN-LARGE-RASTER`, `WARN-EXTERNAL-IMAGE`), passed contract checks (`✅`), and the 7-file package table.
-   - **Component Builder Round-Trip Preservation:** Clicking **`✏️ Edit in Component Builder`** from Tab 2 pauses `#widgetExportModal` while preserving all unsaved export settings (`widgetTitle`, `baseName`, `description`, `category`, `version`, `tags`, `rasterPolicy`, `activeTab`, `previewMode`), opens `#componentBuilderModal` (or `#groupMappingModal`), and automatically returns to `#widgetExportModal` when Component Builder closes—re-reading authoritative scene state so cancelled edits never appear as saved changes.
+1. **Widget Maker / Component Builder (Authoring, Preview & Warnings):**
+   - Retains all widget configuration: exposed properties, property names/types/defaults, semantic mappings, conditional `When TRUE` / `When FALSE` actions, animation lifecycle actions, explicit browser event triggers, reusable `Label` and `Icon` presets, live canvas preview toggles (`TRUE` / `FALSE`), and authoring warnings (`#cbAuthoringWarningsBanner` for duplicate browser event triggers or missing `When FALSE` reverse actions).
+2. **Simplified Export & Render Studio Menu (`#acc-export`):**
+   - Contains **exactly one** widget-specific entry: **`Export as Widget…`** (`#btnOpenWidgetExportModal`).
+   - Removed the redundant widget buttons (`#btnDownloadWidgetSVG`, `#btnDownloadWidgetGuide`, `#btnDownloadWidgetPackage`, `#btnOpenWidgetExportFromMaker`) and inline base-name / raster-policy inputs from the Export menu while preserving all ordinary SVG, HTML, Still/Print Image, and Video/Animated export buttons.
+3. **Compact Single-View `Export as Widget` Dialog (`#widgetExportModal`, `internal/web/static/js/widget-export-modal.js`):**
+   - Replaced the four-tab dialog with one compact dialog containing only:
+     - **Filename (`#wxBaseNameInput`):** Single base-name field (e.g. `fleet`) producing `fleet.svg` or `fleet.zip`.
+     - **Rasterise embedded objects (`#wxRasterPolicySelect`):** Dropdown with four choices:
+       - `1× — Displayed Size`
+       - `2× — Recommended` (default)
+       - `3× — High Resolution`
+       - `Original Size`
+     - **Export format (`wxExportFormatRadio`):**
+       - **Widget only:** Exports the isolated widget SVG as a single file (`.svg`) with embedded metadata and declarative SVG/CSS behaviour.
+       - **ZIP package:** Exports the canonical 7-file Stage 16C/16F widget package (`.zip`: `<base>.svg`, `widget-manifest.json`, `preview.svg`, `<base>-properties.md`, `README.md`, `demo.html`, `js/svg-widget.js`).
+     - **Actions:** **Cancel** (`#btnWxModalCancel`) and **Export** (`#btnWxExportConfirm`), with unobtrusive export-time validation that shows a concise actionable error only if the widget or filename is invalid.
 
 ### 10.2 Automated & Live Browser Verification Evidence
-- **Go Unit & Package Tests (`go test ./...`):** `PASS` (`TestStage16FFleetWidgetCompatibilityAndOptimisation` verifying 7-file `fleet.zip` structure, CSS re-isolation, and raster optimisation).
-- **Node Production JS Regression Harness (`node scripts/regression-harness.js`):** `PASS` across all **100 scenarios** (including **Scenario 100** `WX-01..WX-20` verifying duplicate browser-event warning `WARN-DUP-EVENT`, missing reverse-state `WARN-NO-FALSE-BRANCH` and `WARN-PARTIAL-RESTORE`, Component Builder round-trip Cancel vs Save, blocking error `ERR-TARGET`, and 7-file `fleet.zip` package generation).
+- **Go Unit & Package Tests (`go test ./pkg/engine/...`):** `PASS` (`TestStage16FFleetWidgetCompatibilityAndOptimisation` verifying 7-file `fleet.zip` structure, CSS re-isolation, and raster optimisation).
+- **Node Production JS Regression Harness (`node scripts/regression-harness.js`):** `PASS` across all **100 scenarios** (including **Scenario 100** `WX-01..WX-20` verifying Component Builder authoring warnings, compact dialog controls, `Widget only` `fleet.svg` export, `ZIP package` 7-file `fleet.zip` export, invalid filename rejection, missing target rejection, and Cancel behaviour).
 - **Live Managed Headless Chromium Verification (`go run ./scripts/cmd/verify-stage16f`):**
   - `[PASS] S16F-01` — Studio Component Builder & Low-Load Property Completeness
   - `[PASS] S16F-02` — All 6 Required Browser Demonstrations (`/component-builder-demo.html`)
   - `[PASS] S16F-03` — Sentinel-PVE `fleet1.svg` Multi-Instance CSS Scoping, Computed Animations & Label/Icon Reuse
-  - `[PASS] S16F-04` — Dedicated Four-Tab Export to Widget Dialog (`#widgetExportModal`) with Right Drawer & Floating Context Editor open
+  - `[PASS] S16F-04` — Simplified Export Menu & Compact Export as Widget Dialog (`#widgetExportModal`)
   - Confirmed **`0` leftover Chromium processes** after verification.
 

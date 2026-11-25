@@ -298,13 +298,53 @@
       });
     },
 
+    computeAuthoringWarnings(cbParams) {
+      const warnings = [];
+      const trigMap = new Map();
+      (cbParams || []).forEach((p) => {
+        const pName = p.name || p.Name || '';
+        const pType = (p.type || p.Type || 'boolean').toLowerCase();
+        const trig = (p.eventTrigger || p.EventTrigger || '').toLowerCase().trim();
+        if (trig) {
+          if (!trigMap.has(trig)) trigMap.set(trig, []);
+          trigMap.get(trig).push(pName);
+        }
+        if (pType === 'boolean' && Array.isArray(p.targets || p.Targets)) {
+          const targets = p.targets || p.Targets;
+          const trueActs = targets.filter((t) => ((t.when || t.When || 'true').toLowerCase() === 'true'));
+          const falseActs = targets.filter((t) => ((t.when || t.When || '').toLowerCase() === 'false'));
+          if (trueActs.length > 0 && falseActs.length === 0) {
+            warnings.push(`"${pName}" has When TRUE actions but no When FALSE actions.`);
+          }
+        }
+      });
+      trigMap.forEach((names, trig) => {
+        if (names.length > 1) {
+          warnings.push(`Multiple properties share browser event "${trig}": ${names.join(', ')}.`);
+        }
+      });
+      return warnings;
+    },
+
     renderSection() {
       const listEl = document.getElementById('componentBuilderParamsList');
       const badgeEl = document.getElementById('cbParamCountBadge');
+      const warnEl = document.getElementById('cbAuthoringWarningsBanner');
       if (!listEl) return;
 
       const cbParams = this.getComponentBuilderParameters();
       if (badgeEl) badgeEl.textContent = String(cbParams.length);
+
+      if (warnEl) {
+        const warns = this.computeAuthoringWarnings(cbParams);
+        if (warns.length > 0) {
+          warnEl.style.display = 'block';
+          warnEl.innerHTML = warns.map((w) => `<div>⚠️ ${w}</div>`).join('');
+        } else {
+          warnEl.style.display = 'none';
+          warnEl.innerHTML = '';
+        }
+      }
 
       if (cbParams.length === 0) {
         listEl.innerHTML = '<div style="font-size: 0.72rem; color: #8b949e; text-align: center; padding: 6px 0; font-style: italic;">No multi-action component properties configured yet. Click <strong>+ New Component Property</strong> above.</div>';
@@ -612,9 +652,6 @@
     close() {
       const modal = document.getElementById('componentBuilderModal');
       if (modal) modal.style.display = 'none';
-      if (window.WidgetExportDialog && window.WidgetExportDialog._pausedForEdit && typeof window.WidgetExportDialog.resumeFromComponentBuilder === 'function') {
-        window.WidgetExportDialog.resumeFromComponentBuilder();
-      }
     },
 
     openQuickLabelPreset(targetId) {

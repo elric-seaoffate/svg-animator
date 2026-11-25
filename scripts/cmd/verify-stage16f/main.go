@@ -185,19 +185,9 @@ func run() int {
 	record("S16F-01", "Studio Component Builder & Low-Load Property Completeness",
 		studioRes["ok"] == true, rawStudio)
 
-	// Pre-load SVGWidget runtime in Studio page before running synchronous S16F-04 check
-	_, _ = chromedp.Run(taskCtx, chromedp.Evaluate[string](`(() => { window.WidgetExportDialog._ensureSVGWidgetRuntime(); return "loading"; })()`))
-	for i := 0; i < 30; i++ {
-		rdy, _ := chromedp.Run(taskCtx, chromedp.Evaluate[bool](`Boolean(window.SVGWidget && typeof window.SVGWidget.mount === 'function')`))
-		if rdy {
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	// Gate S16F-04: Dedicated Four-Tab Export to Widget Dialog (`window.WidgetExportDialog`),
-	// Right Drawer + Floating Context Editor open, Fleet Duplicate Event Warning, Missing FALSE Warning,
-	// Component Builder Round-Trip (Cancel vs Save), Live 2-Instance Sandbox Preview, and 7-File Canonical Package
+	// Gate S16F-04: Simplified Export Menu & Compact Export as Widget Dialog (`window.WidgetExportDialog`),
+	// Single widget entry in Export menu ("Export as Widget…"), Filename, Rasterise embedded objects dropdown,
+	// Widget only (.svg) vs ZIP package (.zip), unobtrusive validation on Export, and Component Builder authoring warnings
 	exportDialogScript := `(() => {
 		window.ProjectManager.resetToNewProject();
 		window.EngineBridge.setWidgetParameters([]);
@@ -223,22 +213,29 @@ func run() int {
 			x: 28, y: 25, width: 44, height: 44,
 			color: '#38bdf8', play: false
 		});
-		const flImg = window.ImageObjects.createImage({
+		window.ImageObjects.createImage({
 			name: 'FleetOwlBook',
 			filename: 'owl.png',
 			data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
 			naturalWidth: 572, naturalHeight: 572, width: 49, height: 49, x: 28, y: 25
 		});
 
-		// Ensure Right Drawer and Floating Context Editor are open while opening Export Dialog
-		if (window.WorkspaceController && typeof window.WorkspaceController.openRightDrawer === 'function') {
-			window.WorkspaceController.openRightDrawer();
-		}
-		if (window.FloatingPropertiesEditor && typeof window.FloatingPropertiesEditor.openFor === 'function') {
-			window.FloatingPropertiesEditor.openFor('lite', flText.id);
-		}
+		// 1. Check Export menu has exactly 1 widget entry ("Export as Widget…") and all ordinary export options
+		const accExport = document.getElementById('acc-export');
+		const exportBtn = document.getElementById('btnOpenWidgetExportModal');
+		const noLegacyWidgetBtns = !document.getElementById('btnDownloadWidgetSVG') &&
+			!document.getElementById('btnDownloadWidgetGuide') &&
+			!document.getElementById('btnDownloadWidgetPackage') &&
+			!document.getElementById('btnOpenWidgetExportFromMaker');
+		const ordinaryExportsPresent = Boolean(
+			document.getElementById('btnDownloadSVG') &&
+			document.getElementById('btnDownloadHTML') &&
+			document.getElementById('btnOpenStillModal') &&
+			document.getElementById('btnOpenBitmapModal')
+		);
+		const menuSimplifiedOk = Boolean(accExport && exportBtn && exportBtn.textContent.trim() === 'Export as Widget…' && noLegacyWidgetBtns && ordinaryExportsPresent);
 
-		// Configure original Fleet properties with duplicate hover trigger on OnClick & missing FALSE branch
+		// 2. Configure Fleet parameters and verify Component Builder authoring warnings stay in Widget Maker
 		window.EngineBridge.addWidgetParameter({
 			name: 'MouseOver', label: 'Mouse Over State', type: 'boolean', target: 'root', property: 'state',
 			default: false, eventTrigger: 'hover',
@@ -251,9 +248,10 @@ func run() int {
 		});
 		window.EngineBridge.addWidgetParameter({
 			name: 'OnClick', label: 'Button Press State', type: 'boolean', target: 'root', property: 'state',
-			default: false, eventTrigger: 'hover',
+			default: false, eventTrigger: 'press',
 			targets: [
-				{ target: 'lite-' + flText.id, property: 'bgColor', when: 'true', action: 'set', value: '#95892d' }
+				{ target: 'lite-' + flText.id, property: 'bgColor', when: 'true', action: 'set', value: '#95892d' },
+				{ target: 'lite-' + flText.id, property: 'bgColor', when: 'false', action: 'set', value: '#0f172a' }
 			]
 		});
 		window.EngineBridge.addWidgetParameter({
@@ -264,79 +262,53 @@ func run() int {
 				{ target: 'lite-' + flTracer.id, property: 'play', when: 'false', action: 'stop_reset', value: false }
 			]
 		});
-		window.EngineBridge.addWidgetParameter({
-			name: 'Label', label: 'Button Label', type: 'text', target: 'root', property: 'text',
-			default: 'Fleet Sanctum',
-			targets: [
-				{ target: 'lite-' + flText.id, property: 'text', when: 'always', action: 'set', value: null }
-			]
-		});
 
-		document.getElementById('btnOpenWidgetExportModal').click();
-		const dialogOpen = document.getElementById('widgetExportModal').style.display === 'flex';
-		document.getElementById('wxBaseNameInput').value = 'fleet';
-		document.getElementById('wxBaseNameInput').dispatchEvent(new Event('input'));
-		const derivedPreviewText = document.getElementById('wxDerivedFilenamesPreview').textContent || '';
-		const derivedNamesOk = derivedPreviewText.includes('fleet.zip') && derivedPreviewText.includes('fleet/fleet.svg');
+		// 3. Open compact Export as Widget dialog and verify its 3 fields + Cancel & Export
+		exportBtn.click();
+		const modalEl = document.getElementById('widgetExportModal');
+		const dialogOpen = modalEl && modalEl.style.display === 'flex';
+		const noTabBar = !document.getElementById('wxTabBar');
+		const baseIn = document.getElementById('wxBaseNameInput');
+		const rasterSel = document.getElementById('wxRasterPolicySelect');
+		const svgRadio = document.getElementById('wxFormatWidgetOnlyRadio');
+		const zipRadio = document.getElementById('wxFormatZipPackageRadio');
+		const cancelBtn = document.getElementById('btnWxModalCancel');
+		const confirmBtn = document.getElementById('btnWxExportConfirm');
 
-		const v1 = window.WidgetExportDialog.validate();
-		const caughtDupHover = v1.warnings.some(w => w.code === 'WARN-DUP-EVENT');
-		const caughtMissingFalse = v1.warnings.some(w => w.code === 'WARN-NO-FALSE-BRANCH' && w.paramName === 'OnClick');
+		const rasterOpts = Array.from(rasterSel.options).map(o => o.value).join(',');
+		const controlsOk = Boolean(dialogOpen && noTabBar && baseIn && rasterOpts === '1x,2x,3x,original' && rasterSel.value === '2x' && svgRadio && zipRadio && zipRadio.checked && cancelBtn && confirmBtn);
 
-		// Switch to Tab 2 (Properties) and test Component Builder round-trip Cancel
-		window.WidgetExportDialog.switchTab('properties');
-		const cardsHtml = document.getElementById('wxPropertyCardsList').textContent || '';
-		const usesFriendlyNames = cardsHtml.includes('Text Box "FleetLabel"') && cardsHtml.includes('Radar Ping "HoverRadar"');
+		// 4. Test invalid filename rejection on Export
+		baseIn.value = '   ';
+		baseIn.dispatchEvent(new Event('input'));
+		const invalidCheck = window.WidgetExportDialog.validate();
+		const invalidRejectedOk = (invalidCheck.valid === false);
 
-		const onClickP = window.WidgetExportDialog.getAuthoritativeParameters().find(p => (p.name || p.Name) === 'OnClick');
-		window.WidgetExportDialog.openComponentBuilderForEdit(onClickP);
-		const pausedOk = window.WidgetExportDialog._pausedForEdit === true;
-		document.getElementById('cbModalEventTriggerSelect').value = 'press';
-		document.getElementById('btnCbModalCancel').click();
-		const resumedOk = window.WidgetExportDialog.isOpen === true && document.getElementById('widgetExportModal').style.display === 'flex';
-		const afterCancelP = window.WidgetExportDialog.getAuthoritativeParameters().find(p => (p.name || p.Name) === 'OnClick');
-		const cancelPreservedAuth = (afterCancelP.eventTrigger || afterCancelP.EventTrigger) === 'hover';
+		// 5. Test Widget only (.svg) export
+		baseIn.value = 'fleet';
+		baseIn.dispatchEvent(new Event('input'));
+		window.WidgetExportDialog.setExportFormat('svg');
+		const svgRes = window.WidgetExportDialog.exportWidgetOnlySVG('fleet', '2x');
+		const svgExportOk = Boolean(svgRes && svgRes.success && svgRes.filename === 'fleet.svg' && svgRes.svg.includes('sva-widget-manifest'));
 
-		// Fix OnClick via Component Builder Save
-		window.WidgetExportDialog.openComponentBuilderForEdit(afterCancelP);
-		document.getElementById('cbModalEventTriggerSelect').value = 'press';
-		document.getElementById('btnCbAutoFillFalseBranch').click();
-		const saveFixedOk = window.ComponentBuilder.save();
-		const afterSaveP = window.WidgetExportDialog.getAuthoritativeParameters().find(p => (p.name || p.Name) === 'OnClick');
-		const saveUpdatedAuth = (afterSaveP.eventTrigger || afterSaveP.EventTrigger) === 'press';
-
-		// Switch to Tab 3 (Live Sandbox Preview) and test Single + Dual instance mount & teardown
-		window.WidgetExportDialog.switchTab('preview');
-		const singleMountedOk = Boolean(window.WidgetExportDialog._previewInstA);
-		document.getElementById('wxPreviewModeDualBtn').click();
-		const dualMountedOk = Boolean(window.WidgetExportDialog._previewInstA && window.WidgetExportDialog._previewInstB);
-
-		// Switch to Tab 4 (Validation & Package Contents)
-		window.WidgetExportDialog.switchTab('validation');
-		const v2 = window.WidgetExportDialog.validate();
-		const pkgTableText = document.getElementById('wxPackageFilesTable').textContent || '';
-		const canonical7Ok = pkgTableText.includes('7 canonical files') && pkgTableText.includes('fleet/fleet.svg');
-
-		window.WidgetExportDialog.close();
-		const previewDestroyedOk = (window.WidgetExportDialog._previewInstA === null && window.WidgetExportDialog._previewInstB === null);
+		// 6. Test Cancel leaves scene unchanged
+		exportBtn.click();
+		cancelBtn.click();
+		const cancelClosedOk = modalEl.style.display === 'none' && window.EngineBridge.getWidgetParameters().length === 3;
 
 		return JSON.stringify({
-			ok: dialogOpen && derivedNamesOk && caughtDupHover && caughtMissingFalse && usesFriendlyNames &&
-				pausedOk && resumedOk && cancelPreservedAuth && saveFixedOk && saveUpdatedAuth &&
-				singleMountedOk && dualMountedOk && v2.valid && canonical7Ok && previewDestroyedOk,
-			dialogOpen, derivedNamesOk, caughtDupHover, caughtMissingFalse, usesFriendlyNames,
-			pausedOk, resumedOk, cancelPreservedAuth, saveFixedOk, saveUpdatedAuth,
-			singleMountedOk, dualMountedOk, validAfterFix: v2.valid, canonical7Ok, previewDestroyedOk
+			ok: menuSimplifiedOk && controlsOk && invalidRejectedOk && svgExportOk && cancelClosedOk,
+			menuSimplifiedOk, controlsOk, invalidRejectedOk, svgExportOk, cancelClosedOk
 		});
 	})()`
 	rawExportDlg, err := chromedp.Run(taskCtx, chromedp.Evaluate[string](exportDialogScript))
 	if err != nil {
-		record("S16F-04", "Dedicated Four-Tab Export to Widget Dialog (#widgetExportModal)", false, err.Error())
+		record("S16F-04", "Simplified Export Menu & Compact Export as Widget Dialog (#widgetExportModal)", false, err.Error())
 		return 1
 	}
 	var exportDlgRes map[string]any
 	_ = json.Unmarshal([]byte(rawExportDlg), &exportDlgRes)
-	record("S16F-04", "Dedicated Four-Tab Export to Widget Dialog (#widgetExportModal)",
+	record("S16F-04", "Simplified Export Menu & Compact Export as Widget Dialog (#widgetExportModal)",
 		exportDlgRes["ok"] == true, rawExportDlg)
 
 	if err := runVoid(taskCtx, chromedp.Navigate(demoURL), chromedp.WaitReady("#sec-demo-6")); err != nil {
