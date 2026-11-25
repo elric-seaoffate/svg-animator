@@ -2047,11 +2047,11 @@ window.LiteEffects = {
 ]]></script>`;
   },
 
-  injectIntoSVG(svgString) {
+  injectIntoSVG(svgString, options = {}) {
     if (!svgString || this.list.length === 0) return svgString;
     const defs = this.getLiteDefs();
     const elements = this.list.map((le) => this.renderLiteElement(le)).join('\n');
-    const burstScript = this.getLiteBurstScript();
+    const burstScript = (options && options.omitEmbeddedBurstScript) ? '' : this.getLiteBurstScript();
     const block = `\n${defs}\n<g id="lite-effects-layer" class="lite-effects-layer">\n${elements}\n</g>${burstScript}\n`;
     if (svgString.includes('<!-- INJECT_CAMERA_RIG_ELEMENTS -->')) {
       return svgString.replace('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', block + '<!-- INJECT_CAMERA_RIG_ELEMENTS -->');
@@ -2059,12 +2059,16 @@ window.LiteEffects = {
     return svgString.replace('</svg>', block + '</svg>');
   },
 
-  bindBurstSchedulers(container) {
-    if (!container || typeof container.querySelectorAll !== 'function') return;
+  stopBurstSchedulers() {
     if (this._studioBurstTimers) {
       this._studioBurstTimers.forEach((t) => clearTimeout(t));
     }
     this._studioBurstTimers = [];
+  },
+
+  bindBurstSchedulers(container) {
+    if (!container || typeof container.querySelectorAll !== 'function') return;
+    this.stopBurstSchedulers();
     container.querySelectorAll('[data-lite-play="false"], [data-play-animation="false"]').forEach((stEl) => {
       stEl.querySelectorAll('.lite-payload, .lite-osc-wave, .lite-text-element').forEach((node) => {
         if (node.style) {
@@ -2079,6 +2083,11 @@ window.LiteEffects = {
         }
       });
     });
+    // When TimelinePlayer is initialized, it evaluates burst-pause, ticker-h calibration,
+    // typewriter, and scramble deterministically at the exact playhead timestamp.
+    if (typeof window !== 'undefined' && window.TimelinePlayer && window.TimelinePlayer._initialized) {
+      return;
+    }
     container.querySelectorAll('[data-burst-cycles]').forEach((node) => {
       if (node.closest && node.closest('[data-lite-play="false"], [data-play-animation="false"]')) return;
       node.addEventListener('animationend', () => {

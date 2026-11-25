@@ -380,6 +380,7 @@
         state = this.currentRenderState || window.currentRenderState || this.buildCurrentRenderState();
       }
       if (!state || !window.Effects) return '';
+      const omitEmbeddedBurstScript = Boolean(overrides && overrides.omitEmbeddedBurstScript);
       const includeFlows = overrides.includeFlows !== false;
       const includeGlows = overrides.includeGlows !== false;
       const includeRipples = overrides.includeRipples !== false;
@@ -686,7 +687,7 @@
           openGroupId = null;
 
           let svgString = window.Effects.build(state);
-          const liteBurstScript = (window.LiteEffects && typeof window.LiteEffects.getLiteBurstScript === 'function')
+          const liteBurstScript = (!omitEmbeddedBurstScript && window.LiteEffects && typeof window.LiteEffects.getLiteBurstScript === 'function')
             ? window.LiteEffects.getLiteBurstScript()
             : '';
           const layerMarkup = '\n<defs>\n' + defs + '</defs>\n<g id="scene-layers" class="scene-layers ripples-layer glows-layer flows-layer images-layer nodes-layer">\n' + elements + '</g>' + liteBurstScript + '\n';
@@ -700,7 +701,7 @@
       if (includeFlows && window.DataFlows) svgString = window.DataFlows.injectIntoSVG(svgString, state);
       if (includeImages && window.ImageObjects) svgString = window.ImageObjects.injectIntoSVG(svgString, state);
       if (includeNodes && window.DiagramNodes) svgString = window.DiagramNodes.injectIntoSVG(svgString, state);
-      if (window.LiteEffects) svgString = window.LiteEffects.injectIntoSVG(svgString);
+      if (window.LiteEffects) svgString = window.LiteEffects.injectIntoSVG(svgString, { omitEmbeddedBurstScript });
       return svgString;
     },
 

@@ -13623,6 +13623,336 @@ async function runHarness() {
   }
   console.log('[HARNESS] Scenario 101 PASS: Stage 17-M1 Complete Animation Export Correctness & Deterministic Timestamp Evaluation verified.');
 
+  // =========================================================================
+  // SCENARIO 102: Stage 17-M2 Animation Timeline Scrubbing, Frame Stepping &
+  // Deterministic Forward/Backward Evaluation Across All Animation Families
+  // =========================================================================
+  console.log('[HARNESS] Running Scenario 102: Stage 17-M2 Animation Timeline Scrubbing & Frame Stepping...');
+  {
+    window.ProjectManager.resetToNewProject();
+    window.EngineBridge.setWidgetParameters([]);
+    window.SceneState.setControl('canvasWidthInput', '800');
+    window.SceneState.setControl('canvasHeightInput', '600');
+    window.SceneState.setControl('durationSlider', '15');
+    window.SceneState.setControl('durationNum', '15');
+    window.SceneState.setControl('loopSelect', 'once');
+    window.EngineBridge.updateCanvas({ width: 800, height: 600 });
+
+    // Create a comprehensive mixed-animation scene:
+    // 1. Older diagram objects (SMIL)
+    const m2Node = window.DiagramNodes.addNode({ shape: 'rounded', name: 'm2-node', animation: 'float', x: 20, y: 20 });
+    const m2Flow = window.DataFlows.addFlow();
+    window.DataFlows.updateFlow(m2Flow.id, { style: 'marching', payload: 'data-orb', speed: 2.0, delay: 0.5, endDelay: 0.5 });
+    const m2Glow = window.Glows.addGlow();
+    window.Glows.updateGlow(m2Glow.id, { shape: 'radar', rings: 3, dur: 2.0, delay: 0.0, endDelay: 0.5 });
+    const m2Ripple = window.Ripples.addRipple();
+    window.Ripples.updateRipple(m2Ripple.id, { rings: 3, dur: 3.0, innerR: 10, outerR: 120, delay: 0.0, endDelay: 1.0 });
+
+    // 2. Camera & Optical effect (Ken Burns + Focus Pull)
+    window.ControlStateAdaptor.syncToDOM({
+      durationSlider: '15',
+      durationNum: '15',
+      loopSelect: 'once',
+      cameraMotionSelect: 'ken-burns',
+      camDurationSlider: '10',
+      camDurationNum: '10',
+      camLoopSelect: 'once',
+      startXZoomSlider: '1.0',
+      startXZoomNum: '1.0',
+      endXZoomSlider: '1.5',
+      endXZoomNum: '1.5',
+      effectSelect: 'focus-pull',
+      startBlurSlider: '16',
+      startBlurNum: '16',
+      endBlurSlider: '0',
+      endBlurNum: '0',
+      focusDurSlider: '4',
+      focusDurNum: '4'
+    });
+    window.EngineBridge.syncScene();
+
+    // 3. Low-Load Effects (burst-pause perimeter-tracer, multi-segment flow-lite with delay, pulse, radar-lite, oscilloscope-lite)
+    const m2Tracer = window.LiteEffects.createLiteEffect({
+      kind: 'perimeter-tracer',
+      x: 400,
+      y: 200,
+      width: 160,
+      height: 80,
+      speed: 1.0,
+      burstCycles: 2,
+      pauseSeconds: 1.0,
+      pauseVisibility: 'hide'
+    });
+    const m2FlowLite = window.LiteEffects.createLiteEffect({
+      kind: 'flow-lite',
+      x: 400,
+      y: 350,
+      speed: 2.0,
+      delay: 1.0,
+      endDelay: 1.0,
+      points: [
+        { x: 15, y: 60 },
+        { x: 50, y: 55 },
+        { x: 85, y: 60 }
+      ]
+    });
+
+    // 4. Text Lite: Typewriter (delete backwards) & Scramble
+    const m2TypeDel = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      x: 250,
+      y: 480,
+      labelText: 'TIMELINE-17',
+      textAnim: 'typewriter',
+      typeMode: 'delete',
+      typeSpeed: 10, // stepMs = 100ms, 11 chars -> typeDur = 1100ms
+      holdDelay: 0.5, // holdDur = 500ms -> hold ends at 1600ms, delete Dur = 11 * 75ms = 825ms -> ends at 2425ms
+      typeRepeat: true
+    });
+    const m2TypeDelFwd = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      x: 450,
+      y: 480,
+      labelText: 'ABCDEF',
+      textAnim: 'typewriter',
+      typeMode: 'delete-forward',
+      typeSpeed: 10, // stepMs = 100ms, 6 chars -> typeDur = 600ms
+      holdDelay: 0.4, // holdDur = 400ms -> hold ends at 1000ms, delStepMs = 75ms
+      typeRepeat: false
+    });
+    const m2Scramble = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      x: 650,
+      y: 480,
+      labelText: 'SCRAMBLE',
+      textAnim: 'scramble',
+      typeSpeed: 10, // stepMs = 100ms, 8 chars -> activeDur = 800ms
+      holdDelay: 1.0,
+      playbackMode: 'loop'
+    });
+
+    window.triggerAppRender();
+    window.TimelinePlayer.init();
+    window.TimelinePlayer.syncFromScene();
+    window.TimelinePlayer.setPreviewFps(30);
+    window.TimelinePlayer.stop();
+
+    // Capture authored scene snapshot BEFORE any scrubbing/stepping
+    const snapshotBeforeScrub = window.HistoryManager.captureSnapshot();
+    const undoDepthBefore = window.HistoryManager.undoStack.length;
+
+    // Verify formatTime & frame totals at 15s @ 30 FPS
+    assert.strictEqual(window.TimelinePlayer.duration, 15.0, 'S17M2-00: Duration synced to 15.0s');
+    assert.strictEqual(window.TimelinePlayer.previewFps, 30, 'S17M2-00b: Preview FPS defaults to 30');
+    assert.strictEqual(window.TimelinePlayer.getTotalFrames(), 450, 'S17M2-00c: Total frames is 450 at 15s @ 30 FPS');
+    assert.strictEqual(window.TimelinePlayer.formatTime(0), '00:00.000', 'S17M2-00d: formatTime(0) is 00:00.000');
+    assert.strictEqual(window.TimelinePlayer.formatTime(7.5), '00:07.500', 'S17M2-00e: formatTime(7.5) is 00:07.500');
+    assert.strictEqual(window.TimelinePlayer.formatTime(15), '00:15.000', 'S17M2-00f: formatTime(15) is 00:15.000');
+
+    // Check 1: Scrub from start to midpoint (7.5s)
+    window.TimelinePlayer.seek(7.5);
+    assert.strictEqual(window.TimelinePlayer.currentTime, 7.5, 'S17M2-01: Scrub to midpoint sets currentTime = 7.5');
+    assert.strictEqual(window.TimelinePlayer.getCurrentFrameIndex(), 225, 'S17M2-01b: Frame index at 7.5s is 225');
+    const timeDispEl = document.getElementById('timelineTimeDisplay');
+    if (timeDispEl) {
+      assert.strictEqual(timeDispEl.textContent, '00:07.500 / 00:15.000', 'S17M2-01c: Time display shows 00:07.500 / 00:15.000');
+    }
+
+    // Check 2: Scrub from midpoint back to start (0.0s)
+    window.TimelinePlayer.seek(0.0);
+    assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'S17M2-02: Scrub back to start sets currentTime = 0.0');
+    assert.strictEqual(window.TimelinePlayer.getCurrentFrameIndex(), 0, 'S17M2-02b: Frame index returned to 0');
+
+    // Check 3: Scrub to the end (15.0s)
+    window.TimelinePlayer.seek(15.0);
+    assert.strictEqual(window.TimelinePlayer.currentTime, 15.0, 'S17M2-03: Scrub to end sets currentTime = 15.0');
+    assert.strictEqual(window.TimelinePlayer.getCurrentFrameIndex(), 450, 'S17M2-03b: Frame index at end is 450');
+
+    // Check 4 & 5: Step forward one frame (+1f) and backward one frame (-1f) with frame-index math (zero cumulative drift)
+    window.TimelinePlayer.seek(0.0);
+    for (let f = 1; f <= 30; f++) {
+      window.TimelinePlayer.nextFrame();
+      assert.strictEqual(window.TimelinePlayer.getCurrentFrameIndex(), f, `S17M2-04: Step +1f reaches exact frame ${f}`);
+    }
+    assert.strictEqual(window.TimelinePlayer.currentTime, 1.0, 'S17M2-04b: 30 single-frame steps at 30 FPS reach exact 1.0000s with zero float drift');
+    for (let f = 29; f >= 0; f--) {
+      window.TimelinePlayer.prevFrame();
+      assert.strictEqual(window.TimelinePlayer.getCurrentFrameIndex(), f, `S17M2-05: Step -1f returns to exact frame ${f}`);
+    }
+    assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'S17M2-05b: 30 reverse frame steps return to exact 0.0000s');
+
+    // Boundary clamp checks at 0 and duration
+    window.TimelinePlayer.prevFrame();
+    assert.strictEqual(window.TimelinePlayer.currentTime, 0.0, 'S17M2-05c: prevFrame at 0.0s clamps cleanly at 0.0s');
+    window.TimelinePlayer.seek(15.0);
+    window.TimelinePlayer.nextFrame();
+    assert.strictEqual(window.TimelinePlayer.currentTime, 15.0, 'S17M2-05d: nextFrame at duration clamps cleanly at 15.0s');
+
+    // Check 6 & 7: Play after scrubbing, pause and resume
+    window.TimelinePlayer.seek(3.0);
+    window.TimelinePlayer.play();
+    assert.strictEqual(window.TimelinePlayer.status, 'playing', 'S17M2-06: Play after scrubbing enters playing state');
+    assert.strictEqual(window.TimelinePlayer.currentTime, 3.0, 'S17M2-06b: Play after scrubbing starts from scrubbed 3.0s position');
+    window.TimelinePlayer._lastTimestamp = 1000;
+    window.TimelinePlayer._loop(1050); // +0.05s -> 3.05s
+    assert.ok(Math.abs(window.TimelinePlayer.currentTime - 3.05) < 1e-4, 'S17M2-06c: Playback advances smoothly from 3.0s to 3.05s');
+    window.TimelinePlayer.pause();
+    assert.strictEqual(window.TimelinePlayer.status, 'paused', 'S17M2-07: Pause preserves status = paused');
+    assert.ok(Math.abs(window.TimelinePlayer.currentTime - 3.05) < 1e-4, 'S17M2-07b: Pause preserves exact playhead time 3.05s');
+    window.TimelinePlayer.play();
+    assert.strictEqual(window.TimelinePlayer.status, 'playing', 'S17M2-07c: Resume enters playing state from 3.05s');
+    window.TimelinePlayer.pause();
+
+    // Check 8 & 9: Scrub across loop boundary and across delay/hold (burst-pause perimeter-tracer & flow-lite delay)
+    // Build a DOM stub for deterministic evaluation verification in Node harness
+    const mockTracerNode = {
+      _attrs: {
+        'data-burst-cycles': '2',
+        'data-pause-seconds': '1.0',
+        'data-pause-visibility': 'hide'
+      },
+      style: {
+        visibility: '',
+        opacity: '',
+        animationDuration: '1.0s',
+        getPropertyValue(k) { return k === '--sva-base-dur' ? '1.0s' : '0'; }
+      },
+      getAttribute(k) { return this._attrs[k] || null; },
+      setAttribute(k, v) { this._attrs[k] = String(v); },
+      removeAttribute(k) { delete this._attrs[k]; },
+      getAnimations() { return []; }
+    };
+    // Active window: 0..2000ms (2 cycles * 1.0s), Pause window: 2000..3000ms (1.0s pause), Next cycle: 3000..5000ms
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockTracerNode, 1200);
+    assert.strictEqual(mockTracerNode.style.visibility, '', 'S17M2-08a: Tracer is visible during active cycle 1 (t=1.2s)');
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockTracerNode, 2500);
+    assert.strictEqual(mockTracerNode.style.visibility, 'hidden', 'S17M2-08b: Tracer hides during burst pause window (t=2.5s)');
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockTracerNode, 3400);
+    assert.strictEqual(mockTracerNode.style.visibility, '', 'S17M2-08c: Tracer reappears across loop boundary in cycle 2 (t=3.4s)');
+    // Scrub backwards back into pause window and back into first active window
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockTracerNode, 2200);
+    assert.strictEqual(mockTracerNode.style.visibility, 'hidden', 'S17M2-08d: Scrubbing backwards into pause window (t=2.2s) hides tracer again');
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockTracerNode, 800);
+    assert.strictEqual(mockTracerNode.style.visibility, '', 'S17M2-08e: Scrubbing backwards into active window (t=0.8s) restores tracer visibility');
+
+    // Flow-lite start delay (1.0s) check
+    const mockFlowNode = {
+      _attrs: {
+        'data-burst-cycles': '1',
+        'data-pause-seconds': '2.0',
+        'data-flow-start-delay': '1.0',
+        'data-pause-visibility': 'hide'
+      },
+      style: {
+        visibility: '',
+        opacity: '',
+        animationDuration: '2.0s',
+        getPropertyValue(k) { return k === '--sva-base-dur' ? '2.0s' : '0'; }
+      },
+      getAttribute(k) { return this._attrs[k] || null; },
+      setAttribute(k, v) { this._attrs[k] = String(v); },
+      removeAttribute(k) { delete this._attrs[k]; },
+      getAnimations() { return []; }
+    };
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockFlowNode, 400); // Before 1.0s start delay
+    assert.strictEqual(mockFlowNode.style.visibility, 'hidden', 'S17M2-09a: Flow-lite is hidden during initial start delay (t=0.4s < 1.0s)');
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockFlowNode, 1500); // Active pass (1.0s..3.0s)
+    assert.strictEqual(mockFlowNode.style.visibility, '', 'S17M2-09b: Flow-lite is visible during active pass after delay (t=1.5s)');
+    window.TimelinePlayer._evaluateBurstCyclesAtTime(mockFlowNode, 500); // Scrub backward before start delay
+    assert.strictEqual(mockFlowNode.style.visibility, 'hidden', 'S17M2-09c: Scrubbing backwards before start delay hides flow-lite again');
+
+    // Check 10: Scrub through Typewriter (backwards delete & forward delete) and Scramble — forwards AND backwards!
+    const makeMockTextGroup = (attrs) => {
+      const targetNode = { textContent: '' };
+      return {
+        targetNode,
+        getAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null; },
+        querySelector(sel) {
+          if (sel === '.lite-text-element' || sel === '.lite-text-path') return targetNode;
+          return null;
+        }
+      };
+    };
+
+    // 10a. Typewriter 'delete' (backwards delete): "TIMELINE-17" (11 chars, rate=10 -> stepMs=100ms, typeDur=1100ms, hold=500ms -> 1600ms, delStep=75ms)
+    const mockTwDelete = makeMockTextGroup({
+      'data-text-anim': 'typewriter',
+      'data-text-content': 'TIMELINE-17',
+      'data-text-type-speed': '10',
+      'data-text-hold-delay': '0.5',
+      'data-text-type-mode': 'delete',
+      'data-text-type-repeat': 'true',
+      'data-text-playback-mode': 'loop'
+    });
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelete, 0);
+    assert.strictEqual(mockTwDelete.targetNode.textContent, '', 'S17M2-10a: Typewriter at t=0ms is empty');
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelete, 450); // 4 chars typed
+    assert.strictEqual(mockTwDelete.targetNode.textContent, 'TIME', 'S17M2-10b: Typewriter at t=450ms shows "TIME"');
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelete, 1300); // In hold phase (1100..1600ms)
+    assert.strictEqual(mockTwDelete.targetNode.textContent, 'TIMELINE-17', 'S17M2-10c: Typewriter at t=1300ms (hold) shows full "TIMELINE-17"');
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelete, 1850); // In delete phase: 250ms elapsed / 75ms = 3+1=4 chars deleted -> 7 remain ("TIMELIN")
+    assert.strictEqual(mockTwDelete.targetNode.textContent, 'TIMELIN', 'S17M2-10d: Typewriter at t=1850ms (delete) removed 4 trailing chars -> "TIMELIN"');
+    // Now scrub BACKWARDS from delete phase (1850ms) to hold phase (1300ms) -> deleted characters MUST reappear!
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelete, 1300);
+    assert.strictEqual(mockTwDelete.targetNode.textContent, 'TIMELINE-17', 'S17M2-10e: Scrubbing backwards from delete phase restores deleted characters ("TIMELINE-17")');
+    // Scrub BACKWARDS from hold phase (1300ms) to mid-typing (450ms) -> later typed characters MUST disappear!
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelete, 450);
+    assert.strictEqual(mockTwDelete.targetNode.textContent, 'TIME', 'S17M2-10f: Scrubbing backwards to t=450ms restores partial prefix "TIME"');
+
+    // 10b. Typewriter 'delete-forward': "ABCDEF" (6 chars, rate=10 -> stepMs=100ms, typeDur=600ms, hold=400ms -> 1000ms, delStep=75ms)
+    const mockTwDelFwd = makeMockTextGroup({
+      'data-text-anim': 'typewriter',
+      'data-text-content': 'ABCDEF',
+      'data-text-type-speed': '10',
+      'data-text-hold-delay': '0.4',
+      'data-text-type-mode': 'delete-forward',
+      'data-text-type-repeat': 'false',
+      'data-text-playback-mode': 'once'
+    });
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelFwd, 1160); // 160ms into delete-forward: floor(160/75)+1 = 3 leading chars deleted -> "DEF"
+    assert.strictEqual(mockTwDelFwd.targetNode.textContent, 'DEF', 'S17M2-10g: Typewriter delete-forward at t=1160ms removes leading chars -> "DEF"');
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockTwDelFwd, 800); // Scrub backwards into hold phase -> "ABCDEF" restored
+    assert.strictEqual(mockTwDelFwd.targetNode.textContent, 'ABCDEF', 'S17M2-10h: Scrubbing backwards restores leading characters removed by delete-forward');
+
+    // 10c. Scramble forward and backward determinism: "SCRAMBLE" (8 chars, rate=10 -> stepMs=100ms)
+    const mockScramble = makeMockTextGroup({
+      'data-text-anim': 'scramble',
+      'data-text-content': 'SCRAMBLE',
+      'data-text-type-speed': '10',
+      'data-text-hold-delay': '1.0',
+      'data-text-playback-mode': 'loop'
+    });
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockScramble, 350); // idx = 3 ("SCR" decoded + 5 deterministic cipher chars)
+    const scrambleAt350 = mockScramble.targetNode.textContent;
+    assert.ok(scrambleAt350.startsWith('SCR') && scrambleAt350 !== 'SCRAMBLE' && scrambleAt350.length === 8, `S17M2-10i: Scramble at t=350ms has 3 decoded + 5 cipher chars (${scrambleAt350})`);
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockScramble, 950); // Fully decoded in hold phase
+    assert.strictEqual(mockScramble.targetNode.textContent, 'SCRAMBLE', 'S17M2-10j: Scramble at t=950ms is fully decoded "SCRAMBLE"');
+    // Scrub BACKWARDS to t=350ms -> must return to the EXACT same partially scrambled string!
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockScramble, 350);
+    assert.strictEqual(mockScramble.targetNode.textContent, scrambleAt350, 'S17M2-10k: Scrubbing backwards to t=350ms restores exact deterministic cipher string');
+
+    // Check 11 & 12: Filter/Mask SMIL & Go/WASM Camera/Optical evaluation forwards & backwards
+    const frameAt0 = window.EngineBridge.evaluateSceneAtTime(0.0);
+    const frameAt2 = window.EngineBridge.evaluateSceneAtTime(2.0);
+    const frameAt4 = window.EngineBridge.evaluateSceneAtTime(4.0);
+    assert.ok(frameAt0 && frameAt2 && frameAt4, 'S17M2-11: Go/WASM evaluateSceneAtTime returns frames at 0s, 2s, 4s');
+    assert.ok(frameAt0.optical.blur > frameAt2.optical.blur && frameAt2.optical.blur > frameAt4.optical.blur, 'S17M2-12: Focus-pull blur interpolates deterministically across timestamps');
+    const frameBackAt2 = window.EngineBridge.evaluateSceneAtTime(2.0);
+    assert.strictEqual(frameBackAt2.optical.blur, frameAt2.optical.blur, 'S17M2-12b: Scrubbing backwards to 2.0s produces identical optical blur');
+    assert.strictEqual(frameBackAt2.camera.transform, frameAt2.camera.transform, 'S17M2-12c: Scrubbing backwards to 2.0s produces identical camera transform');
+
+    // Check 13: Verify authored scene & HistoryManager are 100% unchanged after scrubbing, stepping, playing, pausing, and resetting
+    window.TimelinePlayer.stop();
+    const snapshotAfterScrub = window.HistoryManager.captureSnapshot();
+    assert.strictEqual(snapshotAfterScrub, snapshotBeforeScrub, 'S17M2-13: Authored scene snapshot is 100% identical before and after timeline scrubbing & frame stepping');
+    assert.strictEqual(window.HistoryManager.undoStack.length, undoDepthBefore, 'S17M2-13b: Timeline scrubbing and frame stepping never dirty HistoryManager undoStack');
+
+    // Reset controls for clean state
+    window.SceneState.setControl('cameraMotionSelect', 'static');
+    window.SceneState.setControl('effectSelect', 'none');
+  }
+  console.log('[HARNESS] Scenario 102 PASS: Stage 17-M2 Animation Timeline Scrubbing, Frame Stepping & Backward Restoration verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16 & 17-M1 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, deterministic animation export scrubbing, and Go WASM engines verified.');
 }
 

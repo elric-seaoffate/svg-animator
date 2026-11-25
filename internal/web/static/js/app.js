@@ -6348,6 +6348,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.querySelectorAll('#settingsPanel select, #settingsPanel input[type="checkbox"], #settingsPanel input[type="color"]').forEach((el) => {
+    if (el.id === 'timelinePreviewFpsSelect') return;
     el.addEventListener('change', () => {
       render();
       recordImmediate();
@@ -6413,8 +6414,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (window.EngineBridge && typeof window.EngineBridge.isReady === 'function' && window.EngineBridge.isReady() && typeof window.EngineBridge.updateCanvas === 'function') {
       const engCanvas = typeof window.EngineBridge.getCanvas === 'function' ? window.EngineBridge.getCanvas() : null;
-      if (!engCanvas || engCanvas.width !== currentImage.width || engCanvas.height !== currentImage.height) {
-        window.EngineBridge.updateCanvas({ width: currentImage.width, height: currentImage.height });
+      if (!engCanvas || engCanvas.width !== currentImage.width || engCanvas.height !== currentImage.height || engCanvas.duration !== state.duration || engCanvas.loop !== state.loop) {
+        window.EngineBridge.updateCanvas({
+          width: currentImage.width,
+          height: currentImage.height,
+          duration: state.duration,
+          loop: state.loop
+        });
+      }
+      if (state.camera && typeof window.EngineBridge.updateCamera === 'function') {
+        window.EngineBridge.updateCamera(state.camera);
+      }
+      if (state.optical && typeof window.EngineBridge.updateOptics === 'function') {
+        window.EngineBridge.updateOptics(state.optical);
+      }
+      if (state.overlays && typeof window.EngineBridge.updateFrame === 'function') {
+        window.EngineBridge.updateFrame(state.overlays);
       }
     }
 
@@ -6455,7 +6470,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const svgContainer = document.getElementById('svgContainer');
       if (svgContainer) {
-        svgContainer.innerHTML = window.buildFullSVG(state);
+        svgContainer.innerHTML = window.buildFullSVG(state, { omitEmbeddedBurstScript: true });
         if (window.LiteEffects && typeof window.LiteEffects.bindBurstSchedulers === 'function') {
           window.LiteEffects.bindBurstSchedulers(svgContainer);
         }

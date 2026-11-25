@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SVG Animator Studio</title>
-  <link rel="stylesheet" href="css/style.css?v=5.8">
-  <link rel="stylesheet" href="css/export-modal.css?v=5.8">
+  <link rel="stylesheet" href="css/style.css?v=5.9">
+  <link rel="stylesheet" href="css/export-modal.css?v=5.9">
 </head>
 <body>
   <header>
@@ -1137,7 +1137,7 @@
           <span style="color: #38bdf8;">⚡ Low-Load Effects</span>
           <span class="accordion-chevron">▾</span>
         </div>
-        <div class="accordion-body" style="padding: 0.55rem 0.65rem;">
+        <div class="accordion-body">
           <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; padding: 0.5rem 0.6rem; margin-bottom: 0.6rem;">
             <div style="font-size: 0.70rem; font-weight: 700; letter-spacing: 0.04em; color: #38bdf8; margin-bottom: 0.4rem;">CREATE LOW-LOAD EFFECT</div>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;">
@@ -1152,17 +1152,17 @@
             </div>
           </div>
 
-          <div class="inspector-split-layout" style="gap: 0.5rem;">
-            <div class="inspector-master-column" style="padding-right: 4px;">
+          <div class="inspector-split-layout">
+            <div class="inspector-master-column">
               <div class="inspector-column-header">
                 <span class="inspector-column-title">INSTANCES</span>
               </div>
-              <div id="liteEffectsList" class="compact-instance-list" style="padding-right: 6px;">
+              <div id="liteEffectsList" class="compact-instance-list">
                 <div class="stage-hint" id="emptyLiteListHint">No low-load effects active.</div>
               </div>
             </div>
 
-            <div class="inspector-detail-column" style="padding-right: 8px;">
+            <div class="inspector-detail-column">
               <div class="inspector-column-header">
                 <span class="inspector-column-title">SELECTED PROPERTIES</span>
               </div>
@@ -1181,7 +1181,7 @@
                 Select an effect in <strong>Instances</strong> or on the canvas, or create one above.
               </div>
 
-              <div id="liteEditorControls" style="display: none; margin-top: 0.25rem; padding-right: 6px;">
+              <div id="liteEditorControls" style="display: none; margin-top: 0.25rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                   <span style="font-weight: bold; color: #fff;" id="editingLiteLabel">Editing Effect</span>
                   <button type="button" class="btn-deselect-sidebar" id="btnDeselectLite" title="Deselect effect (Select None)">Deselect</button>
@@ -3774,18 +3774,33 @@
         <div class="accordion-body">
           <div class="stage-hint" style="margin-bottom: 0.45rem;">Controls the total scene &amp; video export length. Camera motion has its own independent duration in the Camera Rig panel below.</div>
           <div class="timeline-player-box" style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 0.55rem; margin-bottom: 0.75rem;">
-            <div style="display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.45rem;">
-              <button type="button" class="btn-primary" id="btnTimelinePlay" style="flex: 1; padding: 0.35rem 0.6rem; font-size: 0.82rem; font-weight: 600;">▶ Play Scene</button>
-              <button type="button" class="btn-secondary" id="btnTimelineReset" style="padding: 0.35rem 0.6rem; font-size: 0.82rem;">⏮ Reset</button>
+            <div style="display: flex; gap: 0.3rem; align-items: center; margin-bottom: 0.45rem;">
+              <button type="button" class="btn-primary" id="btnTimelinePlay" style="flex: 1.2; padding: 0.35rem 0.45rem; font-size: 0.8rem; font-weight: 600; white-space: nowrap;" title="Play or Pause Scene Animation">▶ Play Scene</button>
+              <button type="button" class="btn-secondary" id="btnTimelinePrevFrame" style="padding: 0.35rem 0.45rem; font-size: 0.78rem; font-family: monospace; white-space: nowrap;" title="Step Backward 1 Frame (-1f)" aria-label="Previous Frame">◀ -1f</button>
+              <button type="button" class="btn-secondary" id="btnTimelineNextFrame" style="padding: 0.35rem 0.45rem; font-size: 0.78rem; font-family: monospace; white-space: nowrap;" title="Step Forward 1 Frame (+1f)" aria-label="Next Frame">+1f ▶</button>
+              <button type="button" class="btn-secondary" id="btnTimelineReset" style="padding: 0.35rem 0.45rem; font-size: 0.8rem; white-space: nowrap;" title="Stop and Reset Playhead to 00:00.000">⏮ Reset</button>
             </div>
             <div class="control-row" style="margin: 0.3rem 0 0.15rem 0;">
-              <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.2rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.2rem;">
                 <span>Playhead Time</span>
-                <span id="timelineTimeDisplay" style="font-family: monospace; font-weight: 600; color: #38bdf8;">0.00s / 7.00s</span>
+                <span id="timelineTimeDisplay" style="font-family: monospace; font-weight: 600; color: #38bdf8;">00:00.000 / 00:07.000</span>
               </div>
-              <input type="range" id="timelineScrubber" min="0" max="7" step="0.02" value="0" style="width: 100%;">
+              <input type="range" id="timelineScrubber" min="0" max="7" step="0.001" value="0" style="width: 100%;" aria-label="Animation Playhead Scrubber">
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.35rem; font-size: 0.72rem; color: #64748b;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.35rem; margin-top: 0.35rem; font-size: 0.72rem; color: #94a3b8;">
+              <span id="timelineFrameDisplay" style="font-family: monospace; color: #cbd5e1;">Frame 0 / 210</span>
+              <div style="display: flex; align-items: center; gap: 0.3rem;">
+                <label for="timelinePreviewFpsSelect" style="font-size: 0.7rem; color: #94a3b8; margin: 0;">Step Rate:</label>
+                <select id="timelinePreviewFpsSelect" style="width: auto; padding: 0.12rem 0.35rem; font-size: 0.72rem; font-family: monospace; height: 22px;" title="Frame-step resolution (FPS)">
+                  <option value="12">12 FPS</option>
+                  <option value="15">15 FPS</option>
+                  <option value="24">24 FPS</option>
+                  <option value="30" selected>30 FPS</option>
+                  <option value="60">60 FPS</option>
+                </select>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.35rem; padding-top: 0.3rem; border-top: 1px dashed rgba(56, 189, 248, 0.2); font-size: 0.7rem; color: #64748b;">
               <span id="timelineEngineBadge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 4px; padding: 0.1rem 0.35rem; font-family: monospace;">Engine: Initializing...</span>
               <span id="timelineFrameCount" style="font-family: monospace;">0 frames</span>
             </div>
