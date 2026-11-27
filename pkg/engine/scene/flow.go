@@ -22,6 +22,9 @@ func ValidateFlow(f *Flow) error {
 	if f.Opacity < 0 || f.Opacity > 1.0 {
 		return errors.New("opacity must be between 0.0 and 1.0")
 	}
+	if f.PlaybackMode != "" && f.PlaybackMode != "loop" && f.PlaybackMode != "once" {
+		return errors.New("flow playbackMode must be 'loop' or 'once'")
+	}
 	return nil
 }
 

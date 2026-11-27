@@ -318,6 +318,7 @@ window.LiteEffects = {
       if (le.labelText === undefined || le.labelText === null) le.labelText = 'System Ready';
       else le.labelText = String(le.labelText);
     }
+    le.delay = Math.max(0, Math.min(60, Number(le.delay) || 0));
     return le;
   },
 
@@ -475,6 +476,12 @@ window.LiteEffects = {
       updated = Object.assign({}, existing, normPatch);
     } else {
       updated = Object.assign({}, existing, normPatch, updated);
+      if (normPatch.delay !== undefined) {
+        updated.delay = Number(normPatch.delay) || 0;
+      }
+      if (normPatch.endDelay !== undefined) {
+        updated.endDelay = Number(normPatch.endDelay) || 0;
+      }
     }
     updated = this._migrateLiteEffect(updated);
     const idx = this.list.findIndex((l) => String(l.id) === String(id));
@@ -537,6 +544,12 @@ window.LiteEffects = {
 }
 @keyframes sva-lite-radar {
   0% { transform: scale(var(--sva-radar-min, 0.15)); opacity: 1; }
+  85% { opacity: 0.35; }
+  100% { transform: scale(var(--sva-radar-max, 1.0)); opacity: 0; }
+}
+@keyframes sva-lite-radar-delayed {
+  0% { transform: scale(var(--sva-radar-min, 0.15)); opacity: 0; }
+  1% { transform: scale(var(--sva-radar-min, 0.15)); opacity: 1; }
   85% { opacity: 0.35; }
   100% { transform: scale(var(--sva-radar-max, 1.0)); opacity: 0; }
 }
@@ -1019,7 +1032,9 @@ window.LiteEffects = {
     const visAttr = isHidden ? ' visibility="hidden" data-lite-visible="false"' : '';
     const visStyle = isHidden ? 'visibility:hidden;' : '';
     const rotAttr = (rot && Math.abs(rot) > 0.001) ? ` transform="rotate(${Number(rot.toFixed(2))}, ${cx.toFixed(2)}, ${cy.toFixed(2)})"` : '';
-    const baseAttrs = `id="lite-${le.id}" class="diagram-lite-instance" data-lite-id="${le.id}" data-lite-kind="${this.escapeXML(le.kind)}" data-semantic-target="lite-${le.id}"${nameAttr}${playAttr}${visAttr}${rotAttr}`;
+    const startDelay = Math.max(0, Math.min(60, Number(le.delay) || 0));
+    const delayAttr = startDelay > 0 ? ` data-lite-delay="${Number(startDelay.toFixed(3))}"` : '';
+    const baseAttrs = `id="lite-${le.id}" class="diagram-lite-instance" data-lite-id="${le.id}" data-lite-kind="${this.escapeXML(le.kind)}" data-semantic-target="lite-${le.id}"${nameAttr}${playAttr}${delayAttr}${visAttr}${rotAttr}`;
 
     if (le.kind === 'perimeter-tracer') {
       const segs = Math.max(1, Math.min(16, Number(le.segments) || 2));
@@ -1055,14 +1070,16 @@ window.LiteEffects = {
       const hasBurst = mode !== 'once' && burstCycles > 0 && pauseSeconds > 0;
       const iterCss = mode === 'once' ? '1' : (hasBurst ? String(burstCycles) : 'infinite');
       const dirCss = mode === 'pingpong' ? 'alternate' : 'normal';
-      const fillCss = (mode === 'once' || hasBurst) ? 'forwards' : 'none';
-      const styleStr = `animation-name:${traceClass};animation-duration:${dur}s;animation-iteration-count:${iterCss};animation-direction:${dirCss};animation-fill-mode:${fillCss};--sva-base-dur:${dur}s;--sva-start-offset:${startOffsetUnits}px;`;
+      const fillCss = startDelay > 0 ? 'both' : ((mode === 'once' || hasBurst) ? 'forwards' : 'none');
+      const delayCss = startDelay > 0 ? `animation-delay:${startDelay.toFixed(4)}s;` : '';
+      const styleStr = `animation-name:${traceClass};animation-duration:${dur}s;${delayCss}animation-iteration-count:${iterCss};animation-direction:${dirCss};animation-fill-mode:${fillCss};--sva-base-dur:${dur}s;--sva-start-offset:${startOffsetUnits}px;`;
 
       let shapeMarkup = '';
       let guideMarkup = '';
       let hitMarkup = '';
       const variant = le.variant || 'rounded';
-      const burstAttrs = hasBurst ? ` data-burst-cycles="${burstCycles}" data-pause-seconds="${pauseSeconds}" data-pause-visibility="${pauseVisibility}"` : '';
+      const burstStartDelayAttr = startDelay > 0 ? ` data-flow-start-delay="${startDelay.toFixed(3)}"` : '';
+      const burstAttrs = hasBurst ? ` data-burst-cycles="${burstCycles}" data-pause-seconds="${pauseSeconds}" data-pause-visibility="${pauseVisibility}"${burstStartDelayAttr}` : '';
       const payloadAttrs = `class="lite-payload sva-lite-tracer-anim ${traceClass} ${modeClass}" data-semantic-role="payload" data-direction="${dir}" data-playback-mode="${mode}"${burstAttrs} pathLength="1000" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${dashArray}" stroke-linecap="${linecap}" shape-rendering="geometricPrecision" style="${styleStr}" pointer-events="none"`;
       const hitAttrs = `class="lite-hit-target" data-semantic-role="hit-target" fill="transparent" stroke="transparent" stroke-width="${Math.max(16, sw + 12)}" pointer-events="stroke" style="cursor:pointer;"`;
       const guideAttrs = `class="lite-guide-track" fill="none" stroke="${color}" stroke-width="${Math.max(1, sw * 0.55).toFixed(2)}" stroke-opacity="0.22" shape-rendering="geometricPrecision" pointer-events="none"`;
@@ -1098,7 +1115,8 @@ window.LiteEffects = {
       const isRing = variant === 'ring';
       const fillVal = isRing ? 'none' : color;
       const strokeVal = isRing ? color : 'none';
-      const styleStr = `animation-duration:${period}s;--sva-base-dur:${period}s;--sva-pulse-amp:${amp};--sva-pulse-min:${minScale};--sva-pulse-max:${maxScale};`;
+      const pulseDelayCss = startDelay > 0 ? `animation-delay:${startDelay.toFixed(4)}s;animation-fill-mode:both;` : '';
+      const styleStr = `animation-duration:${period}s;${pulseDelayCss}--sva-base-dur:${period}s;--sva-pulse-amp:${amp};--sva-pulse-min:${minScale};--sva-pulse-max:${maxScale};`;
       const payloadAttrs = `class="lite-payload sva-lite-pulse-anim" data-semantic-role="payload" data-pulse-min="${minScale}" data-pulse-max="${maxScale}" fill="${fillVal}" stroke="${strokeVal}" stroke-width="${isRing ? sw : 0}" style="${styleStr}" pointer-events="none"`;
       const hitMarkup = `<rect class="lite-hit-target" data-semantic-role="hit-target" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="transparent" pointer-events="all" style="cursor:pointer;" />`;
       const shapeMarkup = this._buildShapeGeometry(variant, cx, cy, w, h, payloadAttrs, armThickness);
@@ -1114,10 +1132,12 @@ window.LiteEffects = {
       const variant = le.variant || 'diamond';
       const hasRepeatSched = Boolean(le.repeat);
       const pauseSec = hasRepeatSched ? Math.max(0.05, repeatInterval - dur) : 0;
+      const flashStartDelayAttr = startDelay > 0 ? ` data-flow-start-delay="${startDelay.toFixed(3)}"` : '';
       const schedAttrs = hasRepeatSched
-        ? ` data-burst-cycles="1" data-pause-seconds="${pauseSec.toFixed(3)}" data-pause-visibility="hide" data-repeat-interval="${repeatInterval}"`
+        ? ` data-burst-cycles="1" data-pause-seconds="${pauseSec.toFixed(3)}" data-pause-visibility="hide" data-repeat-interval="${repeatInterval}"${flashStartDelayAttr}`
         : '';
-      const styleStr = `animation-duration:${dur}s;animation-iteration-count:1;--sva-base-dur:${dur}s;--sva-flash-int:${intensity};`;
+      const flashDelayCss = startDelay > 0 ? `animation-delay:${startDelay.toFixed(4)}s;` : '';
+      const styleStr = `animation-duration:${dur}s;${flashDelayCss}animation-iteration-count:1;--sva-base-dur:${dur}s;--sva-flash-int:${intensity};`;
       const payloadAttrs = `class="lite-payload lite-flash-anim sva-lite-flash-anim" data-semantic-role="payload" data-trigger-nonce="${le.triggerNonce || 0}" data-flash-duration-ms="${durMs}" data-repeat="${hasRepeatSched ? 'true' : 'false'}"${schedAttrs} fill="${color}" style="${styleStr}" pointer-events="none"`;
       const hitMarkup = `<rect class="lite-hit-target" data-semantic-role="hit-target" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="transparent" pointer-events="all" style="cursor:pointer;" />`;
       const markerAttrs = `fill="none" stroke="${color}" stroke-opacity="0.58" stroke-width="1.4" stroke-dasharray="4 3" pointer-events="none"`;
@@ -1146,8 +1166,9 @@ window.LiteEffects = {
       const rings = [];
       for (let k = 0; k < ringCount; k++) {
         const phaseRatio = k / ringCount;
-        const phaseDelay = -phaseRatio * period;
-        const styleStr = `animation-duration:${period.toFixed(4)}s;animation-delay:${phaseDelay.toFixed(4)}s;--sva-base-dur:${period.toFixed(4)}s;--sva-phase-ratio:${phaseRatio.toFixed(6)};--sva-radar-min:${minScale};--sva-radar-max:${maxScale};`;
+        const phaseDelay = startDelay > 0 ? (startDelay + phaseRatio * period) : (-phaseRatio * period);
+        const radarKfOverrides = startDelay > 0 ? 'animation-name:sva-lite-radar-delayed;animation-fill-mode:both;' : '';
+        const styleStr = `${radarKfOverrides}animation-duration:${period.toFixed(4)}s;animation-delay:${phaseDelay.toFixed(4)}s;--sva-base-dur:${period.toFixed(4)}s;--sva-phase-ratio:${phaseRatio.toFixed(6)};--sva-radar-min:${minScale};--sva-radar-max:${maxScale};`;
         rings.push(`<ellipse class="lite-payload lite-radar-ring sva-lite-radar-anim" data-semantic-role="payload" data-ring-index="${k}" data-ring-count="${ringCount}" data-radar-min="${minScale}" data-radar-max="${maxScale}" data-radar-period="${period}" cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${Math.max(2.5, rx).toFixed(2)}" ry="${Math.max(2.5, ry).toFixed(2)}" fill="${fillVal}"${fillOpAttr} stroke="${color}" stroke-width="${sw.toFixed(2)}" vector-effect="non-scaling-stroke" shape-rendering="geometricPrecision" style="${styleStr}" pointer-events="none" />`);
       }
       const dotR = Math.max(2.0, Math.min(6.0, Math.min(rx, ry) * 0.12));
@@ -1504,6 +1525,7 @@ window.LiteEffects = {
       ? true
       : (le.typeRepeat !== undefined && le.typeRepeat !== null ? Boolean(le.typeRepeat) : (typeMode === 'delete' || typeMode === 'delete-forward'));
     const cycleDur = Math.max(textAnim === 'flash' ? 0 : 0.05, Math.min(30, Number(le.speed != null ? le.speed : (textAnim === 'flash' ? 0.15 : 0.8))));
+    const startDelay = Math.max(0, Math.min(60, Number(le.delay) || 0));
     const dir = (le.direction === 'reverse' || le.direction === 'ccw') ? 'reverse' : 'forward';
 
     const clipId = `lite-text-clip-${le.id}`;
@@ -1545,7 +1567,9 @@ window.LiteEffects = {
         kt = '0; 0.35; 0.65; 1';
         durBlur = Math.max(0.3, cycleDur * 2 + holdDelay);
       }
-      defsContent += `<filter id="${blurId}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="0"><animate attributeName="stdDeviation" values="${vals}" keyTimes="${kt}" dur="${durBlur.toFixed(3)}s" repeatCount="${repCnt}" fill="freeze" /></feGaussianBlur></filter>`;
+      const initBlur = (textAnim === 'blur-in' && startDelay > 0) ? '6' : '0';
+      const blurBeginAttr = startDelay > 0 ? ` begin="${Number(startDelay.toFixed(3))}s"` : '';
+      defsContent += `<filter id="${blurId}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="${initBlur}"><animate attributeName="stdDeviation" values="${vals}" keyTimes="${kt}" dur="${durBlur.toFixed(3)}s"${blurBeginAttr} repeatCount="${repCnt}" fill="freeze" /></feGaussianBlur></filter>`;
       filterAttr = ` filter="url(#${blurId})"`;
     }
 
@@ -1581,7 +1605,8 @@ window.LiteEffects = {
     let animStyle = '';
     let customKfStyle = '';
     const iterCount = playbackMode === 'once' ? '1' : 'infinite';
-    const fillMode = playbackMode === 'once' ? 'forwards' : 'both';
+    const fillMode = startDelay > 0 ? 'both' : (playbackMode === 'once' ? 'forwards' : 'both');
+    const textDelayCss = startDelay > 0 ? `animation-delay:${startDelay.toFixed(4)}s;` : '';
 
     if (textAnim === 'ticker-h') {
       // Horizontal ticker: preserve configured vertical alignment (firstLineY), anchor='start', textX=x
@@ -1596,7 +1621,7 @@ window.LiteEffects = {
       }
       const animDir = playbackMode === 'pingpong' ? 'alternate' : 'normal';
       animClass = ' sva-lite-text-ticker-h-anim';
-      animStyle = `animation-duration:${dur.toFixed(4)}s;animation-iteration-count:${iterCount};animation-direction:${animDir};animation-fill-mode:${fillMode};--sva-base-dur:${dur.toFixed(4)}s;--sva-ticker-start:${startShift.toFixed(2)}px;--sva-ticker-end:${endShift.toFixed(2)}px;`;
+      animStyle = `animation-duration:${dur.toFixed(4)}s;${textDelayCss}animation-iteration-count:${iterCount};animation-direction:${animDir};animation-fill-mode:${fillMode};--sva-base-dur:${dur.toFixed(4)}s;--sva-ticker-start:${startShift.toFixed(2)}px;--sva-ticker-end:${endShift.toFixed(2)}px;`;
     } else if (textAnim === 'ticker-v' || textAnim === 'stacked-v') {
       // Vertical scroll: anchor first line at top of container (y + fontSize * 0.85) so translate(0, shift) is exact
       firstLineY = y + fontSize * 0.85;
@@ -1612,7 +1637,7 @@ window.LiteEffects = {
       }
       const animDir = playbackMode === 'pingpong' ? 'alternate' : 'normal';
       animClass = ' sva-lite-text-ticker-v-anim';
-      animStyle = `animation-duration:${dur.toFixed(4)}s;animation-iteration-count:${iterCount};animation-direction:${animDir};animation-fill-mode:${fillMode};--sva-base-dur:${dur.toFixed(4)}s;--sva-ticker-start:${startShift.toFixed(2)}px;--sva-ticker-end:${endShift.toFixed(2)}px;`;
+      animStyle = `animation-duration:${dur.toFixed(4)}s;${textDelayCss}animation-iteration-count:${iterCount};animation-direction:${animDir};animation-fill-mode:${fillMode};--sva-base-dur:${dur.toFixed(4)}s;--sva-ticker-start:${startShift.toFixed(2)}px;--sva-ticker-end:${endShift.toFixed(2)}px;`;
     } else if (textAnim === 'fade') {
       const fadeDur = Math.max(0.05, cycleDur);
       const visHold = Math.max(0, holdDelay);
@@ -1631,7 +1656,7 @@ window.LiteEffects = {
         customKfStyle = `<style class="lite-text-phase-style">@keyframes ${kfName} { 0% { opacity: 0; } ${p1.toFixed(2)}% { opacity: 1; } ${p2.toFixed(2)}% { opacity: 1; } ${p3.toFixed(2)}%, 100% { opacity: 0; } }</style>`;
       }
       animClass = ' sva-lite-text-fade-anim';
-      animStyle = `animation-name:${kfName};animation-duration:${totalDur.toFixed(4)}s;animation-timing-function:linear;animation-iteration-count:${iterCount};animation-fill-mode:${fillMode};--sva-base-dur:${totalDur.toFixed(4)}s;`;
+      animStyle = `animation-name:${kfName};animation-duration:${totalDur.toFixed(4)}s;${textDelayCss}animation-timing-function:linear;animation-iteration-count:${iterCount};animation-fill-mode:${fillMode};--sva-base-dur:${totalDur.toFixed(4)}s;`;
     } else if (textAnim === 'flash') {
       const fadeIn = Math.max(0, cycleDur);
       const onHold = Math.max(0.02, holdDelay);
@@ -1665,7 +1690,7 @@ window.LiteEffects = {
         }
       }
       animClass = ' sva-lite-text-flash-anim';
-      animStyle = `animation-name:${kfName};animation-duration:${totalDur.toFixed(4)}s;animation-timing-function:linear;animation-iteration-count:${iterCount};animation-fill-mode:${fillMode};--sva-base-dur:${totalDur.toFixed(4)}s;`;
+      animStyle = `animation-name:${kfName};animation-duration:${totalDur.toFixed(4)}s;${textDelayCss}animation-timing-function:linear;animation-iteration-count:${iterCount};animation-fill-mode:${fillMode};--sva-base-dur:${totalDur.toFixed(4)}s;`;
     } else if (textAnim === 'slide') {
       const dur = Math.max(0.4, cycleDur + holdDelay);
       const slideDist = Math.max(24, h * 0.85);
@@ -1673,7 +1698,7 @@ window.LiteEffects = {
       const sOut = dir === 'reverse' ? slideDist : -slideDist;
       const slideKf = playbackMode === 'once' ? 'sva-lite-text-slide-once' : (playbackMode === 'pingpong' ? 'sva-lite-text-slide-pp' : 'sva-lite-text-slide');
       animClass = ' sva-lite-text-slide-anim';
-      animStyle = `animation-name:${slideKf};animation-duration:${dur.toFixed(4)}s;animation-iteration-count:${iterCount};animation-fill-mode:${fillMode};--sva-base-dur:${dur.toFixed(4)}s;--sva-slide-in:${sIn.toFixed(2)}px;--sva-slide-out:${sOut.toFixed(2)}px;`;
+      animStyle = `animation-name:${slideKf};animation-duration:${dur.toFixed(4)}s;${textDelayCss}animation-iteration-count:${iterCount};animation-fill-mode:${fillMode};--sva-base-dur:${dur.toFixed(4)}s;--sva-slide-in:${sIn.toFixed(2)}px;--sva-slide-out:${sOut.toFixed(2)}px;`;
     }
 
     const lsAttr = Math.abs(letterSpacing) > 0.01 ? ` letter-spacing="${letterSpacing.toFixed(2)}px"` : '';
@@ -2040,7 +2065,8 @@ window.LiteEffects = {
           }
         }
         targetNode.textContent='';
-        setTimeout(tick,stepMs);
+        var startDelayMs=Math.max(0,(parseFloat(g.getAttribute('data-lite-delay')||g.getAttribute('data-text-delay')||'0')||0)*1000);
+        setTimeout(tick,startDelayMs+stepMs);
       }
     })(tNodes[j]);}
 })();
@@ -2195,7 +2221,8 @@ window.LiteEffects = {
         };
         if (gs.length > 0) {
           targetNode.textContent = '';
-          this._studioBurstTimers.push(setTimeout(stepFn, stepMs));
+          const startDelayMs = Math.max(0, (parseFloat(g.getAttribute('data-lite-delay') || g.getAttribute('data-text-delay') || '0') || 0) * 1000);
+          this._studioBurstTimers.push(setTimeout(stepFn, startDelayMs + stepMs));
         }
       }
     });
@@ -2527,7 +2554,26 @@ window.LiteEffects = {
     bindPair('liteTextHoldDelay', 'holdDelay');
     bindField('liteTextLockOnOffChk', 'lockOnOff', false, true);
     bindPair('liteTextClearDuration', 'clearDuration');
+    bindPair('liteDelay', 'delay');
     bindField('litePlayChk', 'play', false, true);
+
+    const btnLiteDelayPlayhead = document.getElementById('btnLiteDelayFromPlayhead');
+    if (btnLiteDelayPlayhead) {
+      btnLiteDelayPlayhead.addEventListener('click', () => {
+        if (this.activeId && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('lite', this.activeId);
+        }
+      });
+    }
+
+    const btnLiteFlowDelayPlayhead = document.getElementById('btnLiteFlowDelayFromPlayhead');
+    if (btnLiteFlowDelayPlayhead) {
+      btnLiteFlowDelayPlayhead.addEventListener('click', () => {
+        if (this.activeId && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('lite', this.activeId);
+        }
+      });
+    }
   },
 
   addWaypointToActive() {
@@ -3065,6 +3111,14 @@ window.LiteEffects = {
     setPair('liteFlashRepeatInterval', le.repeatInterval || 2.0);
     setChk('liteVisibleChk', le.visible !== false);
     setChk('litePlayChk', le.play !== false);
+    setPair('liteDelay', le.delay || 0);
+
+    const startDelayRow = document.getElementById('liteStartDelayRow');
+    if (startDelayRow) {
+      const showSharedDelay = ['perimeter-tracer', 'pulse', 'flash', 'radar-lite'].includes(le.kind) ||
+        (le.kind === 'text-lite' && Boolean(le.textAnim) && le.textAnim !== 'none');
+      startDelayRow.style.display = showSharedDelay ? '' : 'none';
+    }
 
     const dimGroup = document.getElementById('liteDimensionsGroup');
     const posRow = document.getElementById('liteXNum') ? document.getElementById('liteXNum').closest('.inspector-prop-row') : null;

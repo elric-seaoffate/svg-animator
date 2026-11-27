@@ -492,3 +492,106 @@ func TestCommitBackgroundCrop(t *testing.T) {
 		t.Errorf("expected Original version 800x600, got %fx%f", res.CropVersions[0].SourceWidth, res.CropVersions[0].SourceHeight)
 	}
 }
+
+func TestStage17M3SequencingAndTimingModel(t *testing.T) {
+	s := NewScene()
+
+	// 1. Node entrance animations (fade-in, scale-in, slide-up) with AnimDur, AnimDelay, Play
+	playTrue := true
+	n1 := s.CreateNode(Node{
+		Shape:     "rounded",
+		Text:      "Gateway",
+		Animation: "scale-in",
+		AnimDur:   1.8,
+		AnimDelay: 0.75,
+		Play:      &playTrue,
+	}, nil, false)
+
+	if n1.Animation != "scale-in" || n1.AnimDur != 1.8 || n1.AnimDelay != 0.75 || !n1.IsPlaying() {
+		t.Fatalf("unexpected node timing fields: %+v", n1)
+	}
+	if err := ValidateNode(&n1); err != nil {
+		t.Fatalf("expected valid scale-in node, got error: %v", err)
+	}
+
+	// Validate slide-up and bounds on AnimDur / AnimDelay
+	n1.Animation = "slide-up"
+	if err := ValidateNode(&n1); err != nil {
+		t.Fatalf("expected valid slide-up node, got error: %v", err)
+	}
+	badNode := n1
+	badNode.AnimDelay = -1.0
+	if err := ValidateNode(&badNode); err == nil {
+		t.Fatalf("expected error for negative AnimDelay")
+	}
+	badNode2 := n1
+	badNode2.AnimDur = 90.0
+	if err := ValidateNode(&badNode2); err == nil {
+		t.Fatalf("expected error for excessive AnimDur > 60s")
+	}
+
+	// 2. Flow PlaybackMode ("loop", "once") and Play
+	f1 := s.CreateFlow(Flow{
+		Type:         "packet",
+		LineStyle:    "marching",
+		Speed:        2.4,
+		Delay:        1.2,
+		PlaybackMode: "once",
+		Play:         &playTrue,
+	})
+	if f1.PlaybackMode != "once" || f1.Delay != 1.2 || !f1.IsPlaying() {
+		t.Fatalf("unexpected flow playback/timing fields: %+v", f1)
+	}
+	if err := ValidateFlow(&f1); err != nil {
+		t.Fatalf("expected valid once flow, got error: %v", err)
+	}
+	badFlow := f1
+	badFlow.PlaybackMode = "invalid-mode"
+	if err := ValidateFlow(&badFlow); err == nil {
+		t.Fatalf("expected error for invalid Flow.PlaybackMode")
+	}
+
+	// 3. LiteEffect Start Delay across all animated kinds
+	for _, kind := range []string{"perimeter-tracer", "pulse", "flash", "flow-lite", "radar-lite", "text-lite"} {
+		le := s.CreateLiteEffect(LiteEffect{
+			Kind:  kind,
+			Delay: 1.5,
+		})
+		if le.Delay != 1.5 {
+			t.Fatalf("expected LiteEffect(%s) Delay 1.5, got %v", kind, le.Delay)
+		}
+		if err := ValidateLiteEffect(&le); err != nil {
+			t.Fatalf("expected valid LiteEffect(%s) with Delay=1.5, got: %v", kind, err)
+		}
+	}
+	badLite := s.CreateLiteEffect(LiteEffect{Kind: "pulse"})
+	badLite.Delay = 75.0
+	if err := ValidateLiteEffect(&badLite); err == nil {
+		t.Fatalf("expected error for LiteEffect Delay > 60s")
+	}
+
+	// 4. Snapshot deep copy & JSON round-trip preserves new fields
+	playFalse := false
+	n1.Play = &playFalse
+	s.UpdateNode(n1)
+	snap := s.GetSnapshot()
+	rawJSON, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("json.Marshal snapshot failed: %v", err)
+	}
+	var decoded Snapshot
+	if err := json.Unmarshal(rawJSON, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal snapshot failed: %v", err)
+	}
+	s2 := NewScene()
+	s2.SetFromSnapshot(decoded)
+	nRestored := s2.GetNode(n1.ID)
+	if nRestored == nil || nRestored.AnimDur != 1.8 || nRestored.AnimDelay != 0.75 || nRestored.IsPlaying() {
+		t.Fatalf("restored node did not preserve timing/play state: %+v", nRestored)
+	}
+	fRestored := s2.GetFlow(f1.ID)
+	if fRestored == nil || fRestored.PlaybackMode != "once" || fRestored.Delay != 1.2 || !fRestored.IsPlaying() {
+		t.Fatalf("restored flow did not preserve playbackMode/delay state: %+v", fRestored)
+	}
+}
+

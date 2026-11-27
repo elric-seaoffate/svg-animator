@@ -77,7 +77,13 @@ window.DiagramNodes = {
   setState(data) {
     if (!data || typeof data !== 'object') return this.getState();
     const rawList = Array.isArray(data.nodes) ? data.nodes : (Array.isArray(data.list) ? data.list : []);
-    this.list = JSON.parse(JSON.stringify(rawList));
+    this.list = JSON.parse(JSON.stringify(rawList)).map((n) => {
+      if (n.anim === undefined && n.animation !== undefined) n.anim = n.animation;
+      if (n.animDur === undefined) n.animDur = 0;
+      if (n.animDelay === undefined) n.animDelay = 0;
+      if (n.play === undefined) n.play = true;
+      return n;
+    });
     const maxId = this.list.reduce((m, n) => Math.max(m, n.id || 0), 0);
     const savedCounter = data.nodesCounter !== undefined ? data.nodesCounter : data.counter;
     this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
@@ -105,7 +111,7 @@ window.DiagramNodes = {
           'shape', 'text', 'subtext', 'x', 'y',
           'width', 'height', 'fillColor', 'fillOpacity',
           'strokeColor', 'strokeWidth', 'strokeStyle',
-          'textColor', 'fontSize', 'anim'
+          'textColor', 'fontSize', 'anim', 'animDur', 'animDelay', 'play'
         ];
         explicitProps.forEach((prop) => {
           if (initialProps[prop] !== undefined) {
@@ -149,6 +155,15 @@ window.DiagramNodes = {
       }
       if (patch.visible !== undefined) {
         node.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
+      }
+      if (patch.animDur !== undefined) {
+        node.animDur = (updated.animDur !== undefined) ? updated.animDur : patch.animDur;
+      }
+      if (patch.animDelay !== undefined) {
+        node.animDelay = (updated.animDelay !== undefined) ? updated.animDelay : patch.animDelay;
+      }
+      if (patch.play !== undefined) {
+        node.play = (updated.play !== undefined) ? updated.play : patch.play;
       }
     } else {
       Object.keys(patch).forEach((key) => {
@@ -248,6 +263,12 @@ window.DiagramNodes = {
     return null;
   },
 
+  getDefaultAnimDuration(anim) {
+    if (anim === 'pulse-border') return 2.6;
+    if (anim === 'float') return 3.2;
+    return 1.2;
+  },
+
   getNodeDefs() {
     return '<filter id="nodeDropShadow" x="-30%" y="-30%" width="160%" height="160%">' +
       '<feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.45" />' +
@@ -319,18 +340,36 @@ window.DiagramNodes = {
       }
     }
 
+    const animMode = n.anim || n.animation || 'none';
+    const defDur = this.getDefaultAnimDuration(animMode);
+    const rawDur = Number(n.animDur);
+    const animDurVal = (Number.isFinite(rawDur) && rawDur > 0) ? Math.max(0.1, Math.min(60, rawDur)) : defDur;
+    const rawDelay = Number(n.animDelay !== undefined ? n.animDelay : n.delay);
+    const animDelayVal = (Number.isFinite(rawDelay) && rawDelay > 0) ? Math.max(0, Math.min(60, rawDelay)) : 0;
+    const durStr = Number(animDurVal.toFixed(3)) + 's';
+    const beginAttr = animDelayVal > 0 ? (' begin="' + Number(animDelayVal.toFixed(3)) + 's"') : '';
+    const isEntrance = animMode === 'fade-in' || animMode === 'scale-in' || animMode === 'slide-up';
+    const isPlaying = n.play !== false;
+
     let animTags = '';
-    if (n.anim === 'pulse-border') {
-      animTags = '<animate attributeName="opacity" values="1; 0.65; 1" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
-    } else if (n.anim === 'float') {
-      animTags = '<animateTransform attributeName="transform" type="translate" additive="sum" values="0,0; 0,-6; 0,0" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
-    } else if (n.anim === 'fade-in') {
-      animTags = '<animate attributeName="opacity" from="0" to="1" dur="1.2s" fill="freeze" />';
+    if (animMode === 'pulse-border') {
+      animTags = '<animate attributeName="opacity" values="1; 0.65; 1" dur="' + durStr + '"' + beginAttr + ' repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
+    } else if (animMode === 'float') {
+      animTags = '<animateTransform attributeName="transform" type="translate" additive="sum" values="0,0; 0,-6; 0,0" dur="' + durStr + '"' + beginAttr + ' repeatCount="indefinite" calcMode="spline" keySplines="0.42 0 0.58 1; 0.42 0 0.58 1" />';
+    } else if (animMode === 'fade-in') {
+      animTags = '<animate attributeName="opacity" from="0" to="1" dur="' + durStr + '"' + beginAttr + ' fill="freeze" />';
+    } else if (animMode === 'scale-in') {
+      animTags = '<animate attributeName="opacity" from="0" to="1" dur="' + durStr + '"' + beginAttr + ' fill="freeze" />' +
+        '<animateTransform attributeName="transform" type="scale" additive="sum" values="0.65; 1" keyTimes="0; 1" calcMode="spline" keySplines="0.16 1 0.3 1" dur="' + durStr + '"' + beginAttr + ' fill="freeze" />';
+    } else if (animMode === 'slide-up') {
+      animTags = '<animate attributeName="opacity" from="0" to="1" dur="' + durStr + '"' + beginAttr + ' fill="freeze" />' +
+        '<animateTransform attributeName="transform" type="translate" additive="sum" values="0,22; 0,0" keyTimes="0; 1" calcMode="spline" keySplines="0.16 1 0.3 1" dur="' + durStr + '"' + beginAttr + ' fill="freeze" />';
     }
 
     const nodeNameAttr = n.name ? ' data-semantic-name="' + String(n.name).replace(/"/g, '&quot;') + '"' : '';
     const nodePlayAttr = n.play === false ? ' data-play-animation="false"' : '';
-    return '<g id="node-' + n.id + '" class="diagram-node-instance" data-node-id="' + n.id + '" data-semantic-target="node-' + n.id + '"' + nodeNameAttr + nodePlayAttr + ' transform="translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')" style="cursor: move;">' + animTags + shapeSVG + textSVG + '</g>';
+    const preEntranceOpacityAttr = (isEntrance && animDelayVal > 0 && isPlaying) ? ' opacity="0"' : '';
+    return '<g id="node-' + n.id + '" class="diagram-node-instance" data-node-id="' + n.id + '" data-semantic-target="node-' + n.id + '"' + nodeNameAttr + nodePlayAttr + preEntranceOpacityAttr + ' transform="translate(' + cx.toFixed(2) + ', ' + cy.toFixed(2) + ')" style="cursor: move;">' + animTags + shapeSVG + textSVG + '</g>';
   },
 
   injectIntoSVG(svgString, state) {
@@ -395,11 +434,56 @@ window.DiagramNodes = {
       if (el) {
         el.addEventListener('change', (e) => {
           this.updateActive(key, e.target.value);
+          if (key === 'anim') {
+            const activeNode = this.getNode(this.activeId);
+            if (activeNode) this.syncEditorUI(activeNode);
+          }
           if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
           else if (window.HistoryManager) window.HistoryManager.recordImmediate();
         });
       }
     });
+
+    const nodePlayChk = document.getElementById('nodePlayChk');
+    if (nodePlayChk) {
+      nodePlayChk.addEventListener('change', (e) => {
+        this.updateActive('play', !!e.target.checked);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+        else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      });
+    }
+
+    ['animDur', 'animDelay'].forEach((key) => {
+      const cap = key.charAt(0).toUpperCase() + key.slice(1);
+      const slider = document.getElementById('node' + cap + 'Slider');
+      const num = document.getElementById('node' + cap + 'Num');
+      if (slider && num) {
+        slider.addEventListener('input', (e) => {
+          num.value = e.target.value;
+          this.updateActive(key, parseFloat(e.target.value));
+          if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+          else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+        });
+        num.addEventListener('input', (e) => {
+          const val = parseFloat(e.target.value);
+          if (!isNaN(val)) {
+            slider.value = val;
+            this.updateActive(key, val);
+            if (window.AppCoordinator) window.AppCoordinator.recordHistoryDebounced();
+            else if (window.HistoryManager) window.HistoryManager.recordDebounced();
+          }
+        });
+      }
+    });
+
+    const btnDelayPlayhead = document.getElementById('btnNodeDelayFromPlayhead');
+    if (btnDelayPlayhead) {
+      btnDelayPlayhead.addEventListener('click', () => {
+        if (this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('node', this.activeId);
+        }
+      });
+    }
 
     ['fillColor', 'strokeColor', 'textColor'].forEach((key) => {
       const cap = key.charAt(0).toUpperCase() + key.slice(1);
@@ -517,6 +601,10 @@ window.DiagramNodes = {
         }
       });
     }
+
+    if (window.AppCoordinator && typeof window.AppCoordinator.bindMultiStaggerControls === 'function') {
+      window.AppCoordinator.bindMultiStaggerControls(document);
+    }
   },
 
   applyPresetToActive() {
@@ -611,7 +699,31 @@ window.DiagramNodes = {
     const stSel = document.getElementById('nodeStrokeStyleSelect');
     if (stSel) stSel.value = node.strokeStyle || 'solid';
     const anSel = document.getElementById('nodeAnimSelect');
-    if (anSel) anSel.value = node.anim || 'none';
+    const animVal = node.anim || 'none';
+    if (anSel) anSel.value = animVal;
+
+    const timingGrp = document.getElementById('nodeAnimTimingGroup');
+    if (timingGrp) {
+      timingGrp.style.display = animVal !== 'none' ? 'block' : 'none';
+    }
+    const playChk = document.getElementById('nodePlayChk');
+    if (playChk) playChk.checked = node.play !== false;
+
+    const effDur = (node.animDur !== undefined && node.animDur !== null && Number(node.animDur) > 0)
+      ? Number(node.animDur)
+      : this.getDefaultAnimDuration(animVal);
+    const durSl = document.getElementById('nodeAnimDurSlider');
+    const durNu = document.getElementById('nodeAnimDurNum');
+    if (durSl) durSl.value = effDur;
+    if (durNu) durNu.value = effDur;
+
+    const effDelay = (node.animDelay !== undefined && node.animDelay !== null && Number(node.animDelay) >= 0)
+      ? Number(node.animDelay)
+      : 0;
+    const dlySl = document.getElementById('nodeAnimDelaySlider');
+    const dlyNu = document.getElementById('nodeAnimDelayNum');
+    if (dlySl) dlySl.value = effDelay;
+    if (dlyNu) dlyNu.value = effDelay;
 
     ['width', 'height', 'fillOpacity', 'strokeWidth', 'fontSize'].forEach((key) => {
       const cap = key.charAt(0).toUpperCase() + key.slice(1);
@@ -1059,6 +1171,15 @@ window.DiagramNodes = {
         }
       }
     });
+
+    if (window.AppCoordinator) {
+      if (typeof window.AppCoordinator.bindMultiStaggerControls === 'function') {
+        window.AppCoordinator.bindMultiStaggerControls(document);
+      }
+      if (typeof window.AppCoordinator.syncMultiStaggerUI === 'function') {
+        window.AppCoordinator.syncMultiStaggerUI(document);
+      }
+    }
   },
 
   updateGroupOverlay(groupId) {

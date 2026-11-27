@@ -13953,6 +13953,235 @@ async function runHarness() {
   }
   console.log('[HARNESS] Scenario 102 PASS: Stage 17-M2 Animation Timeline Scrubbing, Frame Stepping & Backward Restoration verified.');
 
+  // ===========================================================================
+  // Scenario 103: Stage 17-M3 Creative Animation Sequencing, Timing & Multi-Object Stagger
+  // ===========================================================================
+  console.log('[HARNESS] Running Scenario 103: Stage 17-M3 Creative Animation Sequencing, Timing & Multi-Object Stagger...');
+  {
+    // 1. Node Entrances (E1 & E2): legacy 1.2s fade-in default, custom fade-in duration, scale-in, slide-up, Start Delay, pre-delay visibility
+    const legacyFadeNode = window.DiagramNodes.createNode({
+      shape: 'rounded',
+      text: 'Legacy Fade',
+      anim: 'fade-in'
+    });
+    assert.ok(legacyFadeNode && legacyFadeNode.id, 'S17M3-01a: Legacy fade-in node created');
+    const legacySvg = window.DiagramNodes.renderNodeElement(legacyFadeNode, 1280, 720);
+    assert.ok(legacySvg.includes('dur="1.2s"') && !legacySvg.includes('begin='), 'S17M3-01b: Legacy fade-in node preserves default dur="1.2s" and no begin attribute when delay is 0');
+
+    const scaleInNode = window.DiagramNodes.createNode({
+      shape: 'rounded',
+      text: 'Delayed Scale In',
+      anim: 'scale-in',
+      animDur: 1.8,
+      animDelay: 1.5
+    });
+    const scaleInSvg = window.DiagramNodes.renderNodeElement(scaleInNode, 1280, 720);
+    assert.ok(scaleInSvg.includes('opacity="0"'), 'S17M3-02a: Delayed entrance node (scale-in, animDelay=1.5s) has base opacity="0" during pre-delay window');
+    assert.ok(scaleInSvg.includes('type="scale"') && scaleInSvg.includes('values="0.65; 1"') && scaleInSvg.includes('dur="1.8s"') && scaleInSvg.includes('begin="1.5s"'), 'S17M3-02b: Scale-in node emits additive scale transform with dur="1.8s" and begin="1.5s"');
+
+    const slideUpNode = window.DiagramNodes.createNode({
+      shape: 'rect',
+      text: 'Delayed Slide Up',
+      anim: 'slide-up',
+      animDur: 2.0,
+      animDelay: 0.8
+    });
+    const slideUpSvg = window.DiagramNodes.renderNodeElement(slideUpNode, 1280, 720);
+    assert.ok(slideUpSvg.includes('opacity="0"'), 'S17M3-02c: Delayed entrance node (slide-up, animDelay=0.8s) has base opacity="0" during pre-delay window');
+    assert.ok(slideUpSvg.includes('type="translate"') && slideUpSvg.includes('values="0,22; 0,0"') && slideUpSvg.includes('dur="2s"') && slideUpSvg.includes('begin="0.8s"'), 'S17M3-02d: Slide-up node emits additive translate transform with dur="2s" and begin="0.8s"');
+
+    const pulseBorderDelayed = window.DiagramNodes.createNode({
+      shape: 'rounded',
+      text: 'Delayed Idle Border',
+      anim: 'pulse-border',
+      animDur: 3.0,
+      animDelay: 2.0
+    });
+    const pulseBorderSvg = window.DiagramNodes.renderNodeElement(pulseBorderDelayed, 1280, 720);
+    assert.ok(!pulseBorderSvg.includes('data-node-id="' + pulseBorderDelayed.id + '" opacity="0"'), 'S17M3-02e: Delayed idle animation (pulse-border) remains visible during pre-delay window (no group opacity="0")');
+    assert.ok(pulseBorderSvg.includes('dur="3s"') && pulseBorderSvg.includes('begin="2s"'), 'S17M3-02f: Delayed pulse-border emits dur="3s" and begin="2s"');
+
+    // 2. Data Flow Playback Mode (E2): loop vs once, travelling payload and marching track consistency
+    const flowOnce = window.DataFlows.createFlow({
+      type: 'packet',
+      lineStyle: 'marching',
+      speed: 2.4,
+      delay: 1.0,
+      playbackMode: 'once'
+    });
+    assert.strictEqual(flowOnce.playbackMode, 'once', 'S17M3-03a: DataFlow created with playbackMode="once"');
+    const flowOnceSvg = window.DataFlows.renderFlowElement(flowOnce, 1280, 720);
+    assert.ok(flowOnceSvg.includes('attributeName="stroke-dashoffset"') && flowOnceSvg.includes('begin="1s" repeatCount="1" fill="freeze"'), 'S17M3-03b: Play Once marching track line stops cleanly with repeatCount="1" fill="freeze" and honours start delay');
+    assert.ok(flowOnceSvg.includes('<animateMotion') && flowOnceSvg.includes('repeatCount="1" fill="freeze"'), 'S17M3-03c: Play Once travelling payload uses repeatCount="1" fill="freeze"');
+
+    const flowLoop = window.DataFlows.createFlow({
+      type: 'orb',
+      lineStyle: 'marching',
+      speed: 2.0,
+      delay: 0
+    });
+    assert.strictEqual(flowLoop.playbackMode, 'loop', 'S17M3-03d: DataFlow defaults to playbackMode="loop"');
+    const flowLoopSvg = window.DataFlows.renderFlowElement(flowLoop, 1280, 720);
+    assert.ok(flowLoopSvg.includes('repeatCount="indefinite"'), 'S17M3-03e: Loop DataFlow uses repeatCount="indefinite"');
+
+    // 3. Low-Load Effects Start Delay (E1): perimeter-tracer, pulse, flash, radar-lite, text-lite
+    const tracerDelayed = window.LiteEffects.createLiteEffect({
+      kind: 'perimeter-tracer',
+      delay: 1.25,
+      speed: 2.5
+    });
+    const pulseDelayed = window.LiteEffects.createLiteEffect({
+      kind: 'pulse',
+      delay: 0.75,
+      period: 1.6
+    });
+    const flashDelayed = window.LiteEffects.createLiteEffect({
+      kind: 'flash',
+      delay: 2.0,
+      repeat: true,
+      repeatInterval: 1.5
+    });
+    const radarDelayed = window.LiteEffects.createLiteEffect({
+      kind: 'radar-lite',
+      variant: 'multi',
+      rings: 3,
+      delay: 1.5,
+      period: 2.4
+    });
+    const textDelayed = window.LiteEffects.createLiteEffect({
+      kind: 'text-lite',
+      labelText: 'DELAYED',
+      textAnim: 'typewriter',
+      typeSpeed: 10,
+      delay: 1.0
+    });
+    const liteSvg = window.LiteEffects.injectIntoSVG('<!-- INJECT_CAMERA_RIG_ELEMENTS -->', 1280, 720);
+    assert.ok(liteSvg.includes(`data-lite-id="${tracerDelayed.id}"`) && liteSvg.includes('data-lite-delay="1.25"') && liteSvg.includes('animation-delay:1.2500s;') && liteSvg.includes('animation-fill-mode:both;'), 'S17M3-04a: Perimeter Tracer emits data-lite-delay and animation-delay:1.2500s');
+    assert.ok(liteSvg.includes(`data-lite-id="${pulseDelayed.id}"`) && liteSvg.includes('animation-delay:0.7500s;'), 'S17M3-04b: Pulse Lite emits animation-delay:0.7500s');
+    assert.ok(liteSvg.includes(`data-lite-id="${flashDelayed.id}"`) && liteSvg.includes('animation-delay:2.0000s;') && liteSvg.includes('data-flow-start-delay="2.000"'), 'S17M3-04c: Flash Lite emits animation-delay:2.0000s and data-flow-start-delay');
+    assert.ok(liteSvg.includes('animation-name:sva-lite-radar-delayed;animation-fill-mode:both;') && liteSvg.includes('@keyframes sva-lite-radar-delayed'), 'S17M3-04d: Delayed Radar Ping Lite uses sva-lite-radar-delayed keyframe holding ring opacity at 0 before delay');
+    assert.ok(liteSvg.includes(`data-lite-id="${textDelayed.id}"`) && liteSvg.includes('data-lite-delay="1"'), 'S17M3-04e: Delayed Text Lite emits data-lite-delay="1"');
+
+    // Verify deterministic typewriter evaluation before, at, and after Start Delay (1000ms)
+    const mockDelayedTw = {
+      getAttribute(attr) {
+        const map = {
+          'data-text-anim': 'typewriter',
+          'data-text-content': 'DELAYED',
+          'data-text-type-speed': '10',
+          'data-text-hold-delay': '0.5',
+          'data-text-type-mode': 'hold',
+          'data-text-type-repeat': 'false',
+          'data-text-playback-mode': 'once',
+          'data-text-delay': '1.0'
+        };
+        return map[attr] !== undefined ? map[attr] : null;
+      },
+      targetNode: { textContent: 'DELAYED' },
+      querySelector(sel) {
+        if (sel === '.lite-text-element' || sel === '.lite-text-path') return this.targetNode;
+        return null;
+      }
+    };
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockDelayedTw, 500);
+    assert.strictEqual(mockDelayedTw.targetNode.textContent, '', 'S17M3-04f: Delayed typewriter is empty at t=500ms (< 1000ms Start Delay)');
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockDelayedTw, 1350); // 350ms past 1000ms delay -> 3 chars ("DEL")
+    assert.strictEqual(mockDelayedTw.targetNode.textContent, 'DEL', 'S17M3-04g: Delayed typewriter at t=1350ms shows 3 typed characters ("DEL")');
+    window.TimelinePlayer._evaluateTextLiteAtTime(mockDelayedTw, 600); // Scrub backwards before Start Delay -> empty again
+    assert.strictEqual(mockDelayedTw.targetNode.textContent, '', 'S17M3-04h: Scrubbing backwards before Start Delay clears delayed typewriter text');
+
+    // 4. Set Start Delay from Playhead (E3) + Undo/Redo
+    window.TimelinePlayer.seek(2.35); // 2.35s
+    assert.strictEqual(window.AppCoordinator.getCurrentPlayheadSeconds(), 2.35, 'S17M3-05a: getCurrentPlayheadSeconds reads 2.35s from TimelinePlayer');
+    window.AppCoordinator.selectObject('node', scaleInNode.id);
+    const playheadRes = window.AppCoordinator.setStartDelayFromPlayhead('node', scaleInNode.id);
+    assert.ok(playheadRes && playheadRes.success && playheadRes.delaySec === 2.35, 'S17M3-05b: setStartDelayFromPlayhead assigns 2.35s');
+    assert.strictEqual(window.DiagramNodes.getNode(scaleInNode.id).animDelay, 2.35, 'S17M3-05c: Node animDelay updated to 2.35s in DiagramNodes');
+    const goScaleNode = window.EngineBridge.dispatch('Node.Get', { id: String(scaleInNode.id) });
+    assert.strictEqual(goScaleNode.animDelay, 2.35, 'S17M3-05d: Authoritative Go engine Node.animDelay is 2.35s');
+
+    // Test at 0.0s playhead
+    window.TimelinePlayer.seek(0);
+    const playheadZeroRes = window.AppCoordinator.setStartDelayFromPlayhead('lite', tracerDelayed.id);
+    assert.ok(playheadZeroRes && playheadZeroRes.success && playheadZeroRes.delaySec === 0, 'S17M3-05e: setStartDelayFromPlayhead works at 0.0s');
+    assert.strictEqual(window.LiteEffects.getLiteEffect(tracerDelayed.id).delay, 0, 'S17M3-05f: Tracer delay updated to 0s');
+
+    // 5. Multi-Object Stagger (E4) with mixed eligible + ineligible static objects & deterministic selection order
+    const staticNode = window.DiagramNodes.createNode({
+      shape: 'rect',
+      text: 'Static Box',
+      anim: 'none',
+      animDelay: 0
+    });
+    const staticGauge = window.LiteEffects.createLiteEffect({
+      kind: 'gauge-lite',
+      value: 50
+    });
+
+    // Deterministic selection order:
+    // 1. scaleInNode (eligible #0 -> 0.5s)
+    // 2. staticNode (ineligible static -> skipped, remains 0)
+    // 3. flowOnce (eligible #1 -> 1.25s)
+    // 4. staticGauge (ineligible gauge-lite -> skipped)
+    // 5. pulseDelayed (eligible #2 -> 2.0s)
+    // 6. radarDelayed (eligible #3 -> 2.75s)
+    const mixedSelection = [
+      { type: 'node', id: scaleInNode.id },
+      { type: 'node', id: staticNode.id },
+      { type: 'flow', id: flowOnce.id },
+      { type: 'lite', id: staticGauge.id },
+      { type: 'lite', id: pulseDelayed.id },
+      { type: 'lite', id: radarDelayed.id }
+    ];
+    window.AppCoordinator.setMultiSelection(mixedSelection, scaleInNode.id);
+
+    const eligReport = window.AppCoordinator.getEligibleAnimatedSelection();
+    assert.strictEqual(eligReport.total, 6, 'S17M3-06a: Total selected objects is 6');
+    assert.strictEqual(eligReport.eligible.length, 4, 'S17M3-06b: 4 objects are eligible animated objects');
+    assert.strictEqual(eligReport.skipped.length, 2, 'S17M3-06c: 2 static objects are identified as skipped');
+
+    window.HistoryManager.recordImmediate();
+    const staggerRes = window.AppCoordinator.staggerSelectedObjects({ baseDelay: 0.5, stepDelay: 0.75 });
+    assert.ok(staggerRes && staggerRes.success, 'S17M3-06d: staggerSelectedObjects succeeded');
+    assert.strictEqual(staggerRes.appliedCount, 4, 'S17M3-06e: Applied stagger to 4 eligible objects');
+    assert.strictEqual(staggerRes.skippedCount, 2, 'S17M3-06f: Skipped 2 ineligible static objects');
+
+    assert.strictEqual(window.DiagramNodes.getNode(scaleInNode.id).animDelay, 0.5, 'S17M3-06g: Eligible #1 (scaleInNode) received 0.5s');
+    assert.strictEqual(window.DataFlows.getFlow(flowOnce.id).delay, 1.25, 'S17M3-06h: Eligible #2 (flowOnce) received 1.25s');
+    assert.strictEqual(window.LiteEffects.getLiteEffect(pulseDelayed.id).delay, 2.0, 'S17M3-06i: Eligible #3 (pulseDelayed) received 2.0s');
+    assert.strictEqual(window.LiteEffects.getLiteEffect(radarDelayed.id).delay, 2.75, 'S17M3-06j: Eligible #4 (radarDelayed) received 2.75s');
+    assert.strictEqual(window.DiagramNodes.getNode(staticNode.id).animDelay, 0, 'S17M3-06k: Ineligible staticNode remained untouched at 0s');
+    assert.strictEqual(window.LiteEffects.getLiteEffect(staticGauge.id).delay, 0, 'S17M3-06l: Ineligible staticGauge remained untouched at 0s');
+
+    // Undo / Redo of single-step Stagger operation
+    window.HistoryManager.undo();
+    assert.strictEqual(window.DiagramNodes.getNode(scaleInNode.id).animDelay, 2.35, 'S17M3-07a: Single Undo restores scaleInNode animDelay to pre-stagger 2.35s');
+    assert.strictEqual(window.DataFlows.getFlow(flowOnce.id).delay, 1.0, 'S17M3-07b: Single Undo restores flowOnce delay to pre-stagger 1.0s');
+    assert.strictEqual(window.LiteEffects.getLiteEffect(pulseDelayed.id).delay, 0.75, 'S17M3-07c: Single Undo restores pulseDelayed delay to pre-stagger 0.75s');
+
+    window.HistoryManager.redo();
+    assert.strictEqual(window.DiagramNodes.getNode(scaleInNode.id).animDelay, 0.5, 'S17M3-07d: Single Redo re-applies staggered 0.5s to scaleInNode');
+    assert.strictEqual(window.DataFlows.getFlow(flowOnce.id).delay, 1.25, 'S17M3-07e: Single Redo re-applies staggered 1.25s to flowOnce');
+    assert.strictEqual(window.LiteEffects.getLiteEffect(radarDelayed.id).delay, 2.75, 'S17M3-07f: Single Redo re-applies staggered 2.75s to radarDelayed');
+
+    // Clean up test objects
+    window.DiagramNodes.deleteNode(legacyFadeNode.id);
+    window.DiagramNodes.deleteNode(scaleInNode.id);
+    window.DiagramNodes.deleteNode(slideUpNode.id);
+    window.DiagramNodes.deleteNode(pulseBorderDelayed.id);
+    window.DiagramNodes.deleteNode(staticNode.id);
+    window.DataFlows.deleteFlow(flowOnce.id);
+    window.DataFlows.deleteFlow(flowLoop.id);
+    window.LiteEffects.deleteLiteEffect(tracerDelayed.id);
+    window.LiteEffects.deleteLiteEffect(pulseDelayed.id);
+    window.LiteEffects.deleteLiteEffect(flashDelayed.id);
+    window.LiteEffects.deleteLiteEffect(radarDelayed.id);
+    window.LiteEffects.deleteLiteEffect(textDelayed.id);
+    window.LiteEffects.deleteLiteEffect(staticGauge.id);
+    window.TimelinePlayer.stop();
+  }
+  console.log('[HARNESS] Scenario 103 PASS: Stage 17-M3 Creative Animation Sequencing, Timing & Multi-Object Stagger verified.');
+
   console.log('[HARNESS] REG-03 PASS: Stage 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16 & 17-M1 non-destructive cropping, background extraction, image baking, dedicated crop clip & snip workspace, object-local clipping, unified layer management, independent image objects, persistent groups, duplication, copy/paste with flow remapping, multi-selection, alignment, distribution, colour tools, selection retention, notifications, naming sync, history(50), schema 1.2.0, .sva packaging, background photo restoration, SVG compilation, export payload builders, collision-free widgets, external runtime parameters, deterministic animation export scrubbing, and Go WASM engines verified.');
 }
 

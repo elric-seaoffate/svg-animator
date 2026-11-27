@@ -166,10 +166,20 @@ type Node struct {
 	TextColor   string   `json:"textColor,omitempty"`
 	FontSize    float64  `json:"fontSize,omitempty"`
 	Opacity     float64  `json:"opacity"`
-	Animation   string   `json:"animation,omitempty"` // "none", "pulse", "float", "fade"
+	Animation   string   `json:"animation,omitempty"` // "none", "pulse-border", "float", "fade-in", "scale-in", "slide-up"
 	Anim        string   `json:"anim,omitempty"`      // Legacy JS alias
+	AnimDur     float64  `json:"animDur,omitempty"`   // Duration in seconds for node animation (0 = family default)
+	AnimDelay   float64  `json:"animDelay,omitempty"` // Start delay in seconds for node animation (0..60)
+	Play        *bool    `json:"play,omitempty"`      // Start or stop animation playback (default true)
 	Visible     *bool    `json:"visible,omitempty"`
 	Locked      bool     `json:"locked"`
+}
+
+func (n Node) IsPlaying() bool {
+	if n.Play == nil {
+		return true
+	}
+	return *n.Play
 }
 
 func (n Node) IsVisible() bool {
@@ -199,21 +209,30 @@ type Flow struct {
 	Arrow       string           `json:"arrow,omitempty"`
 	Color       string           `json:"color"`
 	Opacity     float64          `json:"opacity"`
-	Speed       float64          `json:"speed"`       // duration in seconds for one transit
-	Delay       float64          `json:"delay"`       // start delay in seconds
-	EndDelay    float64          `json:"endDelay"`    // pause at end in seconds
-	HideOnDelay bool             `json:"hideOnDelay"` // hide packet during delay
-	Scale       float64          `json:"scale"`
-	Type        string           `json:"type"` // "packet", "orb", "envelope", etc.
-	ShowLine    bool             `json:"showLine"`
-	Glow        float64          `json:"glow,omitempty"`
-	Label       string           `json:"label,omitempty"`
-	CustomB64   string           `json:"customB64,omitempty"`
-	CustomMime  string           `json:"customMime,omitempty"`
-	CustomW     float64          `json:"customW,omitempty"`
-	CustomH     float64          `json:"customH,omitempty"`
-	Visible     *bool            `json:"visible,omitempty"`
-	Locked      bool             `json:"locked"`
+	Speed        float64          `json:"speed"`                  // duration in seconds for one transit
+	Delay        float64          `json:"delay"`                  // start delay in seconds
+	EndDelay     float64          `json:"endDelay"`               // pause at end in seconds
+	HideOnDelay  bool             `json:"hideOnDelay"`            // hide packet during delay
+	PlaybackMode string           `json:"playbackMode,omitempty"` // "loop" (default) or "once"
+	Play         *bool            `json:"play,omitempty"`         // start or stop animation playback (default true)
+	Scale        float64          `json:"scale"`
+	Type         string           `json:"type"` // "packet", "orb", "envelope", etc.
+	ShowLine     bool             `json:"showLine"`
+	Glow         float64          `json:"glow,omitempty"`
+	Label        string           `json:"label,omitempty"`
+	CustomB64    string           `json:"customB64,omitempty"`
+	CustomMime   string           `json:"customMime,omitempty"`
+	CustomW      float64          `json:"customW,omitempty"`
+	CustomH      float64          `json:"customH,omitempty"`
+	Visible      *bool            `json:"visible,omitempty"`
+	Locked       bool             `json:"locked"`
+}
+
+func (f Flow) IsPlaying() bool {
+	if f.Play == nil {
+		return true
+	}
+	return *f.Play
 }
 
 func (f Flow) IsVisible() bool {
@@ -255,8 +274,16 @@ type Glow struct {
 	CustomMime   string   `json:"customMime,omitempty"`
 	CustomW      float64  `json:"customW,omitempty"`
 	CustomH      float64  `json:"customH,omitempty"`
+	Play         *bool    `json:"play,omitempty"`
 	Visible      *bool    `json:"visible,omitempty"`
 	Locked       bool     `json:"locked"`
+}
+
+func (g Glow) IsPlaying() bool {
+	if g.Play == nil {
+		return true
+	}
+	return *g.Play
 }
 
 func (g Glow) IsVisible() bool {
@@ -288,8 +315,16 @@ type Ripple struct {
 	Rings      int      `json:"rings,omitempty"` // Legacy JS alias
 	Thick      float64  `json:"thick,omitempty"`
 	Refraction float64  `json:"refraction,omitempty"`
+	Play       *bool    `json:"play,omitempty"`
 	Visible    *bool    `json:"visible,omitempty"`
 	Locked     bool     `json:"locked"`
+}
+
+func (r Ripple) IsPlaying() bool {
+	if r.Play == nil {
+		return true
+	}
+	return *r.Play
 }
 
 func (r Ripple) IsVisible() bool {

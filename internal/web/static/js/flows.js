@@ -83,7 +83,13 @@ window.DataFlows = {
   setState(data) {
     if (!data || typeof data !== 'object') return this.getState();
     const rawList = Array.isArray(data.flows) ? data.flows : (Array.isArray(data.list) ? data.list : []);
-    this.list = JSON.parse(JSON.stringify(rawList));
+    this.list = JSON.parse(JSON.stringify(rawList)).map((f) => {
+      if (f.delay === undefined) f.delay = 0;
+      if (f.endDelay === undefined) f.endDelay = 0;
+      if (f.playbackMode === undefined) f.playbackMode = 'loop';
+      if (f.play === undefined) f.play = true;
+      return f;
+    });
     const maxId = this.list.reduce((m, f) => Math.max(m, f.id || 0), 0);
     const savedCounter = data.flowsCounter !== undefined ? data.flowsCounter : data.counter;
     this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
@@ -102,7 +108,9 @@ window.DataFlows = {
           id: idNum,
           fromNodeId: wasmFlow.fromNodeId !== undefined ? wasmFlow.fromNodeId : (initialProps.fromNodeId !== undefined ? initialProps.fromNodeId : undefined),
           toNodeId: wasmFlow.toNodeId !== undefined ? wasmFlow.toNodeId : (initialProps.toNodeId !== undefined ? initialProps.toNodeId : undefined),
-          route: wasmFlow.routeMode || wasmFlow.route || initialProps.route || 'curve'
+          route: wasmFlow.routeMode || wasmFlow.route || initialProps.route || 'curve',
+          playbackMode: wasmFlow.playbackMode || initialProps.playbackMode || 'loop',
+          play: wasmFlow.play !== undefined ? wasmFlow.play : (initialProps.play !== undefined ? initialProps.play : true)
         });
         if (typeof idNum === 'number' && idNum > this.counter) {
           this.counter = idNum;
@@ -154,6 +162,18 @@ window.DataFlows = {
       }
       if (updated.color) f.color = updated.color;
       if (updated.route) f.route = updated.route;
+      if (patch.delay !== undefined) {
+        f.delay = updated.delay !== undefined ? updated.delay : patch.delay;
+      }
+      if (patch.endDelay !== undefined) {
+        f.endDelay = updated.endDelay !== undefined ? updated.endDelay : patch.endDelay;
+      }
+      if (patch.playbackMode !== undefined) {
+        f.playbackMode = updated.playbackMode !== undefined ? updated.playbackMode : patch.playbackMode;
+      }
+      if (patch.play !== undefined) {
+        f.play = updated.play !== undefined ? updated.play : patch.play;
+      }
       return f;
     }
 
@@ -413,9 +433,12 @@ window.DataFlows = {
     if (!pathD) return '';
 
     const pathId = 'flowPath-' + f.id;
-    const totalDur = f.speed + (f.endDelay || 0);
-    const ratio = f.endDelay > 0 ? (f.speed / totalDur).toFixed(4) : '1';
+    const isOnce = f.playbackMode === 'once';
+    const effEndDelay = isOnce ? 0 : (f.endDelay || 0);
+    const totalDur = f.speed + effEndDelay;
+    const ratio = effEndDelay > 0 ? (f.speed / totalDur).toFixed(4) : '1';
     const lw = f.lineWidth !== undefined ? f.lineWidth : Math.max(1.5, 3 * f.scale);
+    const flowDelay = Number(f.delay) > 0 ? Number(f.delay) : 0;
 
     const arrowMode = f.arrow || 'none';
     let markerAttrs = '';
@@ -433,7 +456,16 @@ window.DataFlows = {
       } else if (lStyle === 'dotted') {
         elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="' + lw + ',' + (lw * 2.2) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + ' />';
       } else if (lStyle === 'marching') {
-        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '><animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s" repeatCount="indefinite" /></path>';
+        const marchBegin = flowDelay > 0 ? (' begin="' + Number(flowDelay.toFixed(3)) + 's"') : '';
+        let marchAnim = '';
+        if (isOnce) {
+          const marchDist = Math.max(16, Math.round(16 * Math.max(1, Math.round((f.speed || 2) * 2))));
+          marchAnim = '<animate attributeName="stroke-dashoffset" from="' + marchDist + '" to="0" dur="' + f.speed + 's"' + marchBegin + ' repeatCount="1" fill="freeze" />';
+        } else {
+          const marchDur = (f.speed && f.speed !== 2) ? (Number((f.speed / 2).toFixed(3)) + 's') : '1s';
+          marchAnim = '<animate attributeName="stroke-dashoffset" from="32" to="0" dur="' + marchDur + '"' + marchBegin + ' repeatCount="indefinite" />';
+        }
+        elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + lw + '" stroke-dasharray="10,6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"' + markerAttrs + '>' + marchAnim + '</path>';
       } else if (lStyle === 'double') {
         elements += '<path class="flow-track-path" data-flow-id="' + f.id + '" d="' + pathD + '" fill="none" stroke="' + f.color + '" stroke-width="' + (lw * 2.6) + '" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"' + markerAttrs + ' />';
         elements += '<path id="' + pathId + '" data-flow-id="' + f.id + '" class="flow-track-path" d="' + pathD + '" fill="none" stroke="#0d1117" stroke-width="' + (lw * 0.9) + '" stroke-linecap="round" stroke-linejoin="round" />';
@@ -492,15 +524,16 @@ window.DataFlows = {
       let motionAnim = '';
       let opAnim = '';
       const holdVal = f.hideOnDelay !== false ? '0' : f.opacity;
+      const repAttr = isOnce ? 'repeatCount="1" fill="freeze"' : 'repeatCount="indefinite"';
 
-      if (f.endDelay > 0) {
+      if (effEndDelay > 0) {
         const fadeInEnd = (parseFloat(ratio) * 0.08).toFixed(4);
         const fadeOutStart = (parseFloat(ratio) * 0.92).toFixed(4);
-        motionAnim = '<animateMotion calcMode="linear" keyPoints="0; 1; 1" keyTimes="0; ' + ratio + '; 1" dur="' + totalDur + 's" begin="' + f.delay + 's" repeatCount="indefinite" rotate="auto"><mpath href="#' + pathId + '" xlink:href="#' + pathId + '"/></animateMotion>';
-        opAnim = '<animate attributeName="opacity" values="0; ' + f.opacity + '; ' + f.opacity + '; ' + holdVal + '; ' + holdVal + '" keyTimes="0; ' + fadeInEnd + '; ' + fadeOutStart + '; ' + ratio + '; 1" dur="' + totalDur + 's" begin="' + f.delay + 's" repeatCount="indefinite" />';
+        motionAnim = '<animateMotion calcMode="linear" keyPoints="0; 1; 1" keyTimes="0; ' + ratio + '; 1" dur="' + totalDur + 's" begin="' + f.delay + 's" ' + repAttr + ' rotate="auto"><mpath href="#' + pathId + '" xlink:href="#' + pathId + '"/></animateMotion>';
+        opAnim = '<animate attributeName="opacity" values="0; ' + f.opacity + '; ' + f.opacity + '; ' + holdVal + '; ' + holdVal + '" keyTimes="0; ' + fadeInEnd + '; ' + fadeOutStart + '; ' + ratio + '; 1" dur="' + totalDur + 's" begin="' + f.delay + 's" ' + repAttr + ' />';
       } else {
-        motionAnim = '<animateMotion calcMode="linear" keyPoints="0; 1" keyTimes="0; 1" dur="' + f.speed + 's" begin="' + f.delay + 's" repeatCount="indefinite" rotate="auto"><mpath href="#' + pathId + '" xlink:href="#' + pathId + '"/></animateMotion>';
-        opAnim = '<animate attributeName="opacity" values="0; ' + f.opacity + '; ' + f.opacity + '; 0" keyTimes="0; 0.08; 0.92; 1" dur="' + f.speed + 's" begin="' + f.delay + 's" repeatCount="indefinite" />';
+        motionAnim = '<animateMotion calcMode="linear" keyPoints="0; 1" keyTimes="0; 1" dur="' + f.speed + 's" begin="' + f.delay + 's" ' + repAttr + ' rotate="auto"><mpath href="#' + pathId + '" xlink:href="#' + pathId + '"/></animateMotion>';
+        opAnim = '<animate attributeName="opacity" values="0; ' + f.opacity + '; ' + f.opacity + '; ' + (isOnce ? holdVal : '0') + '" keyTimes="0; 0.08; 0.92; 1" dur="' + f.speed + 's" begin="' + f.delay + 's" ' + repAttr + ' />';
       }
 
       elements += '<g class="flow-payload-wrapper" ' + visibilityControl + ' pointer-events="none">' + setAnim + '<g opacity="0" class="flow-payload-group" data-flow-id="' + f.id + '">' + opAnim + motionAnim + payloadSVG + '</g></g>';
@@ -634,10 +667,10 @@ window.DataFlows = {
       }
     });
 
-    ['type', 'color', 'showLine', 'hideOnDelay', 'route', 'lineStyle', 'arrow'].forEach((key) => {
+    ['type', 'color', 'showLine', 'hideOnDelay', 'route', 'lineStyle', 'arrow', 'playbackMode'].forEach((key) => {
       let elId = 'flow' + key.charAt(0).toUpperCase() + key.slice(1);
       if (key === 'color') elId += 'Picker';
-      else if (['type', 'route', 'lineStyle', 'arrow'].includes(key)) elId += 'Select';
+      else if (['type', 'route', 'lineStyle', 'arrow', 'playbackMode'].includes(key)) elId += 'Select';
 
       const el = document.getElementById(elId);
       if (el) {
@@ -655,6 +688,24 @@ window.DataFlows = {
         });
       }
     });
+
+    const flowPlayChk = document.getElementById('flowPlayChk');
+    if (flowPlayChk) {
+      flowPlayChk.addEventListener('change', (e) => {
+        this.updateActive('play', !!e.target.checked);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+        else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      });
+    }
+
+    const btnFlowDelayPlayhead = document.getElementById('btnFlowDelayFromPlayhead');
+    if (btnFlowDelayPlayhead) {
+      btnFlowDelayPlayhead.addEventListener('click', () => {
+        if (this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('flow', this.activeId);
+        }
+      });
+    }
 
     ['name', 'label'].forEach((key) => {
       const cap = key.charAt(0).toUpperCase() + key.slice(1);
@@ -777,6 +828,10 @@ window.DataFlows = {
     if (lsSel) lsSel.value = f.lineStyle || 'dashed';
     const arSel = document.getElementById('flowArrowSelect');
     if (arSel) arSel.value = f.arrow || 'none';
+    const pbSel = document.getElementById('flowPlaybackModeSelect');
+    if (pbSel) pbSel.value = f.playbackMode === 'once' ? 'once' : 'loop';
+    const playChk = document.getElementById('flowPlayChk');
+    if (playChk) playChk.checked = f.play !== false;
     const lIn = document.getElementById('flowLabelInput');
     if (lIn) lIn.value = f.label || '';
     const cPick = document.getElementById('flowColorPicker');

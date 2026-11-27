@@ -284,6 +284,17 @@
                   <button type="button" class="tool-btn-compact" id="btnGroupSelection" title="Group selected shapes into a persistent group (Ctrl+G)">👥 Group</button>
                   <button type="button" class="tool-btn-compact" id="btnDuplicateSelection" title="Duplicate selected shapes (Ctrl+D)">📋 Duplicate</button>
                 </div>
+                <div class="multi-stagger-section">
+                  <div class="multi-stagger-header">
+                    <span class="multi-stagger-title">Sequence / Stagger Timing</span>
+                    <span class="multi-stagger-summary">0 eligible</span>
+                  </div>
+                  <div class="multi-stagger-controls">
+                    <label class="multi-stagger-field" title="Starting delay (s) for the first eligible object in selection order">Base <input type="number" class="num-input multi-stagger-base" min="0" max="60" step="0.1" value="0.0"><button type="button" class="btn-playhead-delay btn-stagger-base-playhead" title="Set base delay from current timeline playhead position">⏱</button></label>
+                    <label class="multi-stagger-field" title="Delay increment (+Δt seconds) added per object in selection order">+Δt <input type="number" class="num-input multi-stagger-step" min="0" max="30" step="0.1" value="0.5"></label>
+                    <button type="button" class="tool-btn-compact btn-apply-stagger" style="flex: 1;" title="Assign sequential Start Delay values in selection order">⏱ Stagger</button>
+                  </div>
+                </div>
                 <div class="inspector-layer-section group-layer-section" id="groupLayerSection" style="margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px dashed rgba(88,166,255,0.3);">
                   <div class="inspector-section-divider">
                     <span>GROUP LAYER</span>
@@ -421,7 +432,31 @@
                     <option value="pulse-border">Pulse Border</option>
                     <option value="float">Gentle Float</option>
                     <option value="fade-in">Fade In</option>
+                    <option value="scale-in">Scale In</option>
+                    <option value="slide-up">Slide Up</option>
                   </select>
+                </div>
+
+                <div id="nodeAnimTimingGroup" style="display: none;">
+                  <div class="inspector-prop-row">
+                    <label for="nodePlayChk" title="Start or stop this shape's animation">Play Animation</label>
+                    <input type="checkbox" id="nodePlayChk" checked>
+                  </div>
+                  <div class="inspector-prop-row">
+                    <label for="nodeAnimDurSlider" title="Animation duration in seconds">Duration (s)</label>
+                    <div class="slider-row">
+                      <input type="range" id="nodeAnimDurSlider" min="0.1" max="30" step="0.1" value="1.2">
+                      <input type="number" class="num-input" id="nodeAnimDurNum" min="0.1" max="60" step="0.1" value="1.2">
+                    </div>
+                  </div>
+                  <div class="inspector-prop-row">
+                    <label for="nodeAnimDelaySlider" title="Delay in seconds before animation begins">Start Delay (s)</label>
+                    <div class="slider-row">
+                      <input type="range" id="nodeAnimDelaySlider" min="0" max="15" step="0.1" value="0">
+                      <input type="number" class="num-input" id="nodeAnimDelayNum" min="0" max="60" step="0.1" value="0">
+                      <button type="button" class="btn-playhead-delay" id="btnNodeDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="inspector-layer-section" id="nodeLayerSection">
@@ -619,6 +654,8 @@
                 <option value="pulse-border">Breathing Border Glow</option>
                 <option value="float">Gentle Vertical Float</option>
                 <option value="fade-in">Smooth Entrance Fade-In</option>
+                <option value="scale-in">Entrance Scale-In</option>
+                <option value="slide-up">Entrance Slide-Up</option>
               </select>
             </div>
           </div>
@@ -654,6 +691,17 @@
                 <div class="group-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
                   <button type="button" class="tool-btn-compact" id="btnGroupFlowSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
                   <button type="button" class="tool-btn-compact" id="btnDuplicateFlowSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+                </div>
+                <div class="multi-stagger-section">
+                  <div class="multi-stagger-header">
+                    <span class="multi-stagger-title">Sequence / Stagger Timing</span>
+                    <span class="multi-stagger-summary">0 eligible</span>
+                  </div>
+                  <div class="multi-stagger-controls">
+                    <label class="multi-stagger-field" title="Starting delay (s) for the first eligible object in selection order">Base <input type="number" class="num-input multi-stagger-base" min="0" max="60" step="0.1" value="0.0"><button type="button" class="btn-playhead-delay btn-stagger-base-playhead" title="Set base delay from current timeline playhead position">⏱</button></label>
+                    <label class="multi-stagger-field" title="Delay increment (+Δt seconds) added per object in selection order">+Δt <input type="number" class="num-input multi-stagger-step" min="0" max="30" step="0.1" value="0.5"></label>
+                    <button type="button" class="tool-btn-compact btn-apply-stagger" style="flex: 1;" title="Assign sequential Start Delay values in selection order">⏱ Stagger</button>
+                  </div>
                 </div>
               </div>
               <div id="emptyFlowSelection" class="inspector-empty-state">
@@ -780,19 +828,32 @@
                   <div class="slider-row"><input type="range" id="flowScaleSlider" min="0.02" max="5.0" step="0.02" value="1.0"><input type="number" class="num-input" id="flowScaleNum"></div>
                 </div>
 
+                <div class="inspector-prop-row" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                  <label for="flowPlayChk" title="Start or stop this data flow's animation">Play Animation</label>
+                  <input type="checkbox" id="flowPlayChk" checked>
+                </div>
+
                 <div class="inspector-prop-row">
-                  <label>Speed (s)</label>
+                  <label for="flowPlaybackModeSelect">Playback Mode</label>
+                  <select id="flowPlaybackModeSelect">
+                    <option value="loop" selected>Loop (Continuous)</option>
+                    <option value="once">Play Once</option>
+                  </select>
+                </div>
+
+                <div class="inspector-prop-row">
+                  <label for="flowSpeedSlider">Duration (s)</label>
                   <div class="slider-row"><input type="range" id="flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="flowSpeedNum"></div>
                 </div>
 
                 <div class="inspector-prop-row">
-                  <label>Start Delay</label>
-                  <div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowDelayNum"></div>
+                  <label for="flowDelaySlider">Start Delay (s)</label>
+                  <div class="slider-row"><input type="range" id="flowDelaySlider" min="0" max="60" step="0.1" value="0.0"><input type="number" class="num-input" id="flowDelayNum" step="0.1"><button type="button" class="btn-playhead-delay" id="btnFlowDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button></div>
                 </div>
 
-                <div class="inspector-prop-row" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
-                  <label>End Delay</label>
-                  <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum"></div>
+                <div class="inspector-prop-row">
+                  <label for="flowEndDelaySlider">End Delay (s)</label>
+                  <div class="slider-row"><input type="range" id="flowEndDelaySlider" min="0" max="60" step="0.1" value="0.0"><input type="number" class="num-input" id="flowEndDelayNum" step="0.1"></div>
                 </div>
 
                 <div class="inspector-prop-row">
@@ -862,6 +923,17 @@
                   <button type="button" class="tool-btn-compact" id="btnGroupGlowSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
                   <button type="button" class="tool-btn-compact" id="btnDuplicateGlowSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
                 </div>
+                <div class="multi-stagger-section">
+                  <div class="multi-stagger-header">
+                    <span class="multi-stagger-title">Sequence / Stagger Timing</span>
+                    <span class="multi-stagger-summary">0 eligible</span>
+                  </div>
+                  <div class="multi-stagger-controls">
+                    <label class="multi-stagger-field" title="Starting delay (s) for the first eligible object in selection order">Base <input type="number" class="num-input multi-stagger-base" min="0" max="60" step="0.1" value="0.0"><button type="button" class="btn-playhead-delay btn-stagger-base-playhead" title="Set base delay from current timeline playhead position">⏱</button></label>
+                    <label class="multi-stagger-field" title="Delay increment (+Δt seconds) added per object in selection order">+Δt <input type="number" class="num-input multi-stagger-step" min="0" max="30" step="0.1" value="0.5"></label>
+                    <button type="button" class="tool-btn-compact btn-apply-stagger" style="flex: 1;" title="Assign sequential Start Delay values in selection order">⏱ Stagger</button>
+                  </div>
+                </div>
               </div>
               <div id="emptyGlowSelection" class="inspector-empty-state">
                 Select a hotspot glow to edit pulse, color and radar attributes, or click <strong>+ Add</strong> above.
@@ -890,7 +962,12 @@
                 </div>
 
                 <div class="inspector-prop-row">
-                  <label>Playback</label>
+                  <label for="glowPlayChk" title="Start or stop this glow's animation">Play Animation</label>
+                  <input type="checkbox" id="glowPlayChk" checked>
+                </div>
+
+                <div class="inspector-prop-row">
+                  <label>Playback Mode</label>
                   <select id="glowPlaybackSelect">
                     <option value="pingpong" selected>Pulse (In &amp; Out)</option>
                     <option value="linear">Linear (Fade In)</option>
@@ -951,18 +1028,18 @@
                 </div>
 
                 <div class="inspector-prop-row">
-                  <label>Duration</label>
+                  <label>Duration (s)</label>
                   <div class="slider-row"><input type="range" id="glowDurSlider" min="0.1" max="60" step="0.1" value="2.0"><input type="number" class="num-input" id="glowDurNum"></div>
                 </div>
 
                 <div class="inspector-prop-row">
-                  <label>Start Delay</label>
-                  <div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowDelayNum"></div>
+                  <label>Start Delay (s)</label>
+                  <div class="slider-row"><input type="range" id="glowDelaySlider" min="0" max="60" step="0.1" value="0.0"><input type="number" class="num-input" id="glowDelayNum" step="0.1"><button type="button" class="btn-playhead-delay" id="btnGlowDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button></div>
                 </div>
 
                 <div class="inspector-prop-row" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
-                  <label>End Delay</label>
-                  <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum"></div>
+                  <label>End Delay (s)</label>
+                  <div class="slider-row"><input type="range" id="glowEndDelaySlider" min="0" max="60" step="0.1" value="0.0"><input type="number" class="num-input" id="glowEndDelayNum" step="0.1"></div>
                 </div>
 
                 <div class="inspector-prop-row">
@@ -1032,6 +1109,17 @@
                   <button type="button" class="tool-btn-compact" id="btnGroupRippleSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
                   <button type="button" class="tool-btn-compact" id="btnDuplicateRippleSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
                 </div>
+                <div class="multi-stagger-section">
+                  <div class="multi-stagger-header">
+                    <span class="multi-stagger-title">Sequence / Stagger Timing</span>
+                    <span class="multi-stagger-summary">0 eligible</span>
+                  </div>
+                  <div class="multi-stagger-controls">
+                    <label class="multi-stagger-field" title="Starting delay (s) for the first eligible object in selection order">Base <input type="number" class="num-input multi-stagger-base" min="0" max="60" step="0.1" value="0.0"><button type="button" class="btn-playhead-delay btn-stagger-base-playhead" title="Set base delay from current timeline playhead position">⏱</button></label>
+                    <label class="multi-stagger-field" title="Delay increment (+Δt seconds) added per object in selection order">+Δt <input type="number" class="num-input multi-stagger-step" min="0" max="30" step="0.1" value="0.5"></label>
+                    <button type="button" class="tool-btn-compact btn-apply-stagger" style="flex: 1;" title="Assign sequential Start Delay values in selection order">⏱ Stagger</button>
+                  </div>
+                </div>
               </div>
               <div id="emptyRippleSelection" class="inspector-empty-state">
                 Select a liquid ripple to edit refraction and wave parameters, or click <strong>+ Add</strong> above.
@@ -1064,8 +1152,13 @@
                   <div class="slider-row"><input type="range" id="rippleRefractionSlider" min="0" max="150" step="1" value="35"><input type="number" class="num-input" id="rippleRefractionNum"></div>
                 </div>
 
+                <div class="inspector-prop-row" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
+                  <label for="ripplePlayChk" title="Start or stop this ripple's animation">Play Animation</label>
+                  <input type="checkbox" id="ripplePlayChk" checked>
+                </div>
+
                 <div class="inspector-prop-row">
-                  <label>Duration</label>
+                  <label>Duration (s)</label>
                   <div class="slider-row"><input type="range" id="rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0"><input type="number" class="num-input" id="rippleDurNum"></div>
                 </div>
 
@@ -1089,14 +1182,14 @@
                   <div class="slider-row"><input type="range" id="rippleThickSlider" min="1" max="100" step="1" value="8"><input type="number" class="num-input" id="rippleThickNum"></div>
                 </div>
 
-                <div class="inspector-prop-row" style="margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px dashed var(--border);">
-                  <label>Start Delay</label>
-                  <div class="slider-row"><input type="range" id="rippleDelaySlider" min="0" max="60" step="0.5" value="0.0"><input type="number" class="num-input" id="rippleDelayNum"></div>
+                <div class="inspector-prop-row">
+                  <label>Start Delay (s)</label>
+                  <div class="slider-row"><input type="range" id="rippleDelaySlider" min="0" max="60" step="0.1" value="0.0"><input type="number" class="num-input" id="rippleDelayNum" step="0.1"><button type="button" class="btn-playhead-delay" id="btnRippleDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button></div>
                 </div>
 
                 <div class="inspector-prop-row">
-                  <label>End Delay</label>
-                  <div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum"></div>
+                  <label>End Delay (s)</label>
+                  <div class="slider-row"><input type="range" id="rippleEndDelaySlider" min="0" max="60" step="0.1" value="1.0"><input type="number" class="num-input" id="rippleEndDelayNum" step="0.1"></div>
                 </div>
 
                 <div class="inspector-layer-section" id="rippleLayerSection">
@@ -1175,6 +1268,17 @@
                 <div class="group-btn-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
                   <button type="button" class="tool-btn-compact" id="btnGroupLiteSelection" title="Group selected objects into a persistent group (Ctrl+G)">👥 Group</button>
                   <button type="button" class="tool-btn-compact" id="btnDuplicateLiteSelection" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+                </div>
+                <div class="multi-stagger-section">
+                  <div class="multi-stagger-header">
+                    <span class="multi-stagger-title">Sequence / Stagger Timing</span>
+                    <span class="multi-stagger-summary">0 eligible</span>
+                  </div>
+                  <div class="multi-stagger-controls">
+                    <label class="multi-stagger-field" title="Starting delay (s) for the first eligible object in selection order">Base <input type="number" class="num-input multi-stagger-base" min="0" max="60" step="0.1" value="0.0"><button type="button" class="btn-playhead-delay btn-stagger-base-playhead" title="Set base delay from current timeline playhead position">⏱</button></label>
+                    <label class="multi-stagger-field" title="Delay increment (+Δt seconds) added per object in selection order">+Δt <input type="number" class="num-input multi-stagger-step" min="0" max="30" step="0.1" value="0.5"></label>
+                    <button type="button" class="tool-btn-compact btn-apply-stagger" style="flex: 1;" title="Assign sequential Start Delay values in selection order">⏱ Stagger</button>
+                  </div>
                 </div>
               </div>
               <div id="liteEmptyHint" class="inspector-empty-state">
@@ -1537,6 +1641,7 @@
                     <div class="slider-row">
                       <input type="range" id="liteFlowDelaySlider" min="0" max="15" step="0.1" value="0">
                       <input type="number" class="num-input" id="liteFlowDelayNum" min="0" max="60" step="0.1" value="0">
+                      <button type="button" class="btn-playhead-delay" id="btnLiteFlowDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
                     </div>
                   </div>
                   <div class="inspector-prop-row">
@@ -1956,6 +2061,15 @@
                       <input type="range" id="liteTextClearDurationSlider" min="0" max="30" step="0.1" value="0.6">
                       <input type="number" class="num-input" id="liteTextClearDurationNum" min="0" max="30" step="0.1" value="0.6">
                     </div>
+                  </div>
+                </div>
+
+                <div class="inspector-prop-row" id="liteStartDelayRow" style="display: none;">
+                  <label for="liteDelaySlider" title="Delay in seconds before animation begins">Start Delay (s)</label>
+                  <div class="slider-row">
+                    <input type="range" id="liteDelaySlider" min="0" max="15" step="0.1" value="0">
+                    <input type="number" class="num-input" id="liteDelayNum" min="0" max="60" step="0.1" value="0">
+                    <button type="button" class="btn-playhead-delay" id="btnLiteDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
                   </div>
                 </div>
 
@@ -2591,7 +2705,30 @@
               <option value="pulse-border">Pulse Border</option>
               <option value="float">Gentle Float</option>
               <option value="fade-in">Fade In</option>
+              <option value="scale-in">Scale In</option>
+              <option value="slide-up">Slide Up</option>
             </select>
+          </div>
+          <div id="fctx-nodeAnimTimingGroup" style="display: none;">
+            <div class="floating-prop-row">
+              <label for="fctx-nodePlayChk">Play Anim</label>
+              <input type="checkbox" id="fctx-nodePlayChk" checked>
+            </div>
+            <div class="floating-prop-row">
+              <label for="fctx-nodeAnimDurSlider">Duration (s)</label>
+              <div class="slider-row">
+                <input type="range" id="fctx-nodeAnimDurSlider" min="0.1" max="30" step="0.1" value="1.2">
+                <input type="number" class="num-input" id="fctx-nodeAnimDurNum" min="0.1" max="60" step="0.1" value="1.2">
+              </div>
+            </div>
+            <div class="floating-prop-row">
+              <label for="fctx-nodeAnimDelaySlider">Start Dly (s)</label>
+              <div class="slider-row">
+                <input type="range" id="fctx-nodeAnimDelaySlider" min="0" max="15" step="0.1" value="0">
+                <input type="number" class="num-input" id="fctx-nodeAnimDelayNum" min="0" max="60" step="0.1" value="0">
+                <button type="button" class="btn-playhead-delay" id="fctx-btnNodeDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2708,24 +2845,36 @@
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-flowSpeedSlider">Speed (s)</label>
+            <label for="fctx-flowPlayChk">Play Anim</label>
+            <input type="checkbox" id="fctx-flowPlayChk" checked>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowPlaybackModeSelect">Playback</label>
+            <select id="fctx-flowPlaybackModeSelect">
+              <option value="loop" selected>Loop (Continuous)</option>
+              <option value="once">Play Once</option>
+            </select>
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-flowSpeedSlider">Duration (s)</label>
             <div class="slider-row">
               <input type="range" id="fctx-flowSpeedSlider" min="0.1" max="60" step="0.1" value="2.0">
               <input type="number" class="num-input" id="fctx-flowSpeedNum" value="2.0">
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-flowDelaySlider">Delay (s)</label>
+            <label for="fctx-flowDelaySlider">Start Dly (s)</label>
             <div class="slider-row">
-              <input type="range" id="fctx-flowDelaySlider" min="0" max="60" step="0.5" value="0.0">
-              <input type="number" class="num-input" id="fctx-flowDelayNum" value="0.0">
+              <input type="range" id="fctx-flowDelaySlider" min="0" max="60" step="0.1" value="0.0">
+              <input type="number" class="num-input" id="fctx-flowDelayNum" step="0.1" value="0.0">
+              <button type="button" class="btn-playhead-delay" id="fctx-btnFlowDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-flowEndDelaySlider">End Delay</label>
+            <label for="fctx-flowEndDelaySlider">End Delay (s)</label>
             <div class="slider-row">
-              <input type="range" id="fctx-flowEndDelaySlider" min="0" max="60" step="0.5" value="0.0">
-              <input type="number" class="num-input" id="fctx-flowEndDelayNum" value="0.0">
+              <input type="range" id="fctx-flowEndDelaySlider" min="0" max="60" step="0.1" value="0.0">
+              <input type="number" class="num-input" id="fctx-flowEndDelayNum" step="0.1" value="0.0">
             </div>
           </div>
           <div class="floating-prop-row">
@@ -2754,6 +2903,10 @@
           <div class="floating-prop-row">
             <label for="fctx-glowNameInput">Name</label>
             <input type="text" id="fctx-glowNameInput" placeholder="Display name (optional)" class="text-field-input">
+          </div>
+          <div class="floating-prop-row">
+            <label for="fctx-glowPlayChk">Play Anim</label>
+            <input type="checkbox" id="fctx-glowPlayChk" checked>
           </div>
           <div class="floating-prop-row">
             <label for="fctx-glowPlaybackSelect">Playback</label>
@@ -2818,17 +2971,18 @@
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-glowDelaySlider">Delay (s)</label>
+            <label for="fctx-glowDelaySlider">Start Dly (s)</label>
             <div class="slider-row">
-              <input type="range" id="fctx-glowDelaySlider" min="0" max="60" step="0.5" value="0.0">
-              <input type="number" class="num-input" id="fctx-glowDelayNum" value="0.0">
+              <input type="range" id="fctx-glowDelaySlider" min="0" max="60" step="0.1" value="0.0">
+              <input type="number" class="num-input" id="fctx-glowDelayNum" step="0.1" value="0.0">
+              <button type="button" class="btn-playhead-delay" id="fctx-btnGlowDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-glowEndDelaySlider">End Delay</label>
+            <label for="fctx-glowEndDelaySlider">End Delay (s)</label>
             <div class="slider-row">
-              <input type="range" id="fctx-glowEndDelaySlider" min="0" max="60" step="0.5" value="0.0">
-              <input type="number" class="num-input" id="fctx-glowEndDelayNum" value="0.0">
+              <input type="range" id="fctx-glowEndDelaySlider" min="0" max="60" step="0.1" value="0.0">
+              <input type="number" class="num-input" id="fctx-glowEndDelayNum" step="0.1" value="0.0">
             </div>
           </div>
           <div class="floating-prop-row">
@@ -2868,6 +3022,10 @@
             </div>
           </div>
           <div class="floating-prop-row">
+            <label for="fctx-ripplePlayChk">Play Anim</label>
+            <input type="checkbox" id="fctx-ripplePlayChk" checked>
+          </div>
+          <div class="floating-prop-row">
             <label for="fctx-rippleDurSlider">Duration (s)</label>
             <div class="slider-row">
               <input type="range" id="fctx-rippleDurSlider" min="0.1" max="60" step="0.1" value="3.0">
@@ -2903,17 +3061,18 @@
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-rippleDelaySlider">Delay (s)</label>
+            <label for="fctx-rippleDelaySlider">Start Dly (s)</label>
             <div class="slider-row">
-              <input type="range" id="fctx-rippleDelaySlider" min="0" max="60" step="0.5" value="0.0">
-              <input type="number" class="num-input" id="fctx-rippleDelayNum" value="0.0">
+              <input type="range" id="fctx-rippleDelaySlider" min="0" max="60" step="0.1" value="0.0">
+              <input type="number" class="num-input" id="fctx-rippleDelayNum" step="0.1" value="0.0">
+              <button type="button" class="btn-playhead-delay" id="fctx-btnRippleDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
             </div>
           </div>
           <div class="floating-prop-row">
-            <label for="fctx-rippleEndDelaySlider">End Delay</label>
+            <label for="fctx-rippleEndDelaySlider">End Delay (s)</label>
             <div class="slider-row">
-              <input type="range" id="fctx-rippleEndDelaySlider" min="0" max="60" step="0.5" value="1.0">
-              <input type="number" class="num-input" id="fctx-rippleEndDelayNum" value="1.0">
+              <input type="range" id="fctx-rippleEndDelaySlider" min="0" max="60" step="0.1" value="1.0">
+              <input type="number" class="num-input" id="fctx-rippleEndDelayNum" step="0.1" value="1.0">
             </div>
           </div>
         </div>
@@ -3279,10 +3438,11 @@
               </div>
             </div>
             <div class="floating-prop-row">
-              <label for="fctx-liteFlowDelaySlider">Start Dly</label>
+              <label for="fctx-liteFlowDelaySlider">Start Dly (s)</label>
               <div class="slider-row">
                 <input type="range" id="fctx-liteFlowDelaySlider" min="0" max="15" step="0.1" value="0">
                 <input type="number" class="num-input" id="fctx-liteFlowDelayNum" min="0" max="60" step="0.1" value="0">
+                <button type="button" class="btn-playhead-delay" id="fctx-btnLiteFlowDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
               </div>
             </div>
             <div class="floating-prop-row">
@@ -3700,14 +3860,35 @@
               </div>
             </div>
           </div>
+          <div class="floating-prop-row" id="fctx-liteStartDelayRow" style="display: none;">
+            <label for="fctx-liteDelaySlider">Start Dly (s)</label>
+            <div class="slider-row">
+              <input type="range" id="fctx-liteDelaySlider" min="0" max="15" step="0.1" value="0">
+              <input type="number" class="num-input" id="fctx-liteDelayNum" min="0" max="60" step="0.1" value="0">
+              <button type="button" class="btn-playhead-delay" id="fctx-btnLiteDelayFromPlayhead" title="Set Start Delay from current timeline playhead position">⏱</button>
+            </div>
+          </div>
         </div>
 
         <!-- MULTI-SELECTION BAR (When 2+ items selected) -->
-        <div id="fctx-multiBar" style="display: none; padding: 0.35rem 0.5rem; margin-bottom: 0.45rem; background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); border-radius: 6px; justify-content: space-between; align-items: center;">
-          <span id="fctx-multiBarText" style="font-size: 0.75rem; color: #58a6ff; font-weight: 600;">2 Objects Selected</span>
-          <div style="display: flex; gap: 4px;">
-            <button type="button" class="btn-floating-action" id="fctx-btnGroupMulti" style="padding: 0.18rem 0.45rem; font-size: 0.72rem; background: #1f6feb; color: #fff;" title="Group selected objects (Ctrl+G)">👥 Group</button>
-            <button type="button" class="btn-floating-action" id="fctx-btnDuplicateMulti" style="padding: 0.18rem 0.45rem; font-size: 0.72rem;" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+        <div id="fctx-multiBar" style="display: none; padding: 0.35rem 0.5rem; margin-bottom: 0.45rem; background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3); border-radius: 6px; flex-direction: column; gap: 0.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <span id="fctx-multiBarText" style="font-size: 0.75rem; color: #58a6ff; font-weight: 600;">2 Objects Selected</span>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="btn-floating-action" id="fctx-btnGroupMulti" style="padding: 0.18rem 0.45rem; font-size: 0.72rem; background: #1f6feb; color: #fff;" title="Group selected objects (Ctrl+G)">👥 Group</button>
+              <button type="button" class="btn-floating-action" id="fctx-btnDuplicateMulti" style="padding: 0.18rem 0.45rem; font-size: 0.72rem;" title="Duplicate selected objects (Ctrl+D)">📋 Duplicate</button>
+            </div>
+          </div>
+          <div class="multi-stagger-section">
+            <div class="multi-stagger-header">
+              <span class="multi-stagger-title">Sequence / Stagger Timing</span>
+              <span class="multi-stagger-summary">0 eligible</span>
+            </div>
+            <div class="multi-stagger-controls">
+              <label class="multi-stagger-field" title="Starting delay (s) for the first eligible object in selection order">Base <input type="number" class="num-input multi-stagger-base" min="0" max="60" step="0.1" value="0.0"><button type="button" class="btn-playhead-delay btn-stagger-base-playhead" title="Set base delay from current timeline playhead position">⏱</button></label>
+              <label class="multi-stagger-field" title="Delay increment (+Δt seconds) added per object in selection order">+Δt <input type="number" class="num-input multi-stagger-step" min="0" max="30" step="0.1" value="0.5"></label>
+              <button type="button" class="tool-btn-compact btn-apply-stagger" style="flex: 1;" title="Assign sequential Start Delay values in selection order">⏱ Stagger</button>
+            </div>
           </div>
         </div>
 

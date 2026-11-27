@@ -438,15 +438,22 @@
       const hold = Math.max(0, parseFloat(g.getAttribute('data-text-hold-delay')) || 1.5);
       const pMode = g.getAttribute('data-text-playback-mode') || 'loop';
       const stepMs = Math.max(12, Math.round(1000 / rate));
+      const startDelaySec = Math.max(0, parseFloat(g.getAttribute('data-lite-delay') || g.getAttribute('data-text-delay') || '0') || 0);
+      const startDelayMs = startDelaySec * 1000.0;
+      if (startDelayMs > 0 && ms < startDelayMs) {
+        targetNode.textContent = '';
+        return;
+      }
+      const activeElapsedMs = Math.max(0, ms - startDelayMs);
 
       if (anim === 'scramble') {
         const cipher = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#%&*';
         const activeDur = N * stepMs;
         const holdDur = Math.max(200, hold * 1000);
         const cycleDur = activeDur + holdDur;
-        let localMs = ms;
+        let localMs = activeElapsedMs;
         if (pMode !== 'once' && cycleDur > 0) {
-          localMs = ms % cycleDur;
+          localMs = activeElapsedMs % cycleDur;
         }
         let idx = Math.floor(localMs / stepMs);
         if (idx > N) idx = N;
@@ -475,9 +482,9 @@
         const delDur = N * delStepMs;
         const pauseDur = rep ? 250 : 0;
         const cycleDur = typeDur + holdDur + delDur + pauseDur;
-        let localMs = ms;
+        let localMs = activeElapsedMs;
         if (rep && cycleDur > 0) {
-          localMs = ms % cycleDur;
+          localMs = activeElapsedMs % cycleDur;
         }
         if (localMs < typeDur) {
           const idx = Math.min(N, Math.floor(localMs / stepMs));
@@ -499,9 +506,9 @@
       } else {
         const holdDur = Math.max(200, hold * 1000);
         const cycleDur = typeDur + holdDur;
-        let localMs = ms;
+        let localMs = activeElapsedMs;
         if (rep && cycleDur > 0) {
-          localMs = ms % cycleDur;
+          localMs = activeElapsedMs % cycleDur;
         }
         if (localMs < typeDur) {
           const idx = Math.min(N, Math.floor(localMs / stepMs));

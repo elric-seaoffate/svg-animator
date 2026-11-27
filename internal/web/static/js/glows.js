@@ -60,7 +60,12 @@ window.Glows = {
   setState(data) {
     if (!data || typeof data !== 'object') return this.getState();
     const rawList = Array.isArray(data.glows) ? data.glows : (Array.isArray(data.list) ? data.list : []);
-    this.list = JSON.parse(JSON.stringify(rawList));
+    this.list = JSON.parse(JSON.stringify(rawList)).map((g) => {
+      if (g.delay === undefined) g.delay = 0;
+      if (g.endDelay === undefined) g.endDelay = 0;
+      if (g.play === undefined) g.play = true;
+      return g;
+    });
     const maxId = this.list.reduce((m, g) => Math.max(m, g.id || 0), 0);
     const savedCounter = data.glowsCounter !== undefined ? data.glowsCounter : data.counter;
     this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
@@ -128,6 +133,15 @@ window.Glows = {
         glow.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
       }
       if (updated.radarRings !== undefined && glow.rings === undefined) glow.rings = updated.radarRings;
+      if (patch.delay !== undefined) {
+        glow.delay = updated.delay !== undefined ? updated.delay : patch.delay;
+      }
+      if (patch.endDelay !== undefined) {
+        glow.endDelay = updated.endDelay !== undefined ? updated.endDelay : patch.endDelay;
+      }
+      if (patch.play !== undefined) {
+        glow.play = updated.play !== undefined ? updated.play : patch.play;
+      }
       return glow;
     }
 
@@ -495,6 +509,24 @@ window.Glows = {
       }
     });
 
+    const glowPlayChk = document.getElementById('glowPlayChk');
+    if (glowPlayChk) {
+      glowPlayChk.addEventListener('change', (e) => {
+        this.updateActive('play', !!e.target.checked);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+        else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      });
+    }
+
+    const btnGlowDelayPlayhead = document.getElementById('btnGlowDelayFromPlayhead');
+    if (btnGlowDelayPlayhead) {
+      btnGlowDelayPlayhead.addEventListener('click', () => {
+        if (this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('glow', this.activeId);
+        }
+      });
+    }
+
     const customIn = document.getElementById('glowCustomInput');
     if (customIn) {
       customIn.addEventListener('change', (e) => {
@@ -585,6 +617,8 @@ window.Glows = {
     if (shSel) shSel.value = glow.shape || 'circle';
     const pbSel = document.getElementById('glowPlaybackSelect');
     if (pbSel) pbSel.value = glow.playback;
+    const playChk = document.getElementById('glowPlayChk');
+    if (playChk) playChk.checked = glow.play !== false;
     const colPick = document.getElementById('glowColorPicker');
     if (colPick) colPick.value = glow.color;
     const hideChk = document.getElementById('glowHideOnDelay');

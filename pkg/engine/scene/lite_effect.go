@@ -108,6 +108,9 @@ func ValidateLiteEffect(l *LiteEffect) error {
 	if l.Rotation < -360 || l.Rotation > 360 {
 		return errors.New("rotation must be between -360 and 360 degrees")
 	}
+	if l.Delay < 0 || l.Delay > 60 {
+		return errors.New("delay must be between 0 and 60 seconds")
+	}
 	if l.Kind == "perimeter-tracer" {
 		if l.Segments < 1 || l.Segments > 16 {
 			return errors.New("perimeter-tracer segments must be between 1 and 16")

@@ -132,6 +132,10 @@ type NodeUpdatePayload struct {
 	Opacity     *float64       `json:"opacity,omitempty"`
 	Animation   *string        `json:"animation,omitempty"`
 	Anim        *string        `json:"anim,omitempty"`
+	AnimDur     *float64       `json:"animDur,omitempty"`
+	AnimDelay   *float64       `json:"animDelay,omitempty"`
+	Delay       *float64       `json:"delay,omitempty"`
+	Play        *bool          `json:"play,omitempty"`
 	Visible     *bool          `json:"visible,omitempty"`
 	Locked      *bool          `json:"locked,omitempty"`
 }
@@ -182,11 +186,13 @@ type FlowUpdatePayload struct {
 	Arrow       *string           `json:"arrow,omitempty"`
 	Color       *string           `json:"color,omitempty"`
 	Opacity     *float64          `json:"opacity,omitempty"`
-	Speed       *float64          `json:"speed,omitempty"`
-	Delay       *float64          `json:"delay,omitempty"`
-	EndDelay    *float64          `json:"endDelay,omitempty"`
-	HideOnDelay *bool             `json:"hideOnDelay,omitempty"`
-	Scale       *float64          `json:"scale,omitempty"`
+	Speed        *float64          `json:"speed,omitempty"`
+	Delay        *float64          `json:"delay,omitempty"`
+	EndDelay     *float64          `json:"endDelay,omitempty"`
+	HideOnDelay  *bool             `json:"hideOnDelay,omitempty"`
+	PlaybackMode *string           `json:"playbackMode,omitempty"`
+	Play         *bool             `json:"play,omitempty"`
+	Scale        *float64          `json:"scale,omitempty"`
 	Type        *string           `json:"type,omitempty"`
 	ShowLine    *bool             `json:"showLine,omitempty"`
 	Glow        *float64          `json:"glow,omitempty"`
@@ -306,6 +312,7 @@ type GlowUpdatePayload struct {
 	CustomMime   *string        `json:"customMime,omitempty"`
 	CustomW      *float64       `json:"customW,omitempty"`
 	CustomH      *float64       `json:"customH,omitempty"`
+	Play         *bool          `json:"play,omitempty"`
 	Visible      *bool          `json:"visible,omitempty"`
 	Locked       *bool          `json:"locked,omitempty"`
 }
@@ -366,6 +373,7 @@ type RippleUpdatePayload struct {
 	Rings       *int           `json:"rings,omitempty"`
 	Thick       *float64       `json:"thick,omitempty"`
 	Refraction  *float64       `json:"refraction,omitempty"`
+	Play        *bool          `json:"play,omitempty"`
 	Visible     *bool          `json:"visible,omitempty"`
 	Locked      *bool          `json:"locked,omitempty"`
 }
@@ -1713,6 +1721,17 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 			candidate.Anim = *p.Animation
 			candidate.Animation = *p.Animation
 		}
+		if p.AnimDur != nil {
+			candidate.AnimDur = *p.AnimDur
+		}
+		if p.AnimDelay != nil {
+			candidate.AnimDelay = *p.AnimDelay
+		} else if p.Delay != nil {
+			candidate.AnimDelay = *p.Delay
+		}
+		if p.Play != nil {
+			candidate.Play = p.Play
+		}
 		if p.Visible != nil {
 			candidate.Visible = p.Visible
 		}
@@ -1921,6 +1940,12 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		}
 		if p.HideOnDelay != nil {
 			candidate.HideOnDelay = *p.HideOnDelay
+		}
+		if p.PlaybackMode != nil {
+			candidate.PlaybackMode = *p.PlaybackMode
+		}
+		if p.Play != nil {
+			candidate.Play = p.Play
 		}
 		if p.Scale != nil {
 			candidate.Scale = *p.Scale
@@ -2210,6 +2235,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		if p.Metadata != nil {
 			candidate.Metadata = p.Metadata
 		}
+		if p.Play != nil {
+			candidate.Play = p.Play
+		}
 		if err := scene.ValidateGlow(&candidate); err != nil {
 			return nil, fmt.Errorf("validating glow: %w", err)
 		}
@@ -2344,6 +2372,9 @@ func Dispatch(command string, payloadJSON []byte) ([]byte, error) {
 		}
 		if p.EndDelay != nil {
 			candidate.EndDelay = *p.EndDelay
+		}
+		if p.Play != nil {
+			candidate.Play = p.Play
 		}
 		if p.X != nil {
 			candidate.X = *p.X

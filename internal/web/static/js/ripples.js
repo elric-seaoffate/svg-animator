@@ -51,7 +51,12 @@ window.Ripples = {
   setState(data) {
     if (!data || typeof data !== 'object') return this.getState();
     const rawList = Array.isArray(data.ripples) ? data.ripples : (Array.isArray(data.list) ? data.list : []);
-    this.list = JSON.parse(JSON.stringify(rawList));
+    this.list = JSON.parse(JSON.stringify(rawList)).map((r) => {
+      if (r.delay === undefined) r.delay = 0;
+      if (r.endDelay === undefined) r.endDelay = 0;
+      if (r.play === undefined) r.play = true;
+      return r;
+    });
     const maxId = this.list.reduce((m, r) => Math.max(m, r.id || 0), 0);
     const savedCounter = data.ripplesCounter !== undefined ? data.ripplesCounter : data.counter;
     this.counter = savedCounter !== undefined ? Math.max(savedCounter, maxId) : maxId;
@@ -139,6 +144,15 @@ window.Ripples = {
         rp.visible = (updated.visible !== undefined) ? updated.visible : patch.visible;
       }
       if (updated.waveCount !== undefined && rp.rings === undefined) rp.rings = updated.waveCount;
+      if (patch.delay !== undefined) {
+        rp.delay = updated.delay !== undefined ? updated.delay : patch.delay;
+      }
+      if (patch.endDelay !== undefined) {
+        rp.endDelay = updated.endDelay !== undefined ? updated.endDelay : patch.endDelay;
+      }
+      if (patch.play !== undefined) {
+        rp.play = updated.play !== undefined ? updated.play : patch.play;
+      }
       return rp;
     }
 
@@ -441,6 +455,24 @@ window.Ripples = {
       });
     }
 
+    const ripplePlayChk = document.getElementById('ripplePlayChk');
+    if (ripplePlayChk) {
+      ripplePlayChk.addEventListener('change', (e) => {
+        this.updateActive('play', !!e.target.checked);
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+        else if (window.HistoryManager) window.HistoryManager.recordImmediate();
+      });
+    }
+
+    const btnRippleDelayPlayhead = document.getElementById('btnRippleDelayFromPlayhead');
+    if (btnRippleDelayPlayhead) {
+      btnRippleDelayPlayhead.addEventListener('click', () => {
+        if (this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('ripple', this.activeId);
+        }
+      });
+    }
+
     ['outerR', 'innerR', 'rings', 'thick', 'refraction', 'opacity', 'dur', 'delay', 'endDelay'].forEach((key) => {
       const cap = key.charAt(0).toUpperCase() + key.slice(1);
       const slider = document.getElementById('ripple' + cap + 'Slider');
@@ -488,6 +520,8 @@ window.Ripples = {
 
     const colPick = document.getElementById('rippleColorPicker');
     if (colPick) colPick.value = rp.color;
+    const playChk = document.getElementById('ripplePlayChk');
+    if (playChk) playChk.checked = rp.play !== false;
 
     ['outerR', 'innerR', 'rings', 'thick', 'refraction', 'opacity', 'dur', 'delay', 'endDelay'].forEach((key) => {
       const val = rp[key] !== undefined ? rp[key] : 0;

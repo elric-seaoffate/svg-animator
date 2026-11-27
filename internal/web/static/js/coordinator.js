@@ -1500,6 +1500,393 @@
     },
 
     /**
+     * Stage 17-M3: Returns current playhead position in seconds (rounded to 0.01s, clamped to 0..60s).
+     */
+    getCurrentPlayheadSeconds() {
+      let sec = 0;
+      if (window.TimelinePlayer && typeof window.TimelinePlayer.currentTime === 'number' && !isNaN(window.TimelinePlayer.currentTime)) {
+        sec = window.TimelinePlayer.currentTime;
+      } else if (window.TimelinePlayer && typeof window.TimelinePlayer.currentTimeMs === 'number' && !isNaN(window.TimelinePlayer.currentTimeMs)) {
+        sec = window.TimelinePlayer.currentTimeMs / 1000;
+      } else if (window.TimelinePlayer && typeof window.TimelinePlayer.getState === 'function') {
+        const st = window.TimelinePlayer.getState();
+        if (st && typeof st.currentTime === 'number' && !isNaN(st.currentTime)) {
+          sec = st.currentTime;
+        } else if (st && typeof st.currentTimeMs === 'number' && !isNaN(st.currentTimeMs)) {
+          sec = st.currentTimeMs / 1000;
+        }
+      }
+      return Math.round(Math.max(0, Math.min(60, sec)) * 100) / 100;
+    },
+
+    /**
+     * Stage 17-M3: Determines whether a selection item supports animated Start Delay assignment.
+     *
+     * @param {{type: string, id: number|string}} item
+     * @returns {{eligible: boolean, reason: string, field: string|null, obj: Object|null, label: string}}
+     */
+    getAnimationEligibility(item) {
+      if (!item || !item.type || item.id == null) {
+        return { eligible: false, reason: 'invalid', field: null, obj: null, label: '' };
+      }
+      if (window.LayerManager && typeof window.LayerManager.getEffective === 'function') {
+        const eff = window.LayerManager.getEffective(item.type, item.id);
+        if (eff && eff.locked) {
+          return { eligible: false, reason: 'locked', field: null, obj: null, label: `${item.type} #${item.id}` };
+        }
+      }
+      if (item.type === 'node') {
+        const n = window.DiagramNodes && typeof window.DiagramNodes.getNode === 'function'
+          ? window.DiagramNodes.getNode(item.id)
+          : null;
+        if (!n) return { eligible: false, reason: 'missing', field: null, obj: null, label: `Shape #${item.id}` };
+        const label = n.name || n.title || `Shape #${n.id}`;
+        if (!n.anim || n.anim === 'none') {
+          return { eligible: false, reason: 'static', field: 'animDelay', obj: n, label };
+        }
+        return { eligible: true, reason: 'animated', field: 'animDelay', obj: n, label };
+      }
+      if (item.type === 'flow') {
+        const f = window.DataFlows && typeof window.DataFlows.getFlow === 'function'
+          ? window.DataFlows.getFlow(item.id)
+          : null;
+        if (!f) return { eligible: false, reason: 'missing', field: null, obj: null, label: `Flow #${item.id}` };
+        const label = f.name || f.label || `Flow #${f.id}`;
+        if (f.type === 'line-only' && f.lineStyle !== 'marching') {
+          return { eligible: false, reason: 'static', field: 'delay', obj: f, label };
+        }
+        return { eligible: true, reason: 'animated', field: 'delay', obj: f, label };
+      }
+      if (item.type === 'glow') {
+        const g = window.Glows && typeof window.Glows.getGlow === 'function'
+          ? window.Glows.getGlow(item.id)
+          : null;
+        if (!g) return { eligible: false, reason: 'missing', field: null, obj: null, label: `Glow #${item.id}` };
+        const label = g.name || `Glow #${g.id}`;
+        if (g.playback === 'static') {
+          return { eligible: false, reason: 'static', field: 'delay', obj: g, label };
+        }
+        return { eligible: true, reason: 'animated', field: 'delay', obj: g, label };
+      }
+      if (item.type === 'ripple') {
+        const r = window.Ripples && typeof window.Ripples.getRipple === 'function'
+          ? window.Ripples.getRipple(item.id)
+          : null;
+        if (!r) return { eligible: false, reason: 'missing', field: null, obj: null, label: `Ripple #${item.id}` };
+        const label = r.name || `Ripple #${r.id}`;
+        return { eligible: true, reason: 'animated', field: 'delay', obj: r, label };
+      }
+      if (item.type === 'lite') {
+        const le = window.LiteEffects && typeof window.LiteEffects.getLiteEffect === 'function'
+          ? window.LiteEffects.getLiteEffect(item.id)
+          : null;
+        if (!le) return { eligible: false, reason: 'missing', field: null, obj: null, label: `Lite #${item.id}` };
+        const label = le.name || `${le.kind} (${le.id})`;
+        if (le.kind === 'gauge-lite' || le.kind === 'oscilloscope-lite') {
+          return { eligible: false, reason: 'static', field: 'delay', obj: le, label };
+        }
+        if (le.kind === 'text-lite' && (!le.textAnim || le.textAnim === 'none')) {
+          return { eligible: false, reason: 'static', field: 'delay', obj: le, label };
+        }
+        return { eligible: true, reason: 'animated', field: 'delay', obj: le, label };
+      }
+      return { eligible: false, reason: 'unsupported', field: null, obj: null, label: `${item.type} #${item.id}` };
+    },
+
+    /**
+     * Stage 17-M3: Inspects the current selection in deterministic selection order
+     * and returns eligible animated items alongside skipped static/locked items.
+     */
+    getEligibleAnimatedSelection() {
+      const items = this.getSelectedItems();
+      const eligible = [];
+      const skipped = [];
+      items.forEach((it, index) => {
+        const info = this.getAnimationEligibility(it);
+        const entry = Object.assign({ type: it.type, id: it.id, selectionIndex: index }, info);
+        if (info.eligible) {
+          eligible.push(entry);
+        } else {
+          skipped.push(entry);
+        }
+      });
+      return { total: items.length, eligible, skipped };
+    },
+
+    /**
+     * Stage 17-M3: Sets Start Delay on a single object without recording history or re-rendering
+     * (used as an internal primitive by both setStartDelayFromPlayhead and staggerSelectedObjects).
+     */
+    _applyObjectStartDelayInternal(type, id, delaySec) {
+      const clamped = Math.round(Math.max(0, Math.min(60, Number(delaySec) || 0)) * 100) / 100;
+      if (type === 'node' && window.DiagramNodes) {
+        if (typeof window.DiagramNodes.updateNode === 'function') {
+          return !!window.DiagramNodes.updateNode(id, { animDelay: clamped });
+        }
+        const n = window.DiagramNodes.getNode(id);
+        if (!n) return false;
+        n.animDelay = clamped;
+        return true;
+      }
+      if (type === 'flow' && window.DataFlows) {
+        if (typeof window.DataFlows.updateFlow === 'function') {
+          return !!window.DataFlows.updateFlow(id, { delay: clamped });
+        }
+        const f = window.DataFlows.getFlow(id);
+        if (!f) return false;
+        f.delay = clamped;
+        return true;
+      }
+      if (type === 'glow' && window.Glows) {
+        if (typeof window.Glows.updateGlow === 'function') {
+          return !!window.Glows.updateGlow(id, { delay: clamped });
+        }
+        const g = window.Glows.getGlow(id);
+        if (!g) return false;
+        g.delay = clamped;
+        return true;
+      }
+      if (type === 'ripple' && window.Ripples) {
+        if (typeof window.Ripples.updateRipple === 'function') {
+          return !!window.Ripples.updateRipple(id, { delay: clamped });
+        }
+        const r = window.Ripples.getRipple(id);
+        if (!r) return false;
+        r.delay = clamped;
+        return true;
+      }
+      if (type === 'lite' && window.LiteEffects) {
+        if (typeof window.LiteEffects.updateLiteEffect === 'function') {
+          return !!window.LiteEffects.updateLiteEffect(id, { delay: clamped });
+        }
+        const le = window.LiteEffects.getLiteEffect(id);
+        if (!le) return false;
+        le.delay = clamped;
+        return true;
+      }
+      return false;
+    },
+
+    /**
+     * Stage 17-M3 (E3): Sets an object's Start Delay from the current timeline playhead position.
+     *
+     * @param {string} [targetType] - Defaults to activeSelection.type
+     * @param {number|string} [targetId] - Defaults to activeSelection.id
+     * @returns {{success: boolean, delaySec: number}}
+     */
+    setStartDelayFromPlayhead(targetType = null, targetId = null) {
+      const type = targetType || (this.activeSelection && this.activeSelection.type);
+      const id = targetId != null ? targetId : (this.activeSelection && this.activeSelection.id);
+      if (!type || id == null) {
+        return { success: false, delaySec: 0 };
+      }
+      const delaySec = this.getCurrentPlayheadSeconds();
+      const ok = this._applyObjectStartDelayInternal(type, id, delaySec);
+      if (!ok) {
+        return { success: false, delaySec: 0 };
+      }
+      if (type === 'node' && window.DiagramNodes && typeof window.DiagramNodes.syncEditorUI === 'function') {
+        const n = window.DiagramNodes.getNode(id);
+        if (n) window.DiagramNodes.syncEditorUI(n);
+      } else if (type === 'flow' && window.DataFlows && typeof window.DataFlows.syncEditorUI === 'function') {
+        const f = window.DataFlows.getFlow(id);
+        if (f) window.DataFlows.syncEditorUI(f);
+      } else if (type === 'glow' && window.Glows && typeof window.Glows.syncEditorUI === 'function') {
+        const g = window.Glows.getGlow(id);
+        if (g) window.Glows.syncEditorUI(g);
+      } else if (type === 'ripple' && window.Ripples && typeof window.Ripples.syncEditorUI === 'function') {
+        const r = window.Ripples.getRipple(id);
+        if (r) window.Ripples.syncEditorUI(r);
+      } else if (type === 'lite' && window.LiteEffects && typeof window.LiteEffects.syncEditorUI === 'function') {
+        const le = window.LiteEffects.getLiteEffect(id);
+        if (le) window.LiteEffects.syncEditorUI(le);
+      }
+      if (window.FloatingContextEditor && typeof window.FloatingContextEditor.syncFromActiveObject === 'function') {
+        window.FloatingContextEditor.syncFromActiveObject();
+      }
+      this.requestRender();
+      this.recordHistoryImmediate();
+      this.showNotification(`Start Delay set to ${delaySec.toFixed(2).replace(/\.?0+$/, '') || '0'}s from playhead.`, 'info', 1800);
+      return { success: true, delaySec };
+    },
+
+    /**
+     * Stage 17-M3 (E4): Assigns sequential Start Delay values (`baseDelay + i * stepDelay`)
+     * across eligible animated objects in deterministic selection order.
+     * Ineligible static/locked objects are skipped safely without modification.
+     * Records a single Undo/Redo history entry.
+     *
+     * @param {{baseDelay?: number, stepDelay?: number}} [options]
+     * @returns {{success: boolean, appliedCount: number, skippedCount: number, assignments: Array}}
+     */
+    staggerSelectedObjects(options = {}) {
+      const baseRaw = options.baseDelay !== undefined ? Number(options.baseDelay) : 0;
+      const stepRaw = options.stepDelay !== undefined ? Number(options.stepDelay) : 0.5;
+      const baseDelay = isNaN(baseRaw) ? 0 : Math.max(0, Math.min(60, baseRaw));
+      const stepDelay = isNaN(stepRaw) ? 0.5 : Math.max(0, Math.min(30, stepRaw));
+
+      const report = this.getEligibleAnimatedSelection();
+      if (report.eligible.length === 0) {
+        this.showNotification('No eligible animated objects in selection to stagger.', 'warning', 2500);
+        return {
+          success: false,
+          appliedCount: 0,
+          skippedCount: report.skipped.length,
+          assignments: []
+        };
+      }
+
+      const assignments = [];
+      report.eligible.forEach((entry, index) => {
+        const delaySec = Math.round(Math.max(0, Math.min(60, baseDelay + index * stepDelay)) * 100) / 100;
+        const ok = this._applyObjectStartDelayInternal(entry.type, entry.id, delaySec);
+        if (ok) {
+          assignments.push({
+            type: entry.type,
+            id: entry.id,
+            label: entry.label,
+            delay: delaySec
+          });
+        }
+      });
+
+      if (this.activeSelection && this.activeSelection.type && this.activeSelection.id != null) {
+        const activeType = this.activeSelection.type;
+        const activeId = this.activeSelection.id;
+        if (activeType === 'node' && window.DiagramNodes && typeof window.DiagramNodes.syncEditorUI === 'function') {
+          const n = window.DiagramNodes.getNode(activeId);
+          if (n) window.DiagramNodes.syncEditorUI(n);
+        } else if (activeType === 'flow' && window.DataFlows && typeof window.DataFlows.syncEditorUI === 'function') {
+          const f = window.DataFlows.getFlow(activeId);
+          if (f) window.DataFlows.syncEditorUI(f);
+        } else if (activeType === 'glow' && window.Glows && typeof window.Glows.syncEditorUI === 'function') {
+          const g = window.Glows.getGlow(activeId);
+          if (g) window.Glows.syncEditorUI(g);
+        } else if (activeType === 'ripple' && window.Ripples && typeof window.Ripples.syncEditorUI === 'function') {
+          const r = window.Ripples.getRipple(activeId);
+          if (r) window.Ripples.syncEditorUI(r);
+        } else if (activeType === 'lite' && window.LiteEffects && typeof window.LiteEffects.syncEditorUI === 'function') {
+          const le = window.LiteEffects.getLiteEffect(activeId);
+          if (le) window.LiteEffects.syncEditorUI(le);
+        }
+      }
+      if (window.FloatingContextEditor && typeof window.FloatingContextEditor.syncFromActiveObject === 'function') {
+        window.FloatingContextEditor.syncFromActiveObject();
+      }
+      this._refreshAllInstanceLists();
+      this.requestRender();
+      this.recordHistoryImmediate();
+
+      const skippedMsg = report.skipped.length > 0 ? ` (${report.skipped.length} static/locked skipped)` : '';
+      this.showNotification(
+        `Staggered ${assignments.length} animated object${assignments.length === 1 ? '' : 's'} (base ${baseDelay}s, +${stepDelay}s)${skippedMsg}.`,
+        'success',
+        2600
+      );
+      return {
+        success: true,
+        appliedCount: assignments.length,
+        skippedCount: report.skipped.length,
+        assignments
+      };
+    },
+
+    /**
+     * Stage 17-M3 (E4): Synchronises the multi-selection stagger summary badge and button state
+     * across any container possessing `.multi-stagger-section`.
+     */
+    syncMultiStaggerUI(containerEl = document) {
+      const root = containerEl || document;
+      if (typeof root.querySelectorAll !== 'function') return;
+      const sections = root.querySelectorAll('.multi-stagger-section');
+      if (!sections || sections.length === 0) return;
+
+      const report = this.getEligibleAnimatedSelection();
+      let summaryText = `${report.eligible.length} eligible in selection order`;
+      if (report.skipped.length > 0) {
+        summaryText = `${report.eligible.length} of ${report.total} eligible (${report.skipped.length} static skipped)`;
+      }
+      const tooltipParts = [];
+      if (report.eligible.length > 0) {
+        tooltipParts.push('Selection order: ' + report.eligible.map((e, idx) => `${idx + 1}. ${e.label}`).join(' → '));
+      }
+      if (report.skipped.length > 0) {
+        tooltipParts.push('Skipped (static/locked): ' + report.skipped.map((s) => s.label).join(', '));
+      }
+      const tooltip = tooltipParts.join('\n') || 'Select animated objects to assign staggered Start Delays.';
+
+      sections.forEach((sec) => {
+        const sumEl = sec.querySelector('.multi-stagger-summary');
+        if (sumEl) {
+          sumEl.textContent = summaryText;
+          sumEl.title = tooltip;
+        }
+        const applyBtn = sec.querySelector('.btn-apply-stagger');
+        if (applyBtn) {
+          applyBtn.disabled = report.eligible.length === 0;
+          applyBtn.title = tooltip;
+        }
+      });
+    },
+
+    /**
+     * Stage 17-M3 (E4): Binds event listeners on `.multi-stagger-section` blocks once.
+     */
+    bindMultiStaggerControls(containerEl = document) {
+      const root = containerEl || document;
+      if (typeof root.querySelectorAll !== 'function') return;
+      const sections = root.querySelectorAll('.multi-stagger-section');
+      sections.forEach((sec) => {
+        if (sec.dataset.staggerBound === 'true') return;
+        sec.dataset.staggerBound = 'true';
+
+        const baseInput = sec.querySelector('.multi-stagger-base');
+        const stepInput = sec.querySelector('.multi-stagger-step');
+        const playheadBtn = sec.querySelector('.btn-stagger-base-playhead');
+        const applyBtn = sec.querySelector('.btn-apply-stagger');
+
+        if (playheadBtn && baseInput) {
+          playheadBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const secNow = this.getCurrentPlayheadSeconds();
+            baseInput.value = secNow;
+            root.querySelectorAll('.multi-stagger-base').forEach((inp) => {
+              inp.value = secNow;
+            });
+          });
+        }
+        if (baseInput) {
+          baseInput.addEventListener('change', () => {
+            const val = Math.max(0, Math.min(60, parseFloat(baseInput.value) || 0));
+            baseInput.value = val;
+            root.querySelectorAll('.multi-stagger-base').forEach((inp) => {
+              inp.value = val;
+            });
+          });
+        }
+        if (stepInput) {
+          stepInput.addEventListener('change', () => {
+            const val = Math.max(0, Math.min(30, parseFloat(stepInput.value) || 0));
+            stepInput.value = val;
+            root.querySelectorAll('.multi-stagger-step').forEach((inp) => {
+              inp.value = val;
+            });
+          });
+        }
+        if (applyBtn) {
+          applyBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const baseDelay = baseInput ? parseFloat(baseInput.value) : 0;
+            const stepDelay = stepInput ? parseFloat(stepInput.value) : 0.5;
+            this.staggerSelectedObjects({ baseDelay, stepDelay });
+          });
+        }
+      });
+    },
+
+    /**
      * Dispatches a non-blocking studio notification event.
      * Layer 1 UI presentation (app.js) handles DOM rendering in #studioNotificationContainer.
      *

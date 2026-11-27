@@ -355,6 +355,12 @@ func (s *Scene) CreateNode(initial Node, preset *PresetConfig, snapToGrid bool) 
 			initial.Anim = explicit.Animation
 			initial.Animation = explicit.Animation
 		}
+		if explicit.AnimDur > 0 {
+			initial.AnimDur = explicit.AnimDur
+		}
+		if explicit.AnimDelay > 0 {
+			initial.AnimDelay = explicit.AnimDelay
+		}
 	}
 
 	if snapToGrid {
@@ -462,6 +468,12 @@ func ValidateNode(n *Node) error {
 	}
 	if n.StrokeWidth < 0 {
 		return errors.New("strokeWidth cannot be negative")
+	}
+	if n.AnimDur < 0 || n.AnimDur > 60.0 {
+		return errors.New("node animDur must be between 0.0 and 60.0 seconds")
+	}
+	if n.AnimDelay < 0 || n.AnimDelay > 60.0 {
+		return errors.New("node animDelay must be between 0.0 and 60.0 seconds")
 	}
 	return nil
 }

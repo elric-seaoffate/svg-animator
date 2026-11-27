@@ -26,6 +26,7 @@ func deepCopyMetadata(m map[string]any) map[string]any {
 // DeepCopyNode creates an isolated deep copy of a Node.
 func DeepCopyNode(n Node) Node {
 	cp := n
+	cp.Play = deepCopyBoolPtr(n.Play)
 	cp.Visible = deepCopyBoolPtr(n.Visible)
 	cp.Metadata = deepCopyMetadata(n.Metadata)
 	return cp
@@ -38,6 +39,7 @@ func DeepCopyFlow(f Flow) Flow {
 		cp.Nodes = make([]geometry.Point, len(f.Nodes))
 		copy(cp.Nodes, f.Nodes)
 	}
+	cp.Play = deepCopyBoolPtr(f.Play)
 	cp.Visible = deepCopyBoolPtr(f.Visible)
 	cp.Metadata = deepCopyMetadata(f.Metadata)
 	return cp
@@ -46,6 +48,7 @@ func DeepCopyFlow(f Flow) Flow {
 // DeepCopyGlow creates an isolated deep copy of a Glow.
 func DeepCopyGlow(g Glow) Glow {
 	cp := g
+	cp.Play = deepCopyBoolPtr(g.Play)
 	cp.Visible = deepCopyBoolPtr(g.Visible)
 	cp.Metadata = deepCopyMetadata(g.Metadata)
 	return cp
@@ -54,6 +57,7 @@ func DeepCopyGlow(g Glow) Glow {
 // DeepCopyRipple creates an isolated deep copy of a Ripple.
 func DeepCopyRipple(r Ripple) Ripple {
 	cp := r
+	cp.Play = deepCopyBoolPtr(r.Play)
 	cp.Visible = deepCopyBoolPtr(r.Visible)
 	cp.Metadata = deepCopyMetadata(r.Metadata)
 	return cp

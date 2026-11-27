@@ -137,6 +137,14 @@ window.FloatingPropertiesEditor = {
     } else {
       multiBar.style.display = 'none';
     }
+    if (window.AppCoordinator) {
+      if (typeof window.AppCoordinator.bindMultiStaggerControls === 'function') {
+        window.AppCoordinator.bindMultiStaggerControls(multiBar);
+      }
+      if (typeof window.AppCoordinator.syncMultiStaggerUI === 'function') {
+        window.AppCoordinator.syncMultiStaggerUI(multiBar);
+      }
+    }
   },
 
   close(clearSelection = true) {
@@ -368,7 +376,24 @@ window.FloatingPropertiesEditor = {
         this._setPair('fctx-nodeStrokeWidth', node.strokeWidth !== undefined ? node.strokeWidth : 2);
         this._setVal('fctx-nodeStrokeStyleSelect', node.strokeStyle || 'solid');
         this._setPair('fctx-nodeFontSize', node.fontSize || 15);
-        this._setVal('fctx-nodeAnimSelect', node.animation || 'none');
+        const animVal = node.anim || node.animation || 'none';
+        this._setVal('fctx-nodeAnimSelect', animVal);
+        const timingGrp = document.getElementById('fctx-nodeAnimTimingGroup');
+        if (timingGrp) {
+          timingGrp.style.display = animVal !== 'none' ? 'block' : 'none';
+        }
+        this._setChk('fctx-nodePlayChk', node.play !== false);
+        const defDur = (window.DiagramNodes && typeof window.DiagramNodes.getDefaultAnimDuration === 'function')
+          ? window.DiagramNodes.getDefaultAnimDuration(animVal)
+          : (animVal === 'pulse-border' ? 2.6 : (animVal === 'float' ? 3.2 : 1.2));
+        const effDur = (node.animDur !== undefined && node.animDur !== null && Number(node.animDur) > 0)
+          ? Number(node.animDur)
+          : defDur;
+        this._setPair('fctx-nodeAnimDur', effDur);
+        const effDelay = (node.animDelay !== undefined && node.animDelay !== null && Number(node.animDelay) >= 0)
+          ? Number(node.animDelay)
+          : 0;
+        this._setPair('fctx-nodeAnimDelay', effDelay);
       } else if (this.activeType === 'flow') {
         const flow = window.DataFlows ? window.DataFlows.getFlow(this.activeId) : null;
         if (!flow) {
@@ -398,6 +423,8 @@ window.FloatingPropertiesEditor = {
         this._setPair('fctx-flowOpacity', flow.opacity !== undefined ? flow.opacity : 1.0);
         this._setPair('fctx-flowGlow', flow.glow !== undefined ? flow.glow : 0);
         this._setPair('fctx-flowScale', flow.scale !== undefined ? flow.scale : 1.0);
+        this._setChk('fctx-flowPlayChk', flow.play !== false);
+        this._setVal('fctx-flowPlaybackModeSelect', flow.playbackMode === 'once' ? 'once' : 'loop');
         this._setPair('fctx-flowSpeed', flow.speed !== undefined ? flow.speed : 2.0);
         this._setPair('fctx-flowDelay', flow.delay !== undefined ? flow.delay : 0.0);
         this._setPair('fctx-flowEndDelay', flow.endDelay !== undefined ? flow.endDelay : 0.0);
@@ -413,6 +440,7 @@ window.FloatingPropertiesEditor = {
         }
         this._setVal('fctx-glowNameInput', glow.name || '');
         this._setVal('fctx-glowShapeSelect', glow.shape || 'circle');
+        this._setChk('fctx-glowPlayChk', glow.play !== false);
         this._setVal('fctx-glowPlaybackSelect', glow.playback || 'pingpong');
         this._setVal('fctx-glowColorPicker', glow.color || '#ff0044');
         this._setPair('fctx-glowOpacity', glow.opacity !== undefined ? glow.opacity : 1.0);
@@ -444,6 +472,7 @@ window.FloatingPropertiesEditor = {
         this._setVal('fctx-rippleColorPicker', ripple.color || '#ffffff');
         this._setPair('fctx-rippleOpacity', ripple.opacity !== undefined ? ripple.opacity : 0.4);
         this._setPair('fctx-rippleRefraction', ripple.refraction !== undefined ? ripple.refraction : 35);
+        this._setChk('fctx-ripplePlayChk', ripple.play !== false);
         this._setPair('fctx-rippleDur', ripple.dur !== undefined ? ripple.dur : 3.0);
         this._setPair('fctx-rippleInnerR', ripple.innerR !== undefined ? ripple.innerR : 0);
         this._setPair('fctx-rippleOuterR', ripple.outerR !== undefined ? ripple.outerR : 150);
@@ -503,6 +532,13 @@ window.FloatingPropertiesEditor = {
         this._setVal('fctx-liteColorPicker', le.color || '#38bdf8');
         this._setPair('fctx-liteOpacity', le.opacity !== undefined ? le.opacity : 0.9);
         this._setChk('fctx-litePlayChk', le.play !== false);
+        this._setPair('fctx-liteDelay', le.delay || 0);
+        const fctxStartDelayRow = document.getElementById('fctx-liteStartDelayRow');
+        if (fctxStartDelayRow) {
+          const showSharedDelay = ['perimeter-tracer', 'pulse', 'flash', 'radar-lite'].includes(le.kind) ||
+            (le.kind === 'text-lite' && Boolean(le.textAnim) && le.textAnim !== 'none');
+          fctxStartDelayRow.style.display = showSharedDelay ? '' : 'none';
+        }
         this._setPair('fctx-liteWidth', Math.round(Number(le.width) || (le.kind === 'perimeter-tracer' ? 140 : (le.kind === 'text-lite' ? 220 : 56))));
         this._setPair('fctx-liteHeight', Math.round(Number(le.height) || (le.kind === 'perimeter-tracer' ? 80 : 56)));
         this._setPair('fctx-liteRotation', Math.round(Number(le.rotation) || 0));
@@ -963,7 +999,11 @@ window.FloatingPropertiesEditor = {
         strokeWidth: ['nodeStrokeWidthSlider', 'nodeStrokeWidthNum'],
         strokeStyle: ['nodeStrokeStyleSelect'],
         fontSize: ['nodeFontSizeSlider', 'nodeFontSizeNum'],
-        animation: ['nodeAnimSelect']
+        anim: ['nodeAnimSelect'],
+        animation: ['nodeAnimSelect'],
+        play: ['nodePlayChk'],
+        animDur: ['nodeAnimDurSlider', 'nodeAnimDurNum'],
+        animDelay: ['nodeAnimDelaySlider', 'nodeAnimDelayNum']
       },
       flow: {
         name: ['flowNameInput'],
@@ -979,6 +1019,8 @@ window.FloatingPropertiesEditor = {
         opacity: ['flowOpacitySlider', 'flowOpacityNum'],
         glow: ['flowGlowSlider', 'flowGlowNum'],
         scale: ['flowScaleSlider', 'flowScaleNum'],
+        play: ['flowPlayChk'],
+        playbackMode: ['flowPlaybackModeSelect'],
         speed: ['flowSpeedSlider', 'flowSpeedNum'],
         delay: ['flowDelaySlider', 'flowDelayNum'],
         endDelay: ['flowEndDelaySlider', 'flowEndDelayNum'],
@@ -987,6 +1029,7 @@ window.FloatingPropertiesEditor = {
       glow: {
         name: ['glowNameInput'],
         shape: ['glowShapeSelect'],
+        play: ['glowPlayChk'],
         playback: ['glowPlaybackSelect'],
         color: ['glowColorPicker'],
         opacity: ['glowOpacitySlider', 'glowOpacityNum'],
@@ -1005,6 +1048,7 @@ window.FloatingPropertiesEditor = {
         color: ['rippleColorPicker'],
         opacity: ['rippleOpacitySlider', 'rippleOpacityNum'],
         refraction: ['rippleRefractionSlider', 'rippleRefractionNum'],
+        play: ['ripplePlayChk'],
         dur: ['rippleDurSlider', 'rippleDurNum'],
         innerR: ['rippleInnerRSlider', 'rippleInnerRNum'],
         outerR: ['rippleOuterRSlider', 'rippleOuterRNum'],
@@ -1087,7 +1131,9 @@ window.FloatingPropertiesEditor = {
       { key: 'height', prefix: 'fctx-nodeHeight' },
       { key: 'fillOpacity', prefix: 'fctx-nodeFillOpacity' },
       { key: 'strokeWidth', prefix: 'fctx-nodeStrokeWidth' },
-      { key: 'fontSize', prefix: 'fctx-nodeFontSize' }
+      { key: 'fontSize', prefix: 'fctx-nodeFontSize' },
+      { key: 'animDur', prefix: 'fctx-nodeAnimDur' },
+      { key: 'animDelay', prefix: 'fctx-nodeAnimDelay' }
     ];
     nodePairs.forEach(({ key, prefix }) => {
       const slider = document.getElementById(prefix + 'Slider');
@@ -1169,16 +1215,44 @@ window.FloatingPropertiesEditor = {
     ['fctx-nodeShapeSelect', 'fctx-nodeStrokeStyleSelect', 'fctx-nodeAnimSelect'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      const key = id.includes('Shape') ? 'shape' : (id.includes('StrokeStyle') ? 'strokeStyle' : 'animation');
+      const key = id.includes('Shape') ? 'shape' : (id.includes('StrokeStyle') ? 'strokeStyle' : 'anim');
       el.addEventListener('change', (e) => {
         if (this._isSyncing || this.activeType !== 'node') return;
         if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
           window.DiagramNodes.updateActive(key, e.target.value);
           this._syncSidebar('node', key, e.target.value);
+          if (key === 'anim') {
+            const activeNode = window.DiagramNodes.getNode(this.activeId);
+            if (activeNode && typeof window.DiagramNodes.syncEditorUI === 'function') {
+              window.DiagramNodes.syncEditorUI(activeNode);
+            }
+            this.syncFromActiveObject();
+          }
         }
         if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
       });
     });
+
+    const fctxNodePlayChk = document.getElementById('fctx-nodePlayChk');
+    if (fctxNodePlayChk) {
+      fctxNodePlayChk.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'node') return;
+        if (window.DiagramNodes && typeof window.DiagramNodes.updateActive === 'function') {
+          window.DiagramNodes.updateActive('play', !!e.target.checked);
+          this._syncSidebar('node', 'play', !!e.target.checked);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    const fctxBtnNodeDelayPlayhead = document.getElementById('fctx-btnNodeDelayFromPlayhead');
+    if (fctxBtnNodeDelayPlayhead) {
+      fctxBtnNodeDelayPlayhead.addEventListener('click', () => {
+        if (this.activeType === 'node' && this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('node', this.activeId);
+        }
+      });
+    }
 
     const btnSnapPreset = document.getElementById('fctx-btnSnapNodeToPreset');
     if (btnSnapPreset) {
@@ -1275,10 +1349,10 @@ window.FloatingPropertiesEditor = {
       });
     }
 
-    ['fctx-flowRouteSelect', 'fctx-flowLineStyleSelect', 'fctx-flowArrowSelect', 'fctx-flowTypeSelect'].forEach((id) => {
+    ['fctx-flowRouteSelect', 'fctx-flowLineStyleSelect', 'fctx-flowArrowSelect', 'fctx-flowTypeSelect', 'fctx-flowPlaybackModeSelect'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      const key = id.includes('Route') ? 'route' : (id.includes('LineStyle') ? 'lineStyle' : (id.includes('Arrow') ? 'arrow' : 'type'));
+      const key = id.includes('Route') ? 'route' : (id.includes('LineStyle') ? 'lineStyle' : (id.includes('Arrow') ? 'arrow' : (id.includes('PlaybackMode') ? 'playbackMode' : 'type')));
       el.addEventListener('change', (e) => {
         if (this._isSyncing || this.activeType !== 'flow') return;
         if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
@@ -1289,10 +1363,10 @@ window.FloatingPropertiesEditor = {
       });
     });
 
-    ['fctx-flowShowLine', 'fctx-flowHideOnDelay'].forEach((id) => {
+    ['fctx-flowShowLine', 'fctx-flowHideOnDelay', 'fctx-flowPlayChk'].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      const key = id.includes('ShowLine') ? 'showLine' : 'hideOnDelay';
+      const key = id.includes('ShowLine') ? 'showLine' : (id.includes('Play') ? 'play' : 'hideOnDelay');
       el.addEventListener('change', (e) => {
         if (this._isSyncing || this.activeType !== 'flow') return;
         if (window.DataFlows && typeof window.DataFlows.updateActive === 'function') {
@@ -1302,6 +1376,15 @@ window.FloatingPropertiesEditor = {
         if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
       });
     });
+
+    const fctxBtnFlowDelayPlayhead = document.getElementById('fctx-btnFlowDelayFromPlayhead');
+    if (fctxBtnFlowDelayPlayhead) {
+      fctxBtnFlowDelayPlayhead.addEventListener('click', () => {
+        if (this.activeType === 'flow' && this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('flow', this.activeId);
+        }
+      });
+    }
 
     const flowNodeSlider = document.getElementById('fctx-flowNodeSlider');
     if (flowNodeSlider) {
@@ -1440,6 +1523,27 @@ window.FloatingPropertiesEditor = {
       });
     }
 
+    const fctxGlowPlayChk = document.getElementById('fctx-glowPlayChk');
+    if (fctxGlowPlayChk) {
+      fctxGlowPlayChk.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'glow') return;
+        if (window.Glows) {
+          window.Glows.updateActive('play', !!e.target.checked);
+          this._syncSidebar('glow', 'play', !!e.target.checked);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    const fctxBtnGlowDelayPlayhead = document.getElementById('fctx-btnGlowDelayFromPlayhead');
+    if (fctxBtnGlowDelayPlayhead) {
+      fctxBtnGlowDelayPlayhead.addEventListener('click', () => {
+        if (this.activeType === 'glow' && this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('glow', this.activeId);
+        }
+      });
+    }
+
     const btnDelGlow = document.getElementById('fctx-btnDeleteGlow');
     if (btnDelGlow) {
       btnDelGlow.addEventListener('click', () => {
@@ -1522,6 +1626,27 @@ window.FloatingPropertiesEditor = {
       });
     }
 
+    const fctxRipplePlayChk = document.getElementById('fctx-ripplePlayChk');
+    if (fctxRipplePlayChk) {
+      fctxRipplePlayChk.addEventListener('change', (e) => {
+        if (this._isSyncing || this.activeType !== 'ripple') return;
+        if (window.Ripples) {
+          window.Ripples.updateActive('play', !!e.target.checked);
+          this._syncSidebar('ripple', 'play', !!e.target.checked);
+        }
+        if (window.AppCoordinator) window.AppCoordinator.recordHistoryImmediate();
+      });
+    }
+
+    const fctxBtnRippleDelayPlayhead = document.getElementById('fctx-btnRippleDelayFromPlayhead');
+    if (fctxBtnRippleDelayPlayhead) {
+      fctxBtnRippleDelayPlayhead.addEventListener('click', () => {
+        if (this.activeType === 'ripple' && this.activeId !== null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+          window.AppCoordinator.setStartDelayFromPlayhead('ripple', this.activeId);
+        }
+      });
+    }
+
     const btnDelRipple = document.getElementById('fctx-btnDeleteRipple');
     if (btnDelRipple) {
       btnDelRipple.addEventListener('click', () => {
@@ -1590,7 +1715,8 @@ window.FloatingPropertiesEditor = {
       ['fctx-liteTextTypeSpeed', 'typeSpeed', false],
       ['fctx-liteTextCycleSpeed', 'speed', false],
       ['fctx-liteTextHoldDelay', 'holdDelay', false],
-      ['fctx-liteTextClearDuration', 'clearDuration', false]
+      ['fctx-liteTextClearDuration', 'clearDuration', false],
+      ['fctx-liteDelay', 'delay', false]
     ];
     litePairs.forEach(([baseId, prop, isInt]) => {
       const slider = document.getElementById(baseId + 'Slider');
@@ -1695,6 +1821,19 @@ window.FloatingPropertiesEditor = {
     bindLiteSimple('fctx-liteTextBorderColorPicker', 'borderColor', 'input');
     bindLiteSimple('fctx-liteTextShowGuideChk', 'showGuide', 'change', true);
     bindLiteSimple('fctx-liteTextAnimSelect', 'textAnim', 'change');
+    document.getElementById('fctx-liteTextAnimSelect')?.addEventListener('change', () => {
+      if (!this._isSyncing) this.syncFromActiveObject();
+    });
+    document.getElementById('fctx-btnLiteDelayFromPlayhead')?.addEventListener('click', () => {
+      if (this.activeType === 'lite' && this.activeId != null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+        window.AppCoordinator.setStartDelayFromPlayhead('lite', this.activeId);
+      }
+    });
+    document.getElementById('fctx-btnLiteFlowDelayFromPlayhead')?.addEventListener('click', () => {
+      if (this.activeType === 'lite' && this.activeId != null && window.AppCoordinator && typeof window.AppCoordinator.setStartDelayFromPlayhead === 'function') {
+        window.AppCoordinator.setStartDelayFromPlayhead('lite', this.activeId);
+      }
+    });
     bindLiteSimple('fctx-liteTextPlaybackModeSelect', 'playbackMode', 'change');
     bindLiteSimple('fctx-liteTextWordWrapChk', 'wordWrap', 'change', true);
     bindLiteSimple('fctx-liteTextDirectionSelect', 'direction', 'change');
@@ -2477,5 +2616,7 @@ window.FloatingPropertiesEditor = {
     }
   }
 };
+
+window.FloatingContextEditor = window.FloatingPropertiesEditor;
 
 })();

@@ -167,6 +167,20 @@ func (p PresetConfig) ApplyPresetToNode(n *Node) bool {
 			changed = true
 		}
 	}
+	if param, ok := p.Preset["animDur"]; ok && param.Enabled {
+		ad := toFloat64(param.Value, n.AnimDur)
+		if ad >= 0 && n.AnimDur != ad {
+			n.AnimDur = ad
+			changed = true
+		}
+	}
+	if param, ok := p.Preset["animDelay"]; ok && param.Enabled {
+		dl := toFloat64(param.Value, n.AnimDelay)
+		if dl >= 0 && n.AnimDelay != dl {
+			n.AnimDelay = dl
+			changed = true
+		}
+	}
 
 	return changed
 }
